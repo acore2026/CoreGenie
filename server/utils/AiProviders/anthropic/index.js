@@ -210,7 +210,10 @@ class AnthropicLLM {
     ];
   }
 
-  async getChatCompletion(messages = null, { temperature = 0.7 }) {
+  async getChatCompletion(
+    messages = null,
+    { temperature = 0.7, maxTokens = null }
+  ) {
     await this.assertModelMaxTokens();
     try {
       const systemContent = messages[0].content;
@@ -226,7 +229,7 @@ class AnthropicLLM {
         this.anthropic.messages
           .stream({
             model: this.model,
-            max_tokens: this.maxTokens,
+            max_tokens: maxTokens || this.maxTokens,
             system: this.#buildSystemPrompt(systemContent),
             messages: messages.slice(1), // Pop off the system message
             temperature: this.temperatureParam(temperature),

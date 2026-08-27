@@ -20,7 +20,10 @@ import { Link } from "react-router-dom";
 import { chatQueryRefusalResponse } from "@/utils/chat";
 import HistoricalOutputs from "./HistoricalOutputs";
 import HistoricalClarifyingQuestions from "./HistoricalClarifyingQuestions";
+import AgentStatus from "../AgentStatus";
 import { openImageLightbox } from "@/components/ImageLightbox";
+import SubagentRun from "../SubagentRun";
+import ContextTrace from "../ContextTrace";
 
 const HistoricalMessage = ({
   uuid: uuidProp,
@@ -39,12 +42,18 @@ const HistoricalMessage = ({
   metrics = {},
   outputs = [],
   clarifyingQuestions = [],
+  agentTrace = [],
+  subagentRuns = [],
+  contextTraces = [],
 }) => {
   // Freeze uuid on first render. User messages arrive without a uuid and this value
   // is used as the wrapper div's `key` — a default param fallback would regenerate
   // on every render and remount the subtree, wiping TruncatableContent state.
   const [uuid] = useState(() => uuidProp ?? v4());
   const { t } = useTranslation();
+  const completedAgentTrace = agentTrace.filter(
+    (entry) => !["finalizing", "completed"].includes(entry.phase)
+  );
   const { isEditing } = useEditMessage({ chatId, role });
   const { isDeleted, completeDelete, onEndAnimation } = useWatchDeleteMessage({
     chatId,
@@ -147,7 +156,31 @@ const HistoricalMessage = ({
           />
         ) : (
           <div className="break-words">
+            {completedAgentTrace.length > 0 && (
+              <div className="mb-3">
+                <AgentStatus
+                  summary={t("chat_window.agent_invocation.session_complete")}
+                  phase="completed"
+                  active={false}
+                  details={completedAgentTrace}
+                />
+              </div>
+            )}
             <HistoricalClarifyingQuestions surveys={clarifyingQuestions} />
+            {contextTraces.length > 0 && (
+              <div className="mb-3 space-y-2">
+                {contextTraces.map((trace) => (
+                  <ContextTrace key={trace.id} trace={trace} />
+                ))}
+              </div>
+            )}
+            {subagentRuns.length > 0 && (
+              <div className="mb-3 space-y-2">
+                {subagentRuns.map((run) => (
+                  <SubagentRun key={run.id} run={run} />
+                ))}
+              </div>
+            )}
             <RenderChatContent role={role} message={message} messageId={uuid} />
             {isRefusalMessage && (
               <Link
@@ -207,10 +240,12 @@ export default memo(
       prevProps.message === nextProps.message &&
       prevProps.isLastMessage === nextProps.isLastMessage &&
       prevProps.chatId === nextProps.chatId &&
-      JSON.stringify(prevProps.metrics) === JSON.stringify(nextProps.metrics) &&
-      JSON.stringify(prevProps.sources) === JSON.stringify(nextProps.sources) &&
-      JSON.stringify(prevProps.clarifyingQuestions) ===
-        JSON.stringify(nextProps.clarifyingQuestions)
+      prevProps.metrics === nextProps.metrics &&
+      prevProps.sources === nextProps.sources &&
+      prevProps.clarifyingQuestions === nextProps.clarifyingQuestions &&
+      prevProps.agentTrace === nextProps.agentTrace &&
+      prevProps.subagentRuns === nextProps.subagentRuns &&
+      prevProps.contextTraces === nextProps.contextTraces
     );
   }
 );

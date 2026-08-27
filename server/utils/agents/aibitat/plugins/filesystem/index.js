@@ -8,6 +8,7 @@ const { FilesystemMoveFile } = require("./move-file.js");
 const { FilesystemCopyFile } = require("./copy-file.js");
 const { FilesystemSearchFiles } = require("./search-files.js");
 const { FilesystemGetFileInfo } = require("./get-file-info.js");
+const { FilesystemDeletePath } = require("./delete-path.js");
 
 const filesystemAgent = {
   name: "filesystem-agent",
@@ -25,6 +26,7 @@ const filesystemAgent = {
     FilesystemCopyFile,
     FilesystemSearchFiles,
     FilesystemGetFileInfo,
+    FilesystemDeletePath,
   ],
 };
 

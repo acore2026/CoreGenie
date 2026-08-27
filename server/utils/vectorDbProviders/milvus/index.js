@@ -40,15 +40,25 @@ class Milvus extends VectorDatabase {
       address: process.env.MILVUS_ADDRESS,
       username: process.env.MILVUS_USERNAME,
       password: process.env.MILVUS_PASSWORD,
+      timeout: 10_000,
+      maxRetries: 0,
     });
+    try {
+      // The SDK starts this RPC in its constructor. Attach a rejection handler
+      // before issuing a health check so an offline database cannot become an
+      // unhandled rejection that crashes the application process.
+      await client.connectPromise;
+      const { isHealthy } = await client.checkHealth();
+      if (!isHealthy)
+        throw new Error(
+          `${this.name}::Invalid Heartbeat received - is the instance online?`
+        );
 
-    const { isHealthy } = await client.checkHealth();
-    if (!isHealthy)
-      throw new Error(
-        `${this.name}::Invalid Heartbeat received - is the instance online?`
-      );
-
-    return { client };
+      return { client };
+    } catch (error) {
+      client.closeConnection();
+      throw new Error(`${this.name}::Connection failed: ${error.message}`);
+    }
   }
 
   async heartbeat() {

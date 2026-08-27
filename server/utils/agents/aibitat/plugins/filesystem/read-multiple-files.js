@@ -63,16 +63,22 @@ module.exports.FilesystemReadMultipleFiles = {
               this.super.introspect(
                 `${this.caller}: Reading ${paths.length} files`
               );
+              const workspaceFilesystem = filesystem.forInvocation(
+                this.super.handlerProps.invocation
+              );
 
               const results = await Promise.all(
                 paths.map(async (filePath) => {
                   try {
-                    const validPath = await filesystem.validatePath(filePath);
+                    const validPath =
+                      await workspaceFilesystem.validatePath(filePath);
                     const filename = path.basename(validPath);
 
-                    if (filesystem.isImageFile(validPath)) {
+                    if (workspaceFilesystem.isImageFile(validPath)) {
                       const attachment =
-                        await filesystem.readImageAsAttachment(validPath);
+                        await workspaceFilesystem.readImageAsAttachment(
+                          validPath
+                        );
                       if (attachment) {
                         this.super.addToolAttachment?.(attachment);
                         return {
@@ -89,7 +95,8 @@ module.exports.FilesystemReadMultipleFiles = {
                       };
                     }
 
-                    const content = await filesystem.readFileContent(validPath);
+                    const content =
+                      await workspaceFilesystem.readFileContent(validPath);
 
                     this.super.addCitation?.({
                       id: `fs-${Buffer.from(validPath).toString("base64url").slice(0, 32)}`,
@@ -119,7 +126,7 @@ module.exports.FilesystemReadMultipleFiles = {
                 .join("\n---\n");
 
               const { content: finalContent, wasTruncated } =
-                filesystem.truncateContentForContext(
+                workspaceFilesystem.truncateContentForContext(
                   combinedContent,
                   this.super,
                   "[Content truncated - combined files exceed context limit. Consider reading fewer files at once.]"

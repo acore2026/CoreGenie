@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { Tooltip } from "react-tooltip";
 
 import BlockList, { BLOCK_TYPES, BLOCK_INFO } from "./BlockList";
@@ -9,8 +9,10 @@ import AgentFlows from "@/models/agentFlows";
 import { useTheme } from "@/hooks/useTheme";
 import HeaderMenu from "./HeaderMenu";
 import paths from "@/utils/paths";
-import PublishEntityModal from "@/components/CommunityHub/PublishEntityModal";
 import { AvailableVariablesProvider } from "./useAvailableVariables";
+import PredefinedAgent from "@/models/predefinedAgent";
+import Sidebar from "@/components/SettingsSidebar";
+import { isMobile } from "react-device-detect";
 
 const DEFAULT_BLOCKS = [
   {
@@ -40,6 +42,7 @@ const DEFAULT_BLOCKS = [
 
 export default function AgentBuilder() {
   const { flowId } = useParams();
+  const { pathname } = useLocation();
   const { theme } = useTheme();
   const navigate = useNavigate();
   const [agentName, setAgentName] = useState("");
@@ -50,13 +53,22 @@ export default function AgentBuilder() {
   const [selectedBlock, setSelectedBlock] = useState("start");
   const [showBlockMenu, setShowBlockMenu] = useState(false);
   const [availableFlows, setAvailableFlows] = useState([]);
+  const [predefinedAgents, setPredefinedAgents] = useState([]);
   const nameRef = useRef(null);
   const descriptionRef = useRef(null);
-  const [showPublishModal, setShowPublishModal] = useState(false);
+  const nativeSettingsView = pathname.startsWith(paths.settings.agentFlows());
 
   useEffect(() => {
     loadAvailableFlows();
+    loadPredefinedAgents();
   }, []);
+
+  const loadPredefinedAgents = async () => {
+    const { agents } = await PredefinedAgent.list();
+    setPredefinedAgents(
+      agents.filter((agent) => !agent.isBuiltinDefault && agent.enabled)
+    );
+  };
 
   useEffect(() => {
     if (flowId) {
@@ -219,9 +231,12 @@ export default function AgentBuilder() {
       );
       if (!success) throw new Error(error);
 
+      const wasNewFlow = !currentFlowUuid;
       setCurrentFlowUuid(flow.uuid);
       showToast("Agent flow saved successfully!", "success", { clear: true });
       await loadAvailableFlows();
+      if (wasNewFlow && nativeSettingsView)
+        navigate(paths.settings.agentFlows(flow.uuid), { replace: true });
     } catch (error) {
       console.error("Save error details:", error);
       showToast(`Failed to save agent flow. ${error.message}`, "error", {
@@ -307,90 +322,85 @@ export default function AgentBuilder() {
     setBlocks(newBlocks);
   };
 
-  const handlePublishFlow = () => {
-    setShowPublishModal(true);
-  };
+  const builder = (
+    <div
+      style={{
+        backgroundImage:
+          theme === "light"
+            ? "radial-gradient(rgba(0, 0, 0, 0.1) 1px, transparent 0)"
+            : "radial-gradient(rgba(255, 255, 255, 0.1) 1px, transparent 0)",
+        backgroundSize: "15px 15px",
+        backgroundPosition: "-7.5px -7.5px",
+      }}
+      className={`relative flex h-full min-w-0 flex-1 flex-col overflow-clip bg-theme-bg-primary ${
+        nativeSettingsView ? "rounded-2xl" : "h-screen w-screen"
+      }`}
+    >
+      <HeaderMenu
+        agentName={agentName}
+        availableFlows={availableFlows}
+        onNewFlow={clearFlow}
+        onSaveFlow={saveFlow}
+        active={active}
+        onActiveChange={setActive}
+      />
+      <div className="flex-1 min-h-0 p-6 overflow-y-auto">
+        <div
+          className={`max-w-xl mx-auto mt-14 ${showBlockMenu ? "pb-52" : ""}`}
+        >
+          <BlockList
+            blocks={blocks}
+            updateBlockConfig={updateBlockConfig}
+            removeBlock={removeBlock}
+            toggleBlockExpansion={toggleBlockExpansion}
+            renderVariableSelect={renderVariableSelect}
+            onDeleteVariable={deleteVariable}
+            moveBlock={moveBlock}
+            refs={{ nameRef, descriptionRef }}
+            predefinedAgents={predefinedAgents}
+          />
 
-  const flowInfoBlock = blocks.find(
-    (block) => block.type === BLOCK_TYPES.FLOW_INFO
+          <AddBlockMenu
+            blocks={blocks}
+            showBlockMenu={showBlockMenu}
+            setShowBlockMenu={setShowBlockMenu}
+            addBlock={addBlock}
+          />
+        </div>
+      </div>
+      <Tooltip
+        id="content-summarization-tooltip"
+        place="top"
+        delayShow={300}
+        className="tooltip !text-xs z-99"
+      >
+        <p className="text-sm">
+          When enabled, long webpage content will be automatically summarized to
+          reduce token usage.
+          <br />
+          <br />
+          Note: This may affect data quality and remove specific details from
+          the original content.
+        </p>
+      </Tooltip>
+    </div>
   );
-  const flowEntity = {
-    name: flowInfoBlock?.config?.name || "",
-    description: flowInfoBlock?.config?.description || "",
-    steps: blocks
-      .filter(
-        (block) =>
-          block.type !== BLOCK_TYPES.FINISH &&
-          block.type !== BLOCK_TYPES.FLOW_INFO
-      )
-      .map((block) => ({ type: block.type, config: block.config })),
-  };
 
   return (
     <AvailableVariablesProvider blocks={blocks}>
-      <div
-        style={{
-          backgroundImage:
-            theme === "light"
-              ? "radial-gradient(rgba(0, 0, 0, 0.1) 1px, transparent 0)"
-              : "radial-gradient(rgba(255, 255, 255, 0.1) 1px, transparent 0)",
-          backgroundSize: "15px 15px",
-          backgroundPosition: "-7.5px -7.5px",
-        }}
-        className="relative w-screen h-screen flex flex-col bg-theme-bg-primary overflow-clip"
-      >
-        <PublishEntityModal
-          show={showPublishModal}
-          onClose={() => setShowPublishModal(false)}
-          entityType="agent-flow"
-          entity={flowEntity}
-        />
-        <HeaderMenu
-          agentName={agentName}
-          availableFlows={availableFlows}
-          onNewFlow={clearFlow}
-          onSaveFlow={saveFlow}
-          onPublishFlow={handlePublishFlow}
-        />
-        <div className="flex-1 min-h-0 p-6 overflow-y-auto">
+      {nativeSettingsView ? (
+        <div className="flex h-screen w-screen overflow-hidden bg-theme-bg-container md:mt-0 mt-6">
+          <Sidebar />
           <div
-            className={`max-w-xl mx-auto mt-14 ${showBlockMenu ? "pb-52" : ""}`}
+            style={{ height: isMobile ? "100%" : "calc(100% - 32px)" }}
+            className="relative flex h-full min-w-0 flex-1 md:ml-[2px] md:mr-[16px] md:my-[16px]"
           >
-            <BlockList
-              blocks={blocks}
-              updateBlockConfig={updateBlockConfig}
-              removeBlock={removeBlock}
-              toggleBlockExpansion={toggleBlockExpansion}
-              renderVariableSelect={renderVariableSelect}
-              onDeleteVariable={deleteVariable}
-              moveBlock={moveBlock}
-              refs={{ nameRef, descriptionRef }}
-            />
-
-            <AddBlockMenu
-              blocks={blocks}
-              showBlockMenu={showBlockMenu}
-              setShowBlockMenu={setShowBlockMenu}
-              addBlock={addBlock}
-            />
+            {builder}
           </div>
         </div>
-        <Tooltip
-          id="content-summarization-tooltip"
-          place="top"
-          delayShow={300}
-          className="tooltip !text-xs z-99"
-        >
-          <p className="text-sm">
-            When enabled, long webpage content will be automatically summarized
-            to reduce token usage.
-            <br />
-            <br />
-            Note: This may affect data quality and remove specific details from
-            the original content.
-          </p>
-        </Tooltip>
-      </div>
+      ) : (
+        builder
+      )}
     </AvailableVariablesProvider>
   );
 }

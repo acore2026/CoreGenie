@@ -13,6 +13,9 @@ const { outlookAgent } = require("./outlook/index.js");
 const { googleCalendarAgent } = require("./google-calendar/index.js");
 const { requestUserInput } = require("./request-user-input.js");
 const { createScheduledJob } = require("./create-scheduled-job/index.js");
+const { bash } = require("./sandbox/bash.js");
+const { python } = require("./sandbox/python.js");
+const { callSubagent } = require("./call-subagent.js");
 
 module.exports = {
   webScraping,
@@ -30,6 +33,9 @@ module.exports = {
   googleCalendarAgent,
   requestUserInput,
   createScheduledJob,
+  bash,
+  python,
+  callSubagent,
 
   // Plugin name aliases so they can be pulled by slug as well.
   [webScraping.name]: webScraping,
@@ -47,4 +53,7 @@ module.exports = {
   [googleCalendarAgent.name]: googleCalendarAgent,
   [requestUserInput.name]: requestUserInput,
   [createScheduledJob.name]: createScheduledJob,
+  [bash.name]: bash,
+  [python.name]: python,
+  [callSubagent.name]: callSubagent,
 };

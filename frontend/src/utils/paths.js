@@ -26,6 +26,8 @@ export default {
   login: (noTry = false) => {
     return `/login${noTry ? "?nt=1" : ""}`;
   },
+  register: () => "/register",
+  publicChatShare: (token) => `/share/chat/${token}`,
   sso: {
     login: () => {
       return "/sso/simple";
@@ -125,9 +127,6 @@ export default {
     audioPreference: () => {
       return "/settings/audio-preference";
     },
-    defaultSystemPrompt: () => {
-      return "/settings/default-system-prompt";
-    },
     embedder: {
       modelPreference: () => "/settings/embedding-preference",
       chunkingPreference: () => "/settings/text-splitter-preference",
@@ -148,19 +147,30 @@ export default {
       return "/settings/branding";
     },
     agentSkills: () => {
+      return "/settings/agents/tools";
+    },
+    agents: () => {
       return "/settings/agents";
+    },
+    predefinedAgentSkills: () => {
+      return "/settings/agents/skills";
+    },
+    agentTools: () => {
+      return "/settings/agents/tools";
+    },
+    agentPrompts: () => {
+      return "/settings/agents/prompts";
+    },
+    agentFlows: (flowId = null) => {
+      return flowId
+        ? `/settings/agents/flows/${flowId}`
+        : "/settings/agents/flows";
     },
     chat: () => {
       return "/settings/chat";
     },
     apiKeys: () => {
       return "/settings/api-keys";
-    },
-    modelRouters: () => {
-      return "/settings/model-routers";
-    },
-    modelRouterRules: (id) => {
-      return `/settings/model-routers/${id}`;
     },
     systemPromptVariables: () => "/settings/system-prompt-variables",
     logs: () => {
@@ -199,47 +209,12 @@ export default {
   },
   agents: {
     builder: () => {
-      return `/settings/agents/builder`;
+      return `/settings/agents/flows`;
     },
     editAgent: (uuid) => {
-      return `/settings/agents/builder/${uuid}`;
+      return `/settings/agents/flows/${uuid}`;
     },
   },
-  communityHub: {
-    website: () => {
-      return import.meta.env.DEV
-        ? `http://localhost:5173`
-        : `https://hub.anythingllm.com`;
-    },
-    /**
-     * View more items of a given type on the community hub.
-     * @param {string} type - The type of items to view more of. Should be kebab-case.
-     * @returns {string} The path to view more items of the given type.
-     */
-    viewMoreOfType: function (type) {
-      return `${this.website()}/list/${type}`;
-    },
-    viewItem: function (type, id) {
-      return `${this.website()}/i/${type}/${id}`;
-    },
-    trending: () => {
-      return `/settings/community-hub/trending`;
-    },
-    authentication: () => {
-      return `/settings/community-hub/authentication`;
-    },
-    importItem: (importItemId) => {
-      return `/settings/community-hub/import-item${importItemId ? `?id=${importItemId}` : ""}`;
-    },
-    profile: function (username) {
-      if (username) return `${this.website()}/u/${username}`;
-      return `${this.website()}/me`;
-    },
-    noPrivateItems: () => {
-      return "https://docs.anythingllm.com/community-hub/faq#no-private-items";
-    },
-  },
-
   // TODO: Migrate all docs.anythingllm.com links to the new docs.
   documentation: {
     mobileIntroduction: () => {

@@ -32,6 +32,22 @@ const router = createBrowserRouter([
         element: <Login />,
       },
       {
+        path: "/register",
+        lazy: async () => {
+          const { default: Register } = await import("@/pages/Register");
+          return { element: <Register /> };
+        },
+      },
+      {
+        path: "/share/chat/:token",
+        lazy: async () => {
+          const { default: PublicChatShare } = await import(
+            "@/pages/PublicChatShare"
+          );
+          return { element: <PublicChatShare /> };
+        },
+      },
+      {
         path: "/sso/simple",
         element: <SimpleSSOPassthrough />,
       },
@@ -134,6 +150,51 @@ const router = createBrowserRouter([
         },
       },
       {
+        path: "/settings/agents/skills",
+        lazy: async () => {
+          const { default: AdminAgents } = await import("@/pages/Admin/Agents");
+          return { element: <AdminRoute Component={AdminAgents} /> };
+        },
+      },
+      {
+        path: "/settings/agents/tools",
+        lazy: async () => {
+          const { default: AdminAgents } = await import("@/pages/Admin/Agents");
+          return { element: <AdminRoute Component={AdminAgents} /> };
+        },
+      },
+      {
+        path: "/settings/agents/prompts",
+        lazy: async () => {
+          const { default: AgentPromptSettings } = await import(
+            "@/pages/Admin/Agents/PromptSettings"
+          );
+          return { element: <AdminRoute Component={AgentPromptSettings} /> };
+        },
+      },
+      {
+        path: "/settings/agents/flows",
+        lazy: async () => {
+          const { default: AgentBuilder } = await import(
+            "@/pages/Admin/AgentBuilder"
+          );
+          return {
+            element: <AdminRoute Component={AgentBuilder} hideUserMenu />,
+          };
+        },
+      },
+      {
+        path: "/settings/agents/flows/:flowId",
+        lazy: async () => {
+          const { default: AgentBuilder } = await import(
+            "@/pages/Admin/AgentBuilder"
+          );
+          return {
+            element: <AdminRoute Component={AgentBuilder} hideUserMenu />,
+          };
+        },
+      },
+      {
         path: "/settings/agents/builder",
         lazy: async () => {
           const { default: AgentBuilder } = await import(
@@ -213,15 +274,6 @@ const router = createBrowserRouter([
         },
       },
       {
-        path: "/settings/default-system-prompt",
-        lazy: async () => {
-          const { default: DefaultSystemPrompt } = await import(
-            "@/pages/Admin/DefaultSystemPrompt"
-          );
-          return { element: <AdminRoute Component={DefaultSystemPrompt} /> };
-        },
-      },
-      {
         path: "/settings/chat",
         lazy: async () => {
           const { default: ChatSettings } = await import(
@@ -246,24 +298,6 @@ const router = createBrowserRouter([
             "@/pages/GeneralSettings/ApiKeys"
           );
           return { element: <AdminRoute Component={GeneralApiKeys} /> };
-        },
-      },
-      {
-        path: "/settings/model-routers",
-        lazy: async () => {
-          const { default: ModelRouters } = await import(
-            "@/pages/GeneralSettings/ModelRouters"
-          );
-          return { element: <AdminRoute Component={ModelRouters} /> };
-        },
-      },
-      {
-        path: "/settings/model-routers/:id",
-        lazy: async () => {
-          const { default: RouterRulesPage } = await import(
-            "@/pages/GeneralSettings/ModelRouters/RouterRulesPage"
-          );
-          return { element: <AdminRoute Component={RouterRulesPage} /> };
         },
       },
       {
@@ -340,37 +374,6 @@ const router = createBrowserRouter([
           );
           return {
             element: <AdminRoute Component={LiveDocumentSyncManage} />,
-          };
-        },
-      },
-      {
-        path: "/settings/community-hub/trending",
-        lazy: async () => {
-          const { default: CommunityHubTrending } = await import(
-            "@/pages/GeneralSettings/CommunityHub/Trending"
-          );
-          return { element: <AdminRoute Component={CommunityHubTrending} /> };
-        },
-      },
-      {
-        path: "/settings/community-hub/authentication",
-        lazy: async () => {
-          const { default: CommunityHubAuthentication } = await import(
-            "@/pages/GeneralSettings/CommunityHub/Authentication"
-          );
-          return {
-            element: <AdminRoute Component={CommunityHubAuthentication} />,
-          };
-        },
-      },
-      {
-        path: "/settings/community-hub/import-item",
-        lazy: async () => {
-          const { default: CommunityHubImportItem } = await import(
-            "@/pages/GeneralSettings/CommunityHub/ImportItem"
-          );
-          return {
-            element: <AdminRoute Component={CommunityHubImportItem} />,
           };
         },
       },

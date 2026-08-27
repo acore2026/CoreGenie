@@ -19,7 +19,13 @@ const WorkspaceAgentInvocation = {
     } catch {}
   },
 
-  new: async function ({ prompt, workspace, user = null, thread = null }) {
+  new: async function ({
+    prompt,
+    workspace,
+    user = null,
+    thread = null,
+    predefinedAgentId = null,
+  }) {
     try {
       const invocation = await prisma.workspace_agent_invocations.create({
         data: {
@@ -28,6 +34,7 @@ const WorkspaceAgentInvocation = {
           prompt: String(prompt),
           user_id: user?.id,
           thread_id: thread?.id,
+          agent_id: predefinedAgentId ? Number(predefinedAgentId) : null,
         },
       });
 

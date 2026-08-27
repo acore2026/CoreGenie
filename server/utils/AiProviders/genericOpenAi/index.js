@@ -224,14 +224,18 @@ class GenericOpenAiLLM {
     };
   }
 
-  async getChatCompletion(messages = null, { temperature = 0.7 }) {
+  async getChatCompletion(
+    messages = null,
+    { temperature = 0.7, thinking = true, maxTokens = null }
+  ) {
     const result = await LLMPerformanceMonitor.measureAsyncFunction(
       this.openai.chat.completions
         .create({
           model: this.model,
           messages,
           temperature,
-          max_tokens: this.maxTokens,
+          max_tokens: maxTokens || this.maxTokens,
+          ...(thinking === false ? { thinking: { type: "disabled" } } : {}),
         })
         .catch((e) => {
           throw new Error(e.message);

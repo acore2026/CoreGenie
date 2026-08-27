@@ -84,7 +84,11 @@ const TRANSLATIONS = {
     "event-logs": "事件記錄",
     privacy: "隱私與資料",
     "ai-providers": "AI 服務提供者",
-    "agent-skills": "智慧代理人技能",
+    "agent-skills": "Agent技能",
+    agents: "Agents",
+    "predefined-agent-skills": "Skills",
+    "agent-tools": "Agent Tools",
+    "agent-flows": "Agent Flows",
     admin: "管理",
     tools: "工具",
     "experimental-features": "實驗性功能",
@@ -130,12 +134,24 @@ const TRANSLATIONS = {
     title: "新增工作區",
     placeholder: "我的工作區",
   },
+  "sidebar-create": {
+    title: "新增",
+    thread: "新增對話",
+    "creating-thread": "正在建立對話…",
+    "thread-hint": "在目前工作區中",
+    workspace: "新增工作區",
+    "confirm-workspace": "建立工作區",
+    "creating-workspace": "正在建立工作區…",
+    "workspace-hint": "建立獨立工作空間",
+    "no-workspace": "請先建立或選擇工作區。",
+    "thread-failed": "建立對話失敗。",
+  },
   "workspaces—settings": {
     general: "一般設定",
     chat: "對話設定",
     vector: "向量資料庫",
     members: "成員",
-    agent: "智慧代理人設定",
+    agent: "Agent設定",
   },
   general: {
     vector: {
@@ -258,7 +274,7 @@ const TRANSLATIONS = {
     "performance-warning":
       "對於未明確支援工具呼叫的 LLM，其效能高度仰賴模型本身的能力與準確度。部分功能可能受限，甚至無法使用。",
     provider: {
-      title: "工作區智慧代理人 LLM 提供者",
+      title: "工作區Agent LLM 提供者",
       description: "這個工作區的 @agent 會使用的 LLM 提供者與模型。",
     },
     mode: {
@@ -274,36 +290,36 @@ const TRANSLATIONS = {
       rag: {
         title: "RAG 與長期記憶體",
         description:
-          "讓智慧代理人可運用本機文件回答問題，也能要求智慧代理人「記住」特定內容片段，以供長期記憶擷取。",
+          "讓Agent可運用本機文件回答問題，也能要求Agent「記住」特定內容片段，以供長期記憶擷取。",
       },
       view: {
         title: "檢視並摘要文件",
-        description: "允許智慧代理人列出並摘要目前已嵌入的工作區檔案內容。",
+        description: "允許Agent列出並摘要目前已嵌入的工作區檔案內容。",
       },
       scrape: {
         title: "擷取網站",
-        description: "允許智慧代理人瀏覽並擷取網站內容。",
+        description: "允許Agent瀏覽並擷取網站內容。",
       },
       generate: {
         title: "產生圖表",
         description:
-          "讓預設智慧代理人能夠根據提供的資料或對話中給定的資料來產生各種圖表。",
+          "讓預設Agent能夠根據提供的資料或對話中給定的資料來產生各種圖表。",
       },
       web: {
         title: "網頁搜尋",
         description:
-          "透過連接網頁搜尋 (SERP) 提供者，讓智慧代理人能搜尋網路並回答問題。",
+          "透過連接網頁搜尋 (SERP) 提供者，讓Agent能搜尋網路並回答問題。",
       },
       sql: {
         title: "SQL 連接器",
         description:
-          "讓您的智慧代理人能夠利用 SQL 查詢來回答您的問題，只需連接到不同的 SQL 資料庫提供者即可。",
+          "讓您的Agent能夠利用 SQL 查詢來回答您的問題，只需連接到不同的 SQL 資料庫提供者即可。",
       },
-      default_skill: "這項技能預設為啟用；若不希望智慧代理人使用，也可以停用。",
+      default_skill: "這項技能預設為啟用；若不希望Agent使用，也可以停用。",
       filesystem: {
         title: "檔案系統存取",
         description:
-          "允許您的代理程式在指定目錄中讀取、寫入、搜尋和管理檔案。支援檔案編輯、目錄導航和內容搜尋功能。",
+          "允許您的Agent在指定目錄中讀取、寫入、搜尋和管理檔案。支援檔案編輯、目錄導航和內容搜尋功能。",
         learnMore: "了解更多關於如何運用這項技能的資訊",
         configuration: "設定",
         readActions: "閱讀行動",
@@ -356,7 +372,7 @@ const TRANSLATIONS = {
       createFiles: {
         title: "文件建立",
         description:
-          "允許您的代理創建二元文件格式，例如PowerPoint簡報、Excel電子表格、Word文件和PDF文件。 文件可以直接從聊天窗口下載。",
+          "允許您的Agent創建二元文件格式，例如PowerPoint簡報、Excel電子表格、Word文件和PDF文件。 文件可以直接從聊天窗口下載。",
         configuration: "可用的文件類型",
         skills: {
           "create-text-file": {
@@ -386,7 +402,7 @@ const TRANSLATIONS = {
       gmail: {
         title: "Gmail 連接器",
         description:
-          "讓您的代理能夠與 Gmail 互動：搜尋郵件、閱讀郵件討論、撰寫草稿、發送郵件，以及管理您的收件匣。請參閱相關文件。",
+          "讓您的Agent能夠與 Gmail 互動：搜尋郵件、閱讀郵件討論、撰寫草稿、發送郵件，以及管理您的收件匣。請參閱相關文件。",
         multiUserWarning:
           "由於安全考量，Gmail 整合功能在多使用者模式下無法使用。請停用多使用者模式才能使用此功能。",
         configuration: "Gmail 設定",
@@ -498,7 +514,7 @@ const TRANSLATIONS = {
       outlook: {
         title: "Outlook 連接器",
         description:
-          "讓您的代理能夠與 Microsoft Outlook 互動 - 搜尋郵件、閱讀討論串、撰寫草稿、發送郵件，以及透過 Microsoft Graph API 管理您的收件匣。 詳情請參考<a>相關文件</a>。",
+          "讓您的Agent能夠與 Microsoft Outlook 互動 - 搜尋郵件、閱讀討論串、撰寫草稿、發送郵件，以及透過 Microsoft Graph API 管理您的收件匣。 詳情請參考<a>相關文件</a>。",
         multiUserWarning:
           "由於安全原因，Outlook 整合功能在多使用者模式下無法使用。請先停用多使用者模式，才能使用此功能。",
         configuration: "視圖配置",
@@ -589,7 +605,7 @@ const TRANSLATIONS = {
       googleCalendar: {
         title: "Google 日曆連線",
         description:
-          "讓您的代理能夠與 Google 日曆互動：查看日曆、取得活動資訊、創建和更新活動，以及管理確認出席。 詳情請參考<a>文件</a>。",
+          "讓您的Agent能夠與 Google 日曆互動：查看日曆、取得活動資訊、創建和更新活動，以及管理確認出席。 詳情請參考<a>文件</a>。",
         multiUserWarning:
           "由於安全原因，Google 日曆的整合功能在多使用者模式下無法使用。請先停用多使用者模式，然後再使用此功能。",
         configuration: "Google 日曆設定",
@@ -690,11 +706,11 @@ const TRANSLATIONS = {
       "tools-enabled": "已啟用工具",
     },
     settings: {
-      title: "代理人技能設定",
+      title: "Agent技能設定",
       "max-tool-calls": {
         title: "每次回應的最大工具呼叫次數",
         description:
-          "這設定了代理可以串聯使用的最大工具數量，以確保每次回應只會呼叫有限的工具，並避免無限循環。",
+          "這設定了Agent可以串聯使用的最大工具數量，以確保每次回應只會呼叫有限的工具，並避免無限循環。",
       },
       "intelligent-skill-selection": {
         title: "智能技能選擇",
@@ -710,7 +726,7 @@ const TRANSLATIONS = {
         title: "允許經紀人提出確認性問題",
         "beta-badge": "測試版",
         description:
-          "啟用後，代理可以暫停，並向您提出簡短的澄清問題，以釐清您的指示。",
+          "啟用後，Agent可以暫停，並向您提出簡短的澄清問題，以釐清您的指示。",
         "max-per-turn": {
           title: "每回合可以提出的問題數量",
           description: "經理在單次調查中，可以提出多少澄清問題？",
@@ -1092,7 +1108,40 @@ const TRANSLATIONS = {
     edit_info_assistant: "您的修改將直接儲存到此處。",
     see_less: "顯示較少",
     see_more: "查看更多",
-    tools: "工具",
+    tools: "Agent Tools",
+    tool_approval_mode: {
+      ask: "逐次詢問",
+      always_allow: "始終允許",
+      ask_tooltip: "工具執行前需要確認。點擊後將始終允許所有工具呼叫。",
+      always_allow_tooltip: "所有工具無需確認即可執行。點擊後恢復逐次確認。",
+      admin_only: "只有管理員可以修改全域工具權限。",
+      update_failed: "更新工具權限模式失敗。",
+    },
+    share_chat: {
+      button: "公開分享",
+      sharing: "正在建立連結…",
+      copied: "公開連結已複製",
+      copied_short: "已複製",
+      tooltip: "任何取得此連結的人都可以查看這段對話",
+      error: "無法建立公開聊天連結。",
+      copy_error: "連結已建立，但無法複製到剪貼簿。",
+      public_title: "公開分享的對話",
+      read_only: "唯讀",
+      loading: "正在載入分享的對話…",
+      unavailable: "此對話無法使用",
+      unavailable_description: "此公開連結可能無效、已過期或已不再提供。",
+      shared_from: "分享自 {{workspace}}",
+      empty: "此對話還沒有訊息。",
+      user: "你",
+      assistant: "助理",
+      agent_activity: "{{count}} 筆Agent執行記錄",
+      sources: "{{count}} 個來源",
+      source: "來源 {{index}}",
+      expand_sources: "查看引用",
+      document: "工作區文件",
+      references: "引用 {{count}} 次",
+      show_excerpt: "查看摘錄",
+    },
     text_size_label: "文字大小",
     select_model: "選擇模型",
     sources: "來源",
@@ -1105,23 +1154,24 @@ const TRANSLATIONS = {
     publish: "發佈",
     stop_generating: "停止產生回應",
     slash_commands: "斜線指令",
-    agent_skills: "智慧代理人技能",
-    manage_agent_skills: "管理智慧代理人技能",
+    agent_skills: "Agent技能",
+    manage_agent_skills: "管理Agent技能",
     agent_skills_disabled_in_session:
-      "啟用智慧代理人工作階段時無法修改技能。請先使用 /exit 指令結束目前工作階段。",
-    start_agent_session: "開始智慧代理人工作階段",
+      "啟用Agent工作階段時無法修改技能。請先使用 /exit 指令結束目前工作階段。",
+    start_agent_session: "開始Agent工作階段",
     use_agent_session_to_use_tools:
-      "若要在對話中使用工具，請在提示詞開頭加上 '@agent'，即可開始智慧代理人工作階段。",
+      "若要在對話中使用工具，請在提示詞開頭加上 '@agent'，即可開始Agent工作階段。",
     agent_invocation: {
-      model_wants_to_call: "模型想要撥打電話",
-      approve: "批准",
+      session_complete: "Agent任務已完成",
+      model_wants_to_call: "模型希望呼叫工具：",
+      approve: "允許",
       reject: "拒絕",
-      always_allow: "請務必確保 {{skillName}}",
-      tool_call_was_approved: "工具請求已獲得批准。",
-      tool_call_was_rejected: "請求已遭拒絕",
-      clarifying_skip: "讓代理決定",
+      always_allow: "始終允許 {{skillName}}",
+      tool_call_was_approved: "已允許工具呼叫。",
+      tool_call_was_rejected: "已拒絕工具呼叫。",
+      clarifying_skip: "讓Agent決定",
       clarifying_submit: "提交",
-      clarifying_skipped: "您可以讓代理人自行決定。",
+      clarifying_skipped: "您可以讓Agent自行決定。",
       clarifying_timeout: "未在規定時間內提交回覆。",
       clarifying_pagination: "{{current}} 在 {{total}}",
       clarifying_prev_aria: "上一問題",
@@ -1136,7 +1186,7 @@ const TRANSLATIONS = {
       answer_skipped: "[使用者跳過]",
     },
     custom_skills: "客製化技能",
-    agent_flows: "代理人流",
+    agent_flows: "Agent流",
     no_tools_found: "未找到匹配的工具",
     loading_mcp_servers: "正在載入 MCP 伺服器...",
     app_integrations: "應用程式整合",
@@ -1283,7 +1333,7 @@ const TRANSLATIONS = {
   },
   "main-page": {
     quickActions: {
-      createAgent: "建立智慧代理人",
+      createAgent: "建立Agent",
       editWorkspace: "編輯工作區",
       uploadDocument: "上傳文件",
     },
@@ -1331,24 +1381,24 @@ const TRANSLATIONS = {
       },
       agent_flow: {
         success_title: "成功！",
-        success_description: "您的代理流程已發布到社群中心！",
+        success_description: "您的Agent流程已發布到社群中心！",
         success_thank_you: "感謝您分享到社群！",
         view_on_hub: "在社群中心查看",
-        modal_title: "發布代理流程",
+        modal_title: "發布Agent流程",
         name_label: "名稱",
-        name_description: "這是代理流程的顯示名稱。",
-        name_placeholder: "我的代理流程",
+        name_description: "這是Agent流程的顯示名稱。",
+        name_placeholder: "我的Agent流程",
         description_label: "描述",
-        description_description: "這是代理流程的描述，可用來說明用途。",
+        description_description: "這是Agent流程的描述，可用來說明用途。",
         tags_label: "標籤",
         tags_description:
-          "標籤用來標示代理流程，方便搜尋。可新增多個標籤，最多 5 個，每個標籤最多 20 個字元。",
+          "標籤用來標示Agent流程，方便搜尋。可新增多個標籤，最多 5 個，每個標籤最多 20 個字元。",
         tags_placeholder: "輸入並按 Enter 鍵添加標籤",
         visibility_label: "可見範圍",
         submitting: "發布中...",
         submit: "發布到社群中心",
         privacy_note:
-          "代理流程一律會先以私人方式上傳，以保護敏感資料。發布後可再到社群中心調整可見範圍。發布前請先確認流程中不含任何敏感或私人資訊。",
+          "Agent流程一律會先以私人方式上傳，以保護敏感資料。發布後可再到社群中心調整可見範圍。發布前請先確認流程中不含任何敏感或私人資訊。",
       },
       generic: {
         unauthenticated: {

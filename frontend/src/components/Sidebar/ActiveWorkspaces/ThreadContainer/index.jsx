@@ -1,27 +1,47 @@
 import Workspace from "@/models/workspace";
-import paths from "@/utils/paths";
-import showToast from "@/utils/toast";
-import { Plus, CircleNotch, Trash } from "@phosphor-icons/react";
+import { Trash } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import ThreadItem from "./ThreadItem";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import useHoverMetaKey from "./hooks";
-export const THREAD_RENAME_EVENT = "renameThread";
+import { THREAD_CREATED_EVENT, THREAD_RENAME_EVENT } from "../../events";
+import paths from "@/utils/paths";
 
-export default function ThreadContainer({
-  workspace,
-  isVirtualThread = false,
-}) {
+export { THREAD_CREATED_EVENT, THREAD_RENAME_EVENT } from "../../events";
+
+const threadCache = new Map();
+
+export default function ThreadContainer({ workspace }) {
   const { threadSlug = null } = useParams();
-  const [threads, setThreads] = useState([]);
-  const [defaultThreadHasChats, setDefaultThreadHasChats] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const { containerRef, ctrlPressed } = useHoverMetaKey(setThreads, !loading);
+  const navigate = useNavigate();
+  const cached = threadCache.get(workspace.slug);
+  const [threads, setThreads] = useState(() => cached?.threads || []);
+  const [defaultThreadHasChats, setDefaultThreadHasChats] = useState(
+    () => cached?.defaultThreadHasChats || false
+  );
+  const [loading, setLoading] = useState(() => !cached);
+
+  function updateThreads(updater) {
+    setThreads((current) => {
+      const next = updater(current);
+      const previousCache = threadCache.get(workspace.slug) || {};
+      threadCache.set(workspace.slug, {
+        ...previousCache,
+        threads: next,
+      });
+      return next;
+    });
+  }
+
+  const { containerRef, ctrlPressed } = useHoverMetaKey(
+    updateThreads,
+    !loading
+  );
 
   useEffect(() => {
     const chatHandler = (event) => {
       const { threadSlug, newName } = event.detail;
-      setThreads((prevThreads) =>
+      updateThreads((prevThreads) =>
         prevThreads.map((thread) => {
           if (thread.slug === threadSlug) {
             return { ...thread, name: newName };
@@ -31,28 +51,44 @@ export default function ThreadContainer({
       );
     };
 
+    const createdHandler = (event) => {
+      const { workspaceSlug, thread } = event.detail || {};
+      if (workspaceSlug !== workspace.slug || !thread?.slug) return;
+      updateThreads((current) =>
+        current.some((item) => item.slug === thread.slug)
+          ? current
+          : [...current, thread]
+      );
+    };
+
     window.addEventListener(THREAD_RENAME_EVENT, chatHandler);
+    window.addEventListener(THREAD_CREATED_EVENT, createdHandler);
 
     return () => {
       window.removeEventListener(THREAD_RENAME_EVENT, chatHandler);
+      window.removeEventListener(THREAD_CREATED_EVENT, createdHandler);
     };
-  }, []);
+  }, [workspace.slug]);
 
   useEffect(() => {
     async function fetchThreads() {
       if (!workspace.slug) return;
-      const { threads, defaultThreadChatCount } = await Workspace.threads.all(
-        workspace.slug
-      );
+      const { threads: nextThreads, defaultThreadChatCount } =
+        await Workspace.threads.all(workspace.slug);
+      const nextDefaultThreadHasChats = defaultThreadChatCount > 0;
+      threadCache.set(workspace.slug, {
+        threads: nextThreads,
+        defaultThreadHasChats: nextDefaultThreadHasChats,
+      });
       setLoading(false);
-      setThreads(threads);
-      setDefaultThreadHasChats(defaultThreadChatCount > 0);
+      setThreads(nextThreads);
+      setDefaultThreadHasChats(nextDefaultThreadHasChats);
     }
     fetchThreads();
-  }, [workspace.slug, threadSlug]);
+  }, [workspace.slug]);
 
   const toggleForDeletion = (id) => {
-    setThreads((prev) =>
+    updateThreads((prev) =>
       prev.map((t) => {
         if (t.id !== id) return t;
         return { ...t, deleted: !t.deleted };
@@ -63,35 +99,19 @@ export default function ThreadContainer({
   const handleDeleteAll = async () => {
     const slugs = threads.filter((t) => t.deleted === true).map((t) => t.slug);
     await Workspace.threads.deleteBulk(workspace.slug, slugs);
-    setThreads((prev) => prev.filter((t) => !t.deleted));
+    updateThreads((prev) => prev.filter((t) => !t.deleted));
 
     // Only redirect if current thread is being deleted
     if (slugs.includes(threadSlug)) {
-      window.location.href = paths.workspace.chat(workspace.slug);
+      navigate(paths.workspace.chat(workspace.slug));
     }
   };
 
   function removeThread(threadId) {
-    setThreads((prev) =>
-      prev.map((_t) => {
-        if (_t.id !== threadId) return _t;
-        return { ..._t, deleted: true };
-      })
-    );
-
-    // Show thread was deleted, but then remove from threads entirely so it will
-    // not appear in bulk-selection.
-    setTimeout(() => {
-      setThreads((prev) => prev.filter((t) => !t.deleted));
-    }, 500);
+    updateThreads((prev) => prev.filter((thread) => thread.id !== threadId));
   }
 
   function getActiveThreadIdx() {
-    if (isVirtualThread)
-      return threads.length + (defaultThreadHasChats ? 1 : 0);
-    // On a bare workspace route with no default chats, show virtual thread as active
-    if (!threadSlug && !defaultThreadHasChats)
-      return threads.length + (defaultThreadHasChats ? 1 : 0);
     const idx = threads.findIndex((t) => t?.slug === threadSlug);
     if (idx >= 0) return idx + (defaultThreadHasChats ? 1 : 0);
     if (!threadSlug && defaultThreadHasChats) return 0;
@@ -108,11 +128,6 @@ export default function ThreadContainer({
 
   const activeThreadIdx = getActiveThreadIdx();
 
-  // Show a virtual thread when on a bare workspace route (no threadSlug) and
-  // the default thread has no chats — mimics the Home page virtual thread behavior.
-  const showVirtualThread =
-    isVirtualThread || (!threadSlug && !defaultThreadHasChats);
-
   return (
     <div
       ref={containerRef}
@@ -127,7 +142,7 @@ export default function ThreadContainer({
           isActive={activeThreadIdx === 0}
           workspace={workspace}
           thread={{ slug: null, name: "default" }}
-          hasNext={threads.length > 0 || showVirtualThread}
+          hasNext={threads.length > 0}
         />
       )}
       {threads.map((thread, i) => (
@@ -141,77 +156,15 @@ export default function ThreadContainer({
           workspace={workspace}
           onRemove={removeThread}
           thread={thread}
-          hasNext={i !== threads.length - 1 || showVirtualThread}
+          hasNext={i !== threads.length - 1}
         />
       ))}
-      {showVirtualThread && (
-        <ThreadItem
-          idx={activeThreadIdx}
-          activeIdx={activeThreadIdx}
-          isActive={true}
-          workspace={workspace}
-          thread={{ slug: null, name: "*New Thread", virtual: true }}
-          hasNext={false}
-        />
-      )}
       <DeleteAllThreadButton
         ctrlPressed={ctrlPressed}
         threads={threads}
         onDelete={handleDeleteAll}
       />
-      <NewThreadButton workspace={workspace} />
     </div>
-  );
-}
-
-function NewThreadButton({ workspace }) {
-  const [loading, setLoading] = useState(false);
-  const onClick = async () => {
-    setLoading(true);
-    const { thread, error } = await Workspace.threads.new(workspace.slug);
-    if (!!error) {
-      showToast(`Could not create thread - ${error}`, "error", { clear: true });
-      setLoading(false);
-      return;
-    }
-    window.location.replace(
-      paths.workspace.thread(workspace.slug, thread.slug)
-    );
-  };
-
-  return (
-    <button
-      onClick={onClick}
-      className="w-full relative flex h-[40px] items-center border-none hover:bg-[var(--theme-sidebar-thread-selected)] light:hover:bg-slate-300 hover:light:bg-theme-sidebar-subitem-hover rounded-lg"
-    >
-      <div className="flex w-full gap-x-2 items-center pl-4">
-        <div className="bg-zinc-800 light:bg-slate-50 p-2 rounded-lg h-[24px] w-[24px] flex items-center justify-center">
-          {loading ? (
-            <CircleNotch
-              weight="bold"
-              size={14}
-              className="shrink-0 animate-spin text-white light:text-theme-text-primary"
-            />
-          ) : (
-            <Plus
-              weight="bold"
-              size={14}
-              className="shrink-0 text-white light:text-theme-text-primary"
-            />
-          )}
-        </div>
-
-        {loading ? (
-          <p className="text-left text-white light:text-theme-text-primary text-sm">
-            Starting Thread...
-          </p>
-        ) : (
-          <p className="text-left text-white light:text-theme-text-primary text-sm font-semibold">
-            New Thread
-          </p>
-        )}
-      </div>
-    </button>
   );
 }
 

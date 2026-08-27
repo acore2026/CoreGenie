@@ -33,6 +33,10 @@ const {
 const { getTTSProvider } = require("../utils/TextToSpeech");
 const { getAudioFileInfo } = require("../utils/TextToSpeech/audioFormat");
 const { WorkspaceThread } = require("../models/workspaceThread");
+const { Invite } = require("../models/invite");
+const {
+  simpleSSOLoginDisabledMiddleware,
+} = require("../utils/middleware/simpleSSOEnabled");
 
 const truncate = require("truncate");
 const { purgeDocument } = require("../utils/files/purgeDocument");
@@ -49,7 +53,7 @@ function workspaceEndpoints(app) {
 
   app.post(
     "/workspace/new",
-    [validatedRequest, flexUserRoleValid([ROLES.admin, ROLES.manager])],
+    [validatedRequest, flexUserRoleValid([ROLES.all])],
     async (request, response) => {
       try {
         const user = await userFromSession(request, response);
@@ -76,6 +80,51 @@ function workspaceEndpoints(app) {
           user?.id
         );
         response.status(200).json({ workspace, message });
+      } catch (e) {
+        console.error(e.message, e);
+        response.sendStatus(500).end();
+      }
+    }
+  );
+
+  app.post(
+    "/workspace/:slug/invite",
+    [
+      validatedRequest,
+      flexUserRoleValid([ROLES.all]),
+      validWorkspaceSlug,
+      simpleSSOLoginDisabledMiddleware,
+    ],
+    async (request, response) => {
+      try {
+        const user = await userFromSession(request, response);
+        if (!user) {
+          response.status(400).json({
+            invite: null,
+            error: "Workspace invitations require multi-user mode.",
+          });
+          return;
+        }
+
+        const workspace = response.locals.workspace;
+        const { invite, error } = await Invite.getOrCreateWorkspaceInvite({
+          createdByUserId: user.id,
+          workspaceId: workspace.id,
+        });
+        if (!invite) {
+          response.status(200).json({ invite: null, error });
+          return;
+        }
+
+        await EventLogs.logEvent(
+          "workspace_invite_created",
+          { workspaceName: workspace.name },
+          user.id
+        );
+        response.status(200).json({
+          invite: { code: invite.code, workspace: { name: workspace.name } },
+          error: null,
+        });
       } catch (e) {
         console.error(e.message, e);
         response.sendStatus(500).end();

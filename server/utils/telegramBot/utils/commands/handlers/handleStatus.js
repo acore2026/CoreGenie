@@ -33,13 +33,8 @@ ${workspace.name}
 _${threadName}_
 --------------------------------`);
 
-  const AIbitat = require("../../../../agents/aibitat");
   const { provider, model } = resolveWorkspaceProvider(workspace);
-  const agentConfig = { provider, model };
-  const agentProvider = new AIbitat(agentConfig).getProviderForConfig(
-    agentConfig
-  );
-  const nativeToolCalling = await agentProvider.supportsNativeToolCalling?.();
+  const nativeToolCalling = ["openai", "generic-openai"].includes(provider);
 
   markdown.push(`# LLM Provider: 
 ${provider}

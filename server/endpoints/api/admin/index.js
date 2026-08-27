@@ -316,7 +316,7 @@ function apiAdminEndpoints(app) {
   app.post("/v1/admin/invite/new", [validApiKey], async (request, response) => {
     /*
     #swagger.tags = ['Admin']
-    #swagger.description = 'Create a new invite code for someone to use to register with instance. Methods are disabled until multi user mode is enabled via the UI.'
+    #swagger.description = 'Create a reusable invite code for people to register with the instance. The code remains active until disabled. Methods are disabled until multi user mode is enabled via the UI.'
     #swagger.requestBody = {
         description: 'Request body for creation parameters of the invitation',
         required: false,

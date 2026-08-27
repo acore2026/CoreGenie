@@ -15,6 +15,7 @@ export default function MenuOption({
   roles = [],
   hidden = false,
   isChild = false,
+  exact = false,
 }) {
   const storageKey = generateStorageKey({ key: btnText });
   const location = useLocation();
@@ -30,10 +31,10 @@ export default function MenuOption({
   const isActive = hasChildren
     ? (!isExpanded &&
         childOptions.some((child) =>
-          isPathMatch(child.href, location.pathname)
+          matchesPath(child.href, location.pathname, child.exact)
         )) ||
       location.pathname === href
-    : isPathMatch(href, location.pathname);
+    : matchesPath(href, location.pathname, exact);
 
   const { ref } = useScrollActiveItemIntoView({
     isActive,
@@ -144,7 +145,9 @@ function useIsExpanded({
       if (storedValue !== null) {
         return safeJsonParse(storedValue, false);
       }
-      return childOptions.some((child) => isPathMatch(child.href, location));
+      return childOptions.some((child) =>
+        matchesPath(child.href, location, child.exact)
+      );
     }
     return false;
   });
@@ -152,7 +155,7 @@ function useIsExpanded({
   useEffect(() => {
     if (hasVisibleChildren) {
       const shouldExpand = childOptions.some((child) =>
-        isPathMatch(child.href, location)
+        matchesPath(child.href, location, child.exact)
       );
       if (shouldExpand && !isExpanded) {
         setIsExpanded(true);
@@ -162,6 +165,11 @@ function useIsExpanded({
   }, [location]);
 
   return { isExpanded, setIsExpanded };
+}
+
+function matchesPath(href, pathname, exact = false) {
+  if (!href || !pathname) return false;
+  return exact ? pathname === href : isPathMatch(href, pathname);
 }
 
 /**

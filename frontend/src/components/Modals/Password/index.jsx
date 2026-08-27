@@ -8,8 +8,12 @@ import {
   AUTH_TIMESTAMP,
 } from "../../../utils/constants";
 import useLogo from "../../../hooks/useLogo";
+import paths from "../../../utils/paths";
 
-export default function PasswordModal({ mode = "single" }) {
+export default function PasswordModal({
+  mode = "single",
+  redirectTo = paths.home(),
+}) {
   const { loginLogo, isCustomLogo } = useLogo();
   return (
     <div className="fixed inset-0 bg-zinc-950 light:bg-slate-50 flex flex-col items-center justify-center overflow-hidden">
@@ -19,17 +23,21 @@ export default function PasswordModal({ mode = "single" }) {
         className={`max-h-[80px] ${isCustomLogo ? "rounded-lg" : ""}`}
         style={{ objectFit: "contain" }}
       />
-      {mode === "single" ? <SingleUserAuth /> : <MultiUserAuth />}
+      {mode === "single" ? (
+        <SingleUserAuth />
+      ) : (
+        <MultiUserAuth redirectTo={redirectTo} />
+      )}
     </div>
   );
 }
 
 export function usePasswordModal(notry = false) {
-  const [auth, setAuth] = useState({
-    loading: true,
-    requiresAuth: false,
-    mode: "single",
-  });
+  const [auth, setAuth] = useState(() =>
+    !notry && !System.needsAuthCheck()
+      ? { loading: false, requiresAuth: false, mode: "multi" }
+      : { loading: true, requiresAuth: false, mode: "single" }
+  );
 
   useEffect(() => {
     async function checkAuthReq() {

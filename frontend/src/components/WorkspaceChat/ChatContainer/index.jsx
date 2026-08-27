@@ -1,4 +1,11 @@
-import { useState, useEffect, useContext, useRef, useCallback } from "react";
+import {
+  useState,
+  useEffect,
+  useContext,
+  useRef,
+  useCallback,
+  useDeferredValue,
+} from "react";
 import ChatHistory from "./ChatHistory";
 import { CLEAR_ATTACHMENTS_EVENT, DndUploaderContext } from "./DnDWrapper";
 import PromptInput, {
@@ -10,11 +17,8 @@ import handleChat, { ABORT_STREAM_EVENT } from "@/utils/chat";
 import { isMobile } from "react-device-detect";
 import { SidebarMobileHeader } from "../../Sidebar";
 import { useNavigate } from "react-router-dom";
-import { v4 } from "uuid";
-import handleSocketResponse, {
-  websocketURI,
+import {
   AGENT_SESSION_END,
-  AGENT_SESSION_START,
   setAgentSessionActive,
   setAgentSessionSocket,
 } from "@/utils/chat/agent";
@@ -30,13 +34,37 @@ import { clearPromptInputDraft } from "@/hooks/usePromptInputStorage";
 import { safeJsonParse } from "@/utils/request";
 import { useTranslation } from "react-i18next";
 import paths from "@/utils/paths";
-import QuickActions from "@/components/lib/QuickActions";
 import SuggestedMessages from "@/components/lib/SuggestedMessages";
 import ChatSettingsMenu from "./ChatSettingsMenu";
-import WorkspaceModelPicker from "./WorkspaceModelPicker";
 import { ChatSidebarProvider } from "./ChatSidebar";
 import SourcesSidebar from "./SourcesSidebar";
 import MemoriesSidebar from "./MemoriesSidebar";
+import WorkspaceFilesSidebar from "./WorkspaceFilesSidebar";
+import AgentShowcase from "@/components/PredefinedAgents/AgentShowcase";
+import usePredefinedAgent from "@/hooks/usePredefinedAgent";
+import { THREAD_CREATED_EVENT } from "@/components/Sidebar/ActiveWorkspaces/ThreadContainer";
+import {
+  claimConversationRequest,
+  conversationRuntimeKey,
+  initializeConversationRuntime,
+  releaseConversationRequest,
+  subscribeConversationRuntime,
+  updateConversationHistory,
+  updateConversationRuntime,
+} from "@/utils/chat/conversationRuntime";
+import {
+  bindVisibleAgentSession,
+  ensureBackgroundAgentSession,
+  stopBackgroundAgentSession,
+} from "@/utils/chat/backgroundAgentSession";
+
+function useEventCallback(callback) {
+  const callbackRef = useRef(callback);
+  useEffect(() => {
+    callbackRef.current = callback;
+  }, [callback]);
+  return useCallback((...args) => callbackRef.current(...args), []);
+}
 
 export default function ChatContainer({
   workspace,
@@ -45,15 +73,48 @@ export default function ChatContainer({
 }) {
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const [loadingResponse, setLoadingResponse] = useState(false);
-  const [chatHistory, setChatHistory] = useState(knownHistory);
-  const [socketId, setSocketId] = useState(null);
+  const runtimeKey = conversationRuntimeKey(workspace.slug, threadSlug);
+  const initialRuntime = initializeConversationRuntime(
+    runtimeKey,
+    knownHistory
+  );
+  const [loadingResponse, setLocalLoadingResponse] = useState(
+    initialRuntime.loadingResponse
+  );
+  const [chatHistory, setLocalChatHistory] = useState(initialRuntime.history);
+  const deferredChatHistory = useDeferredValue(chatHistory);
+  const [socketId, setLocalSocketId] = useState(initialRuntime.socketId);
   const [websocket, setWebsocket] = useState(null);
   const { files, parseAttachments } = useContext(DndUploaderContext);
   const { chatHistoryRef } = useChatContainerQuickScroll();
   const pendingMessageChecked = useRef(false);
-  const pendingResetRef = useRef(false);
   const activeThreadSlug = threadSlug;
+  const { selectedAgent, selectedAgentId } = usePredefinedAgent();
+
+  const setChatHistory = useCallback(
+    (updater) => updateConversationHistory(runtimeKey, updater),
+    [runtimeKey]
+  );
+  const setLoadingResponse = useCallback(
+    (loading) =>
+      updateConversationRuntime(runtimeKey, { loadingResponse: loading }),
+    [runtimeKey]
+  );
+  const setSocketId = useCallback(
+    (nextSocketId) =>
+      updateConversationRuntime(runtimeKey, { socketId: nextSocketId }),
+    [runtimeKey]
+  );
+
+  useEffect(
+    () =>
+      subscribeConversationRuntime(runtimeKey, (runtime) => {
+        setLocalChatHistory(runtime.history);
+        setLocalLoadingResponse(runtime.loadingResponse);
+        setLocalSocketId(runtime.socketId);
+      }),
+    [runtimeKey]
+  );
 
   const isEmpty =
     chatHistory.length === 0 && !sessionStorage.getItem(PENDING_HOME_MESSAGE);
@@ -110,6 +171,11 @@ export default function ChatContainer({
     if (!activeThreadSlug && chatHistory.length === 0) {
       const { thread } = await Workspace.threads.new(workspace.slug);
       if (thread) {
+        window.dispatchEvent(
+          new CustomEvent(THREAD_CREATED_EVENT, {
+            detail: { workspaceSlug: workspace.slug, thread },
+          })
+        );
         sessionStorage.setItem(
           PENDING_HOME_MESSAGE,
           JSON.stringify({
@@ -197,6 +263,11 @@ export default function ChatContainer({
     if (!activeThreadSlug && chatHistory.length === 0 && history.length === 0) {
       const { thread } = await Workspace.threads.new(workspace.slug);
       if (thread) {
+        window.dispatchEvent(
+          new CustomEvent(THREAD_CREATED_EVENT, {
+            detail: { workspaceSlug: workspace.slug, thread },
+          })
+        );
         sessionStorage.setItem(
           PENDING_HOME_MESSAGE,
           JSON.stringify({ message: text, attachments })
@@ -251,7 +322,9 @@ export default function ChatContainer({
     setLoadingResponse(true);
   };
 
-  sendCommandRef.current = sendCommand;
+  const submitPrompt = useEventCallback(handleSubmit);
+  const dispatchCommand = useEventCallback(sendCommand);
+  sendCommandRef.current = dispatchCommand;
   const chatHistoryRef2 = useRef(chatHistory);
   chatHistoryRef2.current = chatHistory;
 
@@ -283,219 +356,190 @@ export default function ChatContainer({
     if (pending?.message) {
       setTimeout(() => {
         sessionStorage.removeItem(PENDING_HOME_MESSAGE);
-        sendCommand({
+        dispatchCommand({
           text: pending.message,
           attachments: pending.attachments || [],
           autoSubmit: true,
         });
       }, 100);
     }
-  }, [workspace?.slug]);
+  }, [workspace?.slug, dispatchCommand]);
+
+  // A server-owned Agent run survives a browser refresh. Discover it for this
+  // conversation, restore the submitted prompt, and reconnect to its buffered
+  // event stream without starting the invocation again.
+  useEffect(() => {
+    if (socketId || !workspace?.slug) return;
+    let active = true;
+    Workspace.activeAgentInvocation(workspace.slug, activeThreadSlug).then(
+      ({ invocation }) => {
+        if (!active || !invocation?.uuid) return;
+        setChatHistory((previous) => {
+          const promptAlreadyVisible = previous.some(
+            (message) =>
+              message.role === "user" && message.content === invocation.prompt
+          );
+          if (promptAlreadyVisible) return previous;
+          return [
+            ...previous,
+            {
+              content: invocation.prompt,
+              role: "user",
+              attachments: [],
+            },
+          ];
+        });
+        setSocketId(invocation.uuid);
+      }
+    );
+    return () => {
+      active = false;
+    };
+  }, [
+    activeThreadSlug,
+    setChatHistory,
+    setSocketId,
+    socketId,
+    workspace?.slug,
+  ]);
 
   useEffect(() => {
     async function fetchReply() {
-      const promptMessage =
-        chatHistory.length > 0 ? chatHistory[chatHistory.length - 1] : null;
-      const remHistory = chatHistory.length > 0 ? chatHistory.slice(0, -1) : [];
-      var _chatHistory = [...remHistory];
+      if (!claimConversationRequest(runtimeKey)) return;
+      try {
+        const promptMessage =
+          chatHistory.length > 0 ? chatHistory[chatHistory.length - 1] : null;
+        const remHistory =
+          chatHistory.length > 0 ? chatHistory.slice(0, -1) : [];
+        var _chatHistory = [...remHistory];
 
-      // Override hook for new messages to now go to agents until the connection closes
-      if (!!websocket) {
+        // Override hook for new messages to now go to agents until the connection closes
+        if (!!websocket) {
+          if (!promptMessage || !promptMessage?.userMessage) return false;
+          const attachments = promptMessage?.attachments ?? parseAttachments();
+          window.dispatchEvent(new CustomEvent(CLEAR_ATTACHMENTS_EVENT));
+          websocket.send(
+            JSON.stringify({
+              type: "awaitingFeedback",
+              feedback: promptMessage?.userMessage,
+              attachments,
+            })
+          );
+
+          // /reset during an active agent session should end the session AND
+          // clear the chat in a single action. The send above triggers the
+          // server to abort the agent and close the socket; fall through to the
+          // /reset flow below which resets memory + clears chat history.
+          if (promptMessage.userMessage.trim() !== "/reset") {
+            setLoadingResponse(false);
+            return;
+          }
+        }
+
         if (!promptMessage || !promptMessage?.userMessage) return false;
+
+        // If running and edit or regeneration, this history will already have attachments
+        // so no need to parse the current state.
         const attachments = promptMessage?.attachments ?? parseAttachments();
         window.dispatchEvent(new CustomEvent(CLEAR_ATTACHMENTS_EVENT));
-        websocket.send(
-          JSON.stringify({
-            type: "awaitingFeedback",
-            feedback: promptMessage?.userMessage,
-            attachments,
-          })
-        );
 
-        // /reset during an active agent session should end the session AND
-        // clear the chat in a single action. The send above triggers the
-        // server to abort the agent and close the socket; fall through to the
-        // /reset flow below which resets memory + clears chat history.
-        if (promptMessage.userMessage.trim() !== "/reset") return;
-        pendingResetRef.current = true;
+        await Workspace.multiplexStream({
+          workspaceSlug: workspace.slug,
+          threadSlug: activeThreadSlug,
+          prompt: promptMessage.userMessage,
+          chatHandler: (chatResult) =>
+            handleChat(
+              chatResult,
+              setLoadingResponse,
+              setChatHistory,
+              remHistory,
+              _chatHistory,
+              setSocketId
+            ),
+          attachments,
+          predefinedAgentId: selectedAgentId,
+        });
+        return;
+      } finally {
+        releaseConversationRequest(runtimeKey);
       }
-
-      if (!promptMessage || !promptMessage?.userMessage) return false;
-
-      // If running and edit or regeneration, this history will already have attachments
-      // so no need to parse the current state.
-      const attachments = promptMessage?.attachments ?? parseAttachments();
-      window.dispatchEvent(new CustomEvent(CLEAR_ATTACHMENTS_EVENT));
-
-      await Workspace.multiplexStream({
-        workspaceSlug: workspace.slug,
-        threadSlug: activeThreadSlug,
-        prompt: promptMessage.userMessage,
-        chatHandler: (chatResult) =>
-          handleChat(
-            chatResult,
-            setLoadingResponse,
-            setChatHistory,
-            remHistory,
-            _chatHistory,
-            setSocketId
-          ),
-        attachments,
-      });
-      return;
     }
     loadingResponse === true && fetchReply();
-  }, [loadingResponse, chatHistory, workspace]);
+  }, [loadingResponse, chatHistory, workspace, runtimeKey]);
 
-  // TODO: Simplify this WSS stuff
+  // The route-independent session owns the transport. Leaving this thread only
+  // unsubscribes its UI; the Agent continues and its accumulated state is
+  // replayed from the conversation runtime when the user returns.
   useEffect(() => {
-    let socket = null;
+    if (!socketId) return;
+    ensureBackgroundAgentSession({ key: runtimeKey, socketId });
+  }, [runtimeKey, socketId]);
 
-    function handleWSS() {
-      try {
-        if (!socketId || !!websocket) return;
-        socket = new WebSocket(
-          `${websocketURI()}/api/agent-invocation/${socketId}`
-        );
-        socket.supportsAgentStreaming = false;
-
-        window.addEventListener(ABORT_STREAM_EVENT, () => {
-          setAgentSessionActive(false);
-          setAgentSessionSocket(null);
-          window.dispatchEvent(new CustomEvent(AGENT_SESSION_END));
-          socket?.close();
-        });
-
-        socket.addEventListener("message", (event) => {
-          setLoadingResponse(true);
-          try {
-            handleSocketResponse(socket, event, setChatHistory);
-          } catch {
-            console.error("Failed to parse data");
-            setAgentSessionActive(false);
-            window.dispatchEvent(new CustomEvent(AGENT_SESSION_END));
-            socket.close();
-          }
-          setLoadingResponse(false);
-        });
-
-        socket.addEventListener("close", (_event) => {
-          setAgentSessionActive(false);
-          setAgentSessionSocket(null);
-          window.dispatchEvent(new CustomEvent(AGENT_SESSION_END));
-          // When the close was triggered by /reset, skip the "Agent session
-          // complete." status - the pending /reset flow will clear history.
-          if (pendingResetRef.current) {
-            pendingResetRef.current = false;
-          } else {
-            setChatHistory((prev) => [
-              ...prev.filter((msg) => !!msg.content),
-              {
-                uuid: v4(),
-                type: "statusResponse",
-                content: "Agent session complete.",
-                role: "assistant",
-                sources: [],
-                closed: true,
-                error: null,
-                animate: false,
-                pending: false,
-              },
-            ]);
-          }
-          setLoadingResponse(false);
-          setWebsocket(null);
-          setSocketId(null);
-        });
-        setWebsocket(socket);
-        setAgentSessionActive(true);
-        setAgentSessionSocket(socket);
-        window.dispatchEvent(new CustomEvent(AGENT_SESSION_START));
-        window.dispatchEvent(new CustomEvent(CLEAR_ATTACHMENTS_EVENT));
-      } catch (e) {
-        setChatHistory((prev) => [
-          ...prev.filter((msg) => !!msg.content),
-          {
-            uuid: v4(),
-            type: "abort",
-            content: e.message,
-            role: "assistant",
-            sources: [],
-            closed: true,
-            error: e.message,
-            animate: false,
-            pending: false,
-          },
-        ]);
+  useEffect(() => {
+    const unsubscribe = bindVisibleAgentSession(runtimeKey, (session) => {
+      setWebsocket(session.active ? session.transport : null);
+      setAgentSessionActive(session.active);
+      setAgentSessionSocket(session.active ? session.transport : null);
+      if (session.active) {
         setLoadingResponse(false);
-        setWebsocket(null);
-        setSocketId(null);
+        window.dispatchEvent(new CustomEvent(CLEAR_ATTACHMENTS_EVENT));
       }
-    }
-    handleWSS();
+    });
 
+    const abortSession = () => stopBackgroundAgentSession(runtimeKey);
+    window.addEventListener(ABORT_STREAM_EVENT, abortSession);
     return () => {
-      if (socket) {
-        setAgentSessionActive(false);
-        window.dispatchEvent(new CustomEvent(AGENT_SESSION_END));
-        socket.close();
-      }
+      unsubscribe();
+      window.removeEventListener(ABORT_STREAM_EVENT, abortSession);
+      setAgentSessionActive(false);
+      setAgentSessionSocket(null);
+      window.dispatchEvent(new CustomEvent(AGENT_SESSION_END));
     };
-  }, [socketId]);
+  }, [runtimeKey, setLoadingResponse]);
 
   if (isEmpty) {
     return (
       <ChatSidebarProvider>
         <div
           style={{ height: isMobile ? "100%" : "calc(100% - 32px)" }}
-          className="relative flex md:ml-[2px] md:mr-[16px] md:my-[16px] w-full h-full z-[2]"
+          className="relative flex lg:gap-3 md:ml-[2px] md:mr-[16px] md:my-[16px] w-full h-full z-[2]"
         >
-          <ChatSettingsMenu
-            history={chatHistory}
-            workspace={workspace}
-            threadSlug={activeThreadSlug}
-          />
-          <div className="flex-1 min-w-0 relative md:rounded-[16px] bg-zinc-900 light:bg-white w-full h-full overflow-hidden border-none light:border-solid light:border light:border-theme-modal-border">
-            {isMobile && <SidebarMobileHeader />}
-            <WorkspaceModelPicker workspaceSlug={workspace.slug} />
-            <DnDFileUploaderWrapper>
-              <div className="flex flex-col h-full w-full items-center justify-center">
-                <div className="flex flex-col items-center w-full max-w-[750px]">
-                  <h1 className="text-white text-xl md:text-2xl mb-11 text-center">
-                    {t("main-page.greeting")}
-                  </h1>
-                  <PromptInput
-                    workspace={workspace}
-                    submit={handleSubmit}
-                    isStreaming={loadingResponse}
-                    sendCommand={sendCommand}
-                    attachments={files}
-                    centered={true}
-                  />
-                  <QuickActions
-                    hasAvailableWorkspace={!!workspace}
-                    onCreateAgent={() => navigate(paths.settings.agentSkills())}
-                    onEditWorkspace={() =>
-                      navigate(
-                        paths.workspace.settings.generalAppearance(
-                          workspace.slug
-                        )
-                      )
-                    }
-                    onUploadDocument={() =>
-                      document.getElementById("dnd-chat-file-uploader")?.click()
-                    }
+          <div className="relative flex-1 min-w-0 h-full">
+            <ChatSettingsMenu
+              hasHistory={chatHistory.length > 0}
+              workspace={workspace}
+              threadSlug={activeThreadSlug}
+            />
+            <div className="relative md:rounded-[16px] bg-zinc-900 light:bg-white w-full h-full overflow-hidden border-none light:border-solid light:border light:border-theme-modal-border">
+              {isMobile && <SidebarMobileHeader />}
+              <DnDFileUploaderWrapper>
+                <div className="flex flex-col h-full w-full items-center justify-center">
+                  <div className="flex flex-col items-center w-full max-w-[750px]">
+                    <h1 className="text-white light:text-slate-900 text-xl md:text-2xl mb-7 text-center">
+                      {selectedAgent?.welcomeMessage || t("main-page.greeting")}
+                    </h1>
+                    <PromptInput
+                      workspace={workspace}
+                      submit={submitPrompt}
+                      isStreaming={loadingResponse}
+                      sendCommand={dispatchCommand}
+                      attachments={files}
+                      centered={true}
+                      examplePrompts={selectedAgent?.examplePrompts}
+                    />
+                    <AgentShowcase />
+                  </div>
+                  <SuggestedMessages
+                    suggestedMessages={workspace?.suggestedMessages}
+                    sendCommand={dispatchCommand}
                   />
                 </div>
-                <SuggestedMessages
-                  suggestedMessages={workspace?.suggestedMessages}
-                  sendCommand={sendCommand}
-                />
-              </div>
-            </DnDFileUploaderWrapper>
-            <ChatTooltips />
+              </DnDFileUploaderWrapper>
+              <ChatTooltips />
+            </div>
+            <MemoriesSidebar workspace={workspace} />
           </div>
-          <MemoriesSidebar workspace={workspace} />
+          <WorkspaceFilesSidebar workspace={workspace} />
         </div>
       </ChatSidebarProvider>
     );
@@ -505,45 +549,48 @@ export default function ChatContainer({
     <ChatSidebarProvider>
       <div
         style={{ height: isMobile ? "100%" : "calc(100% - 32px)" }}
-        className="relative flex md:ml-[2px] md:mr-[16px] md:my-[16px] w-full h-full z-[2]"
+        className="relative flex lg:gap-3 md:ml-[2px] md:mr-[16px] md:my-[16px] w-full h-full z-[2]"
       >
-        <ChatSettingsMenu
-          history={chatHistory}
-          workspace={workspace}
-          threadSlug={activeThreadSlug}
-        />
-        <div className="flex-1 min-w-0 relative md:rounded-[16px] bg-zinc-900 light:bg-white text-white light:text-slate-900 h-full overflow-hidden border-none light:border-solid light:border light:border-theme-modal-border">
-          {isMobile && <SidebarMobileHeader />}
-          <WorkspaceModelPicker workspaceSlug={workspace.slug} />
-          <DnDFileUploaderWrapper>
-            <div className="flex flex-col h-full w-full pb-20 md:pb-0">
-              <div className="contents">
-                <MetricsProvider>
-                  <ChatHistory
-                    ref={chatHistoryRef}
-                    history={chatHistory}
+        <div className="relative flex-1 min-w-0 h-full">
+          <ChatSettingsMenu
+            hasHistory={chatHistory.length > 0}
+            workspace={workspace}
+            threadSlug={activeThreadSlug}
+          />
+          <div className="relative md:rounded-[16px] bg-zinc-900 light:bg-white text-white light:text-slate-900 h-full overflow-hidden border-none light:border-solid light:border light:border-theme-modal-border">
+            {isMobile && <SidebarMobileHeader />}
+            <DnDFileUploaderWrapper>
+              <div className="flex flex-col h-full w-full pb-20 md:pb-0">
+                <div className="contents">
+                  <MetricsProvider>
+                    <ChatHistory
+                      ref={chatHistoryRef}
+                      history={deferredChatHistory}
+                      workspace={workspace}
+                      sendCommand={dispatchCommand}
+                      updateHistory={setChatHistory}
+                      regenerateAssistantMessage={regenerateAssistantMessage}
+                      websocket={websocket}
+                    />
+                  </MetricsProvider>
+                  <PromptInput
                     workspace={workspace}
-                    sendCommand={sendCommand}
-                    updateHistory={setChatHistory}
-                    regenerateAssistantMessage={regenerateAssistantMessage}
-                    websocket={websocket}
+                    submit={submitPrompt}
+                    isStreaming={loadingResponse}
+                    sendCommand={dispatchCommand}
+                    attachments={files}
+                    centered={false}
+                    examplePrompts={selectedAgent?.examplePrompts}
                   />
-                </MetricsProvider>
-                <PromptInput
-                  workspace={workspace}
-                  submit={handleSubmit}
-                  isStreaming={loadingResponse}
-                  sendCommand={sendCommand}
-                  attachments={files}
-                  centered={false}
-                />
+                </div>
               </div>
-            </div>
-          </DnDFileUploaderWrapper>
-          <ChatTooltips />
+            </DnDFileUploaderWrapper>
+            <ChatTooltips />
+          </div>
+          <SourcesSidebar />
+          <MemoriesSidebar workspace={workspace} />
         </div>
-        <SourcesSidebar />
-        <MemoriesSidebar workspace={workspace} />
+        <WorkspaceFilesSidebar workspace={workspace} />
       </div>
     </ChatSidebarProvider>
   );

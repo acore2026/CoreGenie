@@ -3,14 +3,14 @@ const { WorkspaceChats } = require("../../models/workspaceChats");
 const { resetMemory } = require("./commands/reset");
 const { convertToPromptHistory } = require("../helpers/chat/responses");
 const { SlashCommandPresets } = require("../../models/slashCommandsPresets");
-const { SystemPromptVariables } = require("../../models/systemPromptVariables");
+const { composeSystemPrompt } = require("../systemPrompt");
 
 const VALID_COMMANDS = {
   "/reset": resetMemory,
 };
 
-async function grepCommand(message, user = null) {
-  const userPresets = await SlashCommandPresets.getUserPresets(user?.id);
+async function grepCommand(message, _user = null) {
+  const globalPresets = await SlashCommandPresets.getGlobalPresets();
   const availableCommands = Object.keys(VALID_COMMANDS);
 
   // Check if the message starts with any built-in command
@@ -25,7 +25,7 @@ async function grepCommand(message, user = null) {
   // Replace all preset commands with their corresponding prompts
   // Allows multiple commands in one message
   let updatedMessage = message;
-  for (const preset of userPresets) {
+  for (const preset of globalPresets) {
     const regex = new RegExp(
       `(?:\\b\\s|^)(${preset.command})(?:\\b\\s|$)`,
       "g"
@@ -42,7 +42,7 @@ async function grepCommand(message, user = null) {
  * @returns {Promise<string>}
  */
 async function grepAllSlashCommands(message) {
-  const allPresets = await SlashCommandPresets.where({});
+  const allPresets = await SlashCommandPresets.getGlobalPresets();
 
   // Replace all preset commands with their corresponding prompts
   // Allows multiple commands in one message
@@ -86,19 +86,18 @@ async function recentChatHistory({
  * Also does variable substitution on the prompt if there are any defined variables.
  * @param {Object|null} workspace - the workspace object
  * @param {Object|null} user - the user object
- * @param {{prompt?: string, rawHistory?: object[]}} [opts] - current user message + chat history, used for reranking injected memories
+ * @param {{prompt?: string, rawHistory?: object[], basePrompt?: string}} [opts] - prompt layers and memory reranking context
  * @returns {Promise<string>}
  */
 async function chatPrompt(workspace, user = null, opts = {}) {
   const { SystemSettings } = require("../../models/systemSettings");
   const { promptWithMemories } = require("../memories");
-  const basePrompt =
-    workspace?.openAiPrompt ?? SystemSettings.saneDefaultSystemPrompt;
-  const systemPrompt = await SystemPromptVariables.expandSystemPromptVariables(
+  const basePrompt = opts.basePrompt ?? SystemSettings.saneDefaultSystemPrompt;
+  const systemPrompt = await composeSystemPrompt({
     basePrompt,
-    user?.id,
-    workspace?.id
-  );
+    user,
+    workspace,
+  });
   return promptWithMemories({
     systemPrompt,
     userId: user?.id ?? null,

@@ -195,10 +195,39 @@ function handleAudioUpload(request, response, next) {
   });
 }
 
+function handleAgentIconUpload(request, response, next) {
+  const allowedTypes = new Set([
+    "image/png",
+    "image/jpeg",
+    "image/webp",
+    "image/gif",
+  ]);
+  const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 5 * 1024 * 1024 },
+    fileFilter: (_req, file, cb) => {
+      if (!allowedTypes.has(file.mimetype))
+        return cb(
+          new Error("Only PNG, JPEG, WebP, or GIF images are allowed.")
+        );
+      cb(null, true);
+    },
+  }).single("icon");
+  upload(request, response, function (err) {
+    if (err)
+      return response.status(400).json({
+        success: false,
+        error: `Invalid agent icon upload. ${err.message}`,
+      });
+    next();
+  });
+}
+
 module.exports = {
   handleFileUpload,
   handleAPIFileUpload,
   handleAssetUpload,
   handlePfpUpload,
   handleAudioUpload,
+  handleAgentIconUpload,
 };

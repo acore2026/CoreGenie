@@ -1,39 +1,9 @@
-const pluralize = require("pluralize");
-const {
-  WorkspaceAgentInvocation,
-} = require("../../models/workspaceAgentInvocation");
 const { writeResponseChunk } = require("../helpers/chat/responses");
 const { Workspace } = require("../../models/workspace");
+const { PredefinedAgent } = require("../../models/predefinedAgent");
 
-/**
- * In-memory cache for attachments associated with agent invocations.
- * Attachments are stored here when grepAgents creates an invocation,
- * then retrieved by AgentHandler when the websocket connects.
- * @type {Map<string, Array>}
- */
-const invocationAttachmentsCache = new Map();
-
-/**
- * Store attachments for an invocation UUID
- * @param {string} uuid - The invocation UUID
- * @param {Array} attachments - The attachments array
- */
-function cacheInvocationAttachments(uuid, attachments = []) {
-  if (attachments.length > 0) {
-    invocationAttachmentsCache.set(uuid, attachments);
-  }
-}
-
-/**
- * Retrieve and remove attachments for an invocation UUID
- * @param {string} uuid - The invocation UUID
- * @returns {Array} The attachments array (empty if none cached)
- */
-function getAndClearInvocationAttachments(uuid) {
-  const attachments = invocationAttachmentsCache.get(uuid) || [];
-  invocationAttachmentsCache.delete(uuid);
-  return attachments;
-}
+const { submitAgentRun } = require("../../agent-system/service");
+const { AgentSkillWhitelist } = require("../../models/agentSkillWhitelist");
 
 async function grepAgents({
   uuid,
@@ -43,6 +13,7 @@ async function grepAgents({
   user = null,
   thread = null,
   attachments = [],
+  predefinedAgentId = null,
 }) {
   let nativeToolingEnabled = false;
 
@@ -51,35 +22,34 @@ async function grepAgents({
   if (workspace?.chatMode === "automatic")
     nativeToolingEnabled = await Workspace.supportsNativeToolCalling(workspace);
 
-  const agentHandles = WorkspaceAgentInvocation.parseAgents(message);
-  if (agentHandles.length > 0 || nativeToolingEnabled) {
-    const { invocation: newInvocation } = await WorkspaceAgentInvocation.new({
+  const explicitlyInvoked = message.startsWith("@agent");
+  const requestedAgent =
+    Number(predefinedAgentId) > 0
+      ? await PredefinedAgent.get(Number(predefinedAgentId), {
+          enabledOnly: true,
+        })
+      : null;
+  const defaultAgentId = requestedAgent
+    ? null
+    : await PredefinedAgent.defaultId();
+  const predefinedAgent =
+    requestedAgent ||
+    (defaultAgentId
+      ? await PredefinedAgent.get(defaultAgentId, { enabledOnly: true })
+      : null);
+  if (explicitlyInvoked || nativeToolingEnabled || predefinedAgent) {
+    const approvalMode = await AgentSkillWhitelist.getApprovalMode();
+    const run = await submitAgentRun({
       prompt: message,
-      workspace: workspace,
-      user: user,
-      thread: thread,
+      workspace,
+      user,
+      thread,
+      agentId: predefinedAgent?.id || null,
+      mode: workspace.chatMode || "automatic",
+      source: "workspace",
+      attachments,
+      configuration: { approvalMode, maxToolCalls: 500 },
     });
-
-    if (!newInvocation) {
-      writeResponseChunk(response, {
-        id: uuid,
-        type: "statusResponse",
-        textResponse: `${pluralize(
-          "Agent",
-          agentHandles.length
-        )} ${agentHandles.join(
-          ", "
-        )} could not be called. Chat will be handled as default chat.`,
-        sources: [],
-        close: true,
-        animate: false,
-        error: null,
-      });
-      return;
-    }
-
-    // Cache attachments for the websocket handler to retrieve later
-    cacheInvocationAttachments(newInvocation.uuid, attachments);
 
     writeResponseChunk(response, {
       id: uuid,
@@ -88,15 +58,18 @@ async function grepAgents({
       sources: [],
       close: false,
       error: null,
-      websocketUUID: newInvocation.uuid,
+      websocketUUID: run.id,
     });
 
     // Close HTTP stream-able chunk response method because we will swap to agents now.
     writeResponseChunk(response, {
       id: uuid,
       type: "statusResponse",
-      textResponse:
-        "@agent: Swapping over to agent chat. Type /exit to exit agent execution loop early.",
+      // This frame only closes the original HTTP stream after the durable run
+      // transport has been attached. Live activity.updated events own the
+      // visible status line; persisting a placeholder here leaves a stale
+      // "running in the background" bubble after the answer is complete.
+      textResponse: null,
       sources: [],
       close: true,
       error: null,
@@ -106,6 +79,12 @@ async function grepAgents({
   }
 
   return false;
+}
+
+// Transitional no-op for old scheduled/Telegram handlers that still import the
+// symbol while those callers are being moved to the durable run service.
+function getAndClearInvocationAttachments() {
+  return [];
 }
 
 module.exports = { grepAgents, getAndClearInvocationAttachments };

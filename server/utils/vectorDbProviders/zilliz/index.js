@@ -21,15 +21,26 @@ class Zilliz extends Milvus {
     const client = new MilvusClient({
       address: process.env.ZILLIZ_ENDPOINT,
       token: process.env.ZILLIZ_API_TOKEN,
+      timeout: 10_000,
+      maxRetries: 0,
     });
+    try {
+      // MilvusClient starts a Connect RPC in its constructor. Awaiting that
+      // promise is essential: otherwise an unavailable endpoint can reject it
+      // as an unhandled promise and terminate the entire Node process even
+      // though checkHealth() is awaited by the caller.
+      await client.connectPromise;
+      const { isHealthy } = await client.checkHealth();
+      if (!isHealthy)
+        throw new Error(
+          `${this.name}::Invalid Heartbeat received - is the instance online?`
+        );
 
-    const { isHealthy } = await client.checkHealth();
-    if (!isHealthy)
-      throw new Error(
-        `${this.name}::Invalid Heartbeat received - is the instance online?`
-      );
-
-    return { client };
+      return { client };
+    } catch (error) {
+      client.closeConnection();
+      throw new Error(`${this.name}::Connection failed: ${error.message}`);
+    }
   }
 }
 

@@ -12,8 +12,6 @@
 
 const { v4 } = require("uuid");
 const { ChatOpenAI } = require("@langchain/openai");
-const { ChatAnthropic } = require("@langchain/anthropic");
-const { ChatOllama } = require("@langchain/community/chat_models/ollama");
 const { toValidNumber, safeJsonParse } = require("../../../http");
 const { getLLMProviderClass } = require("../../../helpers");
 const { parseLMStudioBasePath } = require("../../../AiProviders/lmStudio");
@@ -23,10 +21,7 @@ const {
 const { parseFoundryBasePath } = require("../../../AiProviders/foundry");
 const { parseOMLXBasePath } = require("../../../AiProviders/omlx");
 const { AzureOpenAiLLM } = require("../../../AiProviders/azureOpenAi");
-const {
-  SystemPromptVariables,
-} = require("../../../../models/systemPromptVariables");
-const { OllamaAILLM } = require("../../../AiProviders/ollama");
+const { composeSystemPrompt } = require("../../../systemPrompt");
 
 const DEFAULT_WORKSPACE_PROMPT =
   "You are a helpful ai assistant who can assist the user and use tools available to help answer the users prompts and questions.";
@@ -170,10 +165,9 @@ class Provider {
           ...config,
         });
       case "anthropic":
-        return new ChatAnthropic({
-          apiKey: process.env.ANTHROPIC_API_KEY,
-          ...config,
-        });
+        throw new Error(
+          "Anthropic is no longer an Agent runtime provider. Use OpenAI or Generic OpenAI."
+        );
       case "groq":
         return new ChatOpenAI({
           configuration: {
@@ -380,7 +374,9 @@ class Provider {
       //     ...config,
       //   });
       case "ollama":
-        return OllamaLangchainChatModel.create(config);
+        throw new Error(
+          "Ollama is no longer an Agent runtime provider. Configure it through Generic OpenAI compatibility instead."
+        );
       case "lmstudio": {
         const apiKey = process.env.LMSTUDIO_AUTH_TOKEN ?? null;
         return new ChatOpenAI({
@@ -514,6 +510,7 @@ class Provider {
    * @param {import("@prisma/client").workspaces | null} opts.workspace
    * @param {import("@prisma/client").users | null} opts.user
    * @param {string} [opts.prompt] - current user message, used for reranking injected memories
+   * @param {Function|null} [opts.onMemoryRecall] - optional observer for memory traces
    * @returns {Promise<string>}
    */
   static async systemPrompt({
@@ -521,20 +518,22 @@ class Provider {
     workspace = null,
     user = null,
     prompt = "",
+    overridePrompt = null,
+    onMemoryRecall = null,
   }) {
     const { promptWithMemories } = require("../../../memories");
-    const basePrompt = !workspace?.openAiPrompt
-      ? Provider.defaultSystemPromptForProvider(provider)
-      : await SystemPromptVariables.expandSystemPromptVariables(
-          workspace.openAiPrompt,
-          user?.id || null,
-          workspace.id
-        );
+    const basePrompt = await composeSystemPrompt({
+      basePrompt:
+        overridePrompt || Provider.defaultSystemPromptForProvider(provider),
+      user,
+      workspace,
+    });
     return promptWithMemories({
       systemPrompt: basePrompt,
       userId: user?.id ?? null,
       workspaceId: workspace?.id,
       prompt,
+      onRecall: onMemoryRecall,
     });
   }
 
@@ -708,30 +707,6 @@ class Provider {
     return {
       textResponse: result.textResponse,
       functionCall: result.functionCall,
-    };
-  }
-}
-
-// Langchain Wrappers
-
-/**
- * Ollama Langchain Chat Model that supports passing in context window options
- * so that context window preferences are respected between Ollama chat/agent and in
- * Langchain tooling.
- */
-class OllamaLangchainChatModel {
-  static create(config = {}) {
-    return new ChatOllama({
-      baseUrl: process.env.OLLAMA_BASE_PATH,
-      ...this.queryOptions(config),
-      ...config,
-    });
-  }
-
-  static queryOptions(config = {}) {
-    const model = config?.model || process.env.OLLAMA_MODEL_PREF;
-    return {
-      num_ctx: OllamaAILLM.promptWindowLimit(model),
     };
   }
 }

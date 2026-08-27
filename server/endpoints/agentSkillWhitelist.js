@@ -28,6 +28,24 @@ function agentSkillWhitelistEndpoints(app) {
   );
 
   app.get(
+    "/agent-skills/sandbox/is-available",
+    [validatedRequest],
+    async (_request, response) => {
+      try {
+        const sandbox = require("../utils/agents/aibitat/plugins/sandbox/lib");
+        return response
+          .status(200)
+          .json({ available: sandbox.isToolAvailable() });
+      } catch (e) {
+        console.error(e);
+        return response
+          .status(500)
+          .json({ available: false, error: e.message });
+      }
+    }
+  );
+
+  app.get(
     "/agent-skills/create-files-agent/is-available",
     [validatedRequest],
     async (_request, response) => {
@@ -71,6 +89,39 @@ function agentSkillWhitelistEndpoints(app) {
           userId
         );
         return response.status(success ? 200 : 400).json({ success, error });
+      } catch (e) {
+        console.error(e);
+        return response.status(500).json({ success: false, error: e.message });
+      }
+    }
+  );
+
+  app.get(
+    "/agent-skills/approval-mode",
+    [validatedRequest, flexUserRoleValid(ROLES.all)],
+    async (_request, response) => {
+      try {
+        const mode = await AgentSkillWhitelist.getApprovalMode();
+        return response.status(200).json({ success: true, mode });
+      } catch (e) {
+        console.error(e);
+        return response.status(500).json({
+          success: false,
+          mode: AgentSkillWhitelist.APPROVAL_MODES.ALWAYS_ALLOW,
+          error: e.message,
+        });
+      }
+    }
+  );
+
+  app.post(
+    "/agent-skills/approval-mode",
+    [validatedRequest, flexUserRoleValid([ROLES.admin])],
+    async (request, response) => {
+      try {
+        const { mode } = reqBody(request);
+        const result = await AgentSkillWhitelist.setApprovalMode(mode);
+        return response.status(result.success ? 200 : 400).json(result);
       } catch (e) {
         console.error(e);
         return response.status(500).json({ success: false, error: e.message });

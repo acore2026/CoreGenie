@@ -10,7 +10,8 @@ export default function HeaderMenu({
   availableFlows = [],
   onNewFlow,
   onSaveFlow,
-  onPublishFlow,
+  active = true,
+  onActiveChange,
 }) {
   const { flowId = null } = useParams();
   const [showDropdown, setShowDropdown] = useState(false);
@@ -37,7 +38,7 @@ export default function HeaderMenu({
       <div className="flex justify-between items-start max-w-[1700px] mx-auto">
         <div className="flex items-center gap-x-2">
           <button
-            onClick={() => navigate(paths.settings.agentSkills())}
+            onClick={() => navigate(paths.settings.agents())}
             className="w-8 h-8 flex items-center justify-center rounded-full bg-theme-settings-input-bg border border-white/10 hover:bg-theme-action-menu-bg transition-colors duration-300"
           >
             <CaretLeft
@@ -50,7 +51,7 @@ export default function HeaderMenu({
             ref={dropdownRef}
           >
             <button
-              onClick={() => navigate(paths.settings.agentSkills())}
+              onClick={() => navigate(paths.settings.agentFlows())}
               className="!border-t-transparent !border-l-transparent !border-b-transparent flex items-center gap-x-2 px-4 py-2 border-r border-white/10 hover:bg-theme-action-menu-bg transition-colors duration-300"
             >
               <img
@@ -59,7 +60,7 @@ export default function HeaderMenu({
                 className="w-[20px] light:invert"
               />
               <span className="text-theme-text-primary text-sm uppercase tracking-widest">
-                Builder
+                Agent Flows
               </span>
             </button>
             <div className="relative">
@@ -116,17 +117,26 @@ export default function HeaderMenu({
         <div className="flex flex-col gap-y-1 items-end">
           <div className="flex items-center gap-x-[15px]">
             <button
+              type="button"
+              aria-pressed={active}
+              onClick={() => onActiveChange?.(!active)}
+              className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-all duration-300 ${
+                active
+                  ? "border-emerald-300/25 bg-emerald-300/10 text-emerald-300 light:text-emerald-700"
+                  : "border-white/10 bg-theme-bg-primary text-theme-text-secondary"
+              }`}
+            >
+              <span
+                className={`h-2 w-2 rounded-full ${active ? "bg-emerald-300" : "bg-zinc-500"}`}
+              />
+              {active ? "Active" : "Inactive"}
+            </button>
+            <button
               onClick={onNewFlow}
               className="flex items-center gap-x-2 text-theme-text-primary text-sm font-medium px-3 py-2 rounded-lg border border-white bg-theme-settings-input-bg hover:bg-theme-action-menu-bg transition-colors duration-300"
             >
               <Plus className="w-4 h-4" />
               New Flow
-            </button>
-            <button
-              onClick={onPublishFlow}
-              className="px-3 py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2 border border-white/10 bg-theme-bg-primary text-theme-text-primary hover:bg-theme-action-menu-bg transition-all duration-300"
-            >
-              Publish
             </button>
             <button
               onClick={onSaveFlow}

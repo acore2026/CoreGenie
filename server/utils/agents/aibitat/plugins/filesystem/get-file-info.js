@@ -43,13 +43,17 @@ module.exports.FilesystemGetFileInfo = {
                 `Using the filesystem-get-file-info tool.`
               );
 
-              const validPath = await filesystem.validatePath(filePath);
+              const workspaceFilesystem = filesystem.forInvocation(
+                this.super.handlerProps.invocation
+              );
+              const validPath =
+                await workspaceFilesystem.validatePath(filePath);
 
               this.super.introspect(
                 `${this.caller}: Getting info for ${filePath}`
               );
 
-              const info = await filesystem.getFileStats(validPath);
+              const info = await workspaceFilesystem.getFileStats(validPath);
 
               const formatted = Object.entries(info)
                 .map(([key, value]) => `${key}: ${value}`)

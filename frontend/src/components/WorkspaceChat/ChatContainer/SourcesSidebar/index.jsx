@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { memo, useState } from "react";
 import { isMobile } from "react-device-detect";
 import { useTranslation } from "react-i18next";
 import { X } from "@phosphor-icons/react";
@@ -13,7 +13,7 @@ import ChatSidebar, { useSourcesSidebar } from "../ChatSidebar";
 // Re-export for backward compat with existing imports
 export { useSourcesSidebar } from "../ChatSidebar";
 
-export default function SourcesSidebar() {
+function SourcesSidebar() {
   const { sources, sidebarOpen, closeSidebar } = useSourcesSidebar();
   const { t } = useTranslation();
   const [selectedSource, setSelectedSource] = useState(null);
@@ -74,3 +74,5 @@ export default function SourcesSidebar() {
     </>
   );
 }
+
+export default memo(SourcesSidebar);

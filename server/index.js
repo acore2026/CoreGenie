@@ -4,6 +4,8 @@ process.env.NODE_ENV === "development"
 
 require("./utils/logger")();
 require("./utils/boot/patchSdkTimeouts")();
+require("./agent-system/observability").initializeLangfuse();
+require("./utils/boot/quarantineCommunitySkills")();
 const express = require("express");
 const bodyParser = require("body-parser");
 const cors = require("cors");
@@ -16,7 +18,6 @@ const { embeddedEndpoints } = require("./endpoints/embed");
 const { embedManagementEndpoints } = require("./endpoints/embedManagement");
 const { getVectorDbClass } = require("./utils/helpers");
 const { adminEndpoints } = require("./endpoints/admin");
-const { modelRouterEndpoints } = require("./endpoints/modelRouter");
 const { inviteEndpoints } = require("./endpoints/invite");
 const { utilEndpoints } = require("./endpoints/utils");
 const { developerEndpoints } = require("./endpoints/api");
@@ -24,14 +25,13 @@ const { extensionEndpoints } = require("./endpoints/extensions");
 const { bootHTTP, bootSSL } = require("./utils/boot");
 const { workspaceThreadEndpoints } = require("./endpoints/workspaceThreads");
 const { documentEndpoints } = require("./endpoints/document");
-const { agentWebsocket } = require("./endpoints/agentWebsocket");
+const { agentRunEndpoints } = require("./endpoints/agentRuns");
 const {
   agentSkillWhitelistEndpoints,
 } = require("./endpoints/agentSkillWhitelist");
 const { agentFileServerEndpoints } = require("./endpoints/agentFileServer");
 const { experimentalEndpoints } = require("./endpoints/experimental");
 const { browserExtensionEndpoints } = require("./endpoints/browserExtension");
-const { communityHubEndpoints } = require("./endpoints/communityHub");
 const { agentFlowEndpoints } = require("./endpoints/agentFlows");
 const { mcpServersEndpoints } = require("./endpoints/mcpServers");
 const { mobileEndpoints } = require("./endpoints/mobile");
@@ -45,6 +45,9 @@ const {
   googleAgentSkillEndpoints,
 } = require("./endpoints/utils/googleAgentSkillEndpoints");
 const { memoryEndpoints } = require("./endpoints/memory");
+const { publicChatShareEndpoints } = require("./endpoints/publicChatShare");
+const { workspaceFileEndpoints } = require("./endpoints/workspaceFiles");
+const { predefinedAgentEndpoints } = require("./endpoints/predefinedAgents");
 const { httpLogger } = require("./middleware/httpLogger");
 const app = express();
 const apiRouter = express.Router();
@@ -73,8 +76,6 @@ app.use(
 
 if (!!process.env.ENABLE_HTTPS) {
   bootSSL(app, process.env.SERVER_PORT || 3001);
-} else {
-  require("@mintplex-labs/express-ws").default(app); // load WebSockets in non-SSL mode.
 }
 
 app.use("/api", apiRouter);
@@ -84,17 +85,15 @@ workspaceEndpoints(apiRouter);
 workspaceThreadEndpoints(apiRouter);
 chatEndpoints(apiRouter);
 adminEndpoints(apiRouter);
-modelRouterEndpoints(apiRouter);
 inviteEndpoints(apiRouter);
 embedManagementEndpoints(apiRouter);
 utilEndpoints(apiRouter);
 documentEndpoints(apiRouter);
-agentWebsocket(apiRouter);
+agentRunEndpoints(apiRouter);
 agentSkillWhitelistEndpoints(apiRouter);
 agentFileServerEndpoints(apiRouter);
 experimentalEndpoints(apiRouter);
 developerEndpoints(app, apiRouter);
-communityHubEndpoints(apiRouter);
 agentFlowEndpoints(apiRouter);
 mcpServersEndpoints(apiRouter);
 mobileEndpoints(apiRouter);
@@ -104,6 +103,14 @@ scheduledJobEndpoints(apiRouter);
 outlookAgentEndpoints(apiRouter);
 googleAgentSkillEndpoints(apiRouter);
 memoryEndpoints(apiRouter);
+publicChatShareEndpoints(apiRouter);
+workspaceFileEndpoints(apiRouter);
+predefinedAgentEndpoints(apiRouter);
+require("./agent-system/supervisor")
+  .agentRunSupervisor.start()
+  .catch((error) =>
+    console.error(`Agent run supervisor failed to start: ${error.message}`)
+  );
 // Externally facing embedder endpoints
 embeddedEndpoints(apiRouter);
 

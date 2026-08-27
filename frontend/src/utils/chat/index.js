@@ -36,6 +36,14 @@ export default function handleChat(
     return;
   }
 
+  // Agent submission sends an empty terminal status frame solely to close the
+  // original HTTP response. The durable SSE lifecycle supplies the visible
+  // status, so do not turn this transport frame into a history item.
+  if (type === "statusResponse" && !textResponse) {
+    setLoadingResponse(false);
+    return;
+  }
+
   if (type === "abort" || type === "statusResponse") {
     setLoadingResponse(false);
     setChatHistory([
@@ -186,13 +194,6 @@ export default function handleChat(
       );
     }
   }
-}
-
-export function getWorkspaceSystemPrompt(workspace) {
-  return (
-    workspace?.openAiPrompt ??
-    "Given the following conversation, relevant context, and a follow up question, reply with an answer to the current question the user is asking. Return only your response to the question given the above information following the users instructions as needed."
-  );
 }
 
 export function chatQueryRefusalResponse(workspace) {

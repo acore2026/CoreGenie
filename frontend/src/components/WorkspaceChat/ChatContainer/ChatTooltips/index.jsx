@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Tooltip } from "react-tooltip";
 import { createPortal } from "react-dom";
 
@@ -15,7 +16,7 @@ import { createPortal } from "react-dom";
  * hundreds of event listeners from being added to the DOM in the worst case scenario.
  * @returns
  */
-export function ChatTooltips() {
+export const ChatTooltips = memo(function ChatTooltips() {
   return (
     <>
       <Tooltip
@@ -105,7 +106,7 @@ export function ChatTooltips() {
       <DocumentLevelTooltip />
     </>
   );
-}
+});
 
 /**
  * This is a document level tooltip that is rendered at the top most level of the document

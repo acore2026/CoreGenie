@@ -3,6 +3,57 @@ const slugifyModule = require("slugify");
 const { v4: uuidv4 } = require("uuid");
 const truncate = require("truncate");
 
+const TITLE_MAX_LENGTH = 60;
+const TITLE_GENERATION_PROMPT = `Generate a concise title for this conversation.
+- Use the same language as the user.
+- Summarize the main intent in 3 to 8 words.
+- Do not include quotes, markdown, labels, explanations, or ending punctuation.
+- Do not show reasoning or thinking.
+Return only the title.`;
+
+function fallbackTitle(prompt = "") {
+  const cleaned = String(prompt).replace(/\s+/g, " ").trim();
+  return truncate(cleaned || WorkspaceThread.defaultName, TITLE_MAX_LENGTH);
+}
+
+function cleanGeneratedTitle(value = "") {
+  const { stripThinkingFromText } = require("../utils/helpers");
+  const withoutThinking = stripThinkingFromText(String(value));
+  const firstLine = withoutThinking
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find(Boolean);
+  if (!firstLine) return null;
+
+  const cleaned = firstLine
+    .replace(/^(?:title|thread title|标题|標題)\s*[:：-]\s*/i, "")
+    .replace(/^[#*_`'"“”‘’\s]+|[#*_`'"“”‘’\s.!?。！？]+$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!cleaned) return null;
+  return truncate(cleaned, TITLE_MAX_LENGTH);
+}
+
+async function summarizeThreadTitle({ workspace, prompt, response }) {
+  const { createChatModel } = require("../resources/models");
+  const exchange = [
+    `User: ${String(prompt).slice(0, 2_000)}`,
+    response ? `Assistant: ${String(response).slice(0, 2_000)}` : null,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+  const completion = await createChatModel({
+    workspace,
+    temperature: 0,
+    maxTokens: 64,
+    thinking: false,
+  }).invoke([
+    { role: "system", content: TITLE_GENERATION_PROMPT },
+    { role: "user", content: exchange },
+  ]);
+  return cleanGeneratedTitle(completion?.content);
+}
+
 const WorkspaceThread = {
   defaultName: "Thread",
   writable: ["name"],
@@ -121,31 +172,69 @@ const WorkspaceThread = {
     }
   },
 
-  // Will fire on first message (included or not) for a thread and rename the thread based on the prompt.
+  // Fires after the first exchange and uses the active chat model to create a
+  // concise thread title. The provider call explicitly disables thinking.
   autoRenameThread: async function ({
     workspace = null,
     thread = null,
     user = null,
-    prompt = null,
     onRename = null,
   }) {
-    if (!workspace || !thread || !prompt) return false;
+    if (!workspace || !thread) return false;
     if (thread.name !== this.defaultName) return false; // don't rename if already named.
 
     const { WorkspaceChats } = require("./workspaceChats");
-    const chatCount = await WorkspaceChats.count({
-      workspaceId: workspace.id,
-      user_id: user?.id || null,
-      thread_id: thread.id,
-    });
-    if (chatCount !== 1) return { renamed: false, thread };
+    // Always derive the title input from the first completed database record.
+    // Agent requests hand off to a socket before their response is persisted,
+    // so using the endpoint's current prompt here can pair a later prompt with
+    // an earlier response and produce a misleading title.
+    const firstChat = await WorkspaceChats.get(
+      {
+        workspaceId: workspace.id,
+        user_id: user?.id || null,
+        thread_id: thread.id,
+        include: true,
+      },
+      null,
+      { id: "asc" }
+    );
+    if (!firstChat) return { renamed: false, thread };
+
+    const { safeJsonParse } = require("../utils/http");
+    const response = safeJsonParse(firstChat?.response, {})?.text || "";
+    const prompt = firstChat.prompt;
+    if (typeof prompt !== "string" || !prompt.trim() || !response.trim())
+      return { renamed: false, thread };
+    let title = fallbackTitle(prompt);
+    try {
+      title =
+        (await summarizeThreadTitle({
+          workspace,
+          thread,
+          user,
+          prompt,
+          response,
+        })) || title;
+    } catch (error) {
+      console.error(`Failed to generate thread title: ${error.message}`);
+    }
+
+    // Do not overwrite a title the user changed while generation was running.
+    const currentThread = await this.get({ id: thread.id });
+    if (!currentThread || currentThread.name !== this.defaultName)
+      return { renamed: false, thread: currentThread || thread };
     const { thread: updatedThread } = await this.update(thread, {
-      name: truncate(prompt, 22),
+      name: title,
     });
 
-    onRename?.(updatedThread);
-    return true;
+    if (updatedThread) onRename?.(updatedThread);
+    return { renamed: Boolean(updatedThread), thread: updatedThread || thread };
   },
 };
 
-module.exports = { WorkspaceThread };
+module.exports = {
+  WorkspaceThread,
+  cleanGeneratedTitle,
+  fallbackTitle,
+  summarizeThreadTitle,
+};

@@ -302,6 +302,30 @@ class LanceDb extends VectorDatabase {
     return true;
   }
 
+  /**
+   * Return stored vector metadata for a document. This is used to validate
+   * legacy Agent memories before resolving their public memoryId back to the
+   * original UUID document ID.
+   */
+  async getDocumentMetadata(namespace, docId) {
+    const { client } = await this.connect();
+    if (!(await this.namespaceExists(client, namespace))) return [];
+    const { DocumentVectors } = require("../../../models/vectors");
+    const vectorIds = (await DocumentVectors.where({ docId })).map(
+      (record) => record.vectorId
+    );
+    if (!vectorIds.length) return [];
+
+    const table = await client.openTable(namespace);
+    const rows = await table
+      .query()
+      .where(`id IN (${vectorIds.map((id) => `'${id}'`).join(",")})`)
+      .toArray();
+    return rows.map(
+      ({ vector: _vector, text: _text, ...metadata }) => metadata
+    );
+  }
+
   async addDocumentToNamespace(
     namespace,
     documentData = {},

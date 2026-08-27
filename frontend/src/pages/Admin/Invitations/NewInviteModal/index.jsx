@@ -3,6 +3,7 @@ import { X, Copy, Check } from "@phosphor-icons/react";
 import Admin from "@/models/admin";
 import Workspace from "@/models/workspace";
 import showToast from "@/utils/toast";
+import { copyTextToClipboard } from "@/utils/clipboard";
 
 export default function NewInviteModal({ closeModal, onSuccess }) {
   const [invite, setInvite] = useState(null);
@@ -26,15 +27,22 @@ export default function NewInviteModal({ closeModal, onSuccess }) {
     setError(error);
   };
 
-  const copyInviteLink = () => {
+  const copyInviteLink = async () => {
     if (!invite) return false;
-    window.navigator.clipboard.writeText(
-      `${window.location.origin}/accept-invite/${invite.code}`
-    );
-    setCopied(true);
-    showToast("Invite link copied to clipboard", "success", {
-      clear: true,
-    });
+    try {
+      await copyTextToClipboard(
+        `${window.location.origin}/accept-invite/${invite.code}`
+      );
+      setCopied(true);
+      showToast("Invite link copied to clipboard", "success", {
+        clear: true,
+      });
+    } catch (error) {
+      console.error("Failed to copy invite link:", error);
+      showToast("Unable to copy. Select the invite link manually.", "error", {
+        clear: true,
+      });
+    }
   };
 
   const handleWorkspaceSelection = (workspaceId) => {
@@ -91,7 +99,7 @@ export default function NewInviteModal({ closeModal, onSuccess }) {
                   <input
                     type="url"
                     defaultValue={`${window.location.origin}/accept-invite/${invite.code}`}
-                    disabled={true}
+                    readOnly={true}
                     className="border-none bg-theme-settings-input-bg text-white placeholder:text-theme-settings-input-placeholder text-sm rounded-lg outline-none block w-full p-2.5 pr-10"
                   />
                   <button
@@ -114,9 +122,9 @@ export default function NewInviteModal({ closeModal, onSuccess }) {
               )}
               <p className="text-white text-opacity-60 text-xs md:text-sm">
                 After creation you will be able to copy the invite and send it
-                to a new user where they can create an account as the{" "}
-                <b>default</b> role and automatically be added to workspaces
-                selected.
+                to new users. The reusable link creates <b>default</b> accounts
+                and automatically adds every registrant to the selected
+                workspaces. The link remains active until you disable it.
               </p>
             </div>
 

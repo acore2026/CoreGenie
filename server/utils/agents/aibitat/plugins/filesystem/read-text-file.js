@@ -70,14 +70,18 @@ module.exports.FilesystemReadTextFile = {
                 return "Error: Cannot specify both head and tail parameters simultaneously.";
               }
 
-              const validPath = await filesystem.validatePath(filePath);
+              const workspaceFilesystem = filesystem.forInvocation(
+                this.super.handlerProps.invocation
+              );
+              const validPath =
+                await workspaceFilesystem.validatePath(filePath);
 
-              if (filesystem.isImageFile(validPath)) {
+              if (workspaceFilesystem.isImageFile(validPath)) {
                 this.super.introspect(
                   `${this.caller}: Detected image file ${filePath}, attaching for viewing`
                 );
                 const attachment =
-                  await filesystem.readImageAsAttachment(validPath);
+                  await workspaceFilesystem.readImageAsAttachment(validPath);
                 if (attachment) {
                   this.super.addToolAttachment?.(attachment);
                   const filename = path.basename(validPath);
@@ -90,22 +94,22 @@ module.exports.FilesystemReadTextFile = {
 
               let content;
               if (tail) {
-                content = await filesystem.tailFile(validPath, tail);
+                content = await workspaceFilesystem.tailFile(validPath, tail);
                 this.super.introspect(
                   `Retrieved last ${tail} lines of ${filePath}`
                 );
               } else if (head) {
-                content = await filesystem.headFile(validPath, head);
+                content = await workspaceFilesystem.headFile(validPath, head);
                 this.super.introspect(
                   `Retrieved first ${head} lines of ${filePath}`
                 );
               } else {
-                content = await filesystem.readFileContent(validPath);
+                content = await workspaceFilesystem.readFileContent(validPath);
                 this.super.introspect(`Successfully read ${filePath}`);
               }
 
               const { content: finalContent, wasTruncated } =
-                filesystem.truncateContentForContext(
+                workspaceFilesystem.truncateContentForContext(
                   content,
                   this.super,
                   "[Content truncated - file exceeds context limit. Use head/tail parameters to read specific portions.]"

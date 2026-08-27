@@ -15,8 +15,8 @@ export default function StopGenerationButton() {
         onClick={emitHaltEvent}
         data-tooltip-id="stop-generation-button"
         data-tooltip-content={t("chat_window.stop_generating")}
-        className="border-none inline-flex justify-center items-center rounded-full cursor-pointer w-8 h-8 bg-white light:bg-slate-800 hover:opacity-80 transition-opacity"
-        aria-label="Stop generating"
+        className="border-none inline-flex justify-center items-center rounded-full cursor-pointer w-8 h-8 bg-white light:bg-slate-800 hover:bg-zinc-200 light:hover:bg-slate-600 transition-colors"
+        aria-label={t("chat_window.stop_generating")}
       >
         <div className="w-3.5 h-3.5 rounded-[4px] bg-zinc-800 light:bg-white" />
       </button>

@@ -1,26 +1,40 @@
 import React, { useRef, useState } from "react";
-import { X } from "@phosphor-icons/react";
+import { CircleNotch, X } from "@phosphor-icons/react";
 import Workspace from "@/models/workspace";
 import paths from "@/utils/paths";
 import { useTranslation } from "react-i18next";
 import ModalWrapper from "@/components/ModalWrapper";
+import { useNavigate } from "react-router-dom";
+import { WORKSPACE_CREATED_EVENT } from "@/components/Sidebar/events";
 
 const noop = () => false;
 export default function NewWorkspaceModal({ hideModal = noop }) {
   const formEl = useRef(null);
   const [error, setError] = useState(null);
+  const [creating, setCreating] = useState(false);
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const handleCreate = async (e) => {
+    if (creating) return;
     setError(null);
+    setCreating(true);
     e.preventDefault();
     const data = {};
     const form = new FormData(formEl.current);
     for (var [key, value] of form.entries()) data[key] = value;
     const { workspace, message } = await Workspace.new(data);
     if (!!workspace) {
-      window.location.href = paths.workspace.chat(workspace.slug);
+      window.dispatchEvent(
+        new CustomEvent(WORKSPACE_CREATED_EVENT, {
+          detail: { workspace },
+        })
+      );
+      hideModal();
+      navigate(paths.workspace.chat(workspace.slug));
+      return;
     }
     setError(message);
+    setCreating(false);
   };
 
   return (
@@ -73,9 +87,13 @@ export default function NewWorkspaceModal({ hideModal = noop }) {
             <div className="flex w-full justify-end items-center p-6 space-x-2 border-t border-theme-modal-border rounded-b">
               <button
                 type="submit"
-                className="transition-all duration-300 bg-white text-black hover:opacity-60 px-4 py-2 rounded-lg text-sm"
+                disabled={creating}
+                className="transition-all duration-300 bg-white text-black hover:opacity-80 disabled:opacity-60 px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2"
               >
-                Save
+                {creating && <CircleNotch size={15} className="animate-spin" />}
+                {creating
+                  ? t("sidebar-create.creating-workspace")
+                  : t("sidebar-create.confirm-workspace")}
               </button>
             </div>
           </form>

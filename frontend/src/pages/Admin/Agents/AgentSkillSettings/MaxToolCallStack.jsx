@@ -5,7 +5,7 @@ import System from "@/models/system";
 
 export default function MaxToolCallStack() {
   const { t } = useTranslation();
-  const [maxCallStack, setMaxCallStack] = useState(10);
+  const [maxCallStack, setMaxCallStack] = useState(500);
   const [loading, setLoading] = useState(true);
 
   const debouncedUpdateMaxCallStack = useMemo(
@@ -56,7 +56,7 @@ export default function MaxToolCallStack() {
           }}
           onWheel={(e) => e.target.blur()}
           className="border border-white/10 bg-theme-settings-input-bg text-white placeholder:text-theme-settings-input-placeholder text-sm rounded-lg focus:outline-primary-button active:outline-primary-button outline-none block w-[80px] p-2.5 text-center"
-          placeholder="10"
+          placeholder="500"
           autoComplete="off"
         />
       </div>

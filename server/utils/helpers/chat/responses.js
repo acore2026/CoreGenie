@@ -212,9 +212,18 @@ function convertToChatHistory(history = []) {
         sentAt: moment(createdAt).unix(),
         feedbackScore,
         metrics: data?.metrics || {},
+        ...(data?.agentTrace?.length > 0
+          ? { agentTrace: data.agentTrace }
+          : {}),
         ...(data?.outputs?.length > 0 ? { outputs: data.outputs } : {}),
         ...(data?.clarifyingQuestions?.length > 0
           ? { clarifyingQuestions: data.clarifyingQuestions }
+          : {}),
+        ...(data?.subagentRuns?.length > 0
+          ? { subagentRuns: data.subagentRuns }
+          : {}),
+        ...(data?.contextTraces?.length > 0
+          ? { contextTraces: data.contextTraces }
           : {}),
       },
     ]);

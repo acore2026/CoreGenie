@@ -9,9 +9,6 @@ const { BackgroundService } = require("../BackgroundWorkers");
 const { MessageQueue } = require("./utils/messageQueue");
 const { decryptToken } = require("./utils");
 const {
-  WorkspaceAgentInvocation,
-} = require("../../models/workspaceAgentInvocation");
-const {
   isVerified,
   sendPairingRequest,
   approveUser,
@@ -493,7 +490,6 @@ class TelegramBotService {
     try {
       const bgService = new BackgroundService();
       const jobId = `handle-telegram-chat-${Date.now()}`;
-      let invocationUuid = null;
       let wasAborted = false;
 
       await bgService.bree.add({
@@ -519,7 +515,6 @@ class TelegramBotService {
 
       if (worker) {
         worker.on("message", (msg) => {
-          if (msg?.type === "closeInvocation") invocationUuid = msg.uuid;
           if (msg?.type === "toolApprovalRequest") {
             this.#handleToolApprovalRequest(worker, msg);
           }
@@ -552,8 +547,6 @@ class TelegramBotService {
           };
         }
       });
-
-      if (invocationUuid) await WorkspaceAgentInvocation.close(invocationUuid);
     } catch (error) {
       this.#activeWorkers.delete(chatId);
       if (error.message?.includes("aborted")) return;

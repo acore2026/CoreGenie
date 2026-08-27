@@ -44,7 +44,10 @@ module.exports.FilesystemCreateDirectory = {
                 `Using the filesystem-create-directory tool.`
               );
 
-              const validPath = await filesystem.validatePath(dirPath);
+              const workspaceFilesystem = filesystem.forInvocation(
+                this.super.handlerProps.invocation
+              );
+              const validPath = await workspaceFilesystem.validatePath(dirPath);
               this.super.introspect(
                 `${this.caller}: Creating directory ${dirPath}`
               );

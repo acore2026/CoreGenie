@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import paths from "@/utils/paths";
 import useLogo from "@/hooks/useLogo";
 import {
-  House,
+  ArrowLeft,
   List,
   Flask,
   Gear,
@@ -13,7 +13,6 @@ import {
   Plugs,
 } from "@phosphor-icons/react";
 import AgentIcon from "@/media/animations/agent-static.png";
-import CommunityHubIcon from "@/media/illustrations/community-hub.png";
 import useUser from "@/hooks/useUser";
 import { isMobile } from "react-device-detect";
 import Footer from "../Footer";
@@ -24,6 +23,7 @@ import System from "@/models/system";
 import Option from "./MenuOption";
 import { CanViewChatHistoryProvider } from "../CanViewChatHistory";
 import useAppVersion from "@/hooks/useAppVersion";
+import { SETTINGS_RETURN_PATH } from "@/utils/constants";
 
 export default function SettingsSidebar() {
   const { t } = useTranslation();
@@ -32,6 +32,7 @@ export default function SettingsSidebar() {
   const sidebarRef = useRef(null);
   const [showSidebar, setShowSidebar] = useState(false);
   const [showBgOverlay, setShowBgOverlay] = useState(false);
+  const returnPath = getSettingsReturnPath();
 
   useEffect(() => {
     function handleBg() {
@@ -50,12 +51,14 @@ export default function SettingsSidebar() {
     return (
       <>
         <div className="fixed top-0 left-0 right-0 z-10 flex justify-between items-center px-4 py-2 bg-theme-bg-sidebar light:bg-white text-theme-text-secondary shadow-lg h-16">
-          <button
-            onClick={() => setShowSidebar(true)}
-            className="rounded-md p-2 flex items-center justify-center text-theme-text-secondary"
+          <Link
+            to={returnPath}
+            aria-label={t("settings.back-to-chat")}
+            title={t("settings.back-to-chat")}
+            className="rounded-lg p-2 flex items-center justify-center text-theme-text-secondary hover:text-white hover:bg-theme-action-menu-item-hover hover:light:text-theme-text-primary transition-colors"
           >
-            <List className="h-6 w-6" />
-          </button>
+            <ArrowLeft className="h-6 w-6" weight="bold" />
+          </Link>
           <div className="flex items-center justify-center flex-grow">
             <img
               src={logo}
@@ -64,7 +67,14 @@ export default function SettingsSidebar() {
               style={{ maxHeight: "40px", objectFit: "contain" }}
             />
           </div>
-          <div className="w-12"></div>
+          <button
+            type="button"
+            onClick={() => setShowSidebar(true)}
+            aria-label={t("settings.title")}
+            className="rounded-lg p-2 flex items-center justify-center text-theme-text-secondary hover:text-white hover:bg-theme-action-menu-item-hover hover:light:text-theme-text-primary transition-colors"
+          >
+            <List className="h-6 w-6" />
+          </button>
         </div>
         <div
           style={{
@@ -96,12 +106,14 @@ export default function SettingsSidebar() {
                   />
                 </div>
                 <div className="flex gap-x-2 items-center text-slate-500 shrink-0">
-                  <a
-                    href={paths.home()}
+                  <Link
+                    to={returnPath}
+                    aria-label={t("settings.back-to-chat")}
+                    title={t("settings.back-to-chat")}
                     className="transition-all duration-300 p-2 rounded-full text-white bg-theme-action-menu-bg hover:bg-theme-action-menu-item-hover hover:border-slate-100 hover:border-opacity-50 border-transparent border"
                   >
-                    <House className="h-4 w-4" />
-                  </a>
+                    <ArrowLeft className="h-4 w-4" weight="bold" />
+                  </Link>
                 </div>
               </div>
 
@@ -154,6 +166,16 @@ export default function SettingsSidebar() {
           className="transition-all duration-500 relative m-[16px] rounded-[16px] bg-theme-bg-sidebar border-[2px] border-theme-sidebar-border light:border-none min-w-[250px] p-[10px] h-[calc(100%-76px)]"
         >
           <div className="w-full h-full flex flex-col overflow-x-hidden items-between min-w-[235px]">
+            <Link
+              to={returnPath}
+              className="group mb-2 flex w-full items-center gap-2 rounded-xl border border-theme-sidebar-border px-3 py-2.5 text-sm font-medium text-theme-text-secondary transition-colors hover:border-white/20 hover:bg-theme-action-menu-item-hover hover:text-white hover:light:text-theme-text-primary"
+            >
+              <ArrowLeft
+                className="h-4 w-4 flex-shrink-0 transition-transform group-hover:-translate-x-0.5"
+                weight="bold"
+              />
+              <span>{t("settings.back-to-chat")}</span>
+            </Link>
             <div className="text-theme-text-secondary text-sm font-medium uppercase mt-[4px] mb-0 ml-2">
               {t("settings.title")}
             </div>
@@ -184,6 +206,16 @@ export default function SettingsSidebar() {
       </div>
     </>
   );
+}
+
+function getSettingsReturnPath() {
+  const returnPath = sessionStorage.getItem(SETTINGS_RETURN_PATH);
+  if (
+    returnPath === "/" ||
+    /^\/workspace\/[^/]+(?:\/t\/[^/]+)?(?:[?#].*)?$/.test(returnPath || "")
+  )
+    return returnPath;
+  return paths.home();
 }
 
 function SupportEmail() {
@@ -257,12 +289,6 @@ const SidebarOptions = ({ user = null, t }) => (
               flex: true,
               roles: ["admin"],
             },
-            {
-              btnText: t("settings.model-router"),
-              href: paths.settings.modelRouters(),
-              flex: true,
-              roles: ["admin"],
-            },
           ]}
         />
         <Option
@@ -292,16 +318,10 @@ const SidebarOptions = ({ user = null, t }) => (
               href: paths.settings.invites(),
               roles: ["admin", "manager"],
             },
-            {
-              btnText: "Default System Prompt",
-              href: paths.settings.defaultSystemPrompt(),
-              flex: true,
-              roles: ["admin"],
-            },
           ]}
         />
         <Option
-          btnText={t("settings.agent-skills")}
+          btnText={t("settings.agents")}
           icon={
             <img
               src={AgentIcon}
@@ -309,37 +329,37 @@ const SidebarOptions = ({ user = null, t }) => (
               className="h-5 w-5 flex-shrink-0 light:invert"
             />
           }
-          href={paths.settings.agentSkills()}
           user={user}
-          flex={true}
-          roles={["admin"]}
-        />
-        <Option
-          btnText={t("settings.community-hub.title")}
-          icon={
-            <img
-              src={CommunityHubIcon}
-              alt="Community Hub"
-              className="h-5 w-5 flex-shrink-0 light:invert"
-            />
-          }
-          user={user}
+          href={paths.settings.agents()}
           childOptions={[
             {
-              btnText: t("settings.community-hub.trending"),
-              href: paths.communityHub.trending(),
+              btnText: t("settings.agents"),
+              href: paths.settings.agents(),
+              exact: true,
               flex: true,
               roles: ["admin"],
             },
             {
-              btnText: t("settings.community-hub.your-account"),
-              href: paths.communityHub.authentication(),
+              btnText: t("settings.agent-prompts"),
+              href: paths.settings.agentPrompts(),
               flex: true,
               roles: ["admin"],
             },
             {
-              btnText: t("settings.community-hub.import-item"),
-              href: paths.communityHub.importItem(),
+              btnText: t("settings.predefined-agent-skills"),
+              href: paths.settings.predefinedAgentSkills(),
+              flex: true,
+              roles: ["admin"],
+            },
+            {
+              btnText: t("settings.agent-tools"),
+              href: paths.settings.agentTools(),
+              flex: true,
+              roles: ["admin"],
+            },
+            {
+              btnText: t("settings.agent-flows"),
+              href: paths.settings.agentFlows(),
               flex: true,
               roles: ["admin"],
             },

@@ -26,6 +26,8 @@ logs/server.log
 storage/lancedb
 public/
 __tests__/**/models
+__tests__/utils/agents/comkey/*.pem
+__tests__/utils/agents/push-notifications/vapid-keys.json
 
 # For legacy copies of repo
 documents

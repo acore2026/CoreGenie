@@ -326,7 +326,6 @@ a {
   }
 }
 
-
 @media (prefers-color-scheme: light) {
   .sidebar-items:after {
     content: " ";
@@ -869,6 +868,27 @@ dialog::backdrop {
 .markdown strong {
   font-weight: 600;
   color: #fff;
+}
+
+/* Public chat shares use a fixed high-contrast reading surface independent of
+   the instance theme. This prevents global markdown theme colors from making
+   text disappear against the public viewer's message cards. */
+.public-share-markdown,
+.public-share-markdown :where(p, li, h1, h2, h3, h4, h5, h6, strong, em) {
+  color: #18181b !important;
+}
+
+.public-share-markdown a {
+  color: #a16207 !important;
+}
+
+.public-share-markdown code:not(pre code) {
+  color: #3f3f46 !important;
+  background: #f4f4f5 !important;
+}
+
+.public-share-markdown-user code:not(pre code) {
+  background: rgba(255, 255, 255, 0.55) !important;
 }
 
 .file-row {

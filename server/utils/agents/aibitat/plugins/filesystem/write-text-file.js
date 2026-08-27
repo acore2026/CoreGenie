@@ -53,7 +53,11 @@ module.exports.FilesystemWriteTextFile = {
                 `Using the filesystem-write-text-file tool.`
               );
 
-              const validPath = await filesystem.validatePath(filePath);
+              const workspaceFilesystem = filesystem.forInvocation(
+                this.super.handlerProps.invocation
+              );
+              const validPath =
+                await workspaceFilesystem.validatePath(filePath);
               this.super.introspect(
                 `${this.caller}: Writing to file ${filePath}`
               );
@@ -72,7 +76,7 @@ module.exports.FilesystemWriteTextFile = {
                 }
               }
 
-              await filesystem.writeFileContent(validPath, content);
+              await workspaceFilesystem.writeFileContent(validPath, content);
               this.super.introspect(`Successfully wrote to ${filePath}`);
               return `Successfully wrote to ${filePath}`;
             } catch (e) {

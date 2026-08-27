@@ -1,155 +1,133 @@
-import { useState, useEffect } from "react";
-import { useParams } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { CaretDown, CircleNotch } from "@phosphor-icons/react";
 import { useTranslation } from "react-i18next";
-import { isMobile } from "react-device-detect";
 import useUser from "@/hooks/useUser";
-import { useModal } from "@/hooks/useModal";
-import LLMSelectorModal from "../PromptInput/LLMSelector/index";
-import SetupProvider from "../PromptInput/LLMSelector/SetupProvider";
-import {
-  SAVE_LLM_SELECTOR_EVENT,
-  PROVIDER_SETUP_EVENT,
-} from "../PromptInput/LLMSelector/action";
+import useGetProviderModels, {
+  DISABLED_PROVIDERS,
+} from "@/hooks/useGetProvidersModels";
 import Workspace from "@/models/workspace";
 import System from "@/models/system";
-import ModelRouterAPI from "@/models/modelRouter";
-import { SIDEBAR_TOGGLE_EVENT } from "@/components/Sidebar/SidebarToggle";
+import showToast from "@/utils/toast";
 
-async function resolveModelName(workspace, systemSettings, t) {
-  const effectiveProvider =
-    workspace.chatProvider ?? systemSettings?.LLMProvider;
+function normalizeModels(defaultModels, customModels, selectedModel) {
+  const models = [
+    ...defaultModels.map((model) => ({ id: model, name: model })),
+    ...(Array.isArray(customModels)
+      ? customModels
+      : Object.values(customModels ?? {}).flat()),
+  ];
+  const uniqueModels = new Map();
 
-  if (effectiveProvider !== "anythingllm-router")
-    return workspace.chatModel ?? systemSettings?.LLMModel ?? "";
+  for (const model of models) {
+    const id = typeof model === "string" ? model : model?.id;
+    if (!id || uniqueModels.has(id)) continue;
+    uniqueModels.set(id, {
+      id,
+      name: typeof model === "string" ? model : model.name || id,
+    });
+  }
 
-  const routerId = workspace.router_id || systemSettings?.ModelRouterId;
-  if (!routerId) return t("model-router.metrics.model-router-default");
+  if (selectedModel && !uniqueModels.has(selectedModel)) {
+    uniqueModels.set(selectedModel, { id: selectedModel, name: selectedModel });
+  }
 
-  const { router } = await ModelRouterAPI.get(routerId);
-  if (!router?.name) return t("model-router.metrics.model-router-default");
-
-  return router.name;
-}
-
-async function fetchModelName(slug, setModelName, t) {
-  if (!slug) return;
-  const [workspace, systemSettings] = await Promise.all([
-    Workspace.bySlug(slug),
-    System.keys(),
-  ]);
-  setModelName(await resolveModelName(workspace, systemSettings, t));
+  return Array.from(uniqueModels.values());
 }
 
 export default function WorkspaceModelPicker({ workspaceSlug = null }) {
   const { t } = useTranslation();
-  const { slug: urlSlug } = useParams();
-  const slug = urlSlug ?? workspaceSlug;
   const { user } = useUser();
-  const [showSelector, setShowSelector] = useState(false);
-  const [modelName, setModelName] = useState("");
-  const {
-    isOpen: isSetupProviderOpen,
-    openModal: openSetupProviderModal,
-    closeModal: closeSetupProviderModal,
-  } = useModal();
-  const [config, setConfig] = useState({ settings: {}, provider: null });
-  const [refreshKey, setRefreshKey] = useState(0);
-  const [sidebarOpen, setSidebarOpen] = useState(
-    () => window.localStorage.getItem("anythingllm_sidebar_toggle") !== "closed"
+  const [provider, setProvider] = useState(null);
+  const [selectedModel, setSelectedModel] = useState("");
+  const [saving, setSaving] = useState(false);
+  const { defaultModels, customModels, loading } =
+    useGetProviderModels(provider);
+
+  useEffect(() => {
+    if (!workspaceSlug) return;
+
+    Promise.all([Workspace.bySlug(workspaceSlug), System.keys()]).then(
+      ([workspace, systemSettings]) => {
+        setProvider(workspace.chatProvider ?? systemSettings?.LLMProvider);
+        setSelectedModel(workspace.chatModel ?? systemSettings?.LLMModel ?? "");
+      }
+    );
+  }, [workspaceSlug]);
+
+  const models = useMemo(
+    () => normalizeModels(defaultModels, customModels, selectedModel),
+    [defaultModels, customModels, selectedModel]
   );
+  const selectedLabel = useMemo(
+    () =>
+      models.find((model) => model.id === selectedModel)?.name ||
+      selectedModel ||
+      t("chat_window.select_model"),
+    [models, selectedModel, t]
+  );
+  async function changeModel(event) {
+    const nextModel = event.target.value;
+    const previousModel = selectedModel;
+    setSelectedModel(nextModel);
+    setSaving(true);
 
-  useEffect(() => {
-    const handleToggle = (e) => setSidebarOpen(e.detail.open);
-    window.addEventListener(SIDEBAR_TOGGLE_EVENT, handleToggle);
-    return () => window.removeEventListener(SIDEBAR_TOGGLE_EVENT, handleToggle);
-  }, []);
+    const { message } = await Workspace.update(workspaceSlug, {
+      chatModel: nextModel,
+    });
 
-  // Fetch current model name for display
-  useEffect(() => {
-    fetchModelName(slug, setModelName, t);
-  }, [slug]);
-
-  // Close selector and refresh model name when model is saved
-  useEffect(() => {
-    function handleSave() {
-      setShowSelector(false);
-      fetchModelName(slug, setModelName, t);
+    if (message) {
+      setSelectedModel(previousModel);
+      showToast(message, "error", { clear: true });
     }
-    window.addEventListener(SAVE_LLM_SELECTOR_EVENT, handleSave);
-    return () =>
-      window.removeEventListener(SAVE_LLM_SELECTOR_EVENT, handleSave);
-  }, [slug]);
+    setSaving(false);
+  }
 
-  // Handle provider setup request
-  useEffect(() => {
-    function handleProviderSetup(e) {
-      const { provider, settings } = e.detail;
-      setConfig({ settings, provider });
-      setTimeout(() => openSetupProviderModal(), 300);
-    }
-    window.addEventListener(PROVIDER_SETUP_EVENT, handleProviderSetup);
-    return () =>
-      window.removeEventListener(PROVIDER_SETUP_EVENT, handleProviderSetup);
-  }, []);
-
-  // This feature is disabled for multi-user instances where the user is not an admin
+  // Workspace model changes are shared, so retain the existing admin-only rule.
   if (!!user && user.role !== "admin") return null;
-  if (!slug || isMobile) return null;
+  if (!workspaceSlug || !provider || DISABLED_PROVIDERS.includes(provider))
+    return null;
 
   return (
-    <>
-      {showSelector && (
-        <div
-          className="fixed inset-0 z-20"
-          onClick={() => setShowSelector(false)}
+    <div className="relative inline-grid h-6 min-w-[64px] max-w-[120px] shrink overflow-hidden md:max-w-[220px]">
+      <span
+        aria-hidden="true"
+        className="invisible col-start-1 row-start-1 whitespace-nowrap py-0 pl-2 pr-7 text-right text-xs font-medium"
+      >
+        {selectedLabel}
+      </span>
+      <select
+        value={selectedModel}
+        onChange={changeModel}
+        disabled={loading || saving || models.length === 0}
+        aria-label={t("chat_window.select_model")}
+        title={selectedModel || t("chat_window.select_model")}
+        className="absolute inset-0 h-6 w-full min-w-0 cursor-pointer appearance-none truncate rounded-full border-none bg-transparent py-0 pl-2 pr-7 text-right text-xs font-medium text-theme-text-secondary outline-none hover:bg-theme-bg-secondary disabled:cursor-wait disabled:opacity-60"
+      >
+        {models.length === 0 && (
+          <option value="">{t("chat_window.select_model")}</option>
+        )}
+        {models.map((model) => (
+          <option
+            key={model.id}
+            value={model.id}
+            className="bg-theme-bg-chat-input text-theme-text-primary"
+          >
+            {model.name}
+          </option>
+        ))}
+      </select>
+      {loading || saving ? (
+        <CircleNotch
+          size={13}
+          className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 animate-spin text-theme-text-secondary"
+        />
+      ) : (
+        <CaretDown
+          size={12}
+          weight="bold"
+          className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-theme-text-secondary"
         />
       )}
-      <div
-        className={`hidden md:block absolute top-2 z-30 transition-all duration-500 ${
-          sidebarOpen ? "left-3" : "left-11"
-        }`}
-      >
-        <button
-          type="button"
-          onClick={() => setShowSelector(!showSelector)}
-          className={`group border-none cursor-pointer px-2.5 py-1 flex items-center rounded-full transition-all ${
-            showSelector
-              ? "bg-zinc-700 light:bg-slate-200"
-              : "hover:bg-zinc-700 light:hover:bg-slate-200"
-          }`}
-        >
-          <span
-            className={`text-xs ${
-              showSelector
-                ? "text-white light:text-slate-800"
-                : "text-zinc-500 light:text-slate-500 group-hover:text-white light:group-hover:text-slate-800"
-            }`}
-          >
-            {modelName || t("chat_window.select_model")}
-          </span>
-        </button>
-
-        {showSelector && (
-          <div className="absolute left-0 top-full mt-1 bg-zinc-800 light:bg-white border border-zinc-700 light:border-slate-300 rounded-xl shadow-lg w-[620px] overflow-hidden">
-            <LLMSelectorModal
-              key={refreshKey}
-              workspaceSlug={slug}
-              initialProvider={config.provider?.value}
-            />
-          </div>
-        )}
-      </div>
-
-      <SetupProvider
-        isOpen={isSetupProviderOpen}
-        closeModal={closeSetupProviderModal}
-        postSubmit={() => {
-          closeSetupProviderModal();
-          setRefreshKey((k) => k + 1);
-        }}
-        settings={config.settings}
-        llmProvider={config.provider}
-      />
-    </>
+    </div>
   );
 }

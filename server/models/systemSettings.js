@@ -12,6 +12,9 @@ const { getBaseLLMProviderModel } = require("../utils/helpers");
 const {
   ConnectionStringParser,
 } = require("../utils/agents/aibitat/plugins/sql-agent/SQLConnectors/utils");
+const {
+  DEFAULT_AGENT_CLARIFYING_QUESTIONS_ENABLED,
+} = require("../utils/agents/skillDefaults");
 
 function isNullOrNaN(value) {
   if (value === null) return true;
@@ -65,6 +68,9 @@ const SystemSettings = {
     "meta_page_favicon",
     "memory_enabled",
     "memory_auto_extraction",
+    "public_registration_enabled",
+    "default_predefined_agent_id",
+    "global_system_prompt",
   ],
   supportedFields: [
     "logo_filename",
@@ -89,7 +95,8 @@ const SystemSettings = {
     "agent_clarifying_questions_enabled",
     "agent_clarifying_questions_max_per_turn",
     "custom_app_name",
-    "default_system_prompt",
+    "default_predefined_agent_id",
+    "global_system_prompt",
 
     // Meta page customization
     "meta_page_title",
@@ -104,6 +111,7 @@ const SystemSettings = {
     // Memory/Personalization
     "memory_enabled",
     "memory_auto_extraction",
+    "public_registration_enabled",
   ],
   validations: {
     footer_data: (updates) => {
@@ -405,6 +413,10 @@ const SystemSettings = {
       if (typeof update === "boolean") return update ? "true" : "false";
       return String(update) === "true" ? "true" : "false";
     },
+    public_registration_enabled: (update) => {
+      if (typeof update === "boolean") return update ? "true" : "false";
+      return String(update) === "true" ? "true" : "false";
+    },
     agent_clarifying_questions_max_per_turn: (update) => {
       const n = Number(update);
       if (!Number.isFinite(n) || n < 1) return 3;
@@ -441,19 +453,17 @@ const SystemSettings = {
       if (!apiKey) return null;
       return String(apiKey);
     },
-    default_system_prompt: (prompt) => {
-      if (typeof prompt !== "string" || !prompt) return null;
-      if (prompt.trim() === SystemSettings.saneDefaultSystemPrompt)
-        return SystemSettings.saneDefaultSystemPrompt;
-      return String(prompt.trim());
+    default_predefined_agent_id: (id) => {
+      const value = Number(id);
+      return Number.isInteger(value) && value > 0 ? String(value) : null;
     },
+    global_system_prompt: (prompt) =>
+      String(prompt ?? "")
+        .trim()
+        .slice(0, 40_000),
   },
   currentSettings: async function () {
     const { hasVectorCachedFiles } = require("../utils/files");
-    const {
-      ToolReranker,
-    } = require("../utils/agents/aibitat/utils/toolReranker");
-    const AIbitat = require("../utils/agents/aibitat");
 
     const llmProvider = process.env.LLM_PROVIDER;
     const vectorDB = process.env.VECTOR_DB;
@@ -467,6 +477,7 @@ const SystemSettings = {
       JWTSecret: !!process.env.JWT_SECRET,
       StorageDir: process.env.STORAGE_DIR,
       MultiUserMode: await this.isMultiUserMode(),
+      PublicRegistrationEnabled: await this.publicRegistrationEnabled(),
       MemoryEnabled: await this.memoriesEnabled(),
       MemoryAutoExtraction: await this.memoryAutoExtractionSetting(),
       DisableTelemetry: process.env.DISABLE_TELEMETRY || "false",
@@ -609,13 +620,13 @@ const SystemSettings = {
       // --------------------------------------------------------
       // Agent Skill Settings
       // --------------------------------------------------------
-      AgentSkillMaxToolCalls: AIbitat.defaultMaxToolCalls(),
-      AgentSkillRerankerEnabled: ToolReranker.isEnabled(),
-      AgentSkillRerankerTopN: ToolReranker.getTopN(),
+      AgentSkillMaxToolCalls: 500,
+      AgentSkillRerankerEnabled: false,
+      AgentSkillRerankerTopN: null,
       AgentClarifyingQuestionsEnabled:
         (await this.getValueOrFallback(
           { label: "agent_clarifying_questions_enabled" },
-          "false"
+          DEFAULT_AGENT_CLARIFYING_QUESTIONS_ENABLED
         )) === "true",
       AgentClarifyingQuestionsMaxPerTurn: Number(
         (await this.getValueOrFallback(
@@ -736,10 +747,21 @@ const SystemSettings = {
     }
   },
 
+  publicRegistrationEnabled: async function () {
+    try {
+      if (!(await this.isMultiUserMode())) return false;
+      const setting = await this.get({ label: "public_registration_enabled" });
+      return setting?.value === "true";
+    } catch (error) {
+      console.error(error.message);
+      return false;
+    }
+  },
+
   memoriesEnabled: async function () {
     try {
       const setting = await this.get({ label: "memory_enabled" });
-      return setting?.value === "true";
+      return !setting || setting.value === "true";
     } catch (error) {
       console.error(error.message);
       return false;

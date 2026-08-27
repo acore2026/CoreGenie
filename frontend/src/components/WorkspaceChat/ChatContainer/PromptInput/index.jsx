@@ -1,6 +1,12 @@
-import { useState, useRef, useEffect } from "react";
+import { memo, useState, useRef, useEffect } from "react";
 import debounce from "lodash.debounce";
-import { ArrowUp, At } from "@phosphor-icons/react";
+import {
+  ArrowUp,
+  At,
+  ChatCircleText,
+  Command,
+  Wrench,
+} from "@phosphor-icons/react";
 import StopGenerationButton from "./StopGenerationButton";
 import SpeechToText from "./SpeechToText";
 import { Tooltip } from "react-tooltip";
@@ -16,8 +22,13 @@ import { useTranslation } from "react-i18next";
 import Appearance from "@/models/appearance";
 import usePromptInputStorage from "@/hooks/usePromptInputStorage";
 import ToolsMenu, { TOOLS_MENU_KEYBOARD_EVENT } from "./ToolsMenu";
+import QuickCommandsMenu from "./QuickCommandsMenu";
+import ToolApprovalMode from "./ToolApprovalMode";
+import WorkspaceModelPicker from "../WorkspaceModelPicker";
 import { useSearchParams } from "react-router-dom";
 import { useIsAgentSessionActive } from "@/utils/chat/agent";
+import AgentSwitcher from "@/components/PredefinedAgents/AgentSwitcher";
+import useUser from "@/hooks/useUser";
 
 export const PROMPT_INPUT_ID = "primary-prompt-input";
 export const PROMPT_INPUT_EVENT = "set_prompt_input";
@@ -32,8 +43,9 @@ const MAX_EDIT_STACK_SIZE = 100;
  * @param {boolean} [props.centered] - renders in centered layout mode (for home page)
  * @param {string} [props.workspaceSlug] - workspace slug for home page context
  * @param {string} [props.threadSlug] - thread slug for home page context
+ * @param {string[]} [props.examplePrompts] - selected Agent example inputs
  */
-export default function PromptInput({
+function PromptInput({
   workspace = {},
   submit,
   isStreaming,
@@ -42,15 +54,19 @@ export default function PromptInput({
   centered = false,
   workspaceSlug = null,
   threadSlug = null,
+  examplePrompts = [],
 }) {
   const { t } = useTranslation();
+  const { user } = useUser();
   const { showAgentCommand = true } = workspace ?? {};
   const { isDisabled } = useIsDisabled();
   const agentSessionActive = useIsAgentSessionActive();
   const [promptInput, setPromptInput] = useState("");
   const [showTools, setShowTools] = useState(false);
-  const autoOpenedToolsRef = useRef(false);
+  const [showQuickCommands, setShowQuickCommands] = useState(false);
+  const autoOpenedQuickCommandsRef = useRef(false);
   const toolsHighlightRef = useRef(-1);
+  const quickCommandsHighlightRef = useRef(-1);
   const formRef = useRef(null);
   const textareaRef = useRef(null);
   const [_, setFocused] = useState(false);
@@ -123,6 +139,7 @@ export default function PromptInput({
     if (e.target !== e.currentTarget) return;
     setFocused(false);
     setShowTools(false);
+    setShowQuickCommands(false);
     submit(e);
   }
 
@@ -137,8 +154,8 @@ export default function PromptInput({
    * @param {KeyboardEvent} event
    */
   function captureEnterOrUndo(event) {
-    // Forward keyboard events to the ToolsMenu when open
-    if (showTools) {
+    // Forward keyboard events to the active command/tool menu.
+    if (showTools || showQuickCommands) {
       if (
         ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key)
       ) {
@@ -152,7 +169,10 @@ export default function PromptInput({
       }
       // When an item is highlighted via arrow keys, Enter selects it.
       // Otherwise, Enter falls through to submit the form normally.
-      if (event.key === "Enter" && toolsHighlightRef.current >= 0) {
+      const highlightedIndex = showTools
+        ? toolsHighlightRef.current
+        : quickCommandsHighlightRef.current;
+      if (event.key === "Enter" && highlightedIndex >= 0) {
         event.preventDefault();
         window.dispatchEvent(
           new CustomEvent(TOOLS_MENU_KEYBOARD_EVENT, {
@@ -164,20 +184,22 @@ export default function PromptInput({
       if (event.key === "Escape") {
         event.preventDefault();
         setShowTools(false);
+        setShowQuickCommands(false);
         textareaRef.current?.focus();
         return;
       }
     }
 
-    // "/" toggles the Tools menu only when the input is empty
+    // "/" opens Quick Commands when the input is empty.
     if (
       event.key === "/" &&
       !event.ctrlKey &&
       !event.metaKey &&
       promptInput.trim() === ""
     ) {
-      setShowTools((prev) => {
-        autoOpenedToolsRef.current = !prev;
+      setShowTools(false);
+      setShowQuickCommands((prev) => {
+        autoOpenedQuickCommandsRef.current = !prev;
         return !prev;
       });
       return;
@@ -188,6 +210,7 @@ export default function PromptInput({
       event.preventDefault();
       if (isStreaming || isDisabled) return; // Prevent submission if streaming or disabled
       setShowTools(false);
+      setShowQuickCommands(false);
       return submit(event);
     }
 
@@ -304,11 +327,29 @@ export default function PromptInput({
     const value = e.target.value;
     setPromptInput(value);
 
-    // Auto-dismiss the tools menu when the "/" that opened it is modified
-    if (autoOpenedToolsRef.current && showTools && value !== "/") {
-      setShowTools(false);
-      autoOpenedToolsRef.current = false;
+    // Auto-dismiss Quick Commands after the opening slash is modified.
+    if (
+      autoOpenedQuickCommandsRef.current &&
+      showQuickCommands &&
+      value !== "/"
+    ) {
+      setShowQuickCommands(false);
+      autoOpenedQuickCommandsRef.current = false;
     }
+  }
+
+  function selectExamplePrompt(prompt) {
+    saveCurrentState();
+    setPromptInput(prompt);
+    setShowTools(false);
+    setShowQuickCommands(false);
+    requestAnimationFrame(() => {
+      if (!textareaRef.current) return;
+      textareaRef.current.focus();
+      textareaRef.current.style.height = "auto";
+      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+      textareaRef.current.setSelectionRange(prompt.length, prompt.length);
+    });
   }
 
   return (
@@ -341,7 +382,19 @@ export default function PromptInput({
               centered={centered}
               highlightedIndexRef={toolsHighlightRef}
             />
-            <div className="bg-zinc-800 light:bg-white light:border light:border-slate-300 rounded-[20px] pwa:rounded-3xl flex flex-col px-5 overflow-hidden">
+            <QuickCommandsMenu
+              showing={showQuickCommands}
+              setShowing={setShowQuickCommands}
+              sendCommand={sendCommand}
+              promptRef={textareaRef}
+              centered={centered}
+              highlightedIndexRef={quickCommandsHighlightRef}
+            />
+            <ExamplePromptShelf
+              prompts={examplePrompts}
+              onSelect={selectExamplePrompt}
+            />
+            <div className="bg-theme-bg-chat-input border border-theme-chat-input-border rounded-[20px] pwa:rounded-3xl flex flex-col px-5 overflow-hidden">
               <AttachmentManager attachments={attachments} />
               <div className="flex items-center">
                 <textarea
@@ -361,12 +414,12 @@ export default function PromptInput({
                   }}
                   value={promptInput}
                   spellCheck={Appearance.get("enableSpellCheck")}
-                  className={`border-none cursor-text max-h-[50vh] md:max-h-[350px] md:min-h-[40px] pt-[20px] w-full leading-5 text-white light:text-slate-600 bg-transparent placeholder:text-white/60 light:placeholder:text-slate-400 resize-none active:outline-none focus:outline-none flex-grow pwa:!text-[16px] ${textSizeClass}`}
+                  className={`border-none cursor-text max-h-[50vh] md:max-h-[350px] md:min-h-[40px] pt-[20px] w-full leading-5 text-theme-text-primary bg-transparent placeholder:text-theme-text-placeholder resize-none active:outline-none focus:outline-none flex-grow pwa:!text-[16px] ${textSizeClass}`}
                   placeholder={t("chat_window.send_message")}
                 />
               </div>
-              <div className="flex justify-between items-center pt-3.5 pb-3">
-                <div className="flex items-center gap-x-0.25">
+              <div className="flex items-center justify-between gap-2 pt-3.5 pb-3">
+                <div className="flex min-w-0 items-center gap-x-0.5">
                   <div className="flex items-center gap-x-1">
                     <AttachItem
                       workspaceSlug={workspaceSlug}
@@ -379,16 +432,30 @@ export default function PromptInput({
                       visible={!agentSessionActive & showAgentCommand}
                     />
                   </div>
-                  <ToolsButton
-                    showTools={showTools}
-                    setShowTools={setShowTools}
+                  <QuickCommandsButton
+                    showing={showQuickCommands}
+                    setShowing={setShowQuickCommands}
+                    closeTools={() => setShowTools(false)}
                     textareaRef={textareaRef}
-                    autoOpenedToolsRef={autoOpenedToolsRef}
+                    autoOpenedRef={autoOpenedQuickCommandsRef}
                   />
+                  {(!user?.hasOwnProperty("role") || user.role === "admin") && (
+                    <ToolsButton
+                      showTools={showTools}
+                      setShowTools={setShowTools}
+                      closeQuickCommands={() => setShowQuickCommands(false)}
+                      textareaRef={textareaRef}
+                    />
+                  )}
+                  <AgentSwitcher disabled={agentSessionActive} />
                 </div>
-                <div className="flex gap-x-2 items-center">
+                <div className="flex min-w-0 items-center justify-end gap-x-1 md:gap-x-1.5">
+                  <WorkspaceModelPicker
+                    workspaceSlug={workspaceSlug ?? workspace?.slug}
+                  />
+                  <ToolApprovalMode />
                   <SpeechToText sendCommand={sendCommand} />
-                  {isStreaming ? (
+                  {isStreaming || agentSessionActive ? (
                     <StopGenerationButton />
                   ) : (
                     <SendPromptButton
@@ -403,6 +470,40 @@ export default function PromptInput({
           </div>
         </div>
       </form>
+    </div>
+  );
+}
+
+function ExamplePromptShelf({ prompts = [], onSelect }) {
+  const visiblePrompts = prompts
+    .map((prompt) => String(prompt || "").trim())
+    .filter(Boolean)
+    .slice(0, 6);
+  if (!visiblePrompts.length) return null;
+
+  return (
+    <div
+      className="flex w-full items-center gap-2 overflow-x-auto px-1 py-2 no-scroll"
+      aria-label="Agent example inputs"
+    >
+      {visiblePrompts.map((prompt, index) => (
+        <button
+          key={`${prompt}-${index}`}
+          type="button"
+          onClick={() => onSelect(prompt)}
+          title={prompt}
+          className="group inline-flex min-h-8 w-fit max-w-[calc(100%_-_8px)] shrink-0 items-start gap-1.5 rounded-2xl border border-cyan-300/15 bg-cyan-300/[0.055] px-3 py-2 text-left text-xs text-zinc-300 shadow-[0_8px_24px_rgba(0,0,0,0.08)] transition hover:-translate-y-0.5 hover:border-cyan-300/35 hover:bg-cyan-300/[0.1] hover:text-white md:max-w-[620px] light:border-cyan-600/15 light:bg-cyan-50 light:text-slate-600 light:hover:border-cyan-500/40 light:hover:bg-cyan-100 light:hover:text-slate-900"
+        >
+          <ChatCircleText
+            size={13}
+            weight="duotone"
+            className="mt-px shrink-0 text-cyan-300 light:text-cyan-700"
+          />
+          <span className="whitespace-normal break-words leading-4">
+            {prompt}
+          </span>
+        </button>
+      ))}
     </div>
   );
 }
@@ -453,8 +554,8 @@ function AgentSessionButton({
 function ToolsButton({
   showTools,
   setShowTools,
+  closeQuickCommands,
   textareaRef,
-  autoOpenedToolsRef,
 }) {
   const { t } = useTranslation();
 
@@ -463,24 +564,53 @@ function ToolsButton({
       id="tools-btn"
       type="button"
       onClick={() => {
-        autoOpenedToolsRef.current = false;
+        closeQuickCommands();
         setShowTools(!showTools);
         textareaRef.current?.focus();
       }}
-      className={`group border-none cursor-pointer flex items-center justify-center h-6 px-2 rounded-full ${
+      className={`group border-none cursor-pointer flex items-center justify-center gap-x-1.5 h-6 px-2 rounded-full transition-colors ${
         showTools
-          ? "bg-zinc-700 light:bg-slate-200"
-          : "hover:bg-zinc-700 light:hover:bg-slate-200"
+          ? "bg-zinc-700 text-white light:bg-slate-200 light:text-slate-800"
+          : "text-zinc-300 hover:bg-zinc-700 hover:text-white light:text-slate-600 light:hover:bg-slate-200 light:hover:text-slate-800"
       }`}
     >
-      <span
-        className={`text-sm font-medium ${
-          showTools
-            ? "text-white light:text-slate-800"
-            : "text-zinc-300 light:text-slate-600 group-hover:text-white light:group-hover:text-slate-800"
-        }`}
-      >
+      <Wrench size={14} weight="bold" className="shrink-0" />
+      <span className="whitespace-nowrap text-xs font-medium">
         {t("chat_window.tools")}
+      </span>
+    </button>
+  );
+}
+
+function QuickCommandsButton({
+  showing,
+  setShowing,
+  closeTools,
+  textareaRef,
+  autoOpenedRef,
+}) {
+  const { t } = useTranslation();
+
+  return (
+    <button
+      id="quick-commands-btn"
+      type="button"
+      onClick={() => {
+        autoOpenedRef.current = false;
+        closeTools();
+        setShowing(!showing);
+        textareaRef.current?.focus();
+      }}
+      aria-label={t("chat_window.slash_commands")}
+      className={`group flex h-6 cursor-pointer items-center justify-center gap-x-1.5 rounded-full border-none px-2 transition-colors ${
+        showing
+          ? "bg-violet-500/20 text-violet-200 light:bg-violet-100 light:text-violet-800"
+          : "text-zinc-300 hover:bg-zinc-700 hover:text-white light:text-slate-600 light:hover:bg-slate-200 light:hover:text-slate-800"
+      }`}
+    >
+      <Command size={14} weight="bold" className="shrink-0" />
+      <span className="whitespace-nowrap text-xs font-medium">
+        {t("chat_window.slash_commands")}
       </span>
     </button>
   );
@@ -552,3 +682,5 @@ function useIsDisabled() {
 
   return { isDisabled };
 }
+
+export default memo(PromptInput);

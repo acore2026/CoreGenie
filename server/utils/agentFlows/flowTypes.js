@@ -61,6 +61,40 @@ const FLOW_TYPES = {
       },
     },
   },
+  PREDEFINED_AGENT: {
+    type: "predefinedAgent",
+    description: "Delegate a task to a selected predefined Agent",
+    parameters: {
+      agentId: {
+        type: "number",
+        description: "ID of the predefined Agent to call",
+      },
+      task: {
+        type: "string",
+        description: "Task and context for the selected Agent",
+      },
+      resultVariable: {
+        type: "string",
+        description: "Variable to store the Agent result",
+      },
+    },
+  },
+  REQUEST_USER_INPUT: {
+    type: "requestUserInput",
+    description: "Pause the flow and prompt the user for input",
+    parameters: {
+      kind: { type: "string", description: "input or choice" },
+      question: { type: "string", description: "Question shown to the user" },
+      inputType: { type: "string", description: "Input field type" },
+      placeholder: { type: "string", description: "Input placeholder" },
+      options: { type: "array", description: "Choice options" },
+      allowOther: { type: "boolean", description: "Allow a custom choice" },
+      resultVariable: {
+        type: "string",
+        description: "Variable to store the user's answer",
+      },
+    },
+  },
   WEB_SCRAPING: {
     type: "webScraping",
     description: "Scrape content from a webpage",

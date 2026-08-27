@@ -1,7 +1,6 @@
 import useLoginMode from "@/hooks/useLoginMode";
 import usePfp from "@/hooks/usePfp";
 import useUser from "@/hooks/useUser";
-import System from "@/models/system";
 import paths from "@/utils/paths";
 import { userFromStorage } from "@/utils/request";
 import { Person } from "@phosphor-icons/react";
@@ -16,7 +15,7 @@ import {
 } from "@/utils/constants";
 import { useTranslation } from "react-i18next";
 
-export default function UserButton() {
+export default function UserButton({ inline = false }) {
   const { t } = useTranslation();
   const mode = useLoginMode();
   const { user } = useUser();
@@ -24,7 +23,6 @@ export default function UserButton() {
   const buttonRef = useRef();
   const [showMenu, setShowMenu] = useState(false);
   const [showAccountSettings, setShowAccountSettings] = useState(false);
-  const [supportEmail, setSupportEmail] = useState("");
 
   const handleClose = (event) => {
     if (
@@ -48,21 +46,15 @@ export default function UserButton() {
     return () => document.removeEventListener("mousedown", handleClose);
   }, [showMenu]);
 
-  useEffect(() => {
-    const fetchSupportEmail = async () => {
-      const supportEmail = await System.fetchSupportEmail();
-      setSupportEmail(
-        supportEmail?.email
-          ? `mailto:${supportEmail.email}`
-          : paths.mailToMintplex()
-      );
-    };
-    fetchSupportEmail();
-  }, []);
-
   if (mode === null) return null;
   return (
-    <div className="absolute top-3 right-4 md:top-9 md:right-10 w-fit h-fit z-40">
+    <div
+      className={
+        inline
+          ? "relative z-40 h-fit w-fit"
+          : "absolute top-3 right-4 md:top-9 md:right-10 w-fit h-fit z-40"
+      }
+    >
       <button
         ref={buttonRef}
         onClick={() => setShowMenu(!showMenu)}
@@ -75,23 +67,17 @@ export default function UserButton() {
       {showMenu && (
         <div
           ref={menuRef}
-          className="w-fit rounded-lg absolute top-12 right-0 bg-theme-action-menu-bg p-2 flex items-center-justify-center"
+          className="min-w-[152px] rounded-lg absolute top-12 right-0 bg-theme-action-menu-bg p-2 flex items-center justify-center shadow-xl"
         >
-          <div className="flex flex-col gap-y-2">
+          <div className="flex w-full flex-col gap-y-2">
             {mode === "multi" && !!user && (
               <button
                 onClick={handleOpenAccountModal}
-                className="border-none text-white hover:bg-theme-action-menu-item-hover w-full text-left px-4 py-1.5 rounded-md"
+                className="whitespace-nowrap border-none text-white hover:bg-theme-action-menu-item-hover w-full text-left px-4 py-1.5 rounded-md"
               >
                 {t("profile_settings.account")}
               </button>
             )}
-            <a
-              href={supportEmail}
-              className="text-white hover:bg-theme-action-menu-item-hover w-full text-left px-4 py-1.5 rounded-md"
-            >
-              {t("profile_settings.support")}
-            </a>
             <button
               onClick={() => {
                 window.localStorage.removeItem(AUTH_USER);
@@ -102,7 +88,7 @@ export default function UserButton() {
                 window.location.replace(paths.home());
               }}
               type="button"
-              className="text-white hover:bg-theme-action-menu-item-hover w-full text-left px-4 py-1.5 rounded-md"
+              className="whitespace-nowrap text-white hover:bg-theme-action-menu-item-hover w-full text-left px-4 py-1.5 rounded-md"
             >
               {t("profile_settings.signout")}
             </button>

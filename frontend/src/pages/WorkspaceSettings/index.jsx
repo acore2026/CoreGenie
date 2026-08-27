@@ -4,7 +4,7 @@ import Sidebar from "@/components/Sidebar";
 import Workspace from "@/models/workspace";
 import PasswordModal, { usePasswordModal } from "@/components/Modals/Password";
 import { isMobile } from "react-device-detect";
-import { FullScreenLoader } from "@/components/Preloader";
+import { ContentLoader } from "@/components/Preloader";
 import {
   ArrowUUpLeft,
   ChatText,
@@ -36,7 +36,7 @@ const TABS = {
 export default function WorkspaceSettings() {
   const { loading, requiresAuth, mode } = usePasswordModal();
 
-  if (loading) return <FullScreenLoader />;
+  if (loading) return <WorkspaceSettingsLoadingShell />;
   if (requiresAuth !== false) {
     return <>{requiresAuth !== null && <PasswordModal mode={mode} />}</>;
   }
@@ -72,9 +72,9 @@ function ShowWorkspaceChat() {
       setLoading(false);
     }
     getWorkspace();
-  }, [slug, tab]);
+  }, [slug]);
 
-  if (loading) return <FullScreenLoader />;
+  if (loading) return <WorkspaceSettingsLoadingShell />;
 
   const TabContent = TABS[tab];
   return (
@@ -125,6 +125,20 @@ function ShowWorkspaceChat() {
             deletionProtected={deletionProtected}
           />
         </div>
+      </div>
+    </div>
+  );
+}
+
+function WorkspaceSettingsLoadingShell() {
+  return (
+    <div className="w-screen h-screen overflow-hidden bg-zinc-950 light:bg-slate-50 flex">
+      {!isMobile && <Sidebar />}
+      <div
+        style={{ height: isMobile ? "100%" : "calc(100% - 32px)" }}
+        className="relative md:ml-[2px] md:mr-[16px] md:my-[16px] md:rounded-[16px] bg-theme-bg-secondary w-full h-full"
+      >
+        <ContentLoader label="Loading workspace settings" />
       </div>
     </div>
   );

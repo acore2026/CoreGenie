@@ -55,7 +55,7 @@ export default function AccountModal({ user, hideModal }) {
     const data = {};
     const form = new FormData(e.target);
     for (var [key, value] of form.entries()) {
-      if (!value || value === null) continue;
+      if (value === null || (key === "password" && !value)) continue;
       data[key] = value;
     }
 
@@ -65,6 +65,7 @@ export default function AccountModal({ user, hideModal }) {
       if (storedUser) {
         storedUser.username = data.username;
         storedUser.bio = data.bio;
+        storedUser.systemPrompt = data.systemPrompt;
         localStorage.setItem(AUTH_USER, JSON.stringify(storedUser));
       }
       showToast(t("profile_settings.profile_updated"), "success", {
@@ -191,6 +192,25 @@ export default function AccountModal({ user, hideModal }) {
                   placeholder="Tell us about yourself..."
                   defaultValue={user.bio}
                 />
+              </div>
+              <div>
+                <label
+                  htmlFor="systemPrompt"
+                  className="block mb-2 text-sm font-medium text-white"
+                >
+                  {t("profile_settings.system_prompt")}
+                </label>
+                <textarea
+                  id="systemPrompt"
+                  name="systemPrompt"
+                  maxLength={40000}
+                  className="border-none bg-theme-settings-input-bg placeholder:text-theme-settings-input-placeholder border-gray-500 text-white text-sm rounded-lg focus:outline-primary-button active:outline-primary-button outline-none block w-full p-2.5 min-h-[140px] resize-y"
+                  placeholder={t("profile_settings.system_prompt_placeholder")}
+                  defaultValue={user.systemPrompt || ""}
+                />
+                <p className="mt-2 text-xs text-white/60">
+                  {t("profile_settings.system_prompt_description")}
+                </p>
               </div>
               <div className="flex gap-x-16">
                 <div className="flex flex-col gap-y-6">

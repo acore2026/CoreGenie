@@ -3,6 +3,62 @@ const { safeJsonParse } = require("../utils/http");
 
 const AgentSkillWhitelist = {
   SINGLE_USER_LABEL: "whitelisted_agent_skills",
+  GLOBAL_APPROVAL_MODE_LABEL: "agent_tool_approval_mode",
+  APPROVAL_MODES: {
+    ASK: "ask",
+    ALWAYS_ALLOW: "always_allow",
+  },
+
+  /**
+   * Get the global tool approval mode.
+   * @returns {Promise<"ask"|"always_allow">}
+   */
+  getApprovalMode: async function () {
+    try {
+      const setting = await prisma.system_settings.findFirst({
+        where: { label: this.GLOBAL_APPROVAL_MODE_LABEL },
+      });
+      return Object.values(this.APPROVAL_MODES).includes(setting?.value)
+        ? setting.value
+        : this.APPROVAL_MODES.ALWAYS_ALLOW;
+    } catch (error) {
+      console.error(
+        "AgentSkillWhitelist.getApprovalMode error:",
+        error.message
+      );
+      return this.APPROVAL_MODES.ALWAYS_ALLOW;
+    }
+  },
+
+  /**
+   * Change the global tool approval mode.
+   * @param {"ask"|"always_allow"} mode
+   * @returns {Promise<{success: boolean, mode?: string, error: string|null}>}
+   */
+  setApprovalMode: async function (mode) {
+    try {
+      if (!Object.values(this.APPROVAL_MODES).includes(mode)) {
+        return { success: false, error: "Invalid tool approval mode" };
+      }
+      await prisma.system_settings.upsert({
+        where: { label: this.GLOBAL_APPROVAL_MODE_LABEL },
+        update: { value: mode },
+        create: { label: this.GLOBAL_APPROVAL_MODE_LABEL, value: mode },
+      });
+      return { success: true, mode, error: null };
+    } catch (error) {
+      console.error(
+        "AgentSkillWhitelist.setApprovalMode error:",
+        error.message
+      );
+      return { success: false, error: error.message };
+    }
+  },
+
+  /** @returns {Promise<boolean>} */
+  isGlobalAlwaysAllow: async function () {
+    return (await this.getApprovalMode()) === this.APPROVAL_MODES.ALWAYS_ALLOW;
+  },
 
   /**
    * Get the label for storing whitelist in system_settings

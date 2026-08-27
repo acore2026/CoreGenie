@@ -33,6 +33,7 @@ export default function AgentSkillsTab({
   // All skill state management
   const {
     fileSystemAgentAvailable,
+    sandboxAvailable,
     importedSkills,
     flows,
     mcpServers,
@@ -51,6 +52,7 @@ export default function AgentSkillsTab({
 
   const configurableSkills = getConfigurableSkills(t, {
     fileSystemAgentAvailable,
+    sandboxAvailable,
   });
 
   // UI state
@@ -82,24 +84,26 @@ export default function AgentSkillsTab({
 
   // Section expansion helpers
   function isSectionExpanded(sectionId) {
-    return !!(searchQuery.trim() || expandedSections[sectionId]);
+    return !!(searchQuery.trim() || expandedSections[sectionId] !== false);
   }
 
   function toggleSection(sectionId) {
     setExpandedSections((prev) => ({
       ...prev,
-      [sectionId]: !prev[sectionId],
+      [sectionId]: !(prev[sectionId] ?? true),
     }));
   }
 
   function isSubSectionExpanded(subSectionId) {
-    return !!(searchQuery.trim() || expandedSubSections[subSectionId]);
+    return !!(
+      searchQuery.trim() || expandedSubSections[subSectionId] !== false
+    );
   }
 
   function toggleSubSection(subSectionId) {
     setExpandedSubSections((prev) => ({
       ...prev,
-      [subSectionId]: !prev[subSectionId],
+      [subSectionId]: !(prev[subSectionId] ?? true),
     }));
   }
 

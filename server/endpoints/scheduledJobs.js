@@ -142,7 +142,8 @@ function scheduledJobEndpoints(app) {
     [validatedRequest, isSingleUserMode],
     async (request, response) => {
       try {
-        const { name, prompt, tools, schedule } = reqBody(request);
+        const { name, prompt, tools, schedule, workspaceId, agentId } =
+          reqBody(request);
         let errorMessage = null;
 
         if (!name?.trim()) {
@@ -177,6 +178,8 @@ function scheduledJobEndpoints(app) {
           prompt: prompt.trim(),
           tools: tools || null,
           schedule: schedule.trim(),
+          workspace_id: workspaceId || null,
+          agent_id: agentId || null,
         });
 
         if (error) {
@@ -221,13 +224,18 @@ function scheduledJobEndpoints(app) {
     [validatedRequest, isSingleUserMode],
     async (request, response) => {
       try {
-        const { name, prompt, tools, schedule, enabled } = reqBody(request);
+        const { name, prompt, tools, schedule, enabled, workspaceId, agentId } =
+          reqBody(request);
         const updates = {};
 
         if (name !== undefined) updates.name = String(name).trim();
         if (prompt !== undefined) updates.prompt = String(prompt).trim();
         if (tools !== undefined) updates.tools = tools;
         if (enabled !== undefined) updates.enabled = Boolean(enabled);
+        if (workspaceId !== undefined)
+          updates.workspace_id = workspaceId ? Number(workspaceId) : null;
+        if (agentId !== undefined)
+          updates.agent_id = agentId ? Number(agentId) : null;
         if (schedule !== undefined) {
           if (!ScheduledJob.isValidCron(schedule)) {
             return response

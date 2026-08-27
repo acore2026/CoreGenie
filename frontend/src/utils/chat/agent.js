@@ -4,6 +4,8 @@ import { API_BASE } from "../constants";
 import { useEffect, useState } from "react";
 import { emitAssistantMessageCompleteEvent } from "@/components/contexts/TTSProvider";
 import { THREAD_RENAME_EVENT } from "@/components/Sidebar/ActiveWorkspaces/ThreadContainer";
+import { fetchEventSource } from "@microsoft/fetch-event-source";
+import { baseHeaders } from "../request";
 
 export const AGENT_SESSION_START = "agentSessionStart";
 export const AGENT_SESSION_END = "agentSessionEnd";
@@ -32,15 +34,245 @@ const handledEvents = [
   "reportStreamEvent",
 ];
 
-export function websocketURI() {
-  const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-  if (API_BASE === "/api") return `${wsProtocol}//${window.location.host}`;
-  return `${wsProtocol}//${new URL(import.meta.env.VITE_API_BASE).host}`;
+/** Browser-side SSE transport with authenticated POST commands. */
+export class AgentSSETransport extends EventTarget {
+  constructor(uuid) {
+    super();
+    this.uuid = uuid;
+    this.readyState = WebSocket.CONNECTING;
+    this.supportsAgentStreaming = false;
+    this.controller = new AbortController();
+    this.#connect();
+  }
+
+  async #connect() {
+    try {
+      await fetchEventSource(`${API_BASE}/agent-runs/${this.uuid}/events`, {
+        method: "GET",
+        headers: baseHeaders(),
+        signal: this.controller.signal,
+        openWhenHidden: true,
+        onopen: async (response) => {
+          if (!response.ok)
+            throw new Error(
+              `Agent SSE connection failed with status ${response.status}.`
+            );
+          this.readyState = WebSocket.OPEN;
+          this.dispatchEvent(new Event("open"));
+        },
+        onmessage: (message) => {
+          this.dispatchEvent(
+            new MessageEvent("message", { data: message.data })
+          );
+        },
+        onclose: () => this.#finish(),
+        onerror: (error) => {
+          throw error;
+        },
+      });
+    } catch (error) {
+      if (this.controller.signal.aborted) return this.#finish();
+      this.dispatchEvent(new CustomEvent("error", { detail: error }));
+      this.#finish();
+    }
+  }
+
+  send(jsonData) {
+    if (this.readyState !== WebSocket.OPEN) return;
+    const message = safeJsonParse(jsonData, {});
+    const command = ["stop", "cancel", "/exit"].includes(
+      message?.feedback || message?.type
+    )
+      ? { type: "cancel" }
+      : message;
+    fetch(`${API_BASE}/agent-runs/${this.uuid}/commands`, {
+      method: "POST",
+      headers: { ...baseHeaders(), "Content-Type": "application/json" },
+      body: JSON.stringify(command),
+    })
+      .then((response) => {
+        if (response.ok) return;
+        throw new Error(`Agent message failed with status ${response.status}.`);
+      })
+      .catch((error) => {
+        this.dispatchEvent(new CustomEvent("error", { detail: error }));
+      });
+  }
+
+  close() {
+    if (
+      this.readyState === WebSocket.CLOSING ||
+      this.readyState === WebSocket.CLOSED
+    )
+      return;
+    this.readyState = WebSocket.CLOSING;
+    this.controller.abort();
+    this.#finish();
+  }
+
+  #finish() {
+    if (this.readyState === WebSocket.CLOSED) return;
+    this.readyState = WebSocket.CLOSED;
+    this.dispatchEvent(new Event("close"));
+  }
+}
+
+function legacyEventFromAgentRun(event) {
+  if (!event?.runId || !event?.type || !event?.payload) return event;
+  const { runId, type, payload } = event;
+  if (type === "activity.updated")
+    return {
+      type: "agentStatus",
+      content: {
+        uuid: `${runId}:status`,
+        summary: payload.summary,
+        phase: payload.phase,
+        active: payload.phase !== "complete",
+      },
+    };
+  if (type === "message.delta")
+    return {
+      type: "reportStreamEvent",
+      content: {
+        type: "textResponseChunk",
+        uuid: payload.messageId,
+        content: payload.delta,
+      },
+    };
+  if (type === "message.completed")
+    return {
+      type: "reportStreamEvent",
+      content: {
+        type: "chatId",
+        uuid: payload.messageId,
+        chatId: payload.chatId,
+      },
+    };
+  if (type === "context.memory.recalled")
+    return {
+      type: "reportStreamEvent",
+      content: {
+        type: "contextTrace",
+        uuid: `${runId}:memory:${event.id}`,
+        trace: {
+          id: `${runId}:memory:${event.id}`,
+          kind: "memory",
+          title: `Recalled ${payload.count} memories`,
+          details: payload.memories,
+        },
+      },
+    };
+  if (type === "context.rag.recalled")
+    return {
+      type: "reportStreamEvent",
+      content: {
+        type: "contextTrace",
+        uuid: `${runId}:rag:${event.id}`,
+        trace: {
+          id: `${runId}:rag:${event.id}`,
+          kind: "rag",
+          title: `Used ${payload.count} knowledge sources`,
+          details: payload.sources,
+        },
+      },
+    };
+  if (
+    ["subagent.started", "subagent.completed", "subagent.failed"].includes(type)
+  )
+    return {
+      type: "reportStreamEvent",
+      content: {
+        type: "subagentEvent",
+        uuid: `${runId}:subagent:${payload.childRunId}`,
+        run: {
+          id: payload.childRunId,
+          task: payload.task,
+          agent: payload.agent,
+          depth: payload.depth,
+          response: payload.response,
+          error: payload.error,
+          status:
+            type === "subagent.started"
+              ? "running"
+              : type === "subagent.completed"
+                ? "completed"
+                : "failed",
+        },
+      },
+    };
+  if (type === "approval.requested") {
+    const actions = payload.actionRequests || [];
+    const first = actions[0] || {};
+    return {
+      type: "toolApprovalRequest",
+      requestId: payload.requestId,
+      skillName:
+        actions.length > 1 ? `${actions.length} tool actions` : first.name,
+      payload: actions.length > 1 ? { actions } : first.args,
+      description: first.description || "Review the requested tool execution",
+      allowRemember: actions.length === 1,
+    };
+  }
+  if (type === "input.requested")
+    return {
+      type: "clarificationRequest",
+      requestId: payload.requestId,
+      questions: payload.questions,
+    };
+  if (type === "thread.renamed")
+    return { type: "rename_thread", content: payload };
+  if (type === "run.failed")
+    return {
+      type: "wssFailure",
+      content: payload.error || "Agent run failed.",
+    };
+  if (type === "run.cancelled")
+    return { type: "wssFailure", content: "Agent run cancelled." };
+  return null;
+}
+
+export function createAgentSSETransport(uuid) {
+  return new AgentSSETransport(uuid);
 }
 
 export default function handleSocketResponse(socket, event, setChatHistory) {
-  const data = safeJsonParse(event.data, null);
+  let data = safeJsonParse(event.data, null);
   if (data === null) return;
+  data = legacyEventFromAgentRun(data);
+  if (data === null) return;
+
+  // A server-owned lifecycle status is updated in place so there is always one
+  // concise line describing the active operation. Detailed statusResponse
+  // events remain available as the expandable working trace.
+  if (data.type === "agentStatus") {
+    const status = data.content || {};
+    if (!status.uuid || !status.summary) return;
+    const terminalStatus =
+      status.active === false ||
+      ["finalizing", "completed"].includes(status.phase);
+    if (terminalStatus) {
+      return setChatHistory((prev) =>
+        prev.filter((msg) => msg.type !== "agentStatus")
+      );
+    }
+    return setChatHistory((prev) => [
+      ...prev.filter((msg) => msg.type !== "agentStatus"),
+      {
+        uuid: status.uuid,
+        type: "agentStatus",
+        content: status.summary,
+        phase: status.phase || "working",
+        active: status.active !== false,
+        role: "assistant",
+        sources: [],
+        closed: status.active === false,
+        error: null,
+        animate: status.active !== false,
+        pending: status.active !== false,
+        metrics: {},
+      },
+    ]);
+  }
 
   // Handle thread rename
   if (data.type === "rename_thread") {
@@ -111,6 +343,48 @@ export default function handleSocketResponse(socket, event, setChatHistory) {
             routedTo: data.content.routedTo,
           },
         ];
+      }
+
+      if (data.content.type === "subagentEvent") {
+        const { uuid, run } = data.content;
+        if (!uuid || !run) return prev;
+        const message = {
+          uuid,
+          type: "subagentRun",
+          content: run.task || run.agent?.name || "Subagent",
+          subagentRun: run,
+          role: "assistant",
+          sources: [],
+          closed: run.status !== "running",
+          error: run.error || null,
+          animate: run.status === "running",
+          pending: run.status === "running",
+          metrics: {},
+        };
+        return prev.some((entry) => entry.uuid === uuid)
+          ? prev.map((entry) => (entry.uuid === uuid ? message : entry))
+          : [...prev.filter((entry) => !!entry.content), message];
+      }
+
+      if (data.content.type === "contextTrace") {
+        const { uuid, trace } = data.content;
+        if (!uuid || !trace) return prev;
+        const message = {
+          uuid,
+          type: "contextTrace",
+          content: trace.title || "Context used",
+          contextTrace: trace,
+          role: "assistant",
+          sources: [],
+          closed: true,
+          error: null,
+          animate: false,
+          pending: false,
+          metrics: {},
+        };
+        return prev.some((entry) => entry.uuid === uuid)
+          ? prev.map((entry) => (entry.uuid === uuid ? message : entry))
+          : [...prev.filter((entry) => !!entry.content), message];
       }
 
       // Handle citations independently of message creation order. If the target message
@@ -218,11 +492,31 @@ export default function handleSocketResponse(socket, event, setChatHistory) {
           const userIdx = prev.findLastIndex(
             (msg, i) => i < assistantIdx && msg.role === "user"
           );
-          return prev.map((msg, i) =>
-            i === assistantIdx || i === userIdx
-              ? { ...msg, chatId: data.content.chatId }
-              : msg
-          );
+          const turnTraces = prev
+            .slice(userIdx + 1)
+            .filter((msg) => msg.type === "contextTrace" && msg.contextTrace)
+            .map((msg) => msg.contextTrace);
+          return prev
+            .filter((msg, i) => !(i > userIdx && msg.type === "contextTrace"))
+            .map((msg) => {
+              if (msg.uuid === uuid) {
+                const existing = Array.isArray(msg.contextTraces)
+                  ? msg.contextTraces
+                  : [];
+                const seen = new Set(existing.map((trace) => trace.id));
+                return {
+                  ...msg,
+                  chatId: data.content.chatId,
+                  contextTraces: [
+                    ...existing,
+                    ...turnTraces.filter((trace) => !seen.has(trace.id)),
+                  ],
+                };
+              }
+              if (msg === prev[userIdx])
+                return { ...msg, chatId: data.content.chatId };
+              return msg;
+            });
         }
 
         if (type === "textResponseChunk") {
@@ -433,14 +727,14 @@ export function useIsAgentSessionActive() {
     () => !!getAgentSessionActive()
   );
   useEffect(() => {
-    function listenForAgentSession() {
-      if (!window) return;
-      window.addEventListener(AGENT_SESSION_START, () =>
-        setActiveSession(true)
-      );
-      window.addEventListener(AGENT_SESSION_END, () => setActiveSession(false));
-    }
-    listenForAgentSession();
+    const handleSessionStart = () => setActiveSession(true);
+    const handleSessionEnd = () => setActiveSession(false);
+    window.addEventListener(AGENT_SESSION_START, handleSessionStart);
+    window.addEventListener(AGENT_SESSION_END, handleSessionEnd);
+    return () => {
+      window.removeEventListener(AGENT_SESSION_START, handleSessionStart);
+      window.removeEventListener(AGENT_SESSION_END, handleSessionEnd);
+    };
   }, []);
 
   return activeSession;

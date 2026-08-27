@@ -7,6 +7,7 @@ import PasswordModal, { usePasswordModal } from "@/components/Modals/Password";
 import { isMobile } from "react-device-detect";
 import { FullScreenLoader } from "@/components/Preloader";
 import { LAST_VISITED_WORKSPACE } from "@/utils/constants";
+import { WORKSPACE_RENAMED_EVENT } from "@/components/Sidebar/events";
 
 export default function WorkspaceChat() {
   const { loading, requiresAuth, mode } = usePasswordModal();
@@ -61,6 +62,17 @@ function ShowWorkspaceChat() {
       );
     }
     getWorkspace();
+  }, [slug]);
+
+  useEffect(() => {
+    const updateWorkspaceName = (event) => {
+      const { workspaceSlug, name } = event.detail || {};
+      if (workspaceSlug !== slug || !name) return;
+      setWorkspace((current) => (current ? { ...current, name } : current));
+    };
+    window.addEventListener(WORKSPACE_RENAMED_EVENT, updateWorkspaceName);
+    return () =>
+      window.removeEventListener(WORKSPACE_RENAMED_EVENT, updateWorkspaceName);
   }, [slug]);
 
   return (

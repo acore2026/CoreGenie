@@ -30,7 +30,75 @@ export default function GeneralSecurity() {
           </p>
         </div>
         <MultiUserMode />
+        <PublicRegistration />
         <PasswordProtection />
+      </div>
+    </div>
+  );
+}
+
+function PublicRegistration() {
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [multiUserModeEnabled, setMultiUserModeEnabled] = useState(false);
+  const [enabled, setEnabled] = useState(false);
+  const { t } = useTranslation();
+
+  useEffect(() => {
+    async function loadSettings() {
+      const [multiUser, registration] = await Promise.all([
+        System.isMultiUserMode(),
+        System.publicRegistrationStatus(),
+      ]);
+      setMultiUserModeEnabled(multiUser);
+      setEnabled(registration.enabled);
+      setLoading(false);
+    }
+    loadSettings();
+  }, []);
+
+  const updateRegistration = async (checked) => {
+    setSaving(true);
+    const result = await System.updatePublicRegistration(checked);
+    if (result.success) {
+      setEnabled(checked);
+      showToast(
+        t(
+          checked
+            ? "security.public-registration.enabled-toast"
+            : "security.public-registration.disabled-toast"
+        ),
+        "success"
+      );
+    } else {
+      showToast(
+        result.error || "Failed to update public registration.",
+        "error"
+      );
+    }
+    setSaving(false);
+  };
+
+  if (loading || !multiUserModeEnabled) return null;
+  return (
+    <div className="flex flex-col w-full px-1 md:pl-6 md:pr-[50px]">
+      <div className="w-full flex flex-col gap-y-4 py-6 border-white light:border-theme-sidebar-border border-b-2 border-opacity-10">
+        <div className="w-full flex flex-col gap-y-1">
+          <p className="text-base font-bold text-white">
+            {t("security.public-registration.title")}
+          </p>
+          <p className="text-xs leading-[18px] text-white text-opacity-60 max-w-2xl">
+            {t("security.public-registration.description")}
+          </p>
+        </div>
+        <Toggle
+          size="lg"
+          label={t("security.public-registration.enable")}
+          description={t("security.public-registration.access-warning")}
+          enabled={enabled}
+          disabled={saving}
+          onChange={updateRegistration}
+        />
       </div>
     </div>
   );

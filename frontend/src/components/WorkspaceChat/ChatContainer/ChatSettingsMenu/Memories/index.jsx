@@ -9,7 +9,9 @@ export default function MemoriesRow({ onClose }) {
   const { user } = useUser();
   const { toggleSidebar } = useMemoriesSidebar();
   const { closeSidebar } = useSourcesSidebar();
-  const [memoryEnabled, setMemoryEnabled] = useState(null);
+  // Recall is enabled by default, so render the stable menu shape immediately
+  // while the installation setting is refreshed in the background.
+  const [memoryEnabled, setMemoryEnabled] = useState(true);
 
   const isAdmin = !user || user?.role === "admin";
 
@@ -25,7 +27,6 @@ export default function MemoriesRow({ onClose }) {
     onClose();
   }
 
-  if (memoryEnabled === null) return null;
   if (!isAdmin && !memoryEnabled) return null;
 
   return (

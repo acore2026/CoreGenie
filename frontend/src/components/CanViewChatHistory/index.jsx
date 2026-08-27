@@ -3,6 +3,24 @@ import { FullScreenLoader } from "@/components/Preloader";
 import System from "@/models/system";
 import paths from "@/utils/paths";
 
+let cachedViewable = null;
+let pendingViewable = null;
+
+async function resolveViewable({ refresh = false } = {}) {
+  if (!refresh && cachedViewable !== null) return cachedViewable;
+  if (!pendingViewable) {
+    pendingViewable = System.fetchCanViewChatHistory()
+      .then(({ viewable }) => {
+        cachedViewable = viewable;
+        return viewable;
+      })
+      .finally(() => {
+        pendingViewable = null;
+      });
+  }
+  return pendingViewable;
+}
+
 /**
  * Protects the view from system set ups who cannot view chat history.
  * If the user cannot view chat history, they are redirected to the home page.
@@ -34,16 +52,25 @@ export function CanViewChatHistoryProvider({ children }) {
  * @returns {Promise<{viewable: boolean, error: string | null}>}
  */
 export function useCanViewChatHistory() {
-  const [loading, setLoading] = useState(true);
-  const [viewable, setViewable] = useState(false);
+  const [loading, setLoading] = useState(cachedViewable === null);
+  const [viewable, setViewable] = useState(cachedViewable ?? false);
 
   useEffect(() => {
+    let active = true;
     async function fetchViewable() {
-      const { viewable } = await System.fetchCanViewChatHistory();
+      // Revalidate cached permission silently so settings navigation never
+      // collapses while still respecting permission changes during a session.
+      const viewable = await resolveViewable({
+        refresh: cachedViewable !== null,
+      });
+      if (!active) return;
       setViewable(viewable);
       setLoading(false);
     }
     fetchViewable();
+    return () => {
+      active = false;
+    };
   }, []);
 
   return { loading, viewable };

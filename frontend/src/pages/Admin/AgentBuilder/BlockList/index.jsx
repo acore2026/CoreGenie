@@ -9,6 +9,8 @@ import {
   Flag,
   Info,
   BracketsCurly,
+  UsersThree,
+  Question,
 } from "@phosphor-icons/react";
 import { Tooltip } from "react-tooltip";
 import Toggle from "@/components/lib/Toggle";
@@ -21,6 +23,8 @@ import LLMInstructionNode from "../nodes/LLMInstructionNode";
 import FinishNode from "../nodes/FinishNode";
 import WebScrapingNode from "../nodes/WebScrapingNode";
 import FlowInfoNode from "../nodes/FlowInfoNode";
+import PredefinedAgentNode from "../nodes/PredefinedAgentNode";
+import RequestUserInputNode from "../nodes/RequestUserInputNode";
 
 const BLOCK_TYPES = {
   FLOW_INFO: "flowInfo",
@@ -30,6 +34,8 @@ const BLOCK_TYPES = {
   // FILE: "file", // Temporarily disabled
   // CODE: "code", // Temporarily disabled
   LLM_INSTRUCTION: "llmInstruction",
+  PREDEFINED_AGENT: "predefinedAgent",
+  REQUEST_USER_INPUT: "requestUserInput",
   WEB_SCRAPING: "webScraping",
   FINISH: "finish",
 };
@@ -122,6 +128,35 @@ const BLOCK_INFO = {
     },
     getSummary: (config) => config.instruction || "No instruction",
   },
+  [BLOCK_TYPES.PREDEFINED_AGENT]: {
+    label: "Call Agent",
+    icon: <UsersThree className="h-5 w-5 text-cyan-300" />,
+    description: "Delegate work to a selected specialist",
+    defaultConfig: {
+      agentId: "",
+      task: "",
+      resultVariable: "",
+      directOutput: false,
+    },
+    getSummary: (config) => config.agentName || "Select an Agent",
+  },
+  [BLOCK_TYPES.REQUEST_USER_INPUT]: {
+    label: "Ask User",
+    icon: <Question className="h-5 w-5 text-amber-300" />,
+    description: "Pause and collect interactive input",
+    defaultConfig: {
+      kind: "input",
+      question: "",
+      inputType: "text",
+      placeholder: "",
+      options: ["Option 1", "Option 2"],
+      allowOther: true,
+      multiSelect: false,
+      resultVariable: "",
+      directOutput: false,
+    },
+    getSummary: (config) => config.question || "Ask a question",
+  },
   [BLOCK_TYPES.WEB_SCRAPING]: {
     label: "Web Scraping",
     icon: <Browser className="w-5 h-5 text-theme-text-primary" />,
@@ -154,6 +189,7 @@ export default function BlockList({
   onDeleteVariable,
   moveBlock,
   refs,
+  predefinedAgents = [],
 }) {
   const renderBlockConfig = (block) => {
     const isLastConfigurableBlock = blocks[blocks.length - 2]?.id === block.id;
@@ -162,6 +198,7 @@ export default function BlockList({
       onConfigChange: (config) => updateBlockConfig(block.id, config),
       renderVariableSelect,
       onDeleteVariable,
+      predefinedAgents,
     };
 
     // Direct output switch to the last configurable block before finish
@@ -211,6 +248,10 @@ export default function BlockList({
         return <CodeNode {...props} />;
       case BLOCK_TYPES.LLM_INSTRUCTION:
         return <LLMInstructionNode {...props} />;
+      case BLOCK_TYPES.PREDEFINED_AGENT:
+        return <PredefinedAgentNode {...props} />;
+      case BLOCK_TYPES.REQUEST_USER_INPUT:
+        return <RequestUserInputNode {...props} />;
       case BLOCK_TYPES.WEB_SCRAPING:
         return <WebScrapingNode {...props} />;
       case BLOCK_TYPES.FINISH:
@@ -299,7 +340,7 @@ export default function BlockList({
             <div
               className={`overflow-hidden transition-all duration-300 ease-in-out ${
                 block.isExpanded
-                  ? "max-h-[1000px] opacity-100"
+                  ? "max-h-[1800px] opacity-100"
                   : "max-h-0 opacity-0"
               }`}
             >

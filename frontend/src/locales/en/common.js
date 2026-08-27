@@ -76,6 +76,7 @@ const TRANSLATIONS = {
   },
   settings: {
     title: "Instance Settings",
+    "back-to-chat": "Back to chat",
     invites: "Invites",
     users: "Users",
     workspaces: "Workspaces",
@@ -98,6 +99,11 @@ const TRANSLATIONS = {
     privacy: "Privacy & Data",
     "ai-providers": "AI Providers",
     "agent-skills": "Agent Skills",
+    agents: "Agents",
+    "predefined-agent-skills": "Skills",
+    "agent-tools": "Agent Tools",
+    "agent-prompts": "Prompts",
+    "agent-flows": "Agent Flows",
     "model-router": "Model Router",
     "community-hub": {
       title: "Community Hub",
@@ -117,6 +123,25 @@ const TRANSLATIONS = {
       telegram: "Telegram",
     },
   },
+  agent_prompts: {
+    title: "Prompt hierarchy",
+    description:
+      "Set installation-wide instructions that are applied to every normal chat and Agent run.",
+    global_label: "Global system prompt",
+    global_help:
+      "These instructions are always included and take precedence over Agent and personal prompts.",
+    placeholder:
+      "Define organization-wide policies, response standards, safety rules, or shared context…",
+    stack_title: "Instruction order",
+    layer_global: "Global prompt",
+    layer_global_detail: "Admin-controlled and highest priority.",
+    layer_agent: "Agent prompt",
+    layer_agent_detail: "Identity and task-specific behavior.",
+    layer_user: "Personal prompt",
+    layer_user_detail: "Individual preferences from Account settings.",
+    saved: "Global system prompt saved.",
+    save_error: "Unable to save the global system prompt.",
+  },
   login: {
     "multi-user": {
       welcome: "Welcome",
@@ -129,6 +154,19 @@ const TRANSLATIONS = {
     },
     "sign-in":
       "Enter your username and password to access your {{appName}} instance.",
+    registration: {
+      title: "Create an account",
+      description: "Register for access to this AnythingLLM instance.",
+      "create-account": "Create account",
+      creating: "Creating account...",
+      "confirm-password": "Confirm password",
+      "already-have-account": "Already have an account? Sign in",
+      failed: "Registration failed.",
+      "complete-title": "Account created",
+      "complete-description":
+        "Your account is ready. An administrator may need to assign you to a workspace before you can start chatting.",
+      "sign-in": "Continue to sign in",
+    },
     "password-reset": {
       title: "Password Reset",
       description:
@@ -148,6 +186,53 @@ const TRANSLATIONS = {
   "new-workspace": {
     title: "New Workspace",
     placeholder: "My Workspace",
+  },
+  "sidebar-create": {
+    title: "Create",
+    thread: "New thread",
+    "creating-thread": "Creating thread…",
+    "thread-hint": "In the active workspace",
+    workspace: "New workspace",
+    "confirm-workspace": "Create workspace",
+    "creating-workspace": "Creating workspace…",
+    "workspace-hint": "Create a separate space",
+    "no-workspace": "Create or select a workspace first.",
+    "thread-failed": "Failed to create thread.",
+  },
+  "workspace-invite": {
+    action: "Invite to workspace",
+    "import-documents": "Add documents to this workspace",
+    title: "Invite to workspace",
+    close: "Close",
+    description:
+      "Share this link with someone you want to add to this workspace.",
+    generating: "Preparing invite link…",
+    retry: "Try again",
+    "link-label": "Workspace invite link",
+    copied: "Workspace invite link copied",
+    "copy-failed": "Unable to copy. Select the link and copy it manually.",
+    "copied-short": "Copied",
+    copy: "Copy",
+    reusable:
+      "This link can be reused. Signed-in users join immediately; new users can register from the invite page.",
+    "join-failed": "Unable to join this workspace.",
+    "invited-to": "You have been invited to",
+    "a-workspace": "A workspace",
+    "join-as": "Join as {{username}} and add this workspace to your account.",
+    joining: "Joining…",
+    join: "Join workspace",
+    "sign-in-again": "Sign in again",
+    "register-title": "Join {{workspace}}",
+    "register-fallback-title": "Join this workspace",
+    "register-description":
+      "Create your account and you will be added to this workspace automatically.",
+    "register-and-join": "Register and join",
+    registering: "Creating account…",
+    "already-account": "Already have an account? Sign in",
+    username: "Username",
+    "username-placeholder": "Choose a username",
+    password: "Password",
+    "password-placeholder": "Choose a password",
   },
   "workspaces—settings": {
     general: "General Settings",
@@ -386,6 +471,11 @@ const TRANSLATIONS = {
           "move-file": {
             title: "Move/Rename File",
             description: "Move or rename files and directories",
+          },
+          "delete-path": {
+            title: "Delete File/Directory",
+            description:
+              "Permanently delete files or directories inside the workspace",
           },
         },
       },
@@ -1253,6 +1343,16 @@ const TRANSLATIONS = {
         password: "Admin account password",
       },
     },
+    "public-registration": {
+      title: "Public Registration",
+      description:
+        "Allow anyone who can reach this instance to create a default user account from the login page.",
+      enable: "Enable public registration",
+      "access-warning":
+        "New users have no workspace access until an administrator or manager assigns it.",
+      "enabled-toast": "Public registration enabled.",
+      "disabled-toast": "Public registration disabled.",
+    },
     password: {
       title: "Password Protection",
       description:
@@ -1522,10 +1622,69 @@ const TRANSLATIONS = {
     small: "Small",
     normal: "Normal",
     large: "Large",
-    tools: "Tools",
+    tools: "Agent Tools",
+    tool_approval_mode: {
+      ask: "Ask",
+      always_allow: "Always allow",
+      ask_tooltip:
+        "Ask before agent tools run. Click to always allow all tool calls.",
+      always_allow_tooltip:
+        "All agent tools run without approval. Click to require approval again.",
+      admin_only: "Only an administrator can change the global tool policy.",
+      update_failed: "Failed to update the tool approval mode.",
+    },
+    share_chat: {
+      button: "Share publicly",
+      sharing: "Creating link...",
+      copied: "Public link copied",
+      copied_short: "Copied",
+      tooltip: "Anyone with this link can view this conversation",
+      error: "Could not create the public chat link.",
+      copy_error: "The link was created, but could not be copied.",
+      public_title: "Publicly shared conversation",
+      read_only: "Read-only",
+      loading: "Loading shared conversation...",
+      unavailable: "This conversation is unavailable",
+      unavailable_description:
+        "The public link may be invalid, expired, or no longer available.",
+      shared_from: "Shared from {{workspace}}",
+      empty: "This conversation has no messages yet.",
+      user: "You",
+      assistant: "Assistant",
+      agent_activity_one: "{{count}} agent activity",
+      agent_activity_other: "{{count}} agent activities",
+      sources_one: "{{count}} source",
+      sources_other: "{{count}} sources",
+      source: "Source {{index}}",
+      expand_sources: "View citations",
+      document: "Workspace document",
+      references_one: "{{count}} reference",
+      references_other: "{{count}} references",
+      show_excerpt: "Show excerpt",
+    },
+    workspace_files: {
+      title: "Workspace files",
+      description: "Persistent files shared with the agent",
+      open: "Open workspace files",
+      close: "Close workspace files",
+      refresh: "Refresh files",
+      download: "Download file",
+      download_folder: "Download folder as ZIP",
+      download_error: "The file could not be downloaded.",
+      folder_download_error: "The folder could not be downloaded as a ZIP.",
+      empty: "This workspace is empty",
+      empty_description:
+        "Files created by bash, Python, or filesystem tools will appear here.",
+      folder: "Folder",
+      binary: "This file cannot be previewed, but you can download it.",
+      too_large: "This file is too large to preview. Download it to view it.",
+      preview_truncated: "Preview limited to the first 1 MB of this file.",
+    },
     text_size_label: "Text Size",
     select_model: "Select Model",
-    slash_commands: "Slash Commands",
+    slash_commands: "Quick Commands",
+    quick_commands_global_hint: "Shared with everyone",
+    thread_processing: "This thread is processing",
     agent_skills: "Agent Skills",
     manage_agent_skills: "Manage Agent Skills",
     app_integrations: "App Integrations",
@@ -1550,7 +1709,8 @@ const TRANSLATIONS = {
       missing_credentials_description: "Set up now",
     },
     agent_invocation: {
-      model_wants_to_call: "Model wants to call",
+      session_complete: "Agent session complete",
+      model_wants_to_call: "Model wants to use tool:",
       approve: "Approve",
       reject: "Reject",
       always_allow: "Always allow {{skillName}}",
@@ -1627,6 +1787,11 @@ const TRANSLATIONS = {
     failed_update_user: "Failed to update user: {{error}}",
     account: "Account",
     support: "Support",
+    system_prompt: "Personal system prompt",
+    system_prompt_description:
+      "Applied to all of your chats after the global and selected Agent instructions.",
+    system_prompt_placeholder:
+      "Add personal preferences, working conventions, or response rules…",
     signout: "Sign out",
   },
   "keyboard-shortcuts": {

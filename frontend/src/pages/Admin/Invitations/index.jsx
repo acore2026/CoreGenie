@@ -42,7 +42,8 @@ export default function AdminInvites() {
             </div>
             <p className="text-xs leading-[18px] font-base text-theme-text-secondary mt-2">
               Create invitation links for people in your organization to accept
-              and sign up with. Invitations can only be used by a single user.
+              and sign up with. Invitation links can be reused until you disable
+              them.
             </p>
           </div>
           <div className="w-full justify-end flex">
@@ -73,9 +74,6 @@ export default function AdminInvites() {
                       Status
                     </th>
                     <th scope="col" className="px-6 py-3">
-                      Accepted By
-                    </th>
-                    <th scope="col" className="px-6 py-3">
                       Created By
                     </th>
                     <th scope="col" className="px-6 py-3">
@@ -89,7 +87,7 @@ export default function AdminInvites() {
                 <tbody>
                   {invites.length === 0 ? (
                     <tr className="bg-transparent text-theme-text-secondary text-sm font-medium">
-                      <td colSpan="5" className="px-6 py-4 text-center">
+                      <td colSpan="4" className="px-6 py-4 text-center">
                         No invitations found
                       </td>
                     </tr>

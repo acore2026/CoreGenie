@@ -36,11 +36,12 @@ const SlashCommandPresets = {
     }
   },
 
-  // Command + userId must be unique combination.
-  create: async function (userId = null, presetData = {}) {
+  // Quick commands are installation-wide. The legacy userId argument is kept
+  // for call-site compatibility, but all new commands use the global uid (0).
+  create: async function (_userId = null, presetData = {}) {
     try {
       const existingPreset = await this.get({
-        userId: userId ? Number(userId) : null,
+        uid: 0,
         command: String(presetData.command),
       });
 
@@ -54,12 +55,8 @@ const SlashCommandPresets = {
       const preset = await prisma.slash_command_presets.create({
         data: {
           ...presetData,
-          // This field (uid) is either the user_id or 0 (for non-multi-user mode).
-          // the UID field enforces the @@unique(userId, command) constraint since
-          // the real relational field (userId) cannot be non-null so this 'dummy' field gives us something
-          // to constrain against within the context of prisma and sqlite that works.
-          uid: userId ? Number(userId) : 0,
-          userId: userId ? Number(userId) : null,
+          uid: 0,
+          userId: null,
         },
       });
       return preset;
@@ -69,11 +66,11 @@ const SlashCommandPresets = {
     }
   },
 
-  getUserPresets: async function (userId = null) {
+  getGlobalPresets: async function () {
     try {
       return (
         await prisma.slash_command_presets.findMany({
-          where: { userId: !!userId ? Number(userId) : null },
+          where: { uid: 0 },
           orderBy: { createdAt: "asc" },
         })
       )?.map((preset) => ({
@@ -86,6 +83,11 @@ const SlashCommandPresets = {
       console.error("Failed to get user presets", error.message);
       return [];
     }
+  },
+
+  // Compatibility alias for integrations that still use the old method name.
+  getUserPresets: async function () {
+    return this.getGlobalPresets();
   },
 
   update: async function (presetId = null, presetData = {}) {
@@ -113,30 +115,9 @@ const SlashCommandPresets = {
     }
   },
 
-  /**
-   * Migrates all slash command presets with null userId to the specified admin user.
-   * Called during multi-user mode enablement to assign orphaned presets to the new admin.
-   * @param {number} adminUserId - The admin user ID to assign presets to
-   * @returns {Promise<void>}
-   */
-  migrateToMultiUser: async function (adminUserId) {
-    try {
-      await prisma.slash_command_presets.updateMany({
-        where: { userId: null },
-        data: {
-          userId: adminUserId,
-          uid: adminUserId,
-        },
-      });
-      console.log(
-        "Successfully migrated slash command presets to multi-user mode"
-      );
-    } catch (error) {
-      console.error(
-        "Error migrating slash command presets to multi-user mode:",
-        error
-      );
-    }
+  // Commands remain global when multi-user mode is enabled.
+  migrateToMultiUser: async function () {
+    return;
   },
 };
 

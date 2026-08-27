@@ -1046,46 +1046,7 @@ function validLocalWhisper(input = "") {
 }
 
 function supportedLLM(input = "") {
-  const validSelection = [
-    "openai",
-    "azure",
-    "anthropic",
-    "gemini",
-    "lmstudio",
-    "localai",
-    "ollama",
-    "togetherai",
-    "fireworksai",
-    "mistral",
-    "perplexity",
-    "openrouter",
-    "novita",
-    "groq",
-    "koboldcpp",
-    "textgenwebui",
-    "cohere",
-    "litellm",
-    "generic-openai",
-    "bedrock",
-    "deepseek",
-    "apipie",
-    "xai",
-    "nvidia-nim",
-    "ppio",
-    "moonshotai",
-    "cometapi",
-    "foundry",
-    "zai",
-    "giteeai",
-    "docker-model-runner",
-    "privatemode",
-    "sambanova",
-    "lemonade",
-    "minimax",
-    "cerebras",
-    "omlx",
-    "anythingllm-router",
-  ].includes(input);
+  const validSelection = ["openai", "generic-openai"].includes(input);
   return validSelection ? null : `${input} is not a valid LLM provider.`;
 }
 
@@ -1300,6 +1261,15 @@ async function validatePGVectorTableName(key, prevValue, nextValue) {
 // and is simply for debugging when the .env not found issue many come across.
 async function updateENV(newENVs = {}, force = false, userId = null) {
   let error = "";
+  if (
+    Object.hasOwn(newENVs, "LLMProvider") &&
+    !["openai", "generic-openai"].includes(newENVs.LLMProvider)
+  ) {
+    return {
+      newValues: {},
+      error: "Only OpenAI and Generic OpenAI LLM providers are supported.",
+    };
+  }
   const runAfterAll = [];
   const validKeys = Object.keys(KEY_MAPPING);
   const ENV_KEYS = Object.keys(newENVs).filter(

@@ -4,7 +4,6 @@ import showToast from "@/utils/toast";
 import { castToType } from "@/utils/types";
 import { useEffect, useRef, useState } from "react";
 import ChatHistorySettings from "./ChatHistorySettings";
-import ChatPromptSettings from "./ChatPromptSettings";
 import ChatTemperatureSettings from "./ChatTemperatureSettings";
 import ChatModeSelection from "./ChatModeSelection";
 import WorkspaceLLMSelection from "./WorkspaceLLMSelection";
@@ -74,11 +73,6 @@ export default function ChatSettings({ workspace }) {
         <ChatHistorySettings
           workspace={workspace}
           setHasChanges={setHasChanges}
-        />
-        <ChatPromptSettings
-          workspace={workspace}
-          setHasChanges={setHasChanges}
-          hasChanges={hasChanges}
         />
         <ChatQueryRefusalResponse
           workspace={workspace}

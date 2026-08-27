@@ -99,6 +99,48 @@ function normalizeQuestion(raw) {
   return null;
 }
 
+async function askUserThroughRuntime(aibitat, questions = []) {
+  if (typeof aibitat?.requestUserClarification !== "function")
+    throw new Error(
+      "User input is only available during an interactive Agent session."
+    );
+  if (!Array.isArray(questions) || questions.length < 1)
+    throw new Error("At least one question is required.");
+
+  const normalized = questions.map(normalizeQuestion).filter(Boolean);
+  if (!normalized.length) throw new Error("No well-formed questions provided.");
+
+  const state = await ensureState(aibitat);
+  const remaining = state.maxPerTurn - state.asked;
+  if (remaining <= 0)
+    return {
+      text: `[clarification limit of ${state.maxPerTurn} reached for this turn — do not ask again, proceed with best judgment]`,
+      questions: [],
+      result: { skipped: true, timedOut: false, answers: [] },
+    };
+
+  const truncated = normalized.slice(0, remaining);
+  const truncatedNote =
+    truncated.length < normalized.length
+      ? ` (truncated from ${normalized.length} to fit the per-turn cap of ${state.maxPerTurn})`
+      : "";
+  state.asked += truncated.length;
+  aibitat.introspect(
+    `Asking the user ${truncated.length} clarifying question${truncated.length === 1 ? "" : "s"}${truncatedNote}.`
+  );
+  const result = await aibitat.requestUserClarification({
+    questions: truncated,
+    allowSkip: true,
+    timeoutMs: state.timeoutMs,
+  });
+  aibitat.addClarifyingQuestionSurvey({ questions: truncated, result });
+  return {
+    text: formatAnswersForAgent(truncated, result) + truncatedNote,
+    questions: truncated,
+    result,
+  };
+}
+
 const AskUser = {
   name: "request-user-input",
   plugin: function () {
@@ -206,47 +248,15 @@ const AskUser = {
             additionalProperties: false,
           },
           handler: async function ({ questions = [] }) {
-            if (!Array.isArray(questions) || questions.length < 1)
-              return "[ask-user requires a 'questions' array with at least 1 entry]";
-
-            const normalized = questions
-              .map((q) => normalizeQuestion(q))
-              .filter((q) => !!q);
-            if (normalized.length < 1)
-              return "[ask-user received no well-formed questions after validation]";
-
-            const state = await ensureState(this.super);
-            const remaining = state.maxPerTurn - state.asked;
-            if (remaining <= 0) {
-              return `[clarification limit of ${state.maxPerTurn} reached for this turn — do not ask again, proceed with best judgment]`;
+            try {
+              const response = await askUserThroughRuntime(
+                this.super,
+                questions
+              );
+              return response.text;
+            } catch (error) {
+              return `[ask-user failed: ${error.message}]`;
             }
-
-            // Truncate to remaining cap rather than rejecting the whole call.
-            const truncated = normalized.slice(0, remaining);
-            const truncatedNote =
-              truncated.length < normalized.length
-                ? ` (truncated from ${normalized.length} to fit the per-turn cap of ${state.maxPerTurn})`
-                : "";
-            state.asked += truncated.length;
-
-            this.super.introspect(
-              `Asking the user ${truncated.length} clarifying question${truncated.length === 1 ? "" : "s"}${truncatedNote}.`
-            );
-            const result = await this.super.requestUserClarification({
-              questions: truncated,
-              allowSkip: true,
-              timeoutMs: state.timeoutMs,
-            });
-
-            // Buffer the completed survey on the aibitat instance so the
-            // chat-history plugin can persist it to workspace_chats.response
-            // alongside citations/outputs when the agent reply is saved.
-            this.super.addClarifyingQuestionSurvey({
-              questions: truncated,
-              result,
-            });
-
-            return formatAnswersForAgent(truncated, result) + truncatedNote;
           },
         });
       },
@@ -262,4 +272,9 @@ const requestUserInput = {
   plugin: [AskUser],
 };
 
-module.exports = { requestUserInput };
+module.exports = {
+  requestUserInput,
+  askUserThroughRuntime,
+  formatAnswersForAgent,
+  normalizeQuestion,
+};

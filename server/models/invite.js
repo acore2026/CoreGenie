@@ -2,6 +2,9 @@ const { safeJsonParse } = require("../utils/http");
 const prisma = require("../utils/prisma");
 
 const Invite = {
+  isActive: (invite = null) =>
+    Boolean(invite) && ["pending", "claimed"].includes(invite.status),
+
   makeCode: () => {
     const uuidAPIKey = require("uuid-apikey");
     return uuidAPIKey.create().apiKey;
@@ -23,6 +26,35 @@ const Invite = {
     }
   },
 
+  getOrCreateWorkspaceInvite: async function ({
+    createdByUserId,
+    workspaceId,
+  }) {
+    const workspaceIds = JSON.stringify([Number(workspaceId)]);
+    const existing = await this.get({
+      createdBy: Number(createdByUserId),
+      workspaceIds,
+      status: { in: ["pending", "claimed"] },
+    });
+    if (existing) return { invite: existing, error: null };
+    return this.create({
+      createdByUserId: Number(createdByUserId),
+      workspaceIds: [Number(workspaceId)],
+    });
+  },
+
+  workspaceDetails: async function (invite = null) {
+    if (!invite?.workspaceIds) return [];
+    const { Workspace } = require("./workspace");
+    const workspaceIds = safeJsonParse(invite.workspaceIds, [])
+      .map((id) => Number(id))
+      .filter((id) => Number.isInteger(id));
+    if (workspaceIds.length === 0) return [];
+
+    const workspaces = await Workspace.where({ id: { in: workspaceIds } });
+    return workspaces.map(({ id, name, slug }) => ({ id, name, slug }));
+  },
+
   deactivate: async function (inviteId = null) {
     try {
       const invite = await prisma.invites.findUnique({
@@ -41,12 +73,13 @@ const Invite = {
     }
   },
 
-  markClaimed: async function (inviteId = null, user) {
+  applyToUser: async function (inviteId = null, user) {
     try {
-      const invite = await prisma.invites.update({
+      const invite = await prisma.invites.findUnique({
         where: { id: Number(inviteId) },
-        data: { status: "claimed", claimedBy: user.id },
       });
+      if (!this.isActive(invite))
+        return { success: false, error: "Invite is no longer valid." };
 
       try {
         if (!!invite?.workspaceIds) {
@@ -58,7 +91,18 @@ const Invite = {
           const ids = safeJsonParse(invite.workspaceIds)
             .map((id) => Number(id))
             .filter((id) => workspaceIds.includes(id));
-          if (ids.length !== 0) await WorkspaceUser.createMany(user.id, ids);
+          const existingMemberships = await WorkspaceUser.where({
+            user_id: user.id,
+            workspace_id: { in: ids },
+          });
+          const existingWorkspaceIds = new Set(
+            existingMemberships.map(({ workspace_id }) => workspace_id)
+          );
+          const missingWorkspaceIds = ids.filter(
+            (id) => !existingWorkspaceIds.has(id)
+          );
+          if (missingWorkspaceIds.length !== 0)
+            await WorkspaceUser.createMany(user.id, missingWorkspaceIds);
         }
       } catch (e) {
         console.error(
@@ -72,6 +116,12 @@ const Invite = {
       console.error(error.message);
       return { success: false, error: error.message };
     }
+  },
+
+  // Backwards-compatible alias for callers outside the web application. An
+  // invite is now reusable, so applying it no longer marks it as claimed.
+  markClaimed: async function (inviteId = null, user) {
+    return this.applyToUser(inviteId, user);
   },
 
   get: async function (clause = {}) {
@@ -122,6 +172,10 @@ const Invite = {
     try {
       const invites = await this.where(clause, limit);
       for (const invite of invites) {
+        // Older single-use links were stored as claimed. They are reusable now
+        // and remain active until an administrator explicitly disables them.
+        if (invite.status === "claimed") invite.status = "pending";
+
         if (invite.claimedBy) {
           const acceptedUser = await User.get({ id: invite.claimedBy });
           invite.claimedBy = {

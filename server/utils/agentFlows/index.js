@@ -1,7 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const { v4: uuidv4 } = require("uuid");
-const { FlowExecutor, FLOW_TYPES } = require("./executor");
+const { FLOW_TYPES } = require("./flowTypes");
 const { normalizePath, isWithin } = require("../files");
 const { safeJsonParse } = require("../http");
 
@@ -168,20 +168,6 @@ class AgentFlows {
   }
 
   /**
-   * Execute a flow by UUID
-   * @param {string} uuid - The UUID of the flow to execute
-   * @param {Object} variables - Initial variables for the flow
-   * @param {Object} aibitat - The aibitat instance from the agent handler
-   * @returns {Promise<Object>} Result of flow execution
-   */
-  static async executeFlow(uuid, variables = {}, aibitat = null) {
-    const flow = AgentFlows.loadFlow(uuid);
-    if (!flow) throw new Error(`Flow ${uuid} not found`);
-    const flowExecutor = new FlowExecutor();
-    return await flowExecutor.executeFlow(flow, variables, aibitat);
-  }
-
-  /**
    * Get all active flows as plugins that can be loaded into the agent
    * @returns {string[]} Array of flow names in @@flow_{uuid} format
    */
@@ -208,71 +194,6 @@ class AgentFlows {
       .replace(/^[-_]+|[-_]+$/g, "");
     if (!sanitized) return null;
     return sanitized.slice(0, 64);
-  }
-
-  /**
-   * Load a flow plugin by its UUID
-   * @param {string} uuid - The UUID of the flow to load
-   * @returns {Object|null} Plugin configuration or null if not found
-   */
-  static loadFlowPlugin(uuid) {
-    const flow = AgentFlows.loadFlow(uuid);
-    if (!flow) return null;
-
-    const startBlock = flow.config.steps?.find((s) => s.type === "start");
-    const variables = startBlock?.config?.variables || [];
-    const toolName = AgentFlows.sanitizeToolName(flow.name) || `flow_${uuid}`;
-
-    return {
-      name: toolName,
-      description: `Execute agent flow: ${flow.name}`,
-      plugin: (_runtimeArgs = {}) => ({
-        name: toolName,
-        description:
-          flow.config.description || `Execute agent flow: ${flow.name}`,
-        setup: (aibitat) => {
-          aibitat.function({
-            name: toolName,
-            description:
-              flow.config.description || `Execute agent flow: ${flow.name}`,
-            parameters: {
-              type: "object",
-              properties: variables.reduce((acc, v) => {
-                if (v.name) {
-                  acc[v.name] = {
-                    type: "string",
-                    description:
-                      v.description || `Value for variable ${v.name}`,
-                  };
-                }
-                return acc;
-              }, {}),
-            },
-            handler: async (args) => {
-              aibitat.introspect(`Executing flow: ${flow.name}`);
-              const result = await AgentFlows.executeFlow(uuid, args, aibitat);
-              if (!result.success) {
-                aibitat.introspect(
-                  `Flow failed: ${result.results[0]?.error || "Unknown error"}`
-                );
-                return `Flow execution failed: ${result.results[0]?.error || "Unknown error"}`;
-              }
-              aibitat.introspect(`${flow.name} completed successfully`);
-
-              // If the flow result has directOutput, return it
-              // as the aibitat result so that no other processing is done
-              if (!!result.directOutput) {
-                aibitat.skipHandleExecution = true;
-                return AgentFlows.stringifyResult(result.directOutput);
-              }
-
-              return AgentFlows.stringifyResult(result);
-            },
-          });
-        },
-      }),
-      flowName: flow.name,
-    };
   }
 
   /**

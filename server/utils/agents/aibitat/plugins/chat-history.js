@@ -1,6 +1,22 @@
 const { WorkspaceChats } = require("../../../../models/workspaceChats");
 const { WorkspaceThread } = require("../../../../models/workspaceThread");
 
+function completedAgentTrace(aibitat) {
+  const trace = (aibitat.getAgentTrace?.() ?? []).filter(
+    (entry) => !["finalizing", "completed"].includes(entry.phase)
+  );
+  if (!trace.length) return [];
+  return [
+    ...trace,
+    {
+      id: "agent-trace-complete",
+      summary: "Agent session complete",
+      phase: "completed",
+      createdAt: new Date().toISOString(),
+    },
+  ];
+}
+
 /**
  * Plugin to save chat history to AnythingLLM DB.
  */
@@ -13,6 +29,25 @@ const chatHistory = {
     return {
       name: this.name,
       setup: function (aibitat) {
+        const logPersistenceError = (stage, error) => {
+          const message = error?.message || String(error);
+          aibitat.handlerProps?.log?.(
+            `[chat-history] ${stage} failed: ${message}`
+          );
+          console.error(`[chat-history] ${stage} failed: ${message}`);
+        };
+
+        // Message events are synchronous, but the database operations they
+        // start are not. Keep explicit promises so a fast model cannot save a
+        // response before the placeholder row has returned its ID, and so the
+        // socket can remain open until the final write has settled.
+        aibitat._chatHistoryReady = Promise.resolve(true);
+        aibitat._chatHistorySavePromise = Promise.resolve();
+        aibitat.waitForChatHistory = async () => {
+          await aibitat._chatHistoryReady;
+          await aibitat._chatHistorySavePromise;
+        };
+
         // If the agent is aborted (e.g. user sent /reset mid-response), skip
         // the pending save so a completing in-flight response doesn't reappear.
         aibitat.onAbort(() => {
@@ -20,7 +55,7 @@ const chatHistory = {
         });
 
         // pre-register a workspace chat ID to secure it in the DB
-        aibitat.onMessage(async (message) => {
+        aibitat.onMessage((message) => {
           if (message.from !== "USER") return;
 
           /**
@@ -47,28 +82,49 @@ const chatHistory = {
               }
             }
 
-            const { chat } = await WorkspaceChats.new({
-              workspaceId: Number(aibitat.handlerProps.invocation.workspace_id),
-              user: { id: aibitat.handlerProps.invocation.user_id || null },
-              threadId: aibitat.handlerProps.invocation.thread_id || null,
-              include: false,
-              prompt: userMessage,
-              response: {},
+            aibitat._chatHistoryReady = (async () => {
+              const { chat, message: errorMessage } = await WorkspaceChats.new({
+                workspaceId: Number(
+                  aibitat.handlerProps.invocation.workspace_id
+                ),
+                user: {
+                  id: aibitat.handlerProps.invocation.user_id || null,
+                },
+                threadId: aibitat.handlerProps.invocation.thread_id || null,
+                include: false,
+                prompt: userMessage,
+                response: {},
+              });
+              if (!chat)
+                throw new Error(
+                  errorMessage || "Workspace chat row was not created."
+                );
+              aibitat.registerChatId(chat.id);
+              return true;
+            })().catch((error) => {
+              logPersistenceError("creating the pending chat", error);
+              return false;
             });
-            if (chat) aibitat.registerChatId(chat.id);
           }
         });
 
-        aibitat.onMessage(async () => {
-          try {
-            if (aibitat._aborted) return;
-            const lastResponses = aibitat.chats.slice(-2);
-            if (lastResponses.length !== 2) return;
-            const [prev, last] = lastResponses;
+        aibitat.onMessage(() => {
+          if (aibitat._aborted) return;
+          const lastResponses = aibitat.chats.slice(-2);
+          if (lastResponses.length !== 2) return;
+          const [prev, last] = lastResponses;
 
-            // We need a full conversation reply with prev being from
-            // the USER and the last being from anyone other than the user.
-            if (prev.from !== "USER" || last.from === "USER") return;
+          // We need a full conversation reply with prev being from
+          // the USER and the last being from anyone other than the user.
+          if (prev.from !== "USER" || last.from === "USER") return;
+
+          // Assign this synchronously during the message event so a terminate
+          // event emitted immediately afterwards can wait for the write.
+          aibitat._chatHistorySavePromise = (async () => {
+            const ready = await aibitat._chatHistoryReady;
+            if (!ready || aibitat._aborted) return;
+            if (!aibitat.trackedChatId)
+              throw new Error("No workspace chat ID is available for saving.");
 
             // Extract attachments from user message if present
             const attachments = prev.attachments || [];
@@ -91,7 +147,9 @@ const chatHistory = {
               response: last.content,
               attachments,
             });
-          } catch {}
+          })().catch((error) => {
+            logPersistenceError("saving the completed chat", error);
+          });
         });
       },
       _store: async function (
@@ -104,28 +162,38 @@ const chatHistory = {
         const outputs = aibitat._pendingOutputs ?? [];
         const clarifyingQuestions =
           aibitat._pendingClarifyingQuestionSurveys ?? [];
-        await WorkspaceChats.upsert(aibitat.trackedChatId, {
-          workspaceId: Number(invocation.workspace_id),
-          prompt,
-          response: {
-            text: response,
-            sources: citations,
-            type: "chat",
-            attachments,
-            metrics,
-            ...(outputs.length > 0 ? { outputs } : {}),
-            ...(clarifyingQuestions.length > 0 ? { clarifyingQuestions } : {}),
-          },
-          user: { id: invocation?.user_id || null },
-          threadId: invocation?.thread_id || null,
-          include: true,
-        });
+        const subagentRuns = aibitat.getSubagentRuns?.() ?? [];
+        const contextTraces = aibitat.getContextTraces?.() ?? [];
+        const agentTrace = completedAgentTrace(aibitat);
+        const { chat, message } = await WorkspaceChats.upsert(
+          aibitat.trackedChatId,
+          {
+            workspaceId: Number(invocation.workspace_id),
+            prompt,
+            response: {
+              text: response,
+              sources: citations,
+              type: "chat",
+              attachments,
+              metrics,
+              ...(agentTrace.length > 0 ? { agentTrace } : {}),
+              ...(outputs.length > 0 ? { outputs } : {}),
+              ...(clarifyingQuestions.length > 0
+                ? { clarifyingQuestions }
+                : {}),
+              ...(subagentRuns.length > 0 ? { subagentRuns } : {}),
+              ...(contextTraces.length > 0 ? { contextTraces } : {}),
+            },
+            user: { id: invocation?.user_id || null },
+            threadId: invocation?.thread_id || null,
+            include: true,
+          }
+        );
+        if (!chat)
+          throw new Error(message || "Workspace chat response was not saved.");
 
         if (!aibitat._threadRenamed) {
-          aibitat._threadRenamed = await this._autoRenameThread(
-            aibitat,
-            prompt
-          );
+          aibitat._threadRenamed = await this._autoRenameThread(aibitat);
         }
         this._cleanup(aibitat);
       },
@@ -139,39 +207,49 @@ const chatHistory = {
         const outputs = aibitat._pendingOutputs ?? [];
         const clarifyingQuestions =
           aibitat._pendingClarifyingQuestionSurveys ?? [];
+        const subagentRuns = aibitat.getSubagentRuns?.() ?? [];
+        const contextTraces = aibitat.getContextTraces?.() ?? [];
+        const agentTrace = completedAgentTrace(aibitat);
         const existingSources = options?.sources ?? [];
-        await WorkspaceChats.upsert(aibitat.trackedChatId, {
-          workspaceId: Number(invocation.workspace_id),
-          prompt,
-          response: {
-            sources: [...existingSources, ...citations],
-            // when we have a _storeSpecial called the options param can include a storedResponse() function
-            // that will override the text property to store extra information in, depending on the special type of chat.
-            text: options.hasOwnProperty("storedResponse")
-              ? options.storedResponse(response)
-              : response,
-            type: options?.saveAsType ?? "chat",
-            attachments,
-            metrics,
-            ...(outputs.length > 0 ? { outputs } : {}),
-            ...(clarifyingQuestions.length > 0 ? { clarifyingQuestions } : {}),
-          },
-          user: { id: invocation?.user_id || null },
-          threadId: invocation?.thread_id || null,
-          include: true,
-        });
+        const { chat, message } = await WorkspaceChats.upsert(
+          aibitat.trackedChatId,
+          {
+            workspaceId: Number(invocation.workspace_id),
+            prompt,
+            response: {
+              sources: [...existingSources, ...citations],
+              // when we have a _storeSpecial called the options param can include a storedResponse() function
+              // that will override the text property to store extra information in, depending on the special type of chat.
+              text: options.hasOwnProperty("storedResponse")
+                ? options.storedResponse(response)
+                : response,
+              type: options?.saveAsType ?? "chat",
+              attachments,
+              metrics,
+              ...(agentTrace.length > 0 ? { agentTrace } : {}),
+              ...(outputs.length > 0 ? { outputs } : {}),
+              ...(clarifyingQuestions.length > 0
+                ? { clarifyingQuestions }
+                : {}),
+              ...(subagentRuns.length > 0 ? { subagentRuns } : {}),
+              ...(contextTraces.length > 0 ? { contextTraces } : {}),
+            },
+            user: { id: invocation?.user_id || null },
+            threadId: invocation?.thread_id || null,
+            include: true,
+          }
+        );
+        if (!chat)
+          throw new Error(message || "Workspace chat response was not saved.");
 
         if (!aibitat._threadRenamed) {
-          aibitat._threadRenamed = await this._autoRenameThread(
-            aibitat,
-            prompt
-          );
+          aibitat._threadRenamed = await this._autoRenameThread(aibitat);
         }
         options?.postSave();
         this._cleanup(aibitat);
       },
 
-      _autoRenameThread: async function (aibitat, prompt) {
+      _autoRenameThread: async function (aibitat) {
         const invocation = aibitat.handlerProps.invocation;
         if (!invocation?.thread_id) return true;
 
@@ -186,7 +264,6 @@ const chatHistory = {
           thread,
           workspace,
           user: invocation.user_id ? { id: invocation.user_id } : null,
-          prompt,
           onRename: (updatedThread) => {
             aibitat.socket?.send("rename_thread", {
               slug: updatedThread.slug,
@@ -201,6 +278,8 @@ const chatHistory = {
         aibitat.clearCitations?.();
         aibitat._pendingOutputs = [];
         aibitat.clearClarifyingQuestionSurveys?.();
+        aibitat.clearSubagentRuns?.();
+        aibitat.clearContextTraces?.();
         aibitat.clearTrackedChatId();
       },
     };

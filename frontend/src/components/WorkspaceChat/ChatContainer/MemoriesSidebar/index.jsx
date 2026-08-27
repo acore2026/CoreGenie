@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { X } from "@phosphor-icons/react";
 import { useTranslation } from "react-i18next";
 import ChatSidebar from "../ChatSidebar";
@@ -9,13 +10,15 @@ import MemoryModal from "./MemoryModal";
 
 export { useMemoriesSidebar } from "../ChatSidebar";
 
-export default function MemoriesSidebar({ workspace }) {
+function MemoriesSidebar({ workspace }) {
   return (
     <MemoriesProvider workspace={workspace}>
       <MemoriesSidebarContent />
     </MemoriesProvider>
   );
 }
+
+export default memo(MemoriesSidebar);
 
 function MemoriesSidebarContent() {
   const { sidebarOpen, canToggle, enabled } = useMemoriesContext();

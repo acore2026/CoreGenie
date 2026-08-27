@@ -10,6 +10,13 @@ RUN echo "Preparing build of AnythingLLM image for arm64 architecture"
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
+# Use a nearby mirror by default for reliable cold builds in China. Override
+# this build argument when another Ubuntu ports mirror is preferable.
+ARG UBUNTU_PORTS_MIRROR=http://mirrors.aliyun.com/ubuntu-ports
+RUN sed -i -E \
+    "s#https?://ports.ubuntu.com/ubuntu-ports#${UBUNTU_PORTS_MIRROR}#g" \
+    /etc/apt/sources.list.d/ubuntu.sources
+
 # Install system dependencies
 # hadolint ignore=DL3008,DL3013
 RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
@@ -19,10 +26,11 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
         libgcc1 libglib2.0-0 libgtk-3-0 libnspr4 libpango-1.0-0 libx11-6 libx11-xcb1 libxcb1 \
         libxcomposite1 libxcursor1 libxdamage1 libxext6 libxfixes3 libxi6 libxrandr2 libxrender1 \
         libxss1 libxtst6 ca-certificates fonts-liberation libappindicator3-1 libnss3 lsb-release \
-        xdg-utils git build-essential ffmpeg && \
+        xdg-utils git build-essential pkg-config libcairo2-dev libpango1.0-dev \
+        libjpeg-dev libgif-dev librsvg2-dev ffmpeg && \
     mkdir -p /etc/apt/keyrings && \
     curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg && \
-    echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_18.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list && \
+    echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_24.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list && \
     apt-get update && \
     # Install node and yarn
     apt-get install -yq --no-install-recommends nodejs && \
@@ -79,6 +87,13 @@ RUN echo "Preparing build of AnythingLLM image for non-ARM architecture"
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
+# Use a nearby mirror by default for reliable cold builds in China. Override
+# this build argument when another Ubuntu mirror is preferable.
+ARG UBUNTU_MIRROR=http://mirrors.aliyun.com/ubuntu
+RUN sed -i -E \
+    "s#https?://(archive|security).ubuntu.com/ubuntu#${UBUNTU_MIRROR}#g" \
+    /etc/apt/sources.list.d/ubuntu.sources
+
 # Install system dependencies
 # hadolint ignore=DL3008,DL3013
 RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
@@ -88,10 +103,11 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
         libgcc1 libglib2.0-0 libgtk-3-0 libnspr4 libpango-1.0-0 libx11-6 libx11-xcb1 libxcb1 \
         libxcomposite1 libxcursor1 libxdamage1 libxext6 libxfixes3 libxi6 libxrandr2 libxrender1 \
         libxss1 libxtst6 ca-certificates fonts-liberation libappindicator3-1 libnss3 lsb-release \
-        xdg-utils git build-essential ffmpeg && \
+        xdg-utils git build-essential pkg-config libcairo2-dev libpango1.0-dev \
+        libjpeg-dev libgif-dev librsvg2-dev ffmpeg && \
     mkdir -p /etc/apt/keyrings && \
     curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg && \
-    echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_18.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list && \
+    echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_24.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list && \
     apt-get update && \
     # Install node and yarn
     apt-get install -yq --no-install-recommends nodejs && \
@@ -138,27 +154,48 @@ WORKDIR /app
 # Use BUILDPLATFORM to run on the native host architecture (not emulated).
 # This avoids esbuild crashing under QEMU when cross-compiling.
 # The output (static HTML/CSS/JS) is platform-independent.
-FROM --platform=$BUILDPLATFORM node:18-slim AS frontend-build
+FROM --platform=$BUILDPLATFORM node:24-slim AS frontend-build
 WORKDIR /app/frontend
+ARG YARN_REGISTRY=https://registry.npmmirror.com
 COPY ./frontend/package.json ./frontend/yarn.lock ./
-RUN yarn install --network-timeout 100000 && yarn cache clean
+RUN sed -i \
+      -e "s#https://registry.yarnpkg.com#${YARN_REGISTRY}#g" \
+      -e "s#https://registry.npmjs.org#${YARN_REGISTRY}#g" \
+      yarn.lock && \
+    yarn install --network-timeout 100000 && yarn cache clean
+ARG VITE_AGENT_TRANSPORT=auto
+ENV VITE_AGENT_TRANSPORT=$VITE_AGENT_TRANSPORT
 COPY ./frontend/ ./
 RUN yarn build
 WORKDIR /app
 
-# Install server layer
-# Also pull and build collector deps (chromium issues prevent bad bindings)
+# Install server dependencies before copying server source so ordinary code
+# changes do not invalidate the expensive dependency layer.
 FROM build AS backend-build
-COPY --chown=anythingllm:anythingllm ./server /app/server/
 WORKDIR /app/server
-RUN yarn install --production --network-timeout 100000 && yarn cache clean
-WORKDIR /app
+ARG YARN_REGISTRY=https://registry.npmmirror.com
+COPY --chown=anythingllm:anythingllm ./server/package.json ./server/yarn.lock ./
+RUN sed -i \
+      -e "s#https://registry.yarnpkg.com#${YARN_REGISTRY}#g" \
+      -e "s#https://registry.npmjs.org#${YARN_REGISTRY}#g" \
+      yarn.lock && \
+    yarn install --production --frozen-lockfile --network-timeout 100000 && yarn cache clean
 
-# Install collector dependencies
-COPY --chown=anythingllm:anythingllm ./collector/ ./collector/
+# Install collector dependencies before copying either source tree. This layer
+# includes large browser/native packages and must remain cached even when only
+# server source changes.
 WORKDIR /app/collector
 ENV PUPPETEER_DOWNLOAD_BASE_URL=https://storage.googleapis.com/chrome-for-testing-public
-RUN yarn install --production --network-timeout 100000 && yarn cache clean
+COPY --chown=anythingllm:anythingllm ./collector/package.json ./collector/yarn.lock ./
+RUN sed -i \
+      -e "s#https://registry.yarnpkg.com#${YARN_REGISTRY}#g" \
+      -e "s#https://registry.npmjs.org#${YARN_REGISTRY}#g" \
+      yarn.lock && \
+    yarn install --production --network-timeout 100000 && yarn cache clean
+
+# Source-only layers come after all dependency layers.
+COPY --chown=anythingllm:anythingllm ./server/ /app/server/
+COPY --chown=anythingllm:anythingllm ./collector/ /app/collector/
 
 WORKDIR /app
 USER anythingllm

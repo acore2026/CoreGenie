@@ -21,9 +21,16 @@ const { SystemSettings } = require("../../models/systemSettings");
  * @param {number} workspaceId
  * @param {string} prompt - The current user message
  * @param {object[]} rawHistory - Recent chat history objects with .prompt field
+ * @param {Function|null} onRecall - Optional observer for UI/audit traces
  * @returns {Promise<string>} Formatted memory section or empty string
  */
-async function getMemoriesForPrompt(userId, workspaceId, prompt, rawHistory) {
+async function getMemoriesForPrompt(
+  userId,
+  workspaceId,
+  prompt,
+  rawHistory,
+  onRecall = null
+) {
   try {
     const enabled = await SystemSettings.memoriesEnabled();
     if (!enabled) return "";
@@ -49,6 +56,12 @@ async function getMemoriesForPrompt(userId, workspaceId, prompt, rawHistory) {
       ...selectedWorkspace.map((m) => m.id),
     ];
     Memory.updateLastUsed(injectedIds);
+    if (typeof onRecall === "function")
+      onRecall({
+        globalCount: globalMemories.length,
+        workspaceCount: selectedWorkspace.length,
+        count: injectedIds.length,
+      });
 
     return formatMemories(globalMemories, selectedWorkspace);
   } catch (error) {
@@ -116,6 +129,7 @@ function formatMemories(globalMemories, workspaceMemories) {
  * @param {number} opts.workspaceId
  * @param {string} [opts.prompt] - Current user message (used for reranking)
  * @param {object[]} [opts.rawHistory] - Recent chat history (used for reranking)
+ * @param {Function|null} [opts.onRecall] - Optional observer for UI/audit traces
  * @returns {Promise<string>} The system prompt with memories appended (if any)
  */
 async function promptWithMemories({
@@ -124,12 +138,14 @@ async function promptWithMemories({
   workspaceId,
   prompt = "",
   rawHistory = [],
+  onRecall = null,
 }) {
   const memoriesContext = await getMemoriesForPrompt(
     userId,
     workspaceId,
     prompt,
-    rawHistory
+    rawHistory,
+    onRecall
   );
   return memoriesContext
     ? `${systemPrompt}\n\n${memoriesContext}`

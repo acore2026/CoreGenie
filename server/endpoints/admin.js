@@ -24,13 +24,15 @@ const {
   ROLES,
 } = require("../utils/middleware/multiUserProtected");
 const { validatedRequest } = require("../utils/middleware/validatedRequest");
-const ImportedPlugin = require("../utils/agents/imported");
 const {
   simpleSSOLoginDisabledMiddleware,
 } = require("../utils/middleware/simpleSSOEnabled");
 const {
   workspaceDeletionProtection,
 } = require("../utils/middleware/workspaceDeletionProtection");
+const {
+  DEFAULT_ENABLED_CONFIGURABLE_SKILLS,
+} = require("../utils/agents/skillDefaults");
 
 function adminEndpoints(app) {
   if (!app) return;
@@ -405,7 +407,10 @@ function adminEndpoints(app) {
                 await SystemSettings.agent_sql_connections();
               break;
             case "default_agent_skills":
-              requestedSettings[label] = safeJsonParse(setting?.value, []);
+              requestedSettings[label] = safeJsonParse(
+                setting?.value,
+                DEFAULT_ENABLED_CONFIGURABLE_SKILLS
+              );
               break;
             case "disabled_agent_skills":
               requestedSettings[label] = safeJsonParse(setting?.value, []);
@@ -423,7 +428,7 @@ function adminEndpoints(app) {
               requestedSettings[label] = safeJsonParse(setting?.value, []);
               break;
             case "imported_agent_skills":
-              requestedSettings[label] = ImportedPlugin.listImportedPlugins();
+              requestedSettings[label] = [];
               break;
             case "custom_app_name":
               requestedSettings[label] = setting?.value || null;
@@ -441,10 +446,13 @@ function adminEndpoints(app) {
                 await SystemSettings.getValueOrFallback({ label }, null);
               break;
             case "memory_enabled":
-              requestedSettings[label] = setting?.value || "false";
+              requestedSettings[label] = setting?.value ?? "true";
               break;
             case "memory_auto_extraction":
               requestedSettings[label] = setting?.value ?? "true";
+              break;
+            case "global_system_prompt":
+              requestedSettings[label] = setting?.value ?? "";
               break;
             default:
               break;

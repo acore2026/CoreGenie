@@ -31,6 +31,10 @@ class FilesystemManager {
     ".bmp": "image/bmp",
   };
 
+  constructor(workspaceId = null) {
+    this.workspaceId = workspaceId ? Number(workspaceId) : null;
+  }
+
   /**
    * Checks if the filesystem tool is available.
    * The filesystem tool is only available when running in a docker container
@@ -50,10 +54,43 @@ class FilesystemManager {
    * @returns {string} The default filesystem root path
    */
   #getDefaultFilesystemRoot() {
+    if (!Number.isInteger(this.workspaceId) || this.workspaceId < 1)
+      throw new Error(
+        "Authenticated workspace is required for filesystem access."
+      );
     const storageRoot =
       process.env.STORAGE_DIR ||
       path.resolve(__dirname, "../../../../../storage");
-    return path.join(storageRoot, "anythingllm-fs");
+    return path.join(
+      storageRoot,
+      "anythingllm-fs",
+      "workspaces",
+      `workspace-${this.workspaceId}`
+    );
+  }
+
+  /**
+   * Create an isolated manager for the authenticated AnythingLLM workspace.
+   * A new instance avoids cross-request state leaking between concurrent agents.
+   * @param {number|string} workspaceId
+   * @returns {FilesystemManager}
+   */
+  forWorkspace(workspaceId) {
+    const parsed = Number(workspaceId);
+    if (!Number.isInteger(parsed) || parsed < 1)
+      throw new Error(
+        "Authenticated workspace is required for filesystem access."
+      );
+    return new FilesystemManager(parsed);
+  }
+
+  /**
+   * Resolve a manager only from server-authenticated invocation state.
+   * @param {object} invocation
+   * @returns {FilesystemManager}
+   */
+  forInvocation(invocation) {
+    return this.forWorkspace(invocation?.workspace_id);
   }
 
   /**
@@ -450,7 +487,18 @@ class FilesystemManager {
       if (error.code === "ENOENT") {
         const parentDir = path.dirname(absolute);
         try {
-          const realParentPath = await fs.realpath(parentDir);
+          let existingAncestor = parentDir;
+          while (true) {
+            try {
+              await fs.access(existingAncestor);
+              break;
+            } catch {
+              const next = path.dirname(existingAncestor);
+              if (next === existingAncestor) throw error;
+              existingAncestor = next;
+            }
+          }
+          const realParentPath = await fs.realpath(existingAncestor);
           const normalizedParent = this.#normalizePath(realParentPath);
           if (
             !this.#isPathWithinAllowedDirectories(
@@ -514,6 +562,7 @@ class FilesystemManager {
    * @returns {Promise<void>}
    */
   async writeFileContent(filePath, content) {
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
     try {
       await fs.writeFile(filePath, content, { encoding: "utf-8", flag: "wx" });
     } catch (error) {
@@ -523,6 +572,52 @@ class FilesystemManager {
         throw error;
       }
     }
+  }
+
+  /**
+   * Deletes a file or directory inside this workspace. The workspace root can
+   * never be deleted; non-empty directories require recursive=true.
+   * @param {string} requestedPath - Workspace-relative or validated path
+   * @param {object} [options]
+   * @param {boolean} [options.recursive=false]
+   * @returns {Promise<{path: string, type: "file"|"directory"}>}
+   */
+  async deletePath(requestedPath, { recursive = false } = {}) {
+    await this.ensureInitialized();
+    const expandedPath = this.#expandHome(requestedPath);
+    const lexicalPath = this.#normalizePath(
+      path.isAbsolute(expandedPath)
+        ? path.resolve(expandedPath)
+        : this.#resolveRelativePathAgainstAllowedDirectories(expandedPath)
+    );
+    if (
+      !this.#isPathWithinAllowedDirectories(
+        lexicalPath,
+        this.#allowedDirectories
+      )
+    )
+      throw new Error("Access denied - path outside allowed directories.");
+
+    // Resolving the real path also proves that any symlink target remains in
+    // the workspace. Deletion itself uses the lexical path so deleting a safe
+    // symlink removes the link, not its target.
+    await this.validatePath(requestedPath);
+    const allowedRoots = this.getAllowedDirectories().map((root) =>
+      path.resolve(root)
+    );
+    if (allowedRoots.includes(path.resolve(lexicalPath)))
+      throw new Error("The workspace root cannot be deleted.");
+
+    const stats = await fs.lstat(lexicalPath);
+    if (stats.isDirectory()) {
+      if (recursive)
+        await fs.rm(lexicalPath, { recursive: true, force: false });
+      else await fs.rmdir(lexicalPath);
+      return { path: lexicalPath, type: "directory" };
+    }
+
+    await fs.unlink(lexicalPath);
+    return { path: lexicalPath, type: "file" };
   }
 
   /**

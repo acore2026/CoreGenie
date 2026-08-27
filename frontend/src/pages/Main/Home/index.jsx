@@ -20,14 +20,15 @@ import Workspace from "@/models/workspace";
 import paths from "@/utils/paths";
 import showToast from "@/utils/toast";
 import { safeJsonParse } from "@/utils/request";
-import QuickActions from "@/components/lib/QuickActions";
 import SuggestedMessages from "@/components/lib/SuggestedMessages";
 import useUser from "@/hooks/useUser";
 import ChatSettingsMenu from "@/components/WorkspaceChat/ChatContainer/ChatSettingsMenu";
-import WorkspaceModelPicker from "@/components/WorkspaceChat/ChatContainer/WorkspaceModelPicker";
 import { ChatTooltips } from "@/components/WorkspaceChat/ChatContainer/ChatTooltips";
 import { ChatSidebarProvider } from "@/components/WorkspaceChat/ChatContainer/ChatSidebar";
 import MemoriesSidebar from "@/components/WorkspaceChat/ChatContainer/MemoriesSidebar";
+import AgentShowcase from "@/components/PredefinedAgents/AgentShowcase";
+import usePredefinedAgent from "@/hooks/usePredefinedAgent";
+import WorkspaceFilesSidebar from "@/components/WorkspaceChat/ChatContainer/WorkspaceFilesSidebar";
 
 async function getTargetWorkspace() {
   const lastVisited = safeJsonParse(
@@ -187,6 +188,7 @@ function HomeContent({ workspace, setWorkspace, threadSlug, setThreadSlug }) {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const { files, parseAttachments } = useContext(DndUploaderContext);
+  const { selectedAgent } = usePredefinedAgent();
 
   useEffect(() => {
     if (!threadSlug) {
@@ -268,64 +270,46 @@ function HomeContent({ workspace, setWorkspace, threadSlug, setThreadSlug }) {
     );
   }
 
-  async function handleEditWorkspace() {
-    let targetWorkspace = workspace;
-
-    if (!targetWorkspace) {
-      targetWorkspace = await createDefaultWorkspace(
-        t("new-workspace.placeholder")
-      );
-      if (!targetWorkspace) return;
-      setWorkspace(targetWorkspace);
-    }
-
-    navigate(paths.workspace.settings.generalAppearance(targetWorkspace.slug));
-  }
-
   return (
     <ChatSidebarProvider>
       <div
         style={{ height: isMobile ? "100%" : "calc(100% - 32px)" }}
-        className="relative flex md:ml-[2px] md:mr-[16px] md:my-[16px] w-full h-full z-[2]"
+        className="relative flex w-full h-full z-[2] md:ml-[2px] md:mr-[16px] md:my-[16px] lg:gap-3"
       >
-        <ChatSettingsMenu />
-        <div className="flex-1 min-w-0 transition-all duration-500 relative md:rounded-[16px] bg-zinc-900 light:bg-white w-full h-full overflow-hidden border-none light:border-solid light:border light:border-theme-modal-border">
-          {isMobile && <SidebarMobileHeader />}
-          <WorkspaceModelPicker workspaceSlug={workspace?.slug} />
-          <DnDFileUploaderWrapper>
-            <div className="flex flex-col h-full w-full items-center justify-center">
-              <div className="flex flex-col items-center w-full max-w-[750px]">
-                <h1 className="text-white text-xl md:text-2xl mb-11 text-center">
-                  {t("main-page.greeting")}
-                </h1>
-                <PromptInput
-                  workspace={workspace}
-                  submit={handleSubmit}
-                  isStreaming={loading}
+        <div className="relative h-full min-w-0 flex-1">
+          <ChatSettingsMenu workspace={workspace} threadSlug={threadSlug} />
+          <div className="relative h-full w-full min-w-0 flex-1 overflow-hidden border-none bg-zinc-900 transition-all duration-500 light:bg-white light:border light:border-solid light:border-theme-modal-border md:rounded-[16px]">
+            {isMobile && <SidebarMobileHeader />}
+            <DnDFileUploaderWrapper>
+              <div className="flex flex-col h-full w-full items-center justify-center">
+                <div className="flex flex-col items-center w-full max-w-[750px]">
+                  <h1 className="text-white light:text-slate-900 text-xl md:text-2xl mb-7 text-center">
+                    {selectedAgent?.welcomeMessage || t("main-page.greeting")}
+                  </h1>
+                  <PromptInput
+                    workspace={workspace}
+                    submit={handleSubmit}
+                    isStreaming={loading}
+                    sendCommand={sendCommand}
+                    attachments={files}
+                    centered={true}
+                    workspaceSlug={workspace?.slug}
+                    threadSlug={threadSlug}
+                    examplePrompts={selectedAgent?.examplePrompts}
+                  />
+                  <AgentShowcase />
+                </div>
+                <SuggestedMessages
+                  suggestedMessages={workspace?.suggestedMessages}
                   sendCommand={sendCommand}
-                  attachments={files}
-                  centered={true}
-                  workspaceSlug={workspace?.slug}
-                  threadSlug={threadSlug}
-                />
-                <QuickActions
-                  hasAvailableWorkspace={!!workspace}
-                  onCreateAgent={() => navigate(paths.settings.agentSkills())}
-                  onEditWorkspace={handleEditWorkspace}
-                  onUploadDocument={() =>
-                    document.getElementById("dnd-chat-file-uploader")?.click()
-                  }
                 />
               </div>
-              <SuggestedMessages
-                suggestedMessages={workspace?.suggestedMessages}
-                sendCommand={sendCommand}
-              />
-            </div>
-          </DnDFileUploaderWrapper>
-          <ChatTooltips />
+            </DnDFileUploaderWrapper>
+            <ChatTooltips />
+          </div>
+          <MemoriesSidebar workspace={workspace} />
         </div>
-        <MemoriesSidebar workspace={workspace} />
+        {workspace && <WorkspaceFilesSidebar workspace={workspace} />}
       </div>
     </ChatSidebarProvider>
   );

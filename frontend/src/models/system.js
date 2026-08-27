@@ -225,6 +225,44 @@ const System = {
         return false;
       });
   },
+  publicRegistrationStatus: async () => {
+    return await fetch(`${API_BASE}/system/public-registration`)
+      .then((res) => res.json())
+      .then((res) => ({ enabled: Boolean(res?.enabled) }))
+      .catch((e) => {
+        console.error(e);
+        return { enabled: false };
+      });
+  },
+  updatePublicRegistration: async (enabled) => {
+    return await fetch(`${API_BASE}/system/public-registration`, {
+      method: "POST",
+      headers: baseHeaders(),
+      body: JSON.stringify({ enabled }),
+    })
+      .then((res) => res.json())
+      .catch((e) => {
+        console.error(e);
+        return { success: false, error: e.message };
+      });
+  },
+  register: async ({ username, password, confirmPassword }) => {
+    return await fetch(`${API_BASE}/system/register`, {
+      method: "POST",
+      body: JSON.stringify({ username, password, confirmPassword }),
+    })
+      .then(async (res) => {
+        const data = await res.json();
+        return {
+          success: res.ok && Boolean(data?.success),
+          error: data?.error || null,
+        };
+      })
+      .catch((e) => {
+        console.error(e);
+        return { success: false, error: e.message };
+      });
+  },
   deleteDocument: async (name) => {
     return await fetch(`${API_BASE}/system/remove-document`, {
       method: "DELETE",
@@ -387,39 +425,6 @@ const System = {
       JSON.stringify({ appName: customAppName, lastFetched: Date.now() })
     );
     return { appName: customAppName, error: null };
-  },
-  /**
-   * Fetches the default system prompt from the server.
-   * @returns {Promise<{defaultSystemPrompt: string, saneDefaultSystemPrompt: string}>}
-   */
-  fetchDefaultSystemPrompt: async function () {
-    return await fetch(`${API_BASE}/system/default-system-prompt`, {
-      method: "GET",
-      headers: baseHeaders(),
-    })
-      .then((res) => res.json())
-      .then((res) => ({
-        defaultSystemPrompt: res.defaultSystemPrompt,
-        saneDefaultSystemPrompt: res.saneDefaultSystemPrompt,
-      }))
-      .catch((e) => {
-        console.error(e);
-        return { defaultSystemPrompt: "", saneDefaultSystemPrompt: "" };
-      });
-  },
-  updateDefaultSystemPrompt: async function (defaultSystemPrompt) {
-    try {
-      const res = await fetch(`${API_BASE}/system/default-system-prompt`, {
-        method: "POST",
-        headers: baseHeaders(),
-        body: JSON.stringify({ defaultSystemPrompt }),
-      });
-      const data = await res.json();
-      return data;
-    } catch (e) {
-      console.error(e);
-      return { success: false, message: e.message };
-    }
   },
   fetchLogo: async function () {
     const url = new URL(`${fullApiUrl()}/system/logo`);
@@ -858,6 +863,20 @@ const System = {
    */
   isCreateFilesAgentAvailable: async function () {
     return fetch(`${API_BASE}/agent-skills/create-files-agent/is-available`, {
+      method: "GET",
+      headers: baseHeaders(),
+    })
+      .then((res) => res.json())
+      .then((res) => res?.available ?? false)
+      .catch(() => false);
+  },
+
+  /**
+   * Checks if the disposable bash/python sandbox broker is available.
+   * @returns {Promise<boolean>}
+   */
+  isSandboxAvailable: async function () {
+    return fetch(`${API_BASE}/agent-skills/sandbox/is-available`, {
       method: "GET",
       headers: baseHeaders(),
     })

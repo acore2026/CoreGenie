@@ -1,7 +1,8 @@
 const { WorkspaceChats } = require("../../models/workspaceChats.js");
 const { safeJsonParse } = require("../../utils/http/index.js");
 const { getBaseLLMProviderModel } = require("../../utils/helpers/index.js");
-const AIbitat = require("../../utils/agents/aibitat/index.js");
+const { createChatModel } = require("../../resources/models.js");
+const { z } = require("zod");
 const truncate = require("truncate");
 
 // Cap per-group chat review so a long-dormant user can't trigger a 500-chat summarization.
@@ -99,13 +100,20 @@ async function loadLatestChats(userId, workspaceId) {
  * @returns {{provider: string, model: string}|null}
  */
 function resolveLLM(workspace) {
-  if (workspace.chatProvider && workspace.chatModel)
+  if (
+    ["openai", "generic-openai"].includes(workspace.chatProvider) &&
+    workspace.chatModel
+  )
     return { provider: workspace.chatProvider, model: workspace.chatModel };
-  if (workspace.agentProvider && workspace.agentModel)
+  if (
+    ["openai", "generic-openai"].includes(workspace.agentProvider) &&
+    workspace.agentModel
+  )
     return { provider: workspace.agentProvider, model: workspace.agentModel };
   const provider = process.env.LLM_PROVIDER;
   const model = provider ? getBaseLLMProviderModel({ provider }) : null;
-  if (provider && model) return { provider, model };
+  if (["openai", "generic-openai"].includes(provider) && model)
+    return { provider, model };
   return null;
 }
 
@@ -133,86 +141,27 @@ function buildObserverUserMessage(chats) {
  * and rawText is whatever the model said (for debugging when the tool isn't called).
  */
 async function runObserver({ provider, model, userMessage }) {
-  let candidates = null;
-  let rawText = "";
-  const aibitat = new AIbitat({ provider, model, maxRounds: 3 });
-
-  aibitat.onMessage((msg) => {
-    if (msg.from === "OBSERVER" && msg.content) rawText = msg.content;
+  const schema = z.object({
+    observations: z
+      .array(
+        z.object({
+          content: z.string().min(1),
+          confidence: z.enum(["high", "medium", "low"]),
+          reasoning: z.string(),
+        })
+      )
+      .max(MAX_CANDIDATES_PER_RUN),
   });
-
-  aibitat
-    .function({
-      name: "submit-observations",
-      description:
-        "Submit candidate observations extracted from the conversations. An empty list is correct if nothing worth remembering was found.",
-      parameters: {
-        $schema: "http://json-schema.org/draft-07/schema#",
-        type: "object",
-        properties: {
-          observations: {
-            type: "array",
-            maxItems: MAX_CANDIDATES_PER_RUN,
-            items: {
-              type: "object",
-              properties: {
-                content: {
-                  type: "string",
-                  description:
-                    "A single factual statement about the user (1 sentence max).",
-                },
-                confidence: {
-                  type: "string",
-                  enum: ["high", "medium", "low"],
-                  description:
-                    "high = explicitly stated, medium = strongly implied, low = inferred.",
-                },
-                reasoning: {
-                  type: "string",
-                  description:
-                    "Brief justification for why this is worth remembering.",
-                },
-              },
-              required: ["content", "confidence", "reasoning"],
-              additionalProperties: false,
-            },
-            description: `Candidate observations, max ${MAX_CANDIDATES_PER_RUN} items. Empty list is fine.`,
-          },
-        },
-        required: ["observations"],
-        additionalProperties: false,
-      },
-      handler: function (args) {
-        const { observations } = args;
-        candidates = Array.isArray(observations)
-          ? observations
-              .filter(
-                (o) =>
-                  typeof o === "object" &&
-                  o !== null &&
-                  typeof o.content === "string" &&
-                  o.content.trim().length > 0 &&
-                  ["high", "medium", "low"].includes(o.confidence)
-              )
-              .slice(0, MAX_CANDIDATES_PER_RUN)
-          : null;
-        aibitat.skipHandleExecution = true;
-        return "Observations submitted.";
-      },
-    })
-    .agent("USER", { role: "Provides conversations for observation." })
-    .agent("OBSERVER", {
-      role: OBSERVER_SYSTEM_PROMPT,
-      functions: ["submit-observations"],
-    });
-
-  await aibitat.start({
-    from: "USER",
-    to: "OBSERVER",
-    content: userMessage,
-  });
-
-  return { candidates, rawText };
+  const result = await createChatModel({
+    workspace: { chatProvider: provider, chatModel: model },
+    temperature: 0,
+  })
+    .withStructuredOutput(schema, { name: "submit_observations" })
+    .invoke([
+      { role: "system", content: OBSERVER_SYSTEM_PROMPT },
+      { role: "user", content: userMessage },
+    ]);
+  return { candidates: result.observations, rawText: "" };
 }
 
 // ── Phase 2: Reflector ───────────────────────────────────────────────
@@ -261,98 +210,32 @@ function buildReflectorUserMessage(
  * Returns {memories, rawText} where memories is an array or null.
  */
 async function runReflector({ provider, model, userMessage }) {
-  let finalMemories = null;
-  let rawText = "";
-  const aibitat = new AIbitat({ provider, model, maxRounds: 3 });
-
-  aibitat.onMessage((msg) => {
-    if (msg.from === "REFLECTOR" && msg.content) rawText = msg.content;
+  const schema = z.object({
+    memories: z
+      .array(
+        z.object({
+          content: z.string().min(1),
+          scope: z.enum(["WORKSPACE", "GLOBAL"]),
+          action: z.enum(["create", "update", "skip"]),
+          updateId: z.number().optional(),
+          reasoning: z.string(),
+        })
+      )
+      .max(MAX_CANDIDATES_PER_RUN),
   });
-
-  aibitat
-    .function({
-      name: "save-memories",
-      description:
-        "Save the final list of memories after classification, deduplication, and filtering. An empty list is correct if all candidates were filtered out.",
-      parameters: {
-        $schema: "http://json-schema.org/draft-07/schema#",
-        type: "object",
-        properties: {
-          memories: {
-            type: "array",
-            maxItems: MAX_CANDIDATES_PER_RUN,
-            items: {
-              type: "object",
-              properties: {
-                content: {
-                  type: "string",
-                  description: "The memory statement (1 sentence max).",
-                },
-                scope: {
-                  type: "string",
-                  enum: ["WORKSPACE", "GLOBAL"],
-                  description:
-                    "GLOBAL for facts useful across all workspaces, WORKSPACE for project-specific facts.",
-                },
-                action: {
-                  type: "string",
-                  enum: ["create", "update", "skip"],
-                  description:
-                    "create = new memory, update = revise an existing workspace memory, skip = do not save.",
-                },
-                updateId: {
-                  type: "number",
-                  description:
-                    "The ID of the existing WORKSPACE memory to update. Required when action is 'update'.",
-                },
-                reasoning: {
-                  type: "string",
-                  description:
-                    "Brief justification for the scope classification and action decision.",
-                },
-              },
-              required: ["content", "scope", "action", "reasoning"],
-              additionalProperties: false,
-            },
-            description: `Final memories to save, max ${MAX_CANDIDATES_PER_RUN} items. Empty list is fine.`,
-          },
-        },
-        required: ["memories"],
-        additionalProperties: false,
-      },
-      handler: function (args) {
-        const { memories } = args;
-        finalMemories = Array.isArray(memories)
-          ? memories
-              .filter(
-                (m) =>
-                  typeof m === "object" &&
-                  m !== null &&
-                  typeof m.content === "string" &&
-                  m.content.trim().length > 0 &&
-                  ["WORKSPACE", "GLOBAL"].includes(m.scope) &&
-                  ["create", "update", "skip"].includes(m.action)
-              )
-              .filter((m) => m.action !== "skip")
-              .slice(0, MAX_CANDIDATES_PER_RUN)
-          : null;
-        aibitat.skipHandleExecution = true;
-        return "Memories saved.";
-      },
-    })
-    .agent("USER", { role: "Provides candidate observations for reflection." })
-    .agent("REFLECTOR", {
-      role: REFLECTOR_SYSTEM_PROMPT,
-      functions: ["save-memories"],
-    });
-
-  await aibitat.start({
-    from: "USER",
-    to: "REFLECTOR",
-    content: userMessage,
-  });
-
-  return { memories: finalMemories, rawText };
+  const result = await createChatModel({
+    workspace: { chatProvider: provider, chatModel: model },
+    temperature: 0,
+  })
+    .withStructuredOutput(schema, { name: "save_memories" })
+    .invoke([
+      { role: "system", content: REFLECTOR_SYSTEM_PROMPT },
+      { role: "user", content: userMessage },
+    ]);
+  return {
+    memories: result.memories.filter((memory) => memory.action !== "skip"),
+    rawText: "",
+  };
 }
 
 module.exports = {

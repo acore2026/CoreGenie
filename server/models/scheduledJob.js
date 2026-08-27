@@ -10,7 +10,15 @@ const cronValidate = require("cron-validate").default;
 later.date.UTC();
 
 const ScheduledJob = {
-  writable: ["name", "prompt", "tools", "schedule", "enabled"],
+  writable: [
+    "name",
+    "prompt",
+    "tools",
+    "schedule",
+    "enabled",
+    "workspace_id",
+    "agent_id",
+  ],
 
   /**
    * Maximum number of scheduled jobs that can be enabled at once.
@@ -55,13 +63,22 @@ const ScheduledJob = {
     }
   },
 
-  create: async function ({ name, prompt, tools = null, schedule } = {}) {
+  create: async function ({
+    name,
+    prompt,
+    tools = null,
+    schedule,
+    workspace_id = null,
+    agent_id = null,
+  } = {}) {
     try {
       const nextRunAt = this.computeNextRunAt(schedule);
       const job = await prisma.scheduled_jobs.create({
         data: {
           name: String(name),
           prompt: String(prompt),
+          workspace_id: workspace_id ? Number(workspace_id) : null,
+          agent_id: agent_id ? Number(agent_id) : null,
           tools: tools ? JSON.stringify(tools) : null,
           schedule: String(schedule),
           nextRunAt,
@@ -250,9 +267,8 @@ const ScheduledJob = {
    *   items: Array<{ id: string, name: string, description?: string, requiresSetup?: boolean }>
    * }[]>}
    */
-  availableTools: async function () {
+  _legacyAvailableTools: async function () {
     const AgentPlugins = require("../utils/agents/aibitat/plugins");
-    const ImportedPlugin = require("../utils/agents/imported");
     const { AgentFlows } = require("../utils/agentFlows");
     const MCPCompatibilityLayer = require("../utils/MCP");
     const {
@@ -429,22 +445,6 @@ const ScheduledJob = {
       });
     }
 
-    // Custom/imported skills category
-    const importedPlugins = ImportedPlugin.listImportedPlugins();
-    if (importedPlugins.length > 0) {
-      const customSkillItems = importedPlugins.map((plugin) => ({
-        id: `@@${plugin.hubId}`,
-        name: plugin.name || plugin.hubId,
-        description: plugin.description || null,
-      }));
-
-      categories.push({
-        category: "custom-skills",
-        name: "Custom Skills",
-        items: customSkillItems,
-      });
-    }
-
     // Agent flows category
     const allFlows = AgentFlows.listFlows();
     if (allFlows.length > 0) {
@@ -492,6 +492,48 @@ const ScheduledJob = {
       console.error("Failed to load MCP servers for available tools:", error);
     }
 
+    return categories;
+  },
+
+  availableTools: async function () {
+    const { toolRegistry } = require("../tools");
+    const { AgentFlows } = require("../utils/agentFlows");
+    const MCPCompatibilityLayer = require("../utils/MCP");
+    const categories = [
+      {
+        category: "agent-tools",
+        name: "Agent Tools",
+        items: toolRegistry.list().map((tool) => ({
+          id: tool.id,
+          name: tool.name,
+          description: tool.description,
+        })),
+      },
+    ];
+    const flows = AgentFlows.listFlows().filter(
+      (flow) => flow.config?.active !== false
+    );
+    if (flows.length)
+      categories.push({
+        category: "agent-flows",
+        name: "Agent Flows",
+        items: flows.map((flow) => ({
+          id: `@@flow_${flow.uuid}`,
+          name: flow.name,
+          description: flow.description || null,
+        })),
+      });
+    const servers = await new MCPCompatibilityLayer().servers().catch(() => []);
+    if (servers.length)
+      categories.push({
+        category: "mcp-servers",
+        name: "MCP Servers",
+        items: servers.map((server) => ({
+          id: `@@mcp_${server.name}`,
+          name: server.name,
+          description: `${server.tools?.length || 0} tools available`,
+        })),
+      });
     return categories;
   },
 };

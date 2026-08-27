@@ -16,6 +16,7 @@ const EXPORT_FORMATS = [
 
 export default function ExportRow({
   history = [],
+  hasHistory = history.length > 0,
   workspace = null,
   threadSlug = null,
   onClose,
@@ -42,7 +43,7 @@ export default function ExportRow({
     onClose();
   }
 
-  if (history.length === 0) return null;
+  if (!hasHistory) return null;
   return (
     <div
       className="relative"

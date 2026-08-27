@@ -631,66 +631,20 @@ function humanFileSize(bytes, si = false, dp = 1) {
  * @param {string|null} [opts.apiSessionId] - API session scope
  * @returns {Promise<{connector: BaseLLMProvider, routingMetadata: Object|null, prefetchedContext: Object|null}>}
  */
-async function resolveProviderConnector({
-  workspace,
-  prompt = "",
-  user = null,
-  thread = null,
-  attachments = [],
-  chatHistoryOverride = null,
-  messageCountOverride = null,
-  apiSessionId = null,
-}) {
-  const effectiveProvider = workspace?.chatProvider || process.env.LLM_PROVIDER;
-
-  if (effectiveProvider !== "anythingllm-router") {
-    return {
-      connector: getLLMProvider({
-        provider: workspace?.chatProvider,
-        model: workspace?.chatModel,
-      }),
-      routingMetadata: null,
-      prefetchedContext: null,
-    };
-  }
-
-  const { AnythingLLMModelRouter } = require("../AiProviders/modelRouter");
-  const { ModelRouterService } = require("../router");
-
-  const routerWorkspace = workspace?.router_id
-    ? workspace
-    : {
-        ...workspace,
-        router_id: process.env.MODEL_ROUTER_ID
-          ? Number(process.env.MODEL_ROUTER_ID)
-          : null,
-      };
-
-  const router = new AnythingLLMModelRouter(routerWorkspace);
-  const ctx = await ModelRouterService.gatherRoutingContext({
-    workspace,
-    user,
-    thread,
-    message: prompt,
-    chatHistoryOverride,
-    messageCountOverride,
-    apiSessionId,
-  });
-
-  await router.resolve(
-    {
-      prompt,
-      conversationTokenCount: ctx.conversationTokenCount,
-      conversationMessageCount: ctx.conversationMessageCount,
-      attachments,
-    },
-    { user, thread }
-  );
-
+async function resolveProviderConnector({ workspace }) {
+  const effectiveProvider =
+    workspace?.chatProvider || process.env.LLM_PROVIDER || "openai";
+  if (!["openai", "generic-openai"].includes(effectiveProvider))
+    throw new Error(
+      `LLM provider "${effectiveProvider}" is unavailable. Configure OpenAI or Generic OpenAI.`
+    );
   return {
-    connector: router.delegateProvider,
-    routingMetadata: router.routingMetadata,
-    prefetchedContext: ctx,
+    connector: getLLMProvider({
+      provider: workspace?.chatProvider,
+      model: workspace?.chatModel,
+    }),
+    routingMetadata: null,
+    prefetchedContext: null,
   };
 }
 

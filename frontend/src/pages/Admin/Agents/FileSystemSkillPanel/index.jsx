@@ -15,6 +15,7 @@ import {
   Info,
   CircleNotch,
   Copy,
+  Trash,
 } from "@phosphor-icons/react";
 import Admin from "@/models/admin";
 import paths from "@/utils/paths";
@@ -99,6 +100,13 @@ export const getFileSystemSubSkills = (t) => {
       title: t("agent.skill.filesystem.skills.move-file.title"),
       description: t("agent.skill.filesystem.skills.move-file.description"),
       icon: ArrowsLeftRight,
+      category: "write",
+    },
+    {
+      name: "filesystem-delete-path",
+      title: t("agent.skill.filesystem.skills.delete-path.title"),
+      description: t("agent.skill.filesystem.skills.delete-path.description"),
+      icon: Trash,
       category: "write",
     },
   ];

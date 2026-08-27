@@ -77,8 +77,13 @@ module.exports.FilesystemCopyFile = {
                 `Using the filesystem-copy-file tool.`
               );
 
-              const validSourcePath = await filesystem.validatePath(source);
-              const validDestPath = await filesystem.validatePath(destination);
+              const workspaceFilesystem = filesystem.forInvocation(
+                this.super.handlerProps.invocation
+              );
+              const validSourcePath =
+                await workspaceFilesystem.validatePath(source);
+              const validDestPath =
+                await workspaceFilesystem.validatePath(destination);
 
               this.super.introspect(
                 `${this.caller}: Copying ${source} to ${destination}`

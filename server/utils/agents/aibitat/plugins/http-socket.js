@@ -112,27 +112,35 @@ const httpSocket = {
          * @param {string} options.skillName - The name of the skill/tool requesting approval
          * @param {Object} [options.payload={}] - Optional payload data to display to the user
          * @param {string} [options.description] - Optional description of what the skill will do
+         * @param {boolean} [options.forceApproval=false] - Ignore environment and per-tool whitelist rules; the global mode still wins
          * @returns {Promise<{approved: boolean, message: string}>} - The approval result
          */
         aibitat.requestToolApproval = async function ({
           skillName,
           payload = {},
           description = null,
+          forceApproval = false,
         }) {
-          if (skillIsAutoApproved({ skillName })) {
+          const {
+            AgentSkillWhitelist,
+          } = require("../../../../models/agentSkillWhitelist");
+          if (await AgentSkillWhitelist.isGlobalAlwaysAllow()) {
+            return {
+              approved: true,
+              message: "All tool calls are globally auto-approved.",
+            };
+          }
+
+          if (!forceApproval && skillIsAutoApproved({ skillName })) {
             return {
               approved: true,
               message: "Skill is auto-approved.",
             };
           }
 
-          const {
-            AgentSkillWhitelist,
-          } = require("../../../../models/agentSkillWhitelist");
-          const isWhitelisted = await AgentSkillWhitelist.isWhitelisted(
-            skillName,
-            null
-          );
+          const isWhitelisted = forceApproval
+            ? false
+            : await AgentSkillWhitelist.isWhitelisted(skillName, null);
           if (isWhitelisted) {
             console.log(
               chalk.green(`Skill ${skillName} is whitelisted - auto-approved.`)
@@ -227,6 +235,9 @@ const httpSocket = {
             }, TOOL_APPROVAL_TIMEOUT_MS);
           });
         };
+        aibitat.requestToolApproval.isInteractive = Boolean(
+          telegramChatId && getWorkerIPC()
+        );
 
         // We can only receive one message response with HTTP
         // so we end on first response.

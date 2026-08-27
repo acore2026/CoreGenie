@@ -78,6 +78,10 @@ const websocket = {
           let errorMessage =
             error?.message || "An error occurred while running the agent.";
           console.error(chalk.red(`   error: ${errorMessage}`), error);
+          aibitat.setAgentStatus?.("Agent stopped because of an error", {
+            phase: "error",
+            active: false,
+          });
           aibitat.introspect(
             `Error encountered while running: ${errorMessage}`
           );
@@ -138,14 +142,33 @@ const websocket = {
          * @param {string} options.skillName - The name of the skill/tool requesting approval
          * @param {Object} [options.payload={}] - Optional payload data to display to the user
          * @param {string} [options.description] - Optional description of what the skill will do
+         * @param {boolean} [options.forceApproval=false] - Ignore environment and per-tool whitelist rules; the global mode still wins
+         * @param {boolean} [options.allowRemember=true] - Show the permanent approval option
          * @returns {Promise<{approved: boolean, message: string}>} - The approval result
          */
         aibitat.requestToolApproval = async function ({
           skillName,
           payload = {},
           description = null,
+          forceApproval = false,
+          allowRemember = true,
         }) {
-          if (skillIsAutoApproved({ skillName })) {
+          const {
+            AgentSkillWhitelist,
+          } = require("../../../../models/agentSkillWhitelist");
+          if (await AgentSkillWhitelist.isGlobalAlwaysAllow()) {
+            console.log(
+              chalk.green(
+                `Skill ${skillName} is auto-approved by the global approval mode.`
+              )
+            );
+            return {
+              approved: true,
+              message: "All tool calls are globally auto-approved.",
+            };
+          }
+
+          if (!forceApproval && skillIsAutoApproved({ skillName })) {
             console.log(
               chalk.green(
                 `Skill ${skillName} is auto-approved by AGENT_AUTO_APPROVED_SKILLS`
@@ -157,13 +180,9 @@ const websocket = {
             };
           }
 
-          const {
-            AgentSkillWhitelist,
-          } = require("../../../../models/agentSkillWhitelist");
-          const isWhitelisted = await AgentSkillWhitelist.isWhitelisted(
-            skillName,
-            userId
-          );
+          const isWhitelisted = forceApproval
+            ? false
+            : await AgentSkillWhitelist.isWhitelisted(skillName, userId);
           if (isWhitelisted) {
             console.log(
               chalk.green(
@@ -218,6 +237,7 @@ const websocket = {
                 payload,
                 description,
                 timeoutMs: TOOL_APPROVAL_TIMEOUT_MS,
+                allowRemember,
               })
             );
 
@@ -236,6 +256,7 @@ const websocket = {
             }, TOOL_APPROVAL_TIMEOUT_MS);
           });
         };
+        aibitat.requestToolApproval.isInteractive = true;
 
         /**
          * Ask the user one or more clarifying questions in a single card and
@@ -338,8 +359,14 @@ const websocket = {
           socket.send(JSON.stringify(message));
         });
 
-        aibitat.onTerminate(() => {
+        aibitat.onTerminate(async () => {
           // console.log("🚀 chat finished");
+          aibitat.setAgentStatus?.("Agent session complete", {
+            phase: "completed",
+            active: false,
+            record: false,
+          });
+          await aibitat.waitForChatHistory?.();
           socket.close();
         });
 

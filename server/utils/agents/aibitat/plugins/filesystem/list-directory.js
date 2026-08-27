@@ -69,7 +69,10 @@ module.exports.FilesystemListDirectory = {
                 `Using the filesystem-list-directory tool.`
               );
 
-              const validPath = await filesystem.validatePath(dirPath);
+              const workspaceFilesystem = filesystem.forInvocation(
+                this.super.handlerProps.invocation
+              );
+              const validPath = await workspaceFilesystem.validatePath(dirPath);
 
               this.super.introspect(
                 `${this.caller}: Listing directory ${dirPath}`

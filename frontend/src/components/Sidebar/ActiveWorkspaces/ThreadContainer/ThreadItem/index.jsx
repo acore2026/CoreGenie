@@ -4,13 +4,20 @@ import paths from "@/utils/paths";
 import showToast from "@/utils/toast";
 import {
   ArrowCounterClockwise,
+  CircleNotch,
   DotsThree,
   PencilSimple,
   Trash,
   X,
 } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { THREAD_RENAME_EVENT } from "../../../events";
+import {
+  conversationRuntimeKey,
+  subscribeConversationRuntime,
+} from "@/utils/chat/conversationRuntime";
+import { useTranslation } from "react-i18next";
 
 const THREAD_CALLOUT_DETAIL_WIDTH = 26;
 export default function ThreadItem({
@@ -24,10 +31,18 @@ export default function ThreadItem({
   hasNext,
   ctrlPressed = false,
 }) {
+  const { t } = useTranslation();
   const { slug: urlSlug, threadSlug = null } = useParams();
+  const navigate = useNavigate();
   const workspaceSlug = workspace?.slug ?? urlSlug;
   const optionsContainer = useRef(null);
+  const renameInputRef = useRef(null);
+  const renameSavingRef = useRef(false);
+  const renameCancelledRef = useRef(false);
   const [showOptions, setShowOptions] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  const [renameValue, setRenameValue] = useState(thread.name);
+  const [isProcessing, setIsProcessing] = useState(false);
   const linkTo = thread.virtual
     ? "/"
     : !thread.slug
@@ -39,6 +54,73 @@ export default function ThreadItem({
     behavior: "instant",
     block: "center",
   });
+
+  useEffect(() => {
+    if (!renaming) return;
+    renameInputRef.current?.focus();
+    renameInputRef.current?.select();
+  }, [renaming]);
+
+  useEffect(() => {
+    if (!workspaceSlug || thread.virtual || thread.deleted) {
+      setIsProcessing(false);
+      return;
+    }
+    const runtimeKey = conversationRuntimeKey(workspaceSlug, thread.slug);
+    return subscribeConversationRuntime(runtimeKey, (runtime) => {
+      setIsProcessing(
+        Boolean(
+          runtime?.requestInFlight ||
+            runtime?.loadingResponse ||
+            runtime?.socketId
+        )
+      );
+    });
+  }, [workspaceSlug, thread.slug, thread.virtual, thread.deleted]);
+
+  function startInlineRename() {
+    if (!thread.slug || thread.virtual || thread.deleted) return;
+    setShowOptions(false);
+    renameCancelledRef.current = false;
+    setRenameValue(thread.name);
+    setRenaming(true);
+  }
+
+  async function commitInlineRename() {
+    if (renameCancelledRef.current) {
+      renameCancelledRef.current = false;
+      return;
+    }
+    if (renameSavingRef.current) return;
+    const name = renameValue.trim();
+    if (!name || name === thread.name) {
+      setRenameValue(thread.name);
+      setRenaming(false);
+      return;
+    }
+
+    renameSavingRef.current = true;
+    const { thread: updatedThread, message } = await Workspace.threads.update(
+      workspace.slug,
+      thread.slug,
+      { name }
+    );
+    renameSavingRef.current = false;
+    if (!updatedThread) {
+      showToast(`Thread could not be renamed! ${message || ""}`, "error", {
+        clear: true,
+      });
+      renameInputRef.current?.focus();
+      return;
+    }
+    window.dispatchEvent(
+      new CustomEvent(THREAD_RENAME_EVENT, {
+        detail: { threadSlug: thread.slug, newName: updatedThread.name },
+      })
+    );
+    setRenaming(false);
+  }
+
   return (
     <div
       className="w-full relative flex h-[38px] items-center border-none rounded-lg"
@@ -68,10 +150,10 @@ export default function ThreadItem({
       {/* Curved line inline placeholder for spacing - not visible */}
       <div
         style={{ width: THREAD_CALLOUT_DETAIL_WIDTH + 8 }}
-        className="h-full"
+        className="h-full shrink-0"
       />
       <div
-        className={`flex w-full items-center justify-between pr-2 group/thread relative ${isActive ? "bg-[var(--theme-sidebar-thread-selected)] light:bg-blue-200" : "hover:bg-theme-sidebar-subitem-hover light:hover:bg-slate-300"} rounded-[4px]`}
+        className={`group/thread relative flex min-w-0 flex-1 items-center justify-between pr-2 ${isActive ? "bg-[var(--theme-sidebar-thread-selected)] light:bg-blue-200" : "hover:bg-theme-sidebar-subitem-hover light:hover:bg-slate-300"} rounded-[4px]`}
       >
         {thread.deleted ? (
           <div className="w-full flex justify-between">
@@ -95,17 +177,45 @@ export default function ThreadItem({
               </button>
             )}
           </div>
+        ) : renaming ? (
+          <div className="w-full pl-1 py-0.5 pr-1">
+            <input
+              ref={renameInputRef}
+              value={renameValue}
+              onChange={(event) => setRenameValue(event.target.value)}
+              onBlur={commitInlineRename}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  event.currentTarget.blur();
+                }
+                if (event.key === "Escape") {
+                  event.preventDefault();
+                  renameCancelledRef.current = true;
+                  setRenameValue(thread.name);
+                  setRenaming(false);
+                }
+              }}
+              aria-label="Rename thread"
+              className="h-7 w-full rounded-md border border-sky-400/70 bg-zinc-950 light:bg-white px-2 text-sm font-medium text-white light:text-slate-900 outline-none ring-2 ring-sky-400/15"
+            />
+          </div>
         ) : (
           <Link
             ref={ref}
             to={linkTo}
+            onClick={(event) => {
+              if (!isActive || !thread.slug || thread.virtual) return;
+              event.preventDefault();
+              startInlineRename();
+            }}
             data-tooltip-id="workspace-thread-name"
             data-tooltip-content={thread.name}
-            className="w-full pl-2 py-1 overflow-hidden"
+            className="flex w-full min-w-0 items-center gap-1.5 overflow-hidden py-1 pl-2"
             aria-current={isActive ? "page" : ""}
           >
             <p
-              className={`text-left text-sm truncate max-w-[150px] ${
+              className={`min-w-0 flex-1 truncate text-left text-sm ${
                 isActive
                   ? "font-semibold text-theme-text-primary light:text-blue-900"
                   : "text-theme-text-primary font-medium light:text-slate-800"
@@ -113,6 +223,15 @@ export default function ThreadItem({
             >
               {thread.name}
             </p>
+            {isProcessing && (
+              <span
+                title={t("chat_window.thread_processing")}
+                aria-label={t("chat_window.thread_processing")}
+                className="mr-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-cyan-400/10 text-cyan-300 light:bg-cyan-600/10 light:text-cyan-700"
+              >
+                <CircleNotch size={13} weight="bold" className="animate-spin" />
+              </span>
+            )}
           </Link>
         )}
         {!!thread.slug && !thread.deleted && !thread.virtual && (
@@ -152,8 +271,10 @@ export default function ThreadItem({
                 workspace={workspace}
                 thread={thread}
                 onRemove={onRemove}
+                onStartRename={startInlineRename}
                 close={() => setShowOptions(false)}
                 currentThreadSlug={threadSlug}
+                navigate={navigate}
               />
             )}
           </div>
@@ -168,67 +289,38 @@ function OptionsMenu({
   workspace,
   thread,
   onRemove,
+  onStartRename,
   close,
   currentThreadSlug,
+  navigate,
 }) {
   const menuRef = useRef(null);
 
-  // Ref menu options
-  const outsideClick = (e) => {
-    if (!menuRef.current) return false;
-    if (
-      !menuRef.current?.contains(e.target) &&
-      !containerRef.current?.contains(e.target)
-    )
-      close();
-    return false;
-  };
-
-  const isEsc = (e) => {
-    if (e.key === "Escape" || e.key === "Esc") close();
-  };
-
-  function cleanupListeners() {
-    window.removeEventListener("click", outsideClick);
-    window.removeEventListener("keyup", isEsc);
-  }
-  // end Ref menu options
-
   useEffect(() => {
-    function setListeners() {
-      if (!menuRef?.current || !containerRef.current) return false;
-      window.document.addEventListener("click", outsideClick);
-      window.document.addEventListener("keyup", isEsc);
-    }
+    if (!menuRef.current || !containerRef.current) return;
 
-    setListeners();
-    return cleanupListeners;
-  }, [menuRef.current, containerRef.current]);
+    const outsideClick = (event) => {
+      if (
+        !menuRef.current?.contains(event.target) &&
+        !containerRef.current?.contains(event.target)
+      )
+        close();
+    };
+    const isEsc = (event) => {
+      if (event.key === "Escape" || event.key === "Esc") close();
+    };
+
+    window.addEventListener("click", outsideClick);
+    window.addEventListener("keyup", isEsc);
+    return () => {
+      window.removeEventListener("click", outsideClick);
+      window.removeEventListener("keyup", isEsc);
+    };
+  }, [close, containerRef]);
 
   const renameThread = async () => {
-    const name = window
-      .prompt("What would you like to rename this thread to?")
-      ?.trim();
-    if (!name || name.length === 0) {
-      close();
-      return;
-    }
-
-    const { message } = await Workspace.threads.update(
-      workspace.slug,
-      thread.slug,
-      { name }
-    );
-    if (!!message) {
-      showToast(`Thread could not be updated! ${message}`, "error", {
-        clear: true,
-      });
-      close();
-      return;
-    }
-
-    thread.name = name;
     close();
+    onStartRename();
   };
 
   const handleDelete = async () => {
@@ -248,7 +340,7 @@ function OptionsMenu({
       onRemove(thread.id);
       // Redirect if deleting the active thread
       if (currentThreadSlug === thread.slug) {
-        window.location.href = paths.workspace.chat(workspace.slug);
+        navigate(paths.workspace.chat(workspace.slug));
       }
       return;
     }

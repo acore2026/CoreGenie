@@ -67,6 +67,7 @@ const TRANSLATIONS = {
   },
   settings: {
     title: "设置",
+    "back-to-chat": "返回聊天",
     invites: "邀请",
     users: "用户",
     workspaces: "工作区",
@@ -87,7 +88,12 @@ const TRANSLATIONS = {
     "event-logs": "事件日志",
     privacy: "隐私与数据",
     "ai-providers": "人工智能提供商",
-    "agent-skills": "代理技能",
+    "agent-skills": "Agent技能",
+    agents: "Agents",
+    "predefined-agent-skills": "Skills",
+    "agent-tools": "Agent Tools",
+    "agent-prompts": "提示词",
+    "agent-flows": "Agent Flows",
     admin: "管理员",
     tools: "工具",
     "experimental-features": "实验功能",
@@ -108,6 +114,22 @@ const TRANSLATIONS = {
     "scheduled-jobs": "计划好的任务",
     "model-router": "型号路由器",
   },
+  agent_prompts: {
+    title: "提示词层级",
+    description: "设置应用于所有普通对话和 Agent 任务的全局指令。",
+    global_label: "全局系统提示词",
+    global_help: "这些指令始终会被加入，并且优先于 Agent 提示词和个人提示词。",
+    placeholder: "定义组织级规则、回复规范、安全要求或共享背景信息…",
+    stack_title: "指令优先级",
+    layer_global: "全局提示词",
+    layer_global_detail: "由管理员控制，优先级最高。",
+    layer_agent: "Agent 提示词",
+    layer_agent_detail: "定义身份和任务专属行为。",
+    layer_user: "个人提示词",
+    layer_user_detail: "来自帐户设置的个人偏好。",
+    saved: "全局系统提示词已保存。",
+    save_error: "无法保存全局系统提示词。",
+  },
   login: {
     "multi-user": {
       welcome: "欢迎！",
@@ -119,6 +141,19 @@ const TRANSLATIONS = {
       reset: "重置",
     },
     "sign-in": "登录你的 {{appName}} 账户",
+    registration: {
+      title: "创建账户",
+      description: "注册以访问此 AnythingLLM 实例。",
+      "create-account": "创建账户",
+      creating: "正在创建账户...",
+      "confirm-password": "确认密码",
+      "already-have-account": "已有账户？立即登录",
+      failed: "注册失败。",
+      "complete-title": "账户已创建",
+      "complete-description":
+        "你的账户已准备就绪。开始聊天前，管理员可能需要为你分配工作区。",
+      "sign-in": "继续登录",
+    },
     "password-reset": {
       title: "重置密码",
       description: "请提供以下必要信息以重置你的密码。",
@@ -128,7 +163,7 @@ const TRANSLATIONS = {
   },
   "main-page": {
     quickActions: {
-      createAgent: "创建代理",
+      createAgent: "创建Agent",
       editWorkspace: "编辑工作区",
       uploadDocument: "上传文件",
     },
@@ -138,12 +173,57 @@ const TRANSLATIONS = {
     title: "新工作区",
     placeholder: "我的工作区",
   },
+  "sidebar-create": {
+    title: "新建",
+    thread: "新建对话",
+    "creating-thread": "正在创建对话…",
+    "thread-hint": "在当前工作区中",
+    workspace: "新建工作区",
+    "confirm-workspace": "创建工作区",
+    "creating-workspace": "正在创建工作区…",
+    "workspace-hint": "创建独立工作空间",
+    "no-workspace": "请先创建或选择工作区。",
+    "thread-failed": "创建对话失败。",
+  },
+  "workspace-invite": {
+    action: "邀请成员加入工作区",
+    "import-documents": "向此工作区添加文档",
+    title: "邀请成员加入工作区",
+    close: "关闭",
+    description: "将此链接分享给你想邀请加入此工作区的人。",
+    generating: "正在生成邀请链接…",
+    retry: "重试",
+    "link-label": "工作区邀请链接",
+    copied: "工作区邀请链接已复制",
+    "copy-failed": "无法自动复制，请选中链接后手动复制。",
+    "copied-short": "已复制",
+    copy: "复制",
+    reusable:
+      "此链接可重复使用。已登录用户可直接加入，新用户可在邀请页面注册后加入。",
+    "join-failed": "无法加入此工作区。",
+    "invited-to": "你受邀加入",
+    "a-workspace": "一个工作区",
+    "join-as": "以 {{username}} 的身份加入，并将此工作区添加到你的账户。",
+    joining: "正在加入…",
+    join: "加入工作区",
+    "sign-in-again": "重新登录",
+    "register-title": "加入 {{workspace}}",
+    "register-fallback-title": "加入此工作区",
+    "register-description": "创建账户后，你将自动加入此工作区。",
+    "register-and-join": "注册并加入",
+    registering: "正在创建账户…",
+    "already-account": "已有账户？立即登录",
+    username: "用户名",
+    "username-placeholder": "设置用户名",
+    password: "密码",
+    "password-placeholder": "设置密码",
+  },
   "workspaces—settings": {
     general: "通用设置",
     chat: "聊天设置",
     vector: "向量数据库",
     members: "成员",
-    agent: "代理配置",
+    agent: "Agent配置",
   },
   general: {
     vector: {
@@ -198,7 +278,7 @@ const TRANSLATIONS = {
       automatic: {
         description:
           "如果模型和提供者都支持原生工具调用，则会自动使用这些工具。<br />如果不支持原生工具调用，您需要使用 `@agent` 命令来使用工具。",
-        title: "代理",
+        title: "Agent",
       },
     },
     history: {
@@ -267,52 +347,52 @@ const TRANSLATIONS = {
     "performance-warning":
       "不明确支持工具调用的 LLMs 的性能高度依赖于模型的功能和准确性。有些能力可能受到限制或不起作用。",
     provider: {
-      title: "工作区代理 LLM 提供商",
-      description: "将用于此工作区的 @agent 代理的特定 LLM 提供商和模型。",
+      title: "工作区Agent LLM 提供商",
+      description: "将用于此工作区的 @agent Agent的特定 LLM 提供商和模型。",
     },
     mode: {
       chat: {
-        title: "工作区代理聊天模型",
-        description: "将用于此工作区的 @agent 代理的特定聊天模型。",
+        title: "工作区Agent聊天模型",
+        description: "将用于此工作区的 @agent Agent的特定聊天模型。",
       },
-      title: "工作区代理模型",
-      description: "将用于此工作区的 @agent 代理的特定 LLM 模型。",
+      title: "工作区Agent模型",
+      description: "将用于此工作区的 @agent Agent的特定 LLM 模型。",
       wait: "-- 等待模型 --",
     },
     skill: {
       rag: {
         title: "检索增强生成和长期记忆",
         description:
-          '允许代理利用你的本地文档来回答查询，或要求代理"记住"长期记忆检索的内容片段。',
+          '允许Agent利用你的本地文档来回答查询，或要求Agent"记住"长期记忆检索的内容片段。',
       },
       view: {
         title: "查看和总结文档",
-        description: "允许代理列出和总结当前嵌入的工作区文件的内容。",
+        description: "允许Agent列出和总结当前嵌入的工作区文件的内容。",
       },
       scrape: {
         title: "抓取网站",
-        description: "允许代理访问和抓取网站的内容。",
+        description: "允许Agent访问和抓取网站的内容。",
       },
       generate: {
         title: "生成图表",
-        description: "使默认代理能够从提供的数据或聊天中生成各种类型的图表。",
+        description: "使默认Agent能够从提供的数据或聊天中生成各种类型的图表。",
       },
       web: {
         title: "实时网络搜索和浏览",
         description:
-          "通过连接到搜索引擎（SERP）提供商，让您的代理能够搜索互联网来回答您的问题。",
+          "通过连接到搜索引擎（SERP）提供商，让您的Agent能够搜索互联网来回答您的问题。",
       },
       sql: {
         title: "SQL 连接器",
         description:
-          "让您的代理能够利用 SQL 来回答您的问题，只需连接到各种 SQL 数据库提供商即可。",
+          "让您的Agent能够利用 SQL 来回答您的问题，只需连接到各种 SQL 数据库提供商即可。",
       },
       default_skill:
-        "默认情况下，这项技能已启用。但是，如果您不想让该技能被代理使用，您可以将其禁用。",
+        "默认情况下，这项技能已启用。但是，如果您不想让该技能被Agent使用，您可以将其禁用。",
       filesystem: {
         title: "文件系统访问",
         description:
-          "允许您的代理能够读取、写入、搜索和管理指定目录中的文件。 支持文件编辑、目录导航和内容搜索功能。",
+          "允许您的Agent能够读取、写入、搜索和管理指定目录中的文件。 支持文件编辑、目录导航和内容搜索功能。",
         learnMore: "了解更多关于如何使用这项技能的信息。",
         configuration: "配置",
         readActions: "阅读操作",
@@ -352,6 +432,10 @@ const TRANSLATIONS = {
             title: "移动/重命名文件",
             description: "移动或重命名文件和目录",
           },
+          "delete-path": {
+            title: "删除文件/目录",
+            description: "永久删除工作区内的文件或目录",
+          },
           "copy-file": {
             title: "复制文件",
             description: "复制文件和目录",
@@ -365,7 +449,7 @@ const TRANSLATIONS = {
       createFiles: {
         title: "文档创建",
         description:
-          "允许您的代理创建二进制文档格式，例如PowerPoint演示文稿、Excel电子表格、Word文档和PDF文件。文件可以直接从聊天窗口下载。",
+          "允许您的Agent创建二进制文档格式，例如PowerPoint演示文稿、Excel电子表格、Word文档和PDF文件。文件可以直接从聊天窗口下载。",
         configuration: "可用的文件类型",
         skills: {
           "create-text-file": {
@@ -395,7 +479,7 @@ const TRANSLATIONS = {
       gmail: {
         title: "Gmail 连接器",
         description:
-          "让您的代理能够与Gmail互动：搜索邮件、阅读邮件线程、撰写草稿、发送邮件以及管理您的收件箱。请参考相关文档。",
+          "让您的Agent能够与Gmail互动：搜索邮件、阅读邮件线程、撰写草稿、发送邮件以及管理您的收件箱。请参考相关文档。",
         multiUserWarning:
           "为了安全原因，在多用户模式下无法使用 Gmail 集成功能。请先禁用多用户模式，然后才能使用此功能。",
         configuration: "Gmail 设置",
@@ -507,7 +591,7 @@ const TRANSLATIONS = {
       outlook: {
         title: "Outlook 连接器",
         description:
-          "让您的代理通过 Microsoft Graph API 与 Microsoft Outlook 交互——搜索邮件、阅读邮件线程、撰写草稿、发送邮件以及管理您的收件箱。请查阅相关文档。",
+          "让您的Agent通过 Microsoft Graph API 与 Microsoft Outlook 交互——搜索邮件、阅读邮件线程、撰写草稿、发送邮件以及管理您的收件箱。请查阅相关文档。",
         multiUserWarning:
           "由于安全原因，在多用户模式下无法使用 Outlook 集成功能。请先关闭多用户模式，然后再使用此功能。",
         configuration: "Outlook 设置",
@@ -598,7 +682,7 @@ const TRANSLATIONS = {
       googleCalendar: {
         title: "Google 日历连接器",
         description:
-          "让您的代理能够与 Google 日历互动：查看日历、获取活动、创建和更新活动，以及管理确认回复。请参考相关文档。",
+          "让您的Agent能够与 Google 日历互动：查看日历、获取活动、创建和更新活动，以及管理确认回复。请参考相关文档。",
         multiUserWarning:
           "由于安全原因，在多用户模式下无法使用 Google 日历集成功能。请先禁用多用户模式，然后再使用此功能。",
         configuration: "谷歌日历配置",
@@ -675,7 +759,7 @@ const TRANSLATIONS = {
       scheduledJob: {
         title: "创建计划任务",
         description:
-          "允许代理人根据聊天内容创建重复的计划任务（例如，“每天工作日的早上9点，总结我的收件箱并发送邮件给我”）。仅适用于单用户模式。",
+          "允许Agent根据聊天内容创建重复的计划任务（例如，“每天工作日的早上9点，总结我的收件箱并发送邮件给我”）。仅适用于单用户模式。",
       },
     },
     mcp: {
@@ -698,11 +782,11 @@ const TRANSLATIONS = {
       "tools-enabled": "工具已启用",
     },
     settings: {
-      title: "代理技能设置",
+      title: "Agent技能设置",
       "max-tool-calls": {
         title: "每个回复的最大请求次数",
         description:
-          "单个代理可以使用的最大工具数量，用于生成单个响应。 这样可以防止工具调用数量过多，从而避免无限循环。",
+          "单个Agent可以使用的最大工具数量，用于生成单个响应。 这样可以防止工具调用数量过多，从而避免无限循环。",
       },
       "intelligent-skill-selection": {
         title: "智能技能选择",
@@ -715,10 +799,10 @@ const TRANSLATIONS = {
         },
       },
       "clarifying-questions": {
-        title: "允许代理人提出进一步的疑问",
+        title: "允许Agent提出进一步的疑问",
         "beta-badge": "测试版",
         description:
-          "启用后，代理可以暂停，并向您提出简短的澄清问题，以解决您的提示可能存在歧义的情况。",
+          "启用后，Agent可以暂停，并向您提出简短的澄清问题，以解决您的提示可能存在歧义的情况。",
         "max-per-turn": {
           title: "每回合可以提出的问题数量",
           description: "在一次调查中，销售代表可以提出多少澄清性问题？",
@@ -1178,7 +1262,57 @@ const TRANSLATIONS = {
     edit_info_assistant: "您所做的修改将直接保存到此处。",
     see_less: "查看更多",
     see_more: "查看更多",
-    tools: "工具",
+    tools: "Agent Tools",
+    tool_approval_mode: {
+      ask: "逐次询问",
+      always_allow: "始终允许",
+      ask_tooltip: "工具运行前需要确认。点击后将始终允许所有工具调用。",
+      always_allow_tooltip: "所有工具无需确认即可运行。点击后恢复逐次确认。",
+      admin_only: "只有管理员可以修改全局工具权限。",
+      update_failed: "更新工具权限模式失败。",
+    },
+    share_chat: {
+      button: "公开分享",
+      sharing: "正在创建链接…",
+      copied: "公开链接已复制",
+      copied_short: "已复制",
+      tooltip: "任何获得此链接的人都可以查看此对话",
+      error: "无法创建公开聊天链接。",
+      copy_error: "链接已创建，但无法复制到剪贴板。",
+      public_title: "公开分享的对话",
+      read_only: "只读",
+      loading: "正在加载分享的对话…",
+      unavailable: "此对话不可用",
+      unavailable_description: "该公开链接可能无效、已过期或已不再可用。",
+      shared_from: "分享自 {{workspace}}",
+      empty: "此对话还没有消息。",
+      user: "你",
+      assistant: "助手",
+      agent_activity: "{{count}} 条Agent执行记录",
+      sources: "{{count}} 个来源",
+      source: "来源 {{index}}",
+      expand_sources: "查看引用",
+      document: "工作区文档",
+      references: "引用 {{count}} 次",
+      show_excerpt: "查看摘录",
+    },
+    workspace_files: {
+      title: "工作区文件",
+      description: "与Agent共享的持久化文件",
+      open: "打开工作区文件",
+      close: "关闭工作区文件",
+      refresh: "刷新文件",
+      download: "下载文件",
+      download_folder: "将文件夹下载为 ZIP",
+      download_error: "无法下载此文件。",
+      folder_download_error: "无法将此文件夹下载为 ZIP。",
+      empty: "工作区为空",
+      empty_description: "Bash、Python 或文件系统工具创建的文件将显示在这里。",
+      folder: "文件夹",
+      binary: "无法预览此文件，但可以下载查看。",
+      too_large: "文件过大，无法预览。请下载后查看。",
+      preview_truncated: "仅预览此文件的前 1 MB 内容。",
+    },
     text_size_label: "字体大小",
     select_model: "选择型号",
     sources: "来源",
@@ -1191,23 +1325,26 @@ const TRANSLATIONS = {
     publish: "出版",
     stop_generating: "停止生成回复",
     slash_commands: "快捷命令",
-    agent_skills: "代理人技能",
-    manage_agent_skills: "管理代理人技能",
+    quick_commands_global_hint: "所有用户共享",
+    thread_processing: "此对话正在处理中",
+    agent_skills: "Agent技能",
+    manage_agent_skills: "管理Agent技能",
     agent_skills_disabled_in_session:
       "在活动会话期间，无法修改技能。首先使用 /exit 命令结束会话。",
-    start_agent_session: "开始代理会",
+    start_agent_session: "开始Agent会",
     use_agent_session_to_use_tools:
-      "您可以通过在提示词的开头使用'@agent'来启动与代理的聊天，从而使用聊天工具。",
+      "您可以通过在提示词的开头使用'@agent'来启动与Agent的聊天，从而使用聊天工具。",
     agent_invocation: {
-      model_wants_to_call: "该型号希望进行通话。",
-      approve: "批准",
+      session_complete: "Agent任务已完成",
+      model_wants_to_call: "模型希望调用工具：",
+      approve: "允许",
       reject: "拒绝",
-      always_allow: "请务必留出 {{skillName}}",
-      tool_call_was_approved: "工具使用申请已获得批准。",
-      tool_call_was_rejected: "请求获取工具已被拒绝。",
-      clarifying_skip: "让代理人来决定",
+      always_allow: "始终允许 {{skillName}}",
+      tool_call_was_approved: "已允许工具调用。",
+      tool_call_was_rejected: "已拒绝工具调用。",
+      clarifying_skip: "让Agent来决定",
       clarifying_submit: "提交",
-      clarifying_skipped: "您可以让代理人自行决定。",
+      clarifying_skipped: "您可以让Agent自行决定。",
       clarifying_timeout: "未在规定时间内提交回复。",
       clarifying_pagination: "{{current}} 来自 {{total}}",
       clarifying_prev_aria: "上一问题",
@@ -1222,7 +1359,7 @@ const TRANSLATIONS = {
       answer_skipped: "[用户已跳过]",
     },
     custom_skills: "定制技能",
-    agent_flows: "代理人流动",
+    agent_flows: "Agent流动",
     no_tools_found: "未找到匹配的工具",
     loading_mcp_servers: "正在加载 MCP 服务器…",
     app_integrations: "应用程序集成",
@@ -1287,6 +1424,10 @@ const TRANSLATIONS = {
     failed_update_user: "更新使用者失败：{{error}}",
     account: "帐户",
     support: "支援",
+    system_prompt: "个人系统提示词",
+    system_prompt_description:
+      "应用于您的所有对话，优先级低于全局提示词和所选 Agent 的提示词。",
+    system_prompt_placeholder: "添加个人偏好、工作规范或回复规则…",
     signout: "登出",
   },
   "keyboard-shortcuts": {
@@ -1332,25 +1473,25 @@ const TRANSLATIONS = {
       },
       agent_flow: {
         success_title: "成功！",
-        success_description: "您的代理流程已发布到社区中心！",
+        success_description: "您的Agent流程已发布到社区中心！",
         success_thank_you: "感谢您分享到社群！",
         view_on_hub: "在社区中心查看",
-        modal_title: "发布代理流程",
+        modal_title: "发布Agent流程",
         name_label: "名称",
-        name_description: "这是您代理流程的显示名称。",
-        name_placeholder: "我的代理流程",
+        name_description: "这是您Agent流程的显示名称。",
+        name_placeholder: "我的Agent流程",
         description_label: "描述",
         description_description:
-          "这是您代理流程的描述。用它来描述您代理流程的目的。",
+          "这是您Agent流程的描述。用它来描述您Agent流程的目的。",
         tags_label: "标签",
         tags_description:
-          "标签用于标记您的代理流程，以便于搜索。您可以添加多个标签。最多 5 个标签。每个标签最多 20 个字符。",
+          "标签用于标记您的Agent流程，以便于搜索。您可以添加多个标签。最多 5 个标签。每个标签最多 20 个字符。",
         tags_placeholder: "输入并按 Enter 键添加标签",
         visibility_label: "可见性",
         submitting: "发布中...",
         submit: "发布到社区中心",
         privacy_note:
-          "代理流程始终以上传为私有，以保护任何敏感资料。您可以在发布后在社区中心更改可见性。请在发布前验证您的流程不包含任何敏感或私人信息。",
+          "Agent流程始终以上传为私有，以保护任何敏感资料。您可以在发布后在社区中心更改可见性。请在发布前验证您的流程不包含任何敏感或私人信息。",
       },
       generic: {
         unauthenticated: {
@@ -1400,6 +1541,14 @@ const TRANSLATIONS = {
         username: "管理员账户用户名",
         password: "管理员账户密码",
       },
+    },
+    "public-registration": {
+      title: "公开注册",
+      description: "允许任何能够访问此实例的人从登录页面创建普通用户账户。",
+      enable: "启用公开注册",
+      "access-warning": "新用户默认无权访问工作区，需要管理员或经理分配。",
+      "enabled-toast": "公开注册已启用。",
+      "disabled-toast": "公开注册已禁用。",
     },
     password: {
       title: "密码保护",
@@ -1525,7 +1674,7 @@ const TRANSLATIONS = {
       currentSchedule: "当前时间表：",
       toolsLabel: "工具（可选）",
       toolsDescription:
-        "选择此任务可以使用的任何代理工具。如果未选择任何工具，则任务将不会使用任何工具。",
+        "选择此任务可以使用的任何Agent工具。如果未选择任何工具，则任务将不会使用任何工具。",
       toolsSearch: "搜索",
       toolsNoResults: "没有合适的工具",
       required: "必需",

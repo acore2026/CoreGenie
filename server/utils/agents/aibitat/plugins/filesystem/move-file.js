@@ -54,8 +54,13 @@ module.exports.FilesystemMoveFile = {
                 `Using the filesystem-move-file tool.`
               );
 
-              const validSourcePath = await filesystem.validatePath(source);
-              const validDestPath = await filesystem.validatePath(destination);
+              const workspaceFilesystem = filesystem.forInvocation(
+                this.super.handlerProps.invocation
+              );
+              const validSourcePath =
+                await workspaceFilesystem.validatePath(source);
+              const validDestPath =
+                await workspaceFilesystem.validatePath(destination);
 
               this.super.introspect(
                 `${this.caller}: Moving ${source} to ${destination}`

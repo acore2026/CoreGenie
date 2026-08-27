@@ -126,8 +126,11 @@ module.exports.FilesystemSearchFiles = {
                 `Using the filesystem-search-files tool.`
               );
 
-              await filesystem.ensureInitialized();
-              const allowedDirs = filesystem.getAllowedDirectories();
+              const workspaceFilesystem = filesystem.forInvocation(
+                this.super.handlerProps.invocation
+              );
+              await workspaceFilesystem.ensureInitialized();
+              const allowedDirs = workspaceFilesystem.getAllowedDirectories();
 
               if (allowedDirs.length === 0) {
                 return "Error: No allowed directories configured";
@@ -184,7 +187,8 @@ module.exports.FilesystemSearchFiles = {
                   return await readMatchingFileContents.call(
                     this,
                     limitedResults,
-                    maxFilesToRead
+                    maxFilesToRead,
+                    workspaceFilesystem
                   );
                 }
 
@@ -233,7 +237,8 @@ module.exports.FilesystemSearchFiles = {
                 return await readMatchingFileContents.call(
                   this,
                   uniqueFiles,
-                  maxFilesToRead
+                  maxFilesToRead,
+                  workspaceFilesystem
                 );
               }
 
@@ -403,7 +408,11 @@ function formatSearchResults(results, maxResults) {
  * @param {number} maxFiles - Maximum number of files to read
  * @returns {Promise<string>} Combined file contents
  */
-async function readMatchingFileContents(filePaths, maxFiles) {
+async function readMatchingFileContents(
+  filePaths,
+  maxFiles,
+  workspaceFilesystem
+) {
   const filesToRead = filePaths.slice(0, maxFiles);
   const skippedCount = filePaths.length - filesToRead.length;
 
@@ -414,7 +423,7 @@ async function readMatchingFileContents(filePaths, maxFiles) {
   const results = [];
   for (const filePath of filesToRead) {
     try {
-      const content = await filesystem.readFileContent(filePath);
+      const content = await workspaceFilesystem.readFileContent(filePath);
       const filename = path.basename(filePath);
 
       this.super.addCitation?.({
@@ -448,7 +457,7 @@ async function readMatchingFileContents(filePaths, maxFiles) {
     .join("\n\n---\n\n");
 
   const { content: finalContent, wasTruncated } =
-    filesystem.truncateContentForContext(
+    workspaceFilesystem.truncateContentForContext(
       combinedContent,
       this.super,
       `[Content truncated - file contents exceed context limit. Try reducing maxFilesToRead or searching more specifically.]`

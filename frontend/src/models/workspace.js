@@ -23,6 +23,22 @@ const Workspace = {
 
     return { workspace, message };
   },
+  createInvite: async function (slug) {
+    return fetch(`${API_BASE}/workspace/${slug}/invite`, {
+      method: "POST",
+      headers: baseHeaders(),
+    })
+      .then(async (response) => {
+        const result = await response.json();
+        if (!response.ok)
+          return {
+            invite: null,
+            error: result?.error || "Unable to create workspace invite.",
+          };
+        return result;
+      })
+      .catch((error) => ({ invite: null, error: error.message }));
+  },
   update: async function (slug, data = {}) {
     const { workspace, message } = await fetch(
       `${API_BASE}/workspace/${slug}/update`,
@@ -143,58 +159,69 @@ const Workspace = {
     prompt,
     chatHandler,
     attachments = [],
+    predefinedAgentId = null,
   }) {
     if (!!threadSlug)
       return this.threads.streamChat(
         { workspaceSlug, threadSlug },
         prompt,
         chatHandler,
-        attachments
+        attachments,
+        predefinedAgentId
       );
     return this.streamChat(
       { slug: workspaceSlug },
       prompt,
       chatHandler,
-      attachments
+      attachments,
+      predefinedAgentId
     );
   },
-  streamChat: async function ({ slug }, message, handleChat, attachments = []) {
+  streamChat: async function (
+    { slug },
+    message,
+    handleChat,
+    attachments = [],
+    predefinedAgentId = null
+  ) {
     const ctrl = new AbortController();
 
     // Listen for the ABORT_STREAM_EVENT key to be emitted by the client
     // to early abort the streaming response. On abort we send a special `stopGeneration`
     // event to be handled which resets the UI for us to be able to send another message.
     // The backend response abort handling is done in each LLM's handleStreamResponse.
-    window.addEventListener(ABORT_STREAM_EVENT, () => {
+    const abortStream = () => {
       ctrl.abort();
       handleChat({ id: v4(), type: "stopGeneration" });
-    });
+    };
+    window.addEventListener(ABORT_STREAM_EVENT, abortStream);
 
-    await fetchEventSource(`${API_BASE}/workspace/${slug}/stream-chat`, {
-      method: "POST",
-      body: JSON.stringify({ message, attachments }),
-      headers: baseHeaders(),
-      signal: ctrl.signal,
-      openWhenHidden: true,
-      async onopen(response) {
-        if (response.ok) {
-          return; // everything's good
-        } else if (
-          response.status >= 400 &&
-          response.status < 500 &&
-          response.status !== 429
-        ) {
-          handleChat({
-            id: v4(),
-            type: "abort",
-            textResponse: null,
-            sources: [],
-            close: true,
-            error: `An error occurred while streaming response. Code ${response.status}`,
-          });
-          ctrl.abort();
-          throw new Error("Invalid Status code response.");
-        } else {
+    try {
+      await fetchEventSource(`${API_BASE}/workspace/${slug}/stream-chat`, {
+        method: "POST",
+        body: JSON.stringify({ message, attachments, predefinedAgentId }),
+        headers: baseHeaders(),
+        signal: ctrl.signal,
+        openWhenHidden: true,
+        async onopen(response) {
+          if (response.ok) {
+            return; // everything's good
+          } else if (
+            response.status >= 400 &&
+            response.status < 500 &&
+            response.status !== 429
+          ) {
+            handleChat({
+              id: v4(),
+              type: "abort",
+              textResponse: null,
+              sources: [],
+              close: true,
+              error: `An error occurred while streaming response. Code ${response.status}`,
+            });
+            ctrl.abort();
+            throw new Error("Invalid Status code response.");
+          }
           handleChat({
             id: v4(),
             type: "abort",
@@ -205,25 +232,27 @@ const Workspace = {
           });
           ctrl.abort();
           throw new Error("Unknown error");
-        }
-      },
-      async onmessage(msg) {
-        const chatResult = safeJsonParse(msg.data, null);
-        if (chatResult) handleChat(chatResult);
-      },
-      onerror(err) {
-        handleChat({
-          id: v4(),
-          type: "abort",
-          textResponse: null,
-          sources: [],
-          close: true,
-          error: `An error occurred while streaming response. ${err.message}`,
-        });
-        ctrl.abort();
-        throw new Error();
-      },
-    });
+        },
+        async onmessage(msg) {
+          const chatResult = safeJsonParse(msg.data, null);
+          if (chatResult) handleChat(chatResult);
+        },
+        onerror(err) {
+          handleChat({
+            id: v4(),
+            type: "abort",
+            textResponse: null,
+            sources: [],
+            close: true,
+            error: `An error occurred while streaming response. ${err.message}`,
+          });
+          ctrl.abort();
+          throw new Error();
+        },
+      });
+    } finally {
+      window.removeEventListener(ABORT_STREAM_EVENT, abortStream);
+    }
   },
   all: async function () {
     const workspaces = await fetch(`${API_BASE}/workspaces`, {
@@ -262,6 +291,50 @@ const Workspace = {
     })
       .then((res) => res.ok)
       .catch(() => false);
+  },
+  listFiles: async function (slug, path = "") {
+    const query = new URLSearchParams({ path });
+    return fetch(`${API_BASE}/workspace/${slug}/files?${query}`, {
+      headers: baseHeaders(),
+    })
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok)
+          throw new Error(data.error || "Unable to open workspace folder.");
+        return data;
+      })
+      .catch((error) => ({ entries: [], path, error: error.message }));
+  },
+  previewFile: async function (slug, path) {
+    const query = new URLSearchParams({ path });
+    return fetch(`${API_BASE}/workspace/${slug}/files/preview?${query}`, {
+      headers: baseHeaders(),
+    })
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok)
+          throw new Error(data.error || "Unable to preview workspace file.");
+        return data;
+      })
+      .catch((error) => ({ error: error.message }));
+  },
+  downloadFile: async function (slug, path) {
+    const query = new URLSearchParams({ path });
+    return fetch(`${API_BASE}/workspace/${slug}/files/download?${query}`, {
+      headers: baseHeaders(),
+    }).then(async (response) => {
+      if (!response.ok) throw new Error("Unable to download workspace file.");
+      return response.blob();
+    });
+  },
+  downloadFolder: async function (slug, path) {
+    const query = new URLSearchParams({ path });
+    return fetch(`${API_BASE}/workspace/${slug}/files/archive?${query}`, {
+      headers: baseHeaders(),
+    }).then(async (response) => {
+      if (!response.ok) throw new Error("Unable to download workspace folder.");
+      return response.blob();
+    });
   },
   uploadFile: async function (slug, formData) {
     const response = await fetch(`${API_BASE}/workspace/${slug}/upload`, {
@@ -615,6 +688,15 @@ const Workspace = {
         console.error(e);
         return { showAgentCommand: true };
       });
+  },
+
+  activeAgentInvocation: async function (slug, threadSlug = null) {
+    const path = threadSlug
+      ? `${API_BASE}/workspace/${slug}/thread/${threadSlug}/agent-runs/active`
+      : `${API_BASE}/workspace/${slug}/agent-runs/active`;
+    return fetch(path, { headers: baseHeaders() })
+      .then((response) => response.json())
+      .catch(() => ({ invocation: null }));
   },
 
   threads: WorkspaceThread,

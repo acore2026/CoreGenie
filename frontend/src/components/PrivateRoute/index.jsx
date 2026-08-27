@@ -9,69 +9,83 @@ import System from "@/models/system";
 import UserMenu from "../UserMenu";
 import { KeyboardShortcutWrapper } from "@/utils/keyboardShortcuts";
 
-// Used only for Multi-user mode only as we permission specific pages based on auth role.
-// When in single user mode we just bypass any authchecks.
-function useIsAuthenticated() {
-  const [isAuthd, setIsAuthed] = useState(null);
-  const [shouldRedirectToOnboarding, setShouldRedirectToOnboarding] =
-    useState(false);
-  const [multiUserMode, setMultiUserMode] = useState(false);
+let cachedAuth = null;
+let pendingAuth = null;
 
-  useEffect(() => {
-    const validateSession = async () => {
-      const onboardingComplete = await System.isOnboardingComplete();
-      const { MultiUserMode, RequiresAuth } = await System.keys();
-      setMultiUserMode(MultiUserMode);
+function authIdentity() {
+  return `${localStorage.getItem(AUTH_TOKEN) || ""}:${localStorage.getItem(AUTH_USER) || ""}`;
+}
 
-      // Check for the onboarding redirect condition
-      if (onboardingComplete === false) {
-        setShouldRedirectToOnboarding(true);
-        setIsAuthed(true);
-        return;
-      }
+async function resolveAuthentication() {
+  const identity = authIdentity();
+  if (cachedAuth?.identity === identity) return cachedAuth.value;
+  if (pendingAuth?.identity === identity) return pendingAuth.promise;
 
-      // Single User mode without password - no auth required
-      if (!MultiUserMode && !RequiresAuth) {
-        setIsAuthed(true);
-        return;
-      }
+  const promise = (async () => {
+    const onboardingComplete = await System.isOnboardingComplete();
+    const { MultiUserMode = false, RequiresAuth = false } =
+      (await System.keys()) || {};
+    const value = {
+      isAuthd: false,
+      shouldRedirectToOnboarding: onboardingComplete === false,
+      multiUserMode: MultiUserMode,
+    };
 
-      // Single User password mode check
-      if (!MultiUserMode && RequiresAuth) {
-        const localAuthToken = localStorage.getItem(AUTH_TOKEN);
-        if (!localAuthToken) {
-          setIsAuthed(false);
-          return;
-        }
-
-        const isValid = await validateSessionTokenForUser();
-        setIsAuthed(isValid);
-        return;
-      }
-
-      // Multi-user mode checks
+    if (value.shouldRedirectToOnboarding) {
+      value.isAuthd = true;
+    } else if (!MultiUserMode && !RequiresAuth) {
+      value.isAuthd = true;
+    } else {
       const localUser = localStorage.getItem(AUTH_USER);
       const localAuthToken = localStorage.getItem(AUTH_TOKEN);
-      if (!localUser || !localAuthToken) {
-        setIsAuthed(false);
-        return;
-      }
+      const hasRequiredCredentials = MultiUserMode
+        ? Boolean(localUser && localAuthToken)
+        : Boolean(localAuthToken);
+      value.isAuthd = hasRequiredCredentials
+        ? await validateSessionTokenForUser()
+        : false;
 
-      const isValid = await validateSessionTokenForUser();
-      if (!isValid) {
+      if (!value.isAuthd) {
         localStorage.removeItem(AUTH_USER);
         localStorage.removeItem(AUTH_TOKEN);
         localStorage.removeItem(AUTH_TIMESTAMP);
-        setIsAuthed(false);
-        return;
       }
+    }
 
-      setIsAuthed(true);
+    cachedAuth = { identity: authIdentity(), value };
+    return value;
+  })();
+
+  pendingAuth = { identity, promise };
+  try {
+    return await promise;
+  } finally {
+    if (pendingAuth?.promise === promise) pendingAuth = null;
+  }
+}
+
+// Used only for Multi-user mode only as we permission specific pages based on auth role.
+// When in single user mode we just bypass any authchecks.
+function useIsAuthenticated() {
+  const initial =
+    cachedAuth?.identity === authIdentity() ? cachedAuth.value : null;
+  const [auth, setAuth] = useState(
+    initial || {
+      isAuthd: null,
+      shouldRedirectToOnboarding: false,
+      multiUserMode: false,
+    }
+  );
+
+  useEffect(() => {
+    let active = true;
+    resolveAuthentication().then((result) => active && setAuth(result));
+    return () => {
+      active = false;
     };
-    validateSession();
   }, []);
 
-  return { isAuthd, shouldRedirectToOnboarding, multiUserMode };
+  return auth;
 }
 
 // Allows only admin to access the route and if in single user mode,

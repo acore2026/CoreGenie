@@ -4,36 +4,12 @@ import {
   useLayoutEffect,
   useCallback,
   useRef,
-  useMemo,
 } from "react";
 import { useTranslation } from "react-i18next";
-import useUser from "@/hooks/useUser";
+import { Wrench } from "@phosphor-icons/react";
 import AgentSkillsTab from "./Tabs/AgentSkills";
-import SlashCommandsTab from "./Tabs/SlashCommands";
 
 export const TOOLS_MENU_KEYBOARD_EVENT = "tools-menu-keyboard";
-function getTabs(t, user) {
-  const tabs = [
-    {
-      key: "slash-commands",
-      label: t("chat_window.slash_commands"),
-      component: SlashCommandsTab,
-    },
-  ];
-
-  // Only show agent skills tab for admins or when multiuser mode is off
-  const canSeeAgentSkills =
-    !user?.hasOwnProperty("role") || user.role === "admin";
-  if (canSeeAgentSkills) {
-    tabs.push({
-      key: "agent-skills",
-      label: t("chat_window.agent_skills"),
-      component: AgentSkillsTab,
-    });
-  }
-
-  return tabs;
-}
 
 /**
  * @param {Workspace} props.workspace - the workspace object
@@ -53,23 +29,15 @@ export default function ToolsMenu({
   highlightedIndexRef,
 }) {
   const { t } = useTranslation();
-  const { user } = useUser();
-  const TABS = useMemo(() => getTabs(t, user), [t, user]);
-  const [activeTab, setActiveTab] = useState(TABS[0].key);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const [maxHeight, setMaxHeight] = useState(360);
   const itemCountRef = useRef(0);
   const popoverRef = useRef(null);
 
-  // Always open to the slash commands
-  useEffect(() => {
-    if (showing) setActiveTab(TABS[0].key);
-  }, [showing]);
-
-  // Reset highlight when switching tabs or closing
+  // Reset highlight when opening or closing.
   useEffect(() => {
     setHighlightedIndex(-1);
-  }, [activeTab, showing]);
+  }, [showing]);
 
   // Constrain popover height to the space available in the viewport so it
   // never overflows off-screen on shorter windows (e.g. centered home view).
@@ -104,16 +72,6 @@ export default function ToolsMenu({
     function handleKeyboard(e) {
       const { key } = e.detail;
 
-      if (key === "ArrowLeft" || key === "ArrowRight") {
-        const currentIdx = TABS.findIndex((tab) => tab.key === activeTab);
-        const nextIdx =
-          key === "ArrowLeft"
-            ? (currentIdx - 1 + TABS.length) % TABS.length
-            : (currentIdx + 1) % TABS.length;
-        setActiveTab(TABS[nextIdx].key);
-        return;
-      }
-
       if (key === "ArrowUp" || key === "ArrowDown") {
         const count = itemCountRef.current;
         if (count === 0) return;
@@ -132,11 +90,9 @@ export default function ToolsMenu({
     window.addEventListener(TOOLS_MENU_KEYBOARD_EVENT, handleKeyboard);
     return () =>
       window.removeEventListener(TOOLS_MENU_KEYBOARD_EVENT, handleKeyboard);
-  }, [showing, activeTab]);
+  }, [showing]);
 
   if (!showing) return null;
-
-  const { component: ActiveTab } = TABS.find((tab) => tab.key === activeTab);
 
   return (
     <>
@@ -157,20 +113,17 @@ export default function ToolsMenu({
           centered ? "top-full mt-2" : "bottom-full mb-2"
         }`}
       >
-        <div className="flex shrink-0 gap-2.5 items-center">
-          {TABS.map((tab) => (
-            <TabButton
-              key={tab.key}
-              active={activeTab === tab.key}
-              onClick={() => setActiveTab(tab.key)}
-            >
-              {tab.label}
-            </TabButton>
-          ))}
+        <div className="flex shrink-0 items-center gap-2 px-1 pb-1">
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-cyan-400/10 text-cyan-300 light:bg-cyan-600/10 light:text-cyan-700">
+            <Wrench size={15} weight="duotone" />
+          </span>
+          <p className="text-xs font-semibold text-white light:text-slate-900">
+            {t("chat_window.agent_skills")}
+          </p>
         </div>
 
         <div className="flex flex-col gap-1 overflow-y-auto no-scroll min-h-0">
-          <ActiveTab
+          <AgentSkillsTab
             sendCommand={sendCommand}
             setShowing={setShowing}
             promptRef={promptRef}
@@ -181,21 +134,5 @@ export default function ToolsMenu({
         </div>
       </div>
     </>
-  );
-}
-
-function TabButton({ active, onClick, children }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`border-none cursor-pointer hover:bg-zinc-700/50 light:hover:bg-slate-100 px-1.5 py-0.5 rounded text-[10px] font-medium text-center whitespace-nowrap ${
-        active
-          ? "bg-zinc-700 text-white light:bg-slate-200 light:text-slate-800"
-          : "text-zinc-400 light:text-slate-800"
-      }`}
-    >
-      {children}
-    </button>
   );
 }

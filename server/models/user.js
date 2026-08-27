@@ -24,6 +24,7 @@ const User = {
     "suspended",
     "dailyMessageLimit",
     "bio",
+    "systemPrompt",
   ],
   validations: {
     /**
@@ -72,6 +73,12 @@ const User = {
       if (bio.length > 1000)
         throw new Error("Bio cannot be longer than 1,000 characters");
       return String(bio);
+    },
+    systemPrompt: (systemPrompt = "") => {
+      if (typeof systemPrompt !== "string") return "";
+      if (systemPrompt.length > 40_000)
+        throw new Error("User system prompt cannot exceed 40,000 characters");
+      return systemPrompt.trim();
     },
   },
   // validations for the above writable fields.

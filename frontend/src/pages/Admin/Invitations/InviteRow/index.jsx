@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { titleCase } from "text-case";
 import Admin from "@/models/admin";
 import { Trash } from "@phosphor-icons/react";
+import { copyTextToClipboard } from "@/utils/clipboard";
+import showToast from "@/utils/toast";
 
 export default function InviteRow({ invite }) {
   const rowRef = useRef(null);
@@ -20,12 +22,20 @@ export default function InviteRow({ invite }) {
     setStatus("disabled");
     await Admin.disableInvite(invite.id);
   };
-  const copyInviteLink = () => {
+  const copyInviteLink = async () => {
     if (!invite) return false;
-    window.navigator.clipboard.writeText(
-      `${window.location.origin}/accept-invite/${invite.code}`
-    );
-    setCopied(true);
+    try {
+      await copyTextToClipboard(
+        `${window.location.origin}/accept-invite/${invite.code}`
+      );
+      setCopied(true);
+      showToast("Invite link copied to clipboard", "success", {
+        clear: true,
+      });
+    } catch (error) {
+      console.error("Failed to copy invite link:", error);
+      showToast("Unable to copy the invite link.", "error", { clear: true });
+    }
   };
 
   useEffect(() => {
@@ -46,11 +56,6 @@ export default function InviteRow({ invite }) {
       >
         <td scope="row" className="px-6 whitespace-nowrap">
           {titleCase(status)}
-        </td>
-        <td className="px-6">
-          {invite.claimedBy
-            ? invite.claimedBy?.username || "deleted user"
-            : "--"}
         </td>
         <td className="px-6">{invite.createdBy?.username || "deleted user"}</td>
         <td className="px-6">{invite.createdAt}</td>

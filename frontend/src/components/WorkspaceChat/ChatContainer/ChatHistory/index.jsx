@@ -6,10 +6,9 @@ import {
   useCallback,
   forwardRef,
 } from "react";
-import debounce from "lodash.debounce";
 import HistoricalMessage from "./HistoricalMessage";
 import PromptReply from "./PromptReply";
-import StatusResponse from "./StatusResponse";
+import AgentStatus from "./AgentStatus";
 import ToolApprovalRequest from "./ToolApprovalRequest";
 import ClarifyingQuestionCard from "./ClarifyingQuestion";
 import FileDownloadCard from "./FileDownloadCard";
@@ -19,8 +18,10 @@ import ManageWorkspace from "../../../Modals/ManageWorkspace";
 import { ArrowDown } from "@phosphor-icons/react";
 import Chartable from "./Chartable";
 import ModelRouteNotification from "./ModelRouteNotification";
+import SubagentRun from "./SubagentRun";
+import ContextTrace from "./ContextTrace";
 import Workspace from "@/models/workspace";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import paths from "@/utils/paths";
 import Appearance from "@/models/appearance";
 import useTextSize from "@/hooks/useTextSize";
@@ -40,9 +41,11 @@ export default forwardRef(function (
   ref
 ) {
   const lastScrollTopRef = useRef(0);
+  const lastTouchYRef = useRef(null);
   const chatHistoryRef = useRef(null);
   const isProgrammaticScroll = useRef(false);
   const { threadSlug = null } = useParams();
+  const navigate = useNavigate();
   const { showing, hideModal } = useManageWorkspaceModal();
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [isUserScrolling, setIsUserScrolling] = useState(false);
@@ -59,25 +62,44 @@ export default forwardRef(function (
   const handleScroll = useCallback((e) => {
     const { scrollTop, scrollHeight, clientHeight } = e.target;
     const isBottom = scrollHeight - scrollTop - clientHeight < 2;
+    const scrollDelta = scrollTop - lastScrollTopRef.current;
 
-    if (isProgrammaticScroll.current) {
-      isProgrammaticScroll.current = false;
-    } else if (Math.abs(scrollTop - lastScrollTopRef.current) > 10) {
-      setIsUserScrolling(!isBottom);
-    }
+    // Auto-follow only ever moves downward. An upward movement is therefore
+    // always user intent, even if a previous no-op scrollToBottom left the
+    // programmatic flag set while new Agent trace events were arriving.
+    if (scrollDelta < -1) setIsUserScrolling(true);
+    else if (isBottom) setIsUserScrolling(false);
 
+    isProgrammaticScroll.current = false;
     setIsAtBottom(isBottom);
     lastScrollTopRef.current = scrollTop;
   }, []);
 
-  const debouncedScroll = useMemo(
-    () => debounce(handleScroll, 50),
-    [handleScroll]
+  const pauseAutoFollow = useCallback(() => {
+    setIsUserScrolling(true);
+  }, []);
+
+  const handleWheel = useCallback(
+    (event) => {
+      if (event.deltaY < 0) pauseAutoFollow();
+    },
+    [pauseAutoFollow]
   );
 
-  useEffect(() => {
-    return () => debouncedScroll.cancel();
-  }, [debouncedScroll]);
+  const handleTouchStart = useCallback((event) => {
+    lastTouchYRef.current = event.touches[0]?.clientY ?? null;
+  }, []);
+
+  const handleTouchMove = useCallback(
+    (event) => {
+      const touchY = event.touches[0]?.clientY;
+      if (touchY == null || lastTouchYRef.current == null) return;
+      // A downward finger movement scrolls the chat toward older messages.
+      if (touchY > lastTouchYRef.current + 2) pauseAutoFollow();
+      lastTouchYRef.current = touchY;
+    },
+    [pauseAutoFollow]
+  );
 
   const scrollToBottom = (smooth = false) => {
     if (chatHistoryRef.current) {
@@ -172,12 +194,9 @@ export default forwardRef(function (
         threadSlug,
         chatId
       );
-      window.location.href = paths.workspace.thread(
-        workspace.slug,
-        newThreadSlug
-      );
+      navigate(paths.workspace.thread(workspace.slug, newThreadSlug));
     },
-    [workspace.slug, threadSlug]
+    [workspace.slug, threadSlug, navigate]
   );
 
   const compiledHistory = useMemo(
@@ -199,21 +218,6 @@ export default forwardRef(function (
       websocket,
     ]
   );
-  const lastMessageInfo = useMemo(() => getLastMessageInfo(history), [history]);
-  const renderStatusResponse = useCallback(
-    (item, index) => {
-      const hasSubsequentMessages = index < compiledHistory.length - 1;
-      return (
-        <StatusResponse
-          key={`status-group-${index}`}
-          messages={item}
-          isThinking={!hasSubsequentMessages && lastMessageInfo.isAnimating}
-        />
-      );
-    },
-    [compiledHistory.length, lastMessageInfo]
-  );
-
   return (
     <MessageActionsProvider>
       <ThoughtExpansionProvider>
@@ -221,13 +225,12 @@ export default forwardRef(function (
           className={`markdown text-white/80 light:text-theme-text-primary font-light ${textSizeClass} h-full md:h-[83%] pb-[100px] pt-6 md:pt-0 md:pb-20 md:mx-0 overflow-y-scroll flex flex-col items-center justify-start ${showScrollbar ? "show-scrollbar" : "no-scroll"}`}
           id="chat-history"
           ref={chatHistoryRef}
-          onScroll={debouncedScroll}
+          onScroll={handleScroll}
+          onWheelCapture={handleWheel}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
         >
-          <div className="w-full max-w-[750px]">
-            {compiledHistory.map((item, index) =>
-              Array.isArray(item) ? renderStatusResponse(item, index) : item
-            )}
-          </div>
+          <div className="w-full max-w-[750px]">{compiledHistory}</div>
           {showing && (
             <ManageWorkspace
               hideModal={hideModal}
@@ -255,14 +258,6 @@ export default forwardRef(function (
   );
 });
 
-const getLastMessageInfo = (history) => {
-  const lastMessage = history?.[history.length - 1] || {};
-  return {
-    isAnimating: lastMessage?.animate,
-    isStatusResponse: lastMessage?.type === "statusResponse",
-  };
-};
-
 /**
  * Builds the history of messages for the chat.
  * This is mostly useful for rendering the history in a way that is easy to understand.
@@ -286,16 +281,22 @@ function buildMessages({
   forkThread,
   websocket,
 }) {
-  return history.reduce((acc, props, index) => {
+  let agentStatus = null;
+  const workingTrace = [];
+  const lastBotReplyIndex = history.findLastIndex(
+    (message) => message.role === "assistant" && message.type !== "agentStatus"
+  );
+  const messages = history.reduce((acc, props, index) => {
     const isLastBotReply =
-      index === history.length - 1 && props.role === "assistant";
+      index === lastBotReplyIndex && props.role === "assistant";
 
     if (props?.type === "statusResponse" && !!props.content) {
-      if (acc.length > 0 && Array.isArray(acc[acc.length - 1])) {
-        acc[acc.length - 1].push(props);
-      } else {
-        acc.push([props]);
-      }
+      workingTrace.push(props);
+      return acc;
+    }
+
+    if (props?.type === "agentStatus" && !!props.content) {
+      agentStatus = props;
       return acc;
     }
 
@@ -318,6 +319,27 @@ function buildMessages({
       return acc;
     }
 
+    if (props.type === "subagentRun" && props.subagentRun) {
+      acc.push(
+        <SubagentRun
+          key={props.uuid || `subagent-${index}`}
+          run={props.subagentRun}
+          live={props.subagentRun.status === "running"}
+        />
+      );
+      return acc;
+    }
+
+    if (props.type === "contextTrace" && props.contextTrace) {
+      acc.push(
+        <ContextTrace
+          key={props.uuid || `context-trace-${index}`}
+          trace={props.contextTrace}
+        />
+      );
+      return acc;
+    }
+
     if (props.type === "toolApprovalRequest") {
       acc.push(
         <ToolApprovalRequest
@@ -327,6 +349,7 @@ function buildMessages({
           payload={props.payload}
           description={props.description}
           timeoutMs={props.timeoutMs}
+          allowRemember={props.allowRemember}
           websocket={websocket}
         />
       );
@@ -385,9 +408,40 @@ function buildMessages({
           metrics={props.metrics}
           outputs={props.outputs}
           clarifyingQuestions={props.clarifyingQuestions}
+          agentTrace={props.agentTrace}
+          subagentRuns={props.subagentRuns}
+          contextTraces={props.contextTraces}
         />
       );
     }
     return acc;
   }, []);
+
+  const fallbackSummary = workingTrace.at(-1)?.content;
+  const mergedStatus =
+    agentStatus ||
+    (fallbackSummary
+      ? {
+          uuid: "agent-status:fallback",
+          content: fallbackSummary,
+          phase: "completed",
+          active: false,
+        }
+      : null);
+
+  // The rolling lifecycle and detailed work log share one visual container.
+  // Context/tool events may interleave with statusResponse events, but they can
+  // no longer split the Agent work into multiple bubbles.
+  return mergedStatus
+    ? [
+        ...messages,
+        <AgentStatus
+          key={mergedStatus.uuid || "agent-status"}
+          summary={mergedStatus.content}
+          phase={mergedStatus.phase}
+          active={mergedStatus.active !== false}
+          details={workingTrace}
+        />,
+      ]
+    : messages;
 }

@@ -61,7 +61,11 @@ const {
 const {
   simpleSSOEnabled,
   simpleSSOLoginDisabled,
+  simpleSSOLoginDisabledMiddleware,
 } = require("../utils/middleware/simpleSSOEnabled");
+const {
+  publicRegistrationRateLimit,
+} = require("../utils/middleware/publicRegistrationRateLimit");
 const { TemporaryAuthToken } = require("../models/temporaryAuthToken");
 const { SystemPromptVariables } = require("../models/systemPromptVariables");
 const { VALID_COMMANDS } = require("../utils/chats");
@@ -338,6 +342,101 @@ function systemEndpoints(app) {
       response.sendStatus(500).end();
     }
   });
+
+  app.get("/system/public-registration", async (_, response) => {
+    try {
+      const enabled =
+        !simpleSSOLoginDisabled() &&
+        (await SystemSettings.publicRegistrationEnabled());
+      response.status(200).json({ enabled });
+    } catch (e) {
+      console.error(e.message, e);
+      response.status(200).json({ enabled: false });
+    }
+  });
+
+  app.post(
+    "/system/register",
+    [simpleSSOLoginDisabledMiddleware, publicRegistrationRateLimit],
+    async (request, response) => {
+      try {
+        if (!(await SystemSettings.publicRegistrationEnabled())) {
+          response.status(403).json({
+            success: false,
+            error: "Public registration is disabled.",
+          });
+          return;
+        }
+
+        const { username, password, confirmPassword } = reqBody(request);
+        if (String(password || "") !== String(confirmPassword || "")) {
+          response.status(400).json({
+            success: false,
+            error: "Passwords do not match.",
+          });
+          return;
+        }
+
+        const { user, error } = await User.create({
+          username,
+          password,
+          role: ROLES.default,
+        });
+        if (!user) {
+          response.status(400).json({ success: false, error });
+          return;
+        }
+
+        await EventLogs.logEvent(
+          "public_user_registered",
+          {
+            ip: request.ip || "Unknown IP",
+            username: user.username,
+          },
+          user.id
+        );
+        response.status(201).json({ success: true, error: null });
+      } catch (e) {
+        console.error(e.message, e);
+        response.status(500).json({
+          success: false,
+          error: "Registration failed. Please try again.",
+        });
+      }
+    }
+  );
+
+  app.post(
+    "/system/public-registration",
+    [validatedRequest, flexUserRoleValid([ROLES.admin])],
+    async (request, response) => {
+      try {
+        if (!multiUserMode(response)) {
+          response.status(400).json({
+            success: false,
+            error: "Multi-user mode must be enabled.",
+          });
+          return;
+        }
+
+        const { enabled } = reqBody(request);
+        const registrationEnabled =
+          enabled === true || String(enabled) === "true";
+        const { success, error } = await SystemSettings.updateSettings({
+          public_registration_enabled: registrationEnabled,
+        });
+        await EventLogs.logEvent(
+          "public_registration_updated",
+          { enabled: registrationEnabled },
+          response.locals?.user?.id
+        );
+        response.status(success ? 200 : 500).json({ success, error });
+      } catch (e) {
+        console.error(e.message, e);
+        response.status(500).json({ success: false, error: e.message });
+      }
+    }
+  );
 
   app.get(
     "/request-token/sso/simple",
@@ -810,58 +909,6 @@ function systemEndpoints(app) {
       }
     }
   );
-  app.get(
-    "/system/default-system-prompt",
-    [validatedRequest, flexUserRoleValid([ROLES.all])],
-    async (_, response) => {
-      try {
-        const defaultSystemPrompt = await SystemSettings.get({
-          label: "default_system_prompt",
-        });
-
-        response.status(200).json({
-          success: true,
-          defaultSystemPrompt:
-            defaultSystemPrompt?.value ||
-            SystemSettings.saneDefaultSystemPrompt,
-          saneDefaultSystemPrompt: SystemSettings.saneDefaultSystemPrompt,
-        });
-      } catch (error) {
-        console.error("Error fetching default system prompt:", error);
-        response
-          .status(500)
-          .json({ success: false, message: "Internal server error" });
-      }
-    }
-  );
-
-  app.post(
-    "/system/default-system-prompt",
-    [validatedRequest, flexUserRoleValid([ROLES.admin])],
-    async (request, response) => {
-      try {
-        const { defaultSystemPrompt } = reqBody(request);
-        const { success, error } = await SystemSettings.updateSettings({
-          default_system_prompt: defaultSystemPrompt,
-        });
-        if (!success)
-          throw new Error(
-            error.message || "Failed to update default system prompt."
-          );
-        response.status(200).json({
-          success: true,
-          message: "Default system prompt updated successfully.",
-        });
-      } catch (error) {
-        console.error("Error updating default system prompt:", error);
-        response.status(500).json({
-          success: false,
-          message: error.message || "Internal server error",
-        });
-      }
-    }
-  );
-
   app.delete(
     "/system/remove-pfp",
     [validatedRequest, flexUserRoleValid([ROLES.all])],
@@ -1192,7 +1239,7 @@ function systemEndpoints(app) {
   app.post("/system/user", [validatedRequest], async (request, response) => {
     try {
       const sessionUser = await userFromSession(request, response);
-      const { username, password, bio } = reqBody(request);
+      const { username, password, bio, systemPrompt } = reqBody(request);
       const id = Number(sessionUser.id);
 
       if (!id) {
@@ -1206,7 +1253,9 @@ function systemEndpoints(app) {
       if (username !== sessionUser.username)
         updates.username = User.validations.username(String(username));
       if (password) updates.password = String(password);
-      if (bio) updates.bio = String(bio);
+      if (bio !== undefined) updates.bio = String(bio);
+      if (systemPrompt !== undefined)
+        updates.systemPrompt = String(systemPrompt);
 
       if (Object.keys(updates).length === 0) {
         response
@@ -1228,11 +1277,10 @@ function systemEndpoints(app) {
   app.get(
     "/system/slash-command-presets",
     [validatedRequest, flexUserRoleValid([ROLES.all])],
-    async (request, response) => {
+    async (_request, response) => {
       try {
-        const user = await userFromSession(request, response);
-        const userPresets = await SlashCommandPresets.getUserPresets(user?.id);
-        response.status(200).json({ presets: userPresets });
+        const presets = await SlashCommandPresets.getGlobalPresets();
+        response.status(200).json({ presets });
       } catch (error) {
         console.error("Error fetching slash command presets:", error);
         response.status(500).json({ message: "Internal server error" });
@@ -1245,7 +1293,6 @@ function systemEndpoints(app) {
     [validatedRequest, flexUserRoleValid([ROLES.all])],
     async (request, response) => {
       try {
-        const user = await userFromSession(request, response);
         const { command, prompt, description } = reqBody(request);
         const formattedCommand = SlashCommandPresets.formatCommand(
           String(command)
@@ -1264,7 +1311,7 @@ function systemEndpoints(app) {
           description: String(description),
         };
 
-        const preset = await SlashCommandPresets.create(user?.id, presetData);
+        const preset = await SlashCommandPresets.create(null, presetData);
         if (!preset) {
           return response
             .status(500)
@@ -1283,7 +1330,6 @@ function systemEndpoints(app) {
     [validatedRequest, flexUserRoleValid([ROLES.all])],
     async (request, response) => {
       try {
-        const user = await userFromSession(request, response);
         const { slashCommandId } = request.params;
         const { command, prompt, description } = reqBody(request);
         const formattedCommand = SlashCommandPresets.formatCommand(
@@ -1297,12 +1343,11 @@ function systemEndpoints(app) {
           });
         }
 
-        // Valid user running owns the preset if user session is valid.
-        const ownsPreset = await SlashCommandPresets.get({
-          userId: user?.id ?? null,
+        const globalPreset = await SlashCommandPresets.get({
+          uid: 0,
           id: Number(slashCommandId),
         });
-        if (!ownsPreset)
+        if (!globalPreset)
           return response.status(404).json({ message: "Preset not found" });
 
         const updates = {
@@ -1316,7 +1361,7 @@ function systemEndpoints(app) {
           updates
         );
         if (!preset) return response.sendStatus(422);
-        response.status(200).json({ preset: { ...ownsPreset, ...updates } });
+        response.status(200).json({ preset: { ...globalPreset, ...updates } });
       } catch (error) {
         console.error("Error updating slash command preset:", error);
         response.status(500).json({ message: "Internal server error" });
@@ -1330,14 +1375,11 @@ function systemEndpoints(app) {
     async (request, response) => {
       try {
         const { slashCommandId } = request.params;
-        const user = await userFromSession(request, response);
-
-        // Valid user running owns the preset if user session is valid.
-        const ownsPreset = await SlashCommandPresets.get({
-          userId: user?.id ?? null,
+        const globalPreset = await SlashCommandPresets.get({
+          uid: 0,
           id: Number(slashCommandId),
         });
-        if (!ownsPreset)
+        if (!globalPreset)
           return response
             .status(403)
             .json({ message: "Failed to delete preset" });

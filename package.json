@@ -15,7 +15,7 @@
   },
   "homepage": "https://github.com/mintplex-labs/anything-llm#readme",
   "engines": {
-    "node": ">=18"
+    "node": ">=24 <25"
   },
   "scripts": {
     "test": "jest",

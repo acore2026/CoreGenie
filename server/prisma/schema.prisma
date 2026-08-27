@@ -70,6 +70,7 @@ model users {
   lastUpdatedAt                DateTime                      @default(now())
   dailyMessageLimit            Int?
   bio                          String?                       @default("")
+  systemPrompt                 String                        @default("")
   web_push_subscription_config String?
   workspace_chats              workspace_chats[]
   workspace_users              workspace_users[]
@@ -180,19 +181,31 @@ model workspace_suggested_messages {
 }
 
 model workspace_chats {
-  id             Int      @id @default(autoincrement())
-  workspaceId    Int
-  prompt         String
-  response       String
-  include        Boolean  @default(true)
-  user_id        Int?
-  thread_id      Int? // No relation to prevent whole table migration
-  api_session_id String? // String identifier for only the dev API to partition chats in any mode.
-  createdAt      DateTime @default(now())
-  lastUpdatedAt  DateTime @default(now())
+  id              Int      @id @default(autoincrement())
+  workspaceId     Int
+  prompt          String
+  response        String
+  include         Boolean  @default(true)
+  user_id         Int?
+  thread_id       Int? // No relation to prevent whole table migration
+  api_session_id  String? // String identifier for only the dev API to partition chats in any mode.
+  createdAt       DateTime @default(now())
+  lastUpdatedAt   DateTime @default(now())
   feedbackScore   Boolean?
   memoryProcessed Boolean? @map("memory_processed")
   users           users?   @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
+}
+
+model public_chat_shares {
+  id            Int      @id @default(autoincrement())
+  token         String   @unique
+  workspace_id  Int
+  thread_id     Int?
+  user_id       Int?
+  createdAt     DateTime @default(now())
+  lastUpdatedAt DateTime @default(now())
+
+  @@index([workspace_id, thread_id, user_id])
 }
 
 model workspace_agent_invocations {
@@ -202,6 +215,7 @@ model workspace_agent_invocations {
   closed        Boolean    @default(false)
   user_id       Int?
   thread_id     Int? // No relation to prevent whole table migration
+  agent_id      Int? // Predefined agent snapshot source. No relation to keep invocation migrations lightweight.
   workspace_id  Int
   createdAt     DateTime   @default(now())
   lastUpdatedAt DateTime   @default(now())
@@ -209,6 +223,104 @@ model workspace_agent_invocations {
   workspace     workspaces @relation(fields: [workspace_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
   @@index([uuid])
+}
+
+/// Durable execution record for every LangGraph Agent run. The graph state is
+/// checkpointed in a separate SQLite database; this table is the product-level
+/// index used by chat history, background execution, and authorization.
+model agent_runs {
+  id                 String                  @id
+  workspace_id       Int
+  thread_id          Int?
+  user_id            Int?
+  agent_id           Int?
+  source             String                  @default("workspace")
+  mode               String                  @default("automatic")
+  status             String                  @default("queued")
+  prompt             String
+  attachments        String                  @default("[]")
+  configuration      String                  @default("{}")
+  runtimeKey         String                  @default("default-react")
+  runtimeVersion     Int                     @default(1)
+  runtimeSnapshot    String                  @default("{}")
+  checkpointThreadId String                  @unique
+  finalResponse      String?
+  error              String?
+  startedAt          DateTime?
+  completedAt        DateTime?
+  createdAt          DateTime                @default(now())
+  lastUpdatedAt      DateTime                @default(now())
+  events             agent_run_events[]
+  toolExecutions     agent_tool_executions[]
+
+  @@index([workspace_id, thread_id, user_id, status])
+  @@index([createdAt])
+  @@index([runtimeKey, runtimeVersion])
+}
+
+/// Append-only, replayable SSE event log. `sequence` is monotonically
+/// increasing within a run and doubles as the SSE Last-Event-ID cursor.
+model agent_run_events {
+  id        Int        @id @default(autoincrement())
+  run_id    String
+  sequence  Int
+  version   Int        @default(1)
+  type      String
+  payload   String     @default("{}")
+  createdAt DateTime   @default(now())
+  run       agent_runs @relation(fields: [run_id], references: [id], onDelete: Cascade)
+
+  @@unique([run_id, sequence])
+  @@index([run_id, createdAt])
+}
+
+/// Auditable tool lifecycle separate from the human-readable event stream.
+model agent_tool_executions {
+  id            String     @id
+  run_id        String
+  call_id       String
+  parent_id     String?
+  tool_id       String
+  agent_id      Int?
+  status        String     @default("requested")
+  arguments     String     @default("{}")
+  result        String?
+  error         String?
+  startedAt     DateTime?
+  completedAt   DateTime?
+  createdAt     DateTime   @default(now())
+  lastUpdatedAt DateTime   @default(now())
+  run           agent_runs @relation(fields: [run_id], references: [id], onDelete: Cascade)
+
+  @@unique([run_id, call_id])
+  @@index([run_id, status])
+}
+
+model predefined_agent_skills {
+  id            Int      @id @default(autoincrement())
+  name          String
+  description   String   @default("")
+  instructions  String
+  createdAt     DateTime @default(now())
+  lastUpdatedAt DateTime @default(now())
+}
+
+model predefined_agents {
+  id               Int      @id @default(autoincrement())
+  name             String
+  iconFilename     String?
+  description      String   @default("")
+  welcomeMessage   String?
+  examplePrompts   String   @default("[]") // JSON array of example inputs shown above the chat composer.
+  tools            String? // JSON array of executable tool identifiers. Null means all currently enabled tools.
+  skillIds         String   @default("[]") // JSON array of predefined_agent_skills IDs.
+  systemPrompt     String
+  runtimeKey       String   @default("default-react")
+  runtimeConfig    String   @default("{}")
+  isBuiltinDefault Boolean  @default(false)
+  enabled          Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  lastUpdatedAt    DateTime @default(now())
 }
 
 model workspace_users {
@@ -401,17 +513,21 @@ model external_communication_connectors {
 }
 
 model scheduled_jobs {
-  id        Int                  @id @default(autoincrement())
-  name      String
-  prompt    String
-  tools     String? // JSON array of tool identifiers (null = use all enabled agent skills)
-  schedule  String // Cron expression
-  enabled   Boolean              @default(true)
-  lastRunAt DateTime?
-  nextRunAt DateTime?
-  createdAt DateTime             @default(now())
-  updatedAt DateTime             @default(now())
-  runs      scheduled_job_runs[]
+  id           Int                  @id @default(autoincrement())
+  name         String
+  prompt       String
+  workspace_id Int?
+  agent_id     Int?
+  tools        String? // JSON array of tool identifiers (null = use all enabled agent skills)
+  schedule     String // Cron expression
+  enabled      Boolean              @default(true)
+  lastRunAt    DateTime?
+  nextRunAt    DateTime?
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @default(now())
+  runs         scheduled_job_runs[]
+
+  @@index([workspace_id])
 }
 
 model scheduled_job_runs {
@@ -459,28 +575,28 @@ model model_routers {
 }
 
 model model_router_rules {
-  id               Int           @id @default(autoincrement())
-  router_id        Int
-  enabled          Boolean       @default(true)
-  priority         Int
-  type             String        @default("calculated")
-  title            String
-  description      String?
+  id              Int           @id @default(autoincrement())
+  router_id       Int
+  enabled         Boolean       @default(true)
+  priority        Int
+  type            String        @default("calculated")
+  title           String
+  description     String?
   // For `calculated` rules: the boolean operator joining `conditions` — "AND"
   // (all must match) or "OR" (any must match). Null for `llm` rules.
-  condition_logic  String?
+  condition_logic String?
   // For `calculated` rules: JSON-stringified array of condition objects, each
   // shaped as { property: string, comparator: string, value: string } where
   // `property` ∈ VALID_PROPERTIES and `comparator` ∈ VALID_COMPARATORS (see
   // server/models/modelRouterRule.js). `value` is always stored as a string;
   // numeric comparators parse it at evaluation time. Null for `llm` rules.
-  conditions       String?
-  route_provider   String
-  route_model      String
-  created_by       Int?
-  createdAt        DateTime      @default(now())
-  lastUpdatedAt    DateTime      @default(now())
-  router           model_routers @relation(fields: [router_id], references: [id], onDelete: Cascade)
+  conditions      String?
+  route_provider  String
+  route_model     String
+  created_by      Int?
+  createdAt       DateTime      @default(now())
+  lastUpdatedAt   DateTime      @default(now())
+  router          model_routers @relation(fields: [router_id], references: [id], onDelete: Cascade)
 
   @@unique([router_id, title])
   @@index([router_id])

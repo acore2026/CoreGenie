@@ -16,6 +16,11 @@ import useSimpleSSO from "@/hooks/useSimpleSSO";
  */
 export default function Login() {
   const query = useQuery();
+  const requestedRedirect = query.get("redirectTo");
+  const redirectTo =
+    requestedRedirect?.startsWith("/") && !requestedRedirect.startsWith("//")
+      ? requestedRedirect
+      : paths.home();
   const { loading: ssoLoading, ssoConfig } = useSimpleSSO();
   const { loading, requiresAuth, mode } = usePasswordModal(!!query.get("nt"));
 
@@ -27,10 +32,17 @@ export default function Login() {
     if (!!ssoConfig.noLoginRedirect && !query.has("token"))
       return window.location.replace(ssoConfig.noLoginRedirect);
     // Otherwise, redirect to the SSO login page.
-    else return <Navigate to={paths.sso.login()} />;
+    else
+      return (
+        <Navigate
+          to={`${paths.sso.login()}?redirectTo=${encodeURIComponent(
+            redirectTo
+          )}`}
+        />
+      );
   }
 
   if (requiresAuth === false) return <Navigate to={paths.home()} />;
 
-  return <PasswordModal mode={mode} />;
+  return <PasswordModal mode={mode} redirectTo={redirectTo} />;
 }

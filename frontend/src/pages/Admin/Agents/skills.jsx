@@ -15,6 +15,8 @@ import {
   FolderOpen,
   FilePlus,
   CalendarCheck,
+  TerminalWindow,
+  Code,
 } from "@phosphor-icons/react";
 import RAGImage from "@/media/agents/rag-memory.png";
 import SummarizeImage from "@/media/agents/view-summarize.png";
@@ -64,7 +66,11 @@ export const getDefaultSkills = (t) => ({
  */
 export const getConfigurableSkills = (
   t,
-  { fileSystemAgentAvailable = true, createFilesAgentAvailable = true } = {}
+  {
+    fileSystemAgentAvailable = true,
+    createFilesAgentAvailable = true,
+    sandboxAvailable = true,
+  } = {}
 ) => ({
   ...(fileSystemAgentAvailable && {
     "filesystem-agent": {
@@ -106,6 +112,24 @@ export const getConfigurableSkills = (
     component: AgentSQLConnectorSelection,
     skill: "sql-agent",
   },
+  ...(sandboxAvailable && {
+    bash: {
+      title: "Bash",
+      description:
+        "Run approved Bash code in a disposable container with persistent workspace access.",
+      component: GenericSkillPanel,
+      skill: "bash",
+      icon: TerminalWindow,
+    },
+    python: {
+      title: "Python",
+      description:
+        "Run approved Python code in a disposable container with persistent workspace access.",
+      component: GenericSkillPanel,
+      skill: "python",
+      icon: Code,
+    },
+  }),
   "create-scheduled-job": {
     title: t("agent.skill.scheduledJob.title"),
     description: t("agent.skill.scheduledJob.description"),

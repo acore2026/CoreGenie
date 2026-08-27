@@ -86,7 +86,11 @@ module.exports.FilesystemEditFile = {
                 return "Error: At least one edit operation must be provided.";
               }
 
-              const validPath = await filesystem.validatePath(filePath);
+              const workspaceFilesystem = filesystem.forInvocation(
+                this.super.handlerProps.invocation
+              );
+              const validPath =
+                await workspaceFilesystem.validatePath(filePath);
 
               this.super.introspect(
                 `${this.caller}: ${dryRun ? "Previewing" : "Applying"} ${edits.length} edit(s) to ${filePath}`
@@ -107,7 +111,7 @@ module.exports.FilesystemEditFile = {
                 }
               }
 
-              const result = await filesystem.applyFileEdits(
+              const result = await workspaceFilesystem.applyFileEdits(
                 validPath,
                 edits,
                 dryRun

@@ -8,6 +8,7 @@ import { useModal } from "@/hooks/useModal";
 import RecoveryCodeModal from "@/components/Modals/DisplayRecoveryCodeModal";
 import { useTranslation } from "react-i18next";
 import { t } from "i18next";
+import { Link } from "react-router-dom";
 
 const RecoveryForm = ({ onSubmit, setShowRecoveryForm }) => {
   const [username, setUsername] = useState("");
@@ -170,7 +171,7 @@ const ResetPasswordForm = ({ onSubmit }) => {
   );
 };
 
-export default function MultiUserAuth() {
+export default function MultiUserAuth({ redirectTo = paths.home() }) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -181,6 +182,7 @@ export default function MultiUserAuth() {
   const [showRecoveryForm, setShowRecoveryForm] = useState(false);
   const [showResetPasswordForm, setShowResetPasswordForm] = useState(false);
   const [customAppName, setCustomAppName] = useState(null);
+  const [registrationEnabled, setRegistrationEnabled] = useState(false);
 
   const {
     isOpen: isRecoveryCodeModalOpen,
@@ -207,7 +209,7 @@ export default function MultiUserAuth() {
       } else {
         window.localStorage.setItem(AUTH_USER, JSON.stringify(user));
         window.localStorage.setItem(AUTH_TOKEN, token);
-        window.location = paths.home();
+        window.location = redirectTo;
       }
     } else {
       setError(message);
@@ -259,14 +261,18 @@ export default function MultiUserAuth() {
     if (downloadComplete && user && token) {
       window.localStorage.setItem(AUTH_USER, JSON.stringify(user));
       window.localStorage.setItem(AUTH_TOKEN, token);
-      window.location = paths.home();
+      window.location = redirectTo;
     }
-  }, [downloadComplete, user, token]);
+  }, [downloadComplete, user, token, redirectTo]);
 
   useEffect(() => {
     const fetchCustomAppName = async () => {
-      const { appName } = await System.fetchCustomAppName();
+      const [{ appName }, registration] = await Promise.all([
+        System.fetchCustomAppName(),
+        System.publicRegistrationStatus(),
+      ]);
       setCustomAppName(appName || "");
+      setRegistrationEnabled(registration.enabled);
       setLoading(false);
     };
     fetchCustomAppName();
@@ -340,6 +346,14 @@ export default function MultiUserAuth() {
               ? t("login.multi-user.validating")
               : t("login.multi-user.login")}
           </button>
+          {registrationEnabled && (
+            <Link
+              to={paths.register()}
+              className="text-zinc-200 light:text-zinc-600 hover:text-sky-300 light:hover:text-sky-600 hover:underline text-sm"
+            >
+              {t("login.registration.create-account")}
+            </Link>
+          )}
           <button
             type="button"
             className="text-zinc-200 light:text-zinc-600 hover:text-sky-300 light:hover:text-sky-600 hover:underline text-sm flex gap-x-1"

@@ -4,7 +4,6 @@ import WorkspaceLLMItem from "./WorkspaceLLMItem";
 import { ALL_LLM_PROVIDERS } from "@/pages/GeneralSettings/LLMPreference";
 import { CaretUpDown, MagnifyingGlass, X } from "@phosphor-icons/react";
 import ChatModelSelection from "./ChatModelSelection";
-import RouterSelection from "./RouterSelection";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import paths from "@/utils/paths";
@@ -12,11 +11,11 @@ import paths from "@/utils/paths";
 // Some providers do not support model selection via /models.
 // In that case we allow the user to enter the model name manually and hope they
 // type it correctly.
-const FREE_FORM_LLM_SELECTION = ["azure"];
+const FREE_FORM_LLM_SELECTION = [];
 
 // Some providers do not support model selection via /models
 // and only have a fixed single-model they can use.
-const NO_MODEL_SELECTION = ["default", "anythingllm-router"];
+const NO_MODEL_SELECTION = ["default"];
 
 // Some providers we just fully disable for ease of use.
 const DISABLED_PROVIDERS = [];
@@ -170,12 +169,6 @@ export default function WorkspaceLLMSelection({
 
 // TODO: Add this to agent selector as well as make generic component.
 function ModelSelector({ selectedLLM, workspace, setHasChanges }) {
-  if (selectedLLM === "anythingllm-router") {
-    return (
-      <RouterSelection workspace={workspace} setHasChanges={setHasChanges} />
-    );
-  }
-
   if (NO_MODEL_SELECTION.includes(selectedLLM)) {
     if (selectedLLM !== "default") {
       return (
