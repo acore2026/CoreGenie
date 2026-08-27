@@ -16,6 +16,10 @@ const NOISY_LANGCHAIN_SPANS = new Set([
   "RunnableLambda",
   "ToolCallLimitMiddleware.after_agent",
   "ToolCallLimitMiddleware.after_model",
+  "ToolCallLimitMiddleware.before_model",
+  "ModelCallLimitMiddleware.after_agent",
+  "ModelCallLimitMiddleware.after_model",
+  "ModelCallLimitMiddleware.before_model",
 ]);
 
 let runtime = null;
@@ -373,7 +377,44 @@ function subagentObservationName(input) {
   }
 }
 
-function createAgentCallbackHandler() {
+function withLangfuseModel(
+  extraParams,
+  metadata,
+  serializedModel = null,
+  fallbackModel = null
+) {
+  const invocationParams = extraParams?.invocation_params || {};
+  const model =
+    invocationParams.model ||
+    invocationParams.model_name ||
+    metadata?.ls_model_name ||
+    serializedModel?.kwargs?.model ||
+    serializedModel?.kwargs?.modelName ||
+    serializedModel?.kwargs?.model_name ||
+    fallbackModel;
+  if (!model) return extraParams;
+  return {
+    ...(extraParams || {}),
+    invocation_params: { ...invocationParams, model },
+  };
+}
+
+function ensureLangfuseResponseModel(output, model) {
+  if (!model) return output;
+  const generation = output?.generations?.at?.(-1)?.at?.(-1);
+  const message = generation?.message;
+  if (!message) return output;
+  message.response_metadata = {
+    ...(message.response_metadata || {}),
+    model_name: message.response_metadata?.model_name || model,
+  };
+  return output;
+}
+
+function createAgentCallbackHandler({
+  defaultModel = null,
+  roleModels = {},
+} = {}) {
   const { CallbackHandler } = require("@langfuse/langchain");
   const { startActiveObservation } = require("@langfuse/tracing");
 
@@ -390,18 +431,26 @@ function createAgentCallbackHandler() {
       metadata,
       name
     ) {
+      const role = metadata?.role || (metadata?.taskId ? "worker" : null);
+      const normalizedParams = withLangfuseModel(
+        extraParams,
+        metadata,
+        llm,
+        roleModels?.[role] || defaultModel
+      );
       this.tokenInputs.set(runId, {
         inputs: (messages || []).flatMap((group) =>
           (group || []).map((message) => message?.content ?? message)
         ),
         metadata: metadata || {},
+        model: normalizedParams?.invocation_params?.model,
       });
       return super.handleChatModelStart(
         llm,
         messages,
         runId,
         parentRunId,
-        extraParams,
+        normalizedParams,
         tags,
         metadata,
         name
@@ -418,16 +467,24 @@ function createAgentCallbackHandler() {
       metadata,
       name
     ) {
+      const role = metadata?.role || (metadata?.taskId ? "worker" : null);
+      const normalizedParams = withLangfuseModel(
+        extraParams,
+        metadata,
+        llm,
+        roleModels?.[role] || defaultModel
+      );
       this.tokenInputs.set(runId, {
         inputs: prompts || [],
         metadata: metadata || {},
+        model: normalizedParams?.invocation_params?.model,
       });
       return super.handleLLMStart(
         llm,
         prompts,
         runId,
         parentRunId,
-        extraParams,
+        normalizedParams,
         tags,
         metadata,
         name
@@ -437,6 +494,7 @@ function createAgentCallbackHandler() {
     async handleLLMEnd(output, runId, parentRunId) {
       const captured = this.tokenInputs.get(runId);
       this.tokenInputs.delete(runId);
+      ensureLangfuseResponseModel(output, captured?.model || defaultModel);
       if (captured && !hasReportedTokenUsage(output)) {
         output.llmOutput = {
           ...(output.llmOutput || {}),
@@ -530,7 +588,6 @@ async function withAgentTrace(run, operation) {
           metadata: { segment: attributes.segment },
           version: attributes.version,
         });
-        observation.setTraceIO({ input });
         return propagateAttributes(
           {
             traceName: "anythingllm-agent-run",
@@ -541,7 +598,10 @@ async function withAgentTrace(run, operation) {
             version: attributes.version,
           },
           async () => {
-            const handler = createAgentCallbackHandler();
+            const handler = createAgentCallbackHandler({
+              defaultModel: run.runtimeSnapshot?.selectedModel || null,
+              roleModels: run.runtimeSnapshot?.roleModels || {},
+            });
             operationStarted = true;
             try {
               const result = await operation({
@@ -556,12 +616,6 @@ async function withAgentTrace(run, operation) {
                   response: result?.finalResponse || null,
                 },
               });
-              observation.setTraceIO({
-                output: {
-                  status: result?.status || "completed",
-                  response: result?.finalResponse || null,
-                },
-              });
               operationResult = result;
               return result;
             } catch (error) {
@@ -569,9 +623,6 @@ async function withAgentTrace(run, operation) {
               observation.update({
                 level: "ERROR",
                 statusMessage: error.message,
-                output: { status: "failed", error: error.message },
-              });
-              observation.setTraceIO({
                 output: { status: "failed", error: error.message },
               });
               throw error;
@@ -681,6 +732,7 @@ module.exports = {
   compactIdentifier,
   envBoolean,
   estimateTokenUsage,
+  ensureLangfuseResponseModel,
   hasReportedTokenUsage,
   flushLangfuse,
   initializeLangfuse,
@@ -693,6 +745,7 @@ module.exports = {
   shutdownLangfuse,
   traceAttributes,
   subagentObservationName,
+  withLangfuseModel,
   withAgentTrace,
   withAgentStepTrace,
   withRetrieverTrace,

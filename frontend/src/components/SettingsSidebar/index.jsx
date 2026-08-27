@@ -357,12 +357,6 @@ const SidebarOptions = ({ user = null, t }) => (
               flex: true,
               roles: ["admin"],
             },
-            {
-              btnText: t("settings.agent-flows"),
-              href: paths.settings.agentFlows(),
-              flex: true,
-              roles: ["admin"],
-            },
           ]}
         />
         <Option

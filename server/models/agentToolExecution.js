@@ -8,6 +8,7 @@ function normalizeExecution(row) {
     ...row,
     arguments: safeJsonParse(row.arguments, {}),
     result: safeJsonParse(row.result, row.result),
+    artifactIds: safeJsonParse(row.artifact_ids, []),
   };
 }
 
@@ -25,7 +26,17 @@ const AgentToolExecution = {
     );
   },
 
-  begin: async function ({ runId, callId, parentId, toolId, agentId, args }) {
+  begin: async function ({
+    runId,
+    callId,
+    parentId,
+    taskId = null,
+    toolId,
+    agentId,
+    args,
+    operationKey = null,
+    attempt = 1,
+  }) {
     return normalizeExecution(
       await prisma.agent_tool_executions.upsert({
         where: {
@@ -39,10 +50,13 @@ const AgentToolExecution = {
           run_id: String(runId),
           call_id: String(callId),
           parent_id: parentId || null,
+          task_id: taskId || null,
           tool_id: String(toolId),
           agent_id: agentId ? Number(agentId) : null,
           status: "running",
           arguments: JSON.stringify(args || {}),
+          operation_key: operationKey,
+          attempt: Number(attempt) || 1,
           startedAt: new Date(),
         },
         update: {
@@ -54,7 +68,18 @@ const AgentToolExecution = {
     );
   },
 
-  finish: async function (runId, callId, { result = null, error = null } = {}) {
+  finish: async function (
+    runId,
+    callId,
+    {
+      result = null,
+      error = null,
+      outcomeCode = null,
+      retryable = false,
+      resultSummary = null,
+      artifactIds = [],
+    } = {}
+  ) {
     return normalizeExecution(
       await prisma.agent_tool_executions.update({
         where: {
@@ -64,11 +89,28 @@ const AgentToolExecution = {
           status: error ? "failed" : "completed",
           result: result === null ? null : JSON.stringify(result),
           error,
+          outcome_code: outcomeCode,
+          retryable: Boolean(retryable),
+          result_summary: resultSummary,
+          artifact_ids: JSON.stringify(artifactIds || []),
           completedAt: new Date(),
           lastUpdatedAt: new Date(),
         },
       })
     );
+  },
+
+  findOperation: async function (runId, taskId, operationKey) {
+    if (!operationKey) return [];
+    const rows = await prisma.agent_tool_executions.findMany({
+      where: {
+        run_id: String(runId),
+        task_id: taskId || null,
+        operation_key: String(operationKey),
+      },
+      orderBy: { createdAt: "asc" },
+    });
+    return rows.map(normalizeExecution);
   },
 };
 

@@ -161,11 +161,6 @@ export default {
     agentPrompts: () => {
       return "/settings/agents/prompts";
     },
-    agentFlows: (flowId = null) => {
-      return flowId
-        ? `/settings/agents/flows/${flowId}`
-        : "/settings/agents/flows";
-    },
     chat: () => {
       return "/settings/chat";
     },
@@ -205,14 +200,6 @@ export default {
     },
     scheduledJobRunDetail: (jobId, runId) => {
       return `/settings/scheduled-jobs/${jobId}/runs/${runId}`;
-    },
-  },
-  agents: {
-    builder: () => {
-      return `/settings/agents/flows`;
-    },
-    editAgent: (uuid) => {
-      return `/settings/agents/flows/${uuid}`;
     },
   },
   // TODO: Migrate all docs.anythingllm.com links to the new docs.

@@ -23,15 +23,16 @@ const AgentRunEvent = {
       .catch(() => null)
       .then(async () => {
         const row = await prisma.$transaction(async (tx) => {
-          const aggregate = await tx.agent_run_events.aggregate({
-            where: { run_id: id },
-            _max: { sequence: true },
+          const run = await tx.agent_runs.update({
+            where: { id },
+            data: { nextEventSequence: { increment: 1 } },
+            select: { nextEventSequence: true },
           });
           return tx.agent_run_events.create({
             data: {
               run_id: id,
-              sequence: (aggregate._max.sequence || 0) + 1,
-              version: 1,
+              sequence: run.nextEventSequence,
+              version: 2,
               type: String(type),
               payload: JSON.stringify(payload || {}),
             },
@@ -63,6 +64,14 @@ const AgentRunEvent = {
       take,
     });
     return rows.map(normalizeEvent);
+  },
+
+  latestSequence: async function (runId) {
+    const run = await prisma.agent_runs.findUnique({
+      where: { id: String(runId) },
+      select: { nextEventSequence: true },
+    });
+    return run?.nextEventSequence || 0;
   },
 };
 

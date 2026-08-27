@@ -20,6 +20,7 @@ import Chartable from "./Chartable";
 import ModelRouteNotification from "./ModelRouteNotification";
 import SubagentRun from "./SubagentRun";
 import ContextTrace from "./ContextTrace";
+import AgentExecutionRail from "./AgentExecutionRail";
 import Workspace from "@/models/workspace";
 import { useNavigate, useParams } from "react-router-dom";
 import paths from "@/utils/paths";
@@ -300,6 +301,18 @@ function buildMessages({
       return acc;
     }
 
+    if (props?.type === "agentExecution" && props.agentRunState) {
+      acc.push(
+        <AgentExecutionRail
+          key={props.uuid || `agent-execution-${index}`}
+          runId={props.agentRunId}
+          runState={props.agentRunState}
+          transport={websocket}
+        />
+      );
+      return acc;
+    }
+
     if (props.type === "modelRouteNotification") {
       const lastMsg = history[history.length - 1];
       const isLast =
@@ -411,6 +424,7 @@ function buildMessages({
           agentTrace={props.agentTrace}
           subagentRuns={props.subagentRuns}
           contextTraces={props.contextTraces}
+          agentRunId={props.agentRunId}
         />
       );
     }

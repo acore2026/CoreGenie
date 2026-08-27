@@ -54,10 +54,21 @@ async function createRuntimeSnapshot({
       provider: selectedProvider(workspace),
       selectedModel: fallbackModel,
       roleModels: {
-        planner: runtimeConfig.plannerModel || fallbackModel,
+        controller:
+          runtimeConfig.controllerModel ||
+          runtimeConfig.plannerModel ||
+          fallbackModel,
+        planner:
+          runtimeConfig.controllerModel ||
+          runtimeConfig.plannerModel ||
+          fallbackModel,
         worker: runtimeConfig.workerModel || fallbackModel,
         reviewer: runtimeConfig.reviewerModel || fallbackModel,
-        synthesizer: fallbackModel,
+        vision: runtimeConfig.visionModel || fallbackModel,
+        synthesizer:
+          runtimeConfig.controllerModel ||
+          runtimeConfig.plannerModel ||
+          fallbackModel,
       },
       systemPrompt: await composeAgentPrompt({
         agent,

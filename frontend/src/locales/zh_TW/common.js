@@ -88,7 +88,6 @@ const TRANSLATIONS = {
     agents: "Agents",
     "predefined-agent-skills": "Skills",
     "agent-tools": "Agent Tools",
-    "agent-flows": "Agent Flows",
     admin: "管理",
     tools: "工具",
     "experimental-features": "實驗性功能",

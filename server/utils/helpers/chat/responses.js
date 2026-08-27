@@ -212,6 +212,8 @@ function convertToChatHistory(history = []) {
         sentAt: moment(createdAt).unix(),
         feedbackScore,
         metrics: data?.metrics || {},
+        error: data?.error || false,
+        ...(data?.agentRunId ? { agentRunId: data.agentRunId } : {}),
         ...(data?.agentTrace?.length > 0
           ? { agentTrace: data.agentTrace }
           : {}),

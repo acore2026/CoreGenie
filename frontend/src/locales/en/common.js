@@ -103,7 +103,6 @@ const TRANSLATIONS = {
     "predefined-agent-skills": "Skills",
     "agent-tools": "Agent Tools",
     "agent-prompts": "Prompts",
-    "agent-flows": "Agent Flows",
     "model-router": "Model Router",
     "community-hub": {
       title: "Community Hub",

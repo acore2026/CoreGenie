@@ -49,7 +49,6 @@ export default function useSkillSections({
   configurableSkills,
   appIntegrationSkills,
   importedSkills,
-  flows,
   mcpServers,
   isMultiUser,
   isSkillEnabled,
@@ -57,7 +56,6 @@ export default function useSkillSections({
   isSubSkillEnabled,
   toggleSubSkill,
   toggleImportedSkill,
-  toggleFlow,
   toggleMcpTool,
   disabledSubSkills,
 }) {
@@ -133,22 +131,6 @@ export default function useSkillSections({
       });
     }
 
-    // Agent Flows
-    if (flows.length > 0) {
-      const items = flows.map((flow) => ({
-        id: flow.uuid,
-        name: flow.name,
-        enabled: flow.active,
-        onToggle: () => toggleFlow(flow),
-      }));
-      sectionList.push({
-        id: "agent-flows",
-        name: t("chat_window.agent_flows"),
-        items,
-        enabledCount: items.filter((i) => i.enabled).length,
-      });
-    }
-
     // MCP Servers
     for (const server of mcpServers) {
       if (!server.running || server.tools.length === 0) continue;
@@ -180,7 +162,6 @@ export default function useSkillSections({
     configurableSkills,
     appIntegrationSkills,
     importedSkills,
-    flows,
     mcpServers,
     isMultiUser,
     isSkillEnabled,
@@ -188,7 +169,6 @@ export default function useSkillSections({
     isSubSkillEnabled,
     toggleSubSkill,
     toggleImportedSkill,
-    toggleFlow,
     toggleMcpTool,
     disabledSubSkills,
   ]);

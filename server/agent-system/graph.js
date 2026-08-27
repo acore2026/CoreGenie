@@ -1,6 +1,6 @@
 const {
   createAgent,
-  toolCallLimitMiddleware,
+  modelCallLimitMiddleware,
   humanInTheLoopMiddleware,
 } = require("langchain");
 const { createChatModel, selectedProvider } = require("../resources/models");
@@ -26,6 +26,8 @@ async function buildAgentGraph({
   checkpointerOverride = null,
   excludeToolIds = [],
   disableTools = false,
+  taskId = null,
+  taskTitle = null,
 }) {
   const context = new AgentToolContext({
     run,
@@ -38,6 +40,8 @@ async function buildAgentGraph({
     budget,
     depth,
     maxLocalToolCalls,
+    taskId,
+    taskTitle,
   });
   const allowActions =
     !["query", "chat"].includes(run.mode) && run.source !== "embed";
@@ -70,9 +74,12 @@ async function buildAgentGraph({
   };
   const model = createChatModel(modelOptions);
   const middleware = [
-    toolCallLimitMiddleware({
-      runLimit: Math.min(Number(run.configuration?.maxToolCalls) || 500, 500),
-      exitBehavior: "end",
+    modelCallLimitMiddleware({
+      runLimit: Math.min(
+        Number(run.configuration?.maxModelCallsPerTask) || 30,
+        50
+      ),
+      exitBehavior: "error",
     }),
   ];
   if (

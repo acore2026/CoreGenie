@@ -1,5 +1,6 @@
 const { AgentRun } = require("../models/agentRun");
 const { AgentRunEvent } = require("../models/agentRunEvent");
+const { AgentRunTask } = require("../models/agentRunTask");
 const { Workspace } = require("../models/workspace");
 const { WorkspaceChats } = require("../models/workspaceChats");
 const { WorkspaceThread } = require("../models/workspaceThread");
@@ -9,6 +10,7 @@ const { normalizedHistory } = require("./message");
 const { withAgentTrace } = require("./observability");
 const { requireRuntime } = require("./runtimes/registry");
 const { consumeGraphStream } = require("./runtimes/stream");
+const { deleteCheckpointThread } = require("./checkpointer");
 
 function historicalTrace(events = []) {
   const agentTrace = events
@@ -96,6 +98,7 @@ async function executeAgentRunSegment(initialRun, signal, runnableConfig = {}) {
 
   run = await AgentRun.update(run.id, {
     status: "running",
+    phase: "initializing",
     agent_id: agent.id,
     startedAt: run.startedAt || new Date(),
   });
@@ -162,6 +165,7 @@ async function executeAgentRunSegment(initialRun, signal, runnableConfig = {}) {
     const inputRequest = pendingInterrupt.kind === "input";
     await AgentRun.update(run.id, {
       status: inputRequest ? "waiting_for_input" : "waiting_for_approval",
+      phase: inputRequest ? "input" : "approval",
       configuration: { ...run.configuration, resume: null, recover: false },
     });
     await emit(
@@ -185,7 +189,10 @@ async function executeAgentRunSegment(initialRun, signal, runnableConfig = {}) {
     throw new Error("The Agent returned an empty response.");
   if (!streamedText)
     await emit("message.delta", { messageId, delta: responseText });
-  const traces = historicalTrace(await AgentRunEvent.after(run.id, 0, 10_000));
+  const traces =
+    run.runtimeKey === "governed-agent"
+      ? {}
+      : historicalTrace(await AgentRunEvent.after(run.id, 0, 10_000));
   const { chat, message } =
     run.configuration?.persistChat === false
       ? { chat: null, message: null }
@@ -215,8 +222,11 @@ async function executeAgentRunSegment(initialRun, signal, runnableConfig = {}) {
     text: responseText,
     chatId: chat?.id || null,
   });
+  const terminalStatus = result.partial ? "partial" : "completed";
   await AgentRun.update(run.id, {
-    status: "completed",
+    status: terminalStatus,
+    phase: "complete",
+    terminationReason: result.partial ? "partial_results" : "completed",
     finalResponse: responseText,
     completedAt: new Date(),
   });
@@ -231,18 +241,69 @@ async function executeAgentRunSegment(initialRun, signal, runnableConfig = {}) {
         emit("thread.renamed", { slug: renamed.slug, name: renamed.name }),
     }).catch((error) => console.error(error.message));
   }
-  await emit("run.completed", {
-    status: "completed",
+  await emit(result.partial ? "run.partial" : "run.completed", {
+    status: terminalStatus,
     chatId: chat?.id || null,
     sources,
   });
+  await AgentRunTask.reconcileTerminal(run.id, "cancelled");
+  await deleteCheckpointThread(run.checkpointThreadId);
   return AgentRun.get(run.id);
+}
+
+async function persistFailedAgentRun(runId, error) {
+  const run = await AgentRun.get(runId);
+  if (!run || AgentRun.isTerminal(run.status)) return run;
+  const workspace = await Workspace.get({ id: run.workspace_id });
+  if (!workspace) return run;
+  const user = run.user_id ? await User.get({ id: run.user_id }) : null;
+  const thread = run.thread_id
+    ? await WorkspaceThread.get({
+        id: run.thread_id,
+        workspace_id: workspace.id,
+      })
+    : null;
+  const tasks = await AgentRunTask.list(run.id);
+  const completed = tasks.filter(
+    (task) => task.status === "completed" && task.resultSummary
+  );
+  const partial = completed.length > 0;
+  const responseText = partial
+    ? `${completed.map((task) => task.resultSummary).join("\n\n")}\n\nIncomplete work: ${error.message}`
+    : `I could not complete this request: ${error.message}`;
+  const { chat } =
+    run.configuration?.persistChat === false
+      ? { chat: null }
+      : await WorkspaceChats.new({
+          workspaceId: workspace.id,
+          prompt: run.prompt,
+          response: {
+            text: responseText,
+            sources: [],
+            type: run.mode,
+            attachments: run.attachments,
+            agentRunId: run.id,
+            agentId: run.agent_id,
+            error: partial ? null : error.message,
+          },
+          threadId: thread?.id || null,
+          include: run.configuration?.include ?? true,
+          apiSessionId: run.configuration?.apiSessionId || null,
+          user,
+        });
+  return {
+    run,
+    chatId: chat?.id || null,
+    partial,
+    responseText,
+  };
 }
 
 module.exports = {
   consumeGraphStream,
   executeAgentRun,
   executeAgentRunSegment,
+  persistFailedAgentRun,
   historicalTrace,
   snapshottedAgent,
 };

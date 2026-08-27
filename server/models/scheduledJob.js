@@ -269,7 +269,6 @@ const ScheduledJob = {
    */
   _legacyAvailableTools: async function () {
     const AgentPlugins = require("../utils/agents/aibitat/plugins");
-    const { AgentFlows } = require("../utils/agentFlows");
     const MCPCompatibilityLayer = require("../utils/MCP");
     const {
       listSQLConnections,
@@ -445,22 +444,6 @@ const ScheduledJob = {
       });
     }
 
-    // Agent flows category
-    const allFlows = AgentFlows.listFlows();
-    if (allFlows.length > 0) {
-      const flowItems = allFlows.map((flow) => ({
-        id: `@@flow_${flow.uuid}`,
-        name: flow.name,
-        description: flow.description || null,
-      }));
-
-      categories.push({
-        category: "agent-flows",
-        name: "Agent Flows",
-        items: flowItems,
-      });
-    }
-
     // MCP servers category - get all servers
     // MCP servers are selected as a whole (@@mcp_serverName), not individual tools.
     // The agent loader expands the server into its individual tools at runtime.
@@ -497,7 +480,6 @@ const ScheduledJob = {
 
   availableTools: async function () {
     const { toolRegistry } = require("../tools");
-    const { AgentFlows } = require("../utils/agentFlows");
     const MCPCompatibilityLayer = require("../utils/MCP");
     const categories = [
       {
@@ -510,19 +492,6 @@ const ScheduledJob = {
         })),
       },
     ];
-    const flows = AgentFlows.listFlows().filter(
-      (flow) => flow.config?.active !== false
-    );
-    if (flows.length)
-      categories.push({
-        category: "agent-flows",
-        name: "Agent Flows",
-        items: flows.map((flow) => ({
-          id: `@@flow_${flow.uuid}`,
-          name: flow.name,
-          description: flow.description || null,
-        })),
-      });
     const servers = await new MCPCompatibilityLayer().servers().catch(() => []);
     if (servers.length)
       categories.push({

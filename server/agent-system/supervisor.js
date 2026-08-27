@@ -1,9 +1,12 @@
 const PQueue = require("p-queue").default;
-const prisma = require("../utils/prisma");
+const os = require("os");
+const { v4: uuidv4 } = require("uuid");
 const { AgentRun } = require("../models/agentRun");
 const { AgentRunEvent } = require("../models/agentRunEvent");
-const { executeAgentRun } = require("./executor");
+const { AgentRunTask } = require("../models/agentRunTask");
+const { executeAgentRun, persistFailedAgentRun } = require("./executor");
 const { flushLangfuse } = require("./observability");
+const { deleteCheckpointThread } = require("./checkpointer");
 
 class AgentRunSupervisor {
   constructor({ concurrency = 4 } = {}) {
@@ -11,22 +14,19 @@ class AgentRunSupervisor {
     this.controllers = new Map();
     this.scheduled = new Set();
     this.started = false;
+    this.owner = `${os.hostname()}:${process.pid}:${uuidv4()}`;
+    this.leaseMs = 30_000;
+    this.poller = null;
   }
 
   async start() {
     if (this.started) return;
     this.started = true;
-    const interrupted = await prisma.agent_runs.findMany({
-      where: { status: "running" },
-    });
-    for (const record of interrupted) {
-      const run = await AgentRun.get(record.id);
-      await AgentRun.update(record.id, {
-        status: "queued",
-        configuration: { ...run.configuration, recover: true },
-      });
-    }
-    for (const run of await AgentRun.queued(100)) this.enqueue(run.id);
+    for (const run of await AgentRun.reclaimable(100)) this.enqueue(run.id);
+    this.poller = setInterval(async () => {
+      for (const run of await AgentRun.reclaimable(100)) this.enqueue(run.id);
+    }, 5_000);
+    this.poller.unref?.();
   }
 
   enqueue(runId) {
@@ -34,30 +34,96 @@ class AgentRunSupervisor {
     if (this.scheduled.has(id)) return;
     this.scheduled.add(id);
     this.queue.add(async () => {
+      let claimed = await AgentRun.claim(id, this.owner, this.leaseMs);
+      if (!claimed) {
+        this.scheduled.delete(id);
+        return;
+      }
+      if (claimed.status === "running") {
+        claimed = await AgentRun.update(id, {
+          status: "queued",
+          configuration: { ...claimed.configuration, recover: true },
+        });
+      }
       const controller = new AbortController();
+      let timedOut = false;
+      const maxRuntimeMs = Math.min(
+        Math.max(
+          Number(claimed.configuration?.maxRuntimeMs) || 30 * 60 * 1_000,
+          60_000
+        ),
+        60 * 60 * 1_000
+      );
+      const timeout = setTimeout(() => {
+        timedOut = true;
+        controller.abort(new Error("Agent run time budget exhausted."));
+      }, maxRuntimeMs);
+      timeout.unref?.();
       this.controllers.set(id, controller);
+      const heartbeat = setInterval(
+        () =>
+          AgentRun.heartbeat(id, this.owner, this.leaseMs).catch(() => null),
+        10_000
+      );
+      heartbeat.unref?.();
       try {
         await executeAgentRun(id, controller.signal);
       } catch (error) {
         const latest = await AgentRun.get(id);
         if (AgentRun.isTerminal(latest?.status)) return;
-        const cancelled = controller.signal.aborted;
+        const cancelled = controller.signal.aborted && !timedOut;
+        const persisted = cancelled
+          ? null
+          : await persistFailedAgentRun(id, error).catch(() => null);
+        const partial = Boolean(persisted?.partial);
+        if (persisted?.responseText) {
+          await AgentRunEvent.append(id, "message.delta", {
+            messageId: `${id}:assistant`,
+            delta: persisted.responseText,
+          }).catch(() => null);
+          await AgentRunEvent.append(id, "message.completed", {
+            messageId: `${id}:assistant`,
+            text: persisted.responseText,
+            chatId: persisted.chatId,
+          }).catch(() => null);
+        }
         await AgentRun.update(id, {
-          status: cancelled ? "cancelled" : "failed",
+          status: cancelled ? "cancelled" : partial ? "partial" : "failed",
+          phase: "complete",
+          terminationReason: cancelled
+            ? "cancelled_by_user"
+            : timedOut
+              ? "run_time_budget_exhausted"
+              : partial
+                ? "partial_results_after_error"
+                : "runtime_error",
           error: error.message,
+          finalResponse: persisted?.responseText || null,
           completedAt: new Date(),
         }).catch(() => null);
         await AgentRunEvent.append(
           id,
-          cancelled ? "run.cancelled" : "run.failed",
+          cancelled ? "run.cancelled" : partial ? "run.partial" : "run.failed",
           {
-            status: cancelled ? "cancelled" : "failed",
+            status: cancelled ? "cancelled" : partial ? "partial" : "failed",
             error: error.message,
+            chatId: persisted?.chatId || null,
+            sources: [],
           }
         ).catch(() => null);
+        await AgentRunTask.reconcileTerminal(
+          id,
+          cancelled ? "cancelled" : partial ? "cancelled" : "failed"
+        ).catch(() => null);
+        await deleteCheckpointThread(latest?.checkpointThreadId).catch(
+          () => null
+        );
       } finally {
+        clearTimeout(timeout);
+        clearInterval(heartbeat);
         this.controllers.delete(id);
         this.scheduled.delete(id);
+        await AgentRun.releaseLease(id, this.owner).catch(() => null);
         await flushLangfuse();
       }
     });
@@ -70,10 +136,14 @@ class AgentRunSupervisor {
     this.controllers.get(id)?.abort();
     await AgentRun.update(id, {
       status: "cancelled",
+      phase: "complete",
+      terminationReason: "cancelled_by_user",
       error: "Cancelled by user.",
       completedAt: new Date(),
     });
     await AgentRunEvent.append(id, "run.cancelled", { status: "cancelled" });
+    await AgentRunTask.reconcileTerminal(id, "cancelled");
+    await deleteCheckpointThread(run.checkpointThreadId);
     return true;
   }
 }

@@ -14,6 +14,7 @@ async function invokeAgentRuntime({
   budget = null,
   depth = 0,
   maxLocalToolCalls = 50,
+  resume = null,
 }) {
   const snapshot = await createRuntimeSnapshot({
     agent,
@@ -30,7 +31,7 @@ async function invokeAgentRuntime({
     configuration: {
       ...parentRun.configuration,
       recover: false,
-      resume: null,
+      resume,
     },
     ...snapshot,
   };
@@ -50,10 +51,6 @@ async function invokeAgentRuntime({
     depth,
     maxLocalToolCalls,
   });
-  if (result.kind === "interrupt")
-    throw new Error(
-      "A delegated Agent requested interactive input; delegated runs must complete without interaction."
-    );
   return result;
 }
 

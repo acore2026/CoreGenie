@@ -1,5 +1,10 @@
 const { AgentRun } = require("../models/agentRun");
 const { AgentRunEvent } = require("../models/agentRunEvent");
+const { AgentRunTask } = require("../models/agentRunTask");
+const { AgentRunEvidence } = require("../models/agentRunEvidence");
+const { AgentRunCommand } = require("../models/agentRunCommand");
+const { normalizeExecution } = require("../models/agentToolExecution");
+const prisma = require("../utils/prisma");
 const { Workspace } = require("../models/workspace");
 const { User } = require("../models/user");
 const { reqBody, userFromSession, multiUserMode } = require("../utils/http");
@@ -48,21 +53,29 @@ async function createRun(request, response) {
   if (multiUserMode(response) && !(await User.canSendChat(user)))
     return response.status(429).json({ error: "Daily chat quota reached." });
 
-  const run = await submitAgentRun({
-    workspace,
-    thread,
-    user,
-    agentId: body?.predefinedAgentId || body?.agentId || null,
-    source: body?.source || "workspace",
-    mode: body?.mode || workspace.chatMode || "automatic",
-    prompt,
-    attachments: Array.isArray(body?.attachments) ? body.attachments : [],
-    configuration: {
-      approvalMode,
-      maxToolCalls: Math.min(Number(body?.maxToolCalls) || 500, 500),
-    },
-  });
-  return response.status(202).json({ run });
+  try {
+    const run = await submitAgentRun({
+      workspace,
+      thread,
+      user,
+      agentId: body?.predefinedAgentId || body?.agentId || null,
+      source: body?.source || "workspace",
+      mode: body?.mode || workspace.chatMode || "automatic",
+      prompt,
+      attachments: Array.isArray(body?.attachments) ? body.attachments : [],
+      configuration: {
+        approvalMode,
+        maxToolCalls: Math.min(Number(body?.maxToolCalls) || 500, 500),
+      },
+    });
+    return response.status(202).json({ run });
+  } catch (error) {
+    if (error.code === "AGENT_RUN_ACTIVE")
+      return response
+        .status(409)
+        .json({ error: error.message, run: error.run });
+    throw error;
+  }
 }
 
 function sendSSE(response, event) {
@@ -152,6 +165,32 @@ function agentRunEndpoints(app) {
     createRun
   );
   app.get("/agent-runs/:runId/events", [validatedRequest], streamEvents);
+  app.get(
+    "/agent-runs/:runId/snapshot",
+    [validatedRequest],
+    async (request, response) => {
+      const run = await authorizedRun(request, response);
+      if (!run)
+        return response.status(404).json({ error: "Agent run not found." });
+      const [tasks, evidence, toolExecutions] = await Promise.all([
+        AgentRunTask.list(run.id),
+        AgentRunEvidence.list(run.id),
+        prisma.agent_tool_executions
+          .findMany({
+            where: { run_id: run.id },
+            orderBy: { createdAt: "asc" },
+          })
+          .then((rows) => rows.map(normalizeExecution)),
+      ]);
+      return response.status(200).json({
+        run,
+        tasks,
+        evidence,
+        toolExecutions,
+        cursor: await AgentRunEvent.latestSequence(run.id),
+      });
+    }
+  );
   app.post(
     "/agent-runs/:runId/commands",
     [validatedRequest],
@@ -160,12 +199,30 @@ function agentRunEndpoints(app) {
       if (!run)
         return response.status(404).json({ error: "Agent run not found." });
       const command = reqBody(request);
-      if (command?.type === "cancel") {
+      const commandType =
+        command?.type === "cancel" ? "run.cancel" : command?.type;
+      const persistedCommand = await AgentRunCommand.create({
+        id: command?.commandId,
+        runId: run.id,
+        taskId: command?.taskId,
+        type: commandType || "unknown",
+        payload: command,
+      });
+      if (persistedCommand.status === "completed")
+        return response.status(202).json({
+          success: true,
+          commandId: persistedCommand.id,
+          duplicate: true,
+        });
+      if (commandType === "run.cancel") {
         const success = await agentRunSupervisor.cancel(run.id);
-        return response.status(success ? 202 : 409).json({ success });
+        await AgentRunCommand.complete(persistedCommand.id, { success });
+        return response
+          .status(success ? 202 : 409)
+          .json({ success, commandId: persistedCommand.id });
       }
       if (
-        command?.type === "toolApprovalResponse" &&
+        ["toolApprovalResponse", "approval.respond"].includes(commandType) &&
         run.status === "waiting_for_approval"
       ) {
         const events = await AgentRunEvent.after(run.id, 0, 10_000);
@@ -194,11 +251,12 @@ function agentRunEndpoints(app) {
           requestId: command.requestId,
           approved: Boolean(command.approved),
         });
+        await AgentRunCommand.complete(persistedCommand.id, { success: true });
         setImmediate(() => agentRunSupervisor.enqueue(run.id));
         return response.status(202).json({ success: true });
       }
       if (
-        command?.type === "clarificationResponse" &&
+        ["clarificationResponse", "input.respond"].includes(commandType) &&
         run.status === "waiting_for_input"
       ) {
         await AgentRun.update(run.id, {
@@ -216,8 +274,38 @@ function agentRunEndpoints(app) {
           requestId: command.requestId,
           skipped: Boolean(command.skipped),
         });
+        await AgentRunCommand.complete(persistedCommand.id, { success: true });
         setImmediate(() => agentRunSupervisor.enqueue(run.id));
         return response.status(202).json({ success: true });
+      }
+      if (["task.cancel", "task.skip"].includes(commandType)) {
+        const task = await AgentRunTask.get(command.taskId);
+        if (!task || task.run_id !== run.id)
+          return response.status(404).json({ error: "Agent task not found." });
+        if (
+          ["completed", "failed", "cancelled", "skipped"].includes(task.status)
+        )
+          return response
+            .status(409)
+            .json({ error: "Agent task is terminal." });
+        const status = commandType === "task.skip" ? "skipped" : "cancelled";
+        await AgentRunTask.update(task.id, {
+          status,
+          error: status === "cancelled" ? "Cancelled by user." : null,
+          resultSummary:
+            status === "cancelled" ? "Cancelled by user." : "Skipped by user.",
+          completedAt: new Date(),
+        });
+        await AgentRunEvent.append(run.id, `task.${status}`, {
+          taskId: task.id,
+          reason:
+            status === "cancelled" ? "Cancelled by user." : "Skipped by user.",
+        });
+        await AgentRunCommand.complete(persistedCommand.id, { success: true });
+        return response.status(202).json({
+          success: true,
+          commandId: persistedCommand.id,
+        });
       }
       return response
         .status(409)

@@ -10,6 +10,8 @@ class AgentToolContext {
     budget = null,
     depth = 0,
     maxLocalToolCalls = null,
+    taskId = null,
+    taskTitle = null,
   }) {
     this.run = run;
     this.workspace = workspace;
@@ -19,6 +21,8 @@ class AgentToolContext {
     this.signal = signal;
     this.approvalMode = approvalMode || "always_allow";
     this.depth = depth;
+    this.taskId = taskId;
+    this.taskTitle = taskTitle;
     this.toolCalls = 0;
     this.maxToolCalls = Math.min(
       Number(run.configuration?.maxToolCalls) || 500,
@@ -31,6 +35,7 @@ class AgentToolContext {
       actionTail: Promise.resolve(),
     };
     if (!this.budget.actionTail) this.budget.actionTail = Promise.resolve();
+    if (!this.budget.operationCounts) this.budget.operationCounts = new Map();
   }
 
   consumeToolCall() {
@@ -46,6 +51,16 @@ class AgentToolContext {
       );
     if (this.signal?.aborted) throw new Error("Agent run was cancelled.");
     return this.toolCalls;
+  }
+
+  operationCount(operationKey) {
+    return Number(this.budget.operationCounts.get(operationKey) || 0);
+  }
+
+  recordOperation(operationKey) {
+    const count = this.operationCount(operationKey) + 1;
+    this.budget.operationCounts.set(operationKey, count);
+    return count;
   }
 
   async runAction(operation) {

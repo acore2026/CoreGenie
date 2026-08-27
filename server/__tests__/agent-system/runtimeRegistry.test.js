@@ -2,28 +2,22 @@
 const {
   DEFAULT_RUNTIME_KEY,
   EVIDENCE_RESEARCH_RUNTIME_KEY,
+  LEGACY_DEFAULT_RUNTIME_KEY,
   normalizeRuntimeConfig,
   requireRuntime,
   runtimeOptions,
 } = require("../../agent-system/runtimes/registry");
 
 describe("Agent runtime registry", () => {
-  it("keeps the existing runtime as the stable default", () => {
-    expect(runtimeOptions()).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          key: DEFAULT_RUNTIME_KEY,
-          version: 1,
-          experimental: false,
-        }),
-        expect.objectContaining({
-          key: EVIDENCE_RESEARCH_RUNTIME_KEY,
-          version: 1,
-          experimental: true,
-          modelRoles: ["planner", "worker", "reviewer"],
-        }),
-      ])
-    );
+  it("exposes only the governed runtime for new Agents", () => {
+    expect(runtimeOptions()).toEqual([
+      expect.objectContaining({
+        key: DEFAULT_RUNTIME_KEY,
+        version: 1,
+        experimental: false,
+        modelRoles: ["controller", "worker", "reviewer", "vision"],
+      }),
+    ]);
   });
 
   it("validates role models and strips unknown runtime fields", () => {
@@ -46,5 +40,9 @@ describe("Agent runtime registry", () => {
       /version 999 is unavailable/
     );
     expect(() => requireRuntime("missing-runtime", 1)).toThrow(/not installed/);
+    expect(requireRuntime(LEGACY_DEFAULT_RUNTIME_KEY, 1).runtime).toBeTruthy();
+    expect(
+      requireRuntime(EVIDENCE_RESEARCH_RUNTIME_KEY, 1).runtime
+    ).toBeTruthy();
   });
 });

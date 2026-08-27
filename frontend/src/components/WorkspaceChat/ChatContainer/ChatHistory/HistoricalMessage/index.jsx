@@ -24,6 +24,7 @@ import AgentStatus from "../AgentStatus";
 import { openImageLightbox } from "@/components/ImageLightbox";
 import SubagentRun from "../SubagentRun";
 import ContextTrace from "../ContextTrace";
+import AgentExecutionRail from "../AgentExecutionRail";
 
 const HistoricalMessage = ({
   uuid: uuidProp,
@@ -45,6 +46,7 @@ const HistoricalMessage = ({
   agentTrace = [],
   subagentRuns = [],
   contextTraces = [],
+  agentRunId = null,
 }) => {
   // Freeze uuid on first render. User messages arrive without a uuid and this value
   // is used as the wrapper div's `key` — a default param fallback would regenerate
@@ -156,6 +158,7 @@ const HistoricalMessage = ({
           />
         ) : (
           <div className="break-words">
+            {agentRunId && <AgentExecutionRail runId={agentRunId} />}
             {completedAgentTrace.length > 0 && (
               <div className="mb-3">
                 <AgentStatus
@@ -245,7 +248,8 @@ export default memo(
       prevProps.clarifyingQuestions === nextProps.clarifyingQuestions &&
       prevProps.agentTrace === nextProps.agentTrace &&
       prevProps.subagentRuns === nextProps.subagentRuns &&
-      prevProps.contextTraces === nextProps.contextTraces
+      prevProps.contextTraces === nextProps.contextTraces &&
+      prevProps.agentRunId === nextProps.agentRunId
     );
   }
 );

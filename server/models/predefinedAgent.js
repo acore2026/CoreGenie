@@ -2,6 +2,7 @@ const prisma = require("../utils/prisma");
 const { safeJsonParse } = require("../utils/http");
 const { PredefinedAgentSkill } = require("./predefinedAgentSkill");
 const { SystemSettings } = require("./systemSettings");
+const { DEFAULT_RUNTIME_KEY } = require("../agent-system/runtimes/registry");
 
 function normalizeAgent(agent) {
   if (!agent) return null;
@@ -12,7 +13,7 @@ function normalizeAgent(agent) {
     ...agent,
     tools: agent.tools === null ? null : safeJsonParse(agent.tools, []),
     examplePrompts: safeJsonParse(agent.examplePrompts, []),
-    runtimeKey: agent.runtimeKey || "default-react",
+    runtimeKey: agent.runtimeKey || DEFAULT_RUNTIME_KEY,
     runtimeConfig: safeJsonParse(agent.runtimeConfig, {}),
     skillIds,
     iconUrl: agent.iconFilename
@@ -68,7 +69,7 @@ const PredefinedAgent = {
           tools: data.tools === null ? null : JSON.stringify(data.tools || []),
           skillIds: JSON.stringify(data.skillIds || []),
           systemPrompt: data.systemPrompt,
-          runtimeKey: data.runtimeKey || "default-react",
+          runtimeKey: data.runtimeKey || DEFAULT_RUNTIME_KEY,
           runtimeConfig: JSON.stringify(data.runtimeConfig || {}),
           enabled: data.enabled !== false,
         },

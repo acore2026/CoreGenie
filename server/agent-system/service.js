@@ -35,6 +35,19 @@ async function submitAgentRun({
 }) {
   if (!workspace?.id) throw new Error("A workspace is required.");
   if (!String(prompt || "").trim()) throw new Error("A prompt is required.");
+  const active = await AgentRun.activeForConversation({
+    workspaceId: workspace.id,
+    threadId: thread?.id || null,
+    userId: user?.id || null,
+  });
+  if (active) {
+    const error = new Error(
+      "This conversation already has an active Agent run."
+    );
+    error.code = "AGENT_RUN_ACTIVE";
+    error.run = active;
+    throw error;
+  }
   const approvalMode =
     configuration.approvalMode ||
     (source === "workspace"
@@ -61,6 +74,15 @@ async function submitAgentRun({
       ...configuration,
       approvalMode,
       maxToolCalls: Math.min(Number(configuration.maxToolCalls) || 500, 500),
+    },
+    policySnapshot: {
+      approvalMode,
+      maxToolCalls: Math.min(Number(configuration.maxToolCalls) || 500, 500),
+      maxTasks: 12,
+      maxConcurrency: 3,
+      maxReviewRounds: 2,
+      maxTaskToolCalls: 40,
+      maxTaskModelCalls: 30,
     },
     ...snapshot,
   });
@@ -109,7 +131,7 @@ async function runAgentToCompletion(options, followOptions = {}) {
       if (followOptions.onEvent) await followOptions.onEvent(event);
     },
   });
-  if (terminal.status !== "completed") {
+  if (!["completed", "partial"].includes(terminal.status)) {
     if (["waiting_for_input", "waiting_for_approval"].includes(terminal.status))
       throw new Error(
         "This request requires interactive input and cannot finish in this channel."
@@ -117,7 +139,7 @@ async function runAgentToCompletion(options, followOptions = {}) {
     throw new Error(terminal.error || `Agent run ${terminal.status}.`);
   }
   const completed = events
-    .filter((event) => event.type === "run.completed")
+    .filter((event) => ["run.completed", "run.partial"].includes(event.type))
     .at(-1);
   return {
     run: terminal,

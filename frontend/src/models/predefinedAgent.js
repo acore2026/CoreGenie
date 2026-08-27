@@ -65,6 +65,11 @@ const PredefinedAgent = {
     jsonRequest(`${API_BASE}/admin/predefined-agent-skills/${id}`, {
       method: "DELETE",
     }),
+  saveModelCapability: async (payload) =>
+    jsonRequest(`${API_BASE}/admin/model-capabilities`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    }),
 };
 
 export default PredefinedAgent;

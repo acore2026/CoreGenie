@@ -240,10 +240,18 @@ model agent_runs {
   prompt             String
   attachments        String                  @default("[]")
   configuration      String                  @default("{}")
-  runtimeKey         String                  @default("default-react")
+  runtimeKey         String                  @default("governed-agent")
   runtimeVersion     Int                     @default(1)
   runtimeSnapshot    String                  @default("{}")
   checkpointThreadId String                  @unique
+  parent_run_id      String?
+  phase              String                  @default("queued")
+  terminationReason  String?
+  leaseOwner         String?
+  leaseExpiresAt     DateTime?
+  heartbeatAt        DateTime?
+  nextEventSequence  Int                     @default(0)
+  policySnapshot     String                  @default("{}")
   finalResponse      String?
   error              String?
   startedAt          DateTime?
@@ -252,10 +260,16 @@ model agent_runs {
   lastUpdatedAt      DateTime                @default(now())
   events             agent_run_events[]
   toolExecutions     agent_tool_executions[]
+  tasks              agent_run_tasks[]
+  evidence           agent_run_evidence[]
+  artifacts          agent_run_artifacts[]
+  commands           agent_run_commands[]
 
   @@index([workspace_id, thread_id, user_id, status])
   @@index([createdAt])
   @@index([runtimeKey, runtimeVersion])
+  @@index([status, leaseExpiresAt])
+  @@index([parent_run_id])
 }
 
 /// Append-only, replayable SSE event log. `sequence` is monotonically
@@ -276,24 +290,136 @@ model agent_run_events {
 
 /// Auditable tool lifecycle separate from the human-readable event stream.
 model agent_tool_executions {
-  id            String     @id
-  run_id        String
-  call_id       String
-  parent_id     String?
-  tool_id       String
-  agent_id      Int?
-  status        String     @default("requested")
-  arguments     String     @default("{}")
-  result        String?
-  error         String?
-  startedAt     DateTime?
-  completedAt   DateTime?
-  createdAt     DateTime   @default(now())
-  lastUpdatedAt DateTime   @default(now())
-  run           agent_runs @relation(fields: [run_id], references: [id], onDelete: Cascade)
+  id             String     @id
+  run_id         String
+  call_id        String
+  parent_id      String?
+  task_id        String?
+  tool_id        String
+  agent_id       Int?
+  status         String     @default("requested")
+  operation_key  String?
+  attempt        Int        @default(1)
+  outcome_code   String?
+  retryable      Boolean    @default(false)
+  result_summary String?
+  artifact_ids   String     @default("[]")
+  arguments      String     @default("{}")
+  result         String?
+  error          String?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime   @default(now())
+  lastUpdatedAt  DateTime   @default(now())
+  run            agent_runs @relation(fields: [run_id], references: [id], onDelete: Cascade)
 
   @@unique([run_id, call_id])
   @@index([run_id, status])
+  @@index([run_id, task_id])
+  @@index([run_id, operation_key])
+}
+
+/// Durable, dependency-aware units of work rendered by the inline execution rail.
+model agent_run_tasks {
+  id                         String     @id
+  run_id                     String
+  parent_task_id             String?
+  title                      String
+  objective                  String
+  agent_id                   Int?
+  dependsOn                  String     @default("[]")
+  allowedToolIds             String     @default("[]")
+  requiredCapabilities       String     @default("[]")
+  successCriteria            String     @default("[]")
+  acceptsPartialDependencies Boolean    @default(false)
+  writeIntent                Boolean    @default(false)
+  status                     String     @default("pending")
+  attempt                    Int        @default(1)
+  maxAttempts                Int        @default(2)
+  progress                   String?
+  resultSummary              String?
+  error                      String?
+  budget                     String     @default("{}")
+  startedAt                  DateTime?
+  completedAt                DateTime?
+  createdAt                  DateTime   @default(now())
+  lastUpdatedAt              DateTime   @default(now())
+  run                        agent_runs @relation(fields: [run_id], references: [id], onDelete: Cascade)
+
+  @@index([run_id, status])
+  @@index([run_id, parent_task_id])
+}
+
+/// Evidence is kept independently from graph checkpoints so citations survive compaction.
+model agent_run_evidence {
+  id                String     @id
+  run_id            String
+  task_id           String?
+  tool_execution_id String?
+  kind              String
+  title             String
+  uri               String?
+  excerpt           String
+  metadata          String     @default("{}")
+  usedInFinal       Boolean    @default(false)
+  createdAt         DateTime   @default(now())
+  run               agent_runs @relation(fields: [run_id], references: [id], onDelete: Cascade)
+
+  @@index([run_id, task_id])
+  @@index([run_id, usedInFinal])
+}
+
+/// Oversized tool and attachment outputs referenced by compact graph state.
+model agent_run_artifacts {
+  id          String     @id
+  run_id      String
+  task_id     String?
+  kind        String
+  title       String
+  mimeType    String?
+  storagePath String?
+  content     String?
+  metadata    String     @default("{}")
+  byteSize    Int        @default(0)
+  createdAt   DateTime   @default(now())
+  run         agent_runs @relation(fields: [run_id], references: [id], onDelete: Cascade)
+
+  @@index([run_id, task_id])
+}
+
+/// Idempotent external commands for runs and individual tasks.
+model agent_run_commands {
+  id          String     @id
+  run_id      String
+  task_id     String?
+  type        String
+  payload     String     @default("{}")
+  status      String     @default("pending")
+  result      String?
+  createdAt   DateTime   @default(now())
+  completedAt DateTime?
+  run         agent_runs @relation(fields: [run_id], references: [id], onDelete: Cascade)
+
+  @@index([run_id, status])
+}
+
+/// Explicit model capability registry. Custom models are never guessed at runtime.
+model model_capabilities {
+  id                Int      @id @default(autoincrement())
+  provider          String
+  model             String
+  vision            Boolean  @default(false)
+  toolCalling       Boolean  @default(false)
+  structuredOutput  Boolean  @default(false)
+  reasoningControls Boolean  @default(false)
+  contextWindow     Int?
+  source            String   @default("admin")
+  updatedBy         Int?
+  createdAt         DateTime @default(now())
+  lastUpdatedAt     DateTime @default(now())
+
+  @@unique([provider, model])
+  @@index([provider])
 }
 
 model predefined_agent_skills {
@@ -315,7 +441,7 @@ model predefined_agents {
   tools            String? // JSON array of executable tool identifiers. Null means all currently enabled tools.
   skillIds         String   @default("[]") // JSON array of predefined_agent_skills IDs.
   systemPrompt     String
-  runtimeKey       String   @default("default-react")
+  runtimeKey       String   @default("governed-agent")
   runtimeConfig    String   @default("{}")
   isBuiltinDefault Boolean  @default(false)
   enabled          Boolean  @default(true)

@@ -13,13 +13,12 @@ const {
 const { handleAgentIconUpload } = require("../utils/files/multer");
 const { normalizePath, isWithin } = require("../utils/files");
 const { toolRegistry } = require("../tools");
-const { AgentFlows } = require("../utils/agentFlows");
 const MCPCompatibilityLayer = require("../utils/MCP");
+const { ModelCapability } = require("../models/modelCapability");
 const {
   DEFAULT_RUNTIME_KEY,
   normalizeRuntimeConfig,
   runtimeOptions,
-  runtimeRegistry,
 } = require("../agent-system/runtimes/registry");
 
 const EDIT_ROLES = [ROLES.admin];
@@ -73,9 +72,7 @@ function validateAgentPayload(body) {
   });
   if (!name) return { error: "Agent name is required." };
   if (!systemPrompt) return { error: "Agent system prompt is required." };
-  const runtimeKey = cleanText(body.runtimeKey, 80) || DEFAULT_RUNTIME_KEY;
-  if (!runtimeRegistry.get(runtimeKey))
-    return { error: `Unknown Agent runtime "${runtimeKey}".` };
+  const runtimeKey = DEFAULT_RUNTIME_KEY;
   let runtimeConfig;
   try {
     runtimeConfig = normalizeRuntimeConfig(runtimeKey, body.runtimeConfig);
@@ -150,7 +147,6 @@ function hasValidImageSignature(file) {
 
 function labelForTool(identifier) {
   return String(identifier)
-    .replace(/^@@flow_/, "Flow · ")
     .replace(/^@@mcp_/, "MCP · ")
     .replace(/^@@/, "Custom · ")
     .replace(/#/g, " · ")
@@ -161,7 +157,6 @@ function labelForTool(identifier) {
 async function activeToolOptions() {
   const values = [
     ...toolRegistry.list().map((tool) => tool.id),
-    ...AgentFlows.activeFlowPlugins(),
     ...(await new MCPCompatibilityLayer().activeMCPServers()),
   ];
   const identifiers = values
@@ -217,19 +212,51 @@ function predefinedAgentEndpoints(app) {
     "/admin/predefined-agents",
     [validatedRequest, flexUserRoleValid(EDIT_ROLES)],
     async (_request, response) => {
-      const [agents, skills, tools, defaultAgentId] = await Promise.all([
-        PredefinedAgent.all(),
-        PredefinedAgentSkill.all(),
-        activeToolOptions(),
-        PredefinedAgent.defaultId(),
-      ]);
+      await ModelCapability.seedBuiltins();
+      const [agents, skills, tools, defaultAgentId, modelCapabilities] =
+        await Promise.all([
+          PredefinedAgent.all(),
+          PredefinedAgentSkill.all(),
+          activeToolOptions(),
+          PredefinedAgent.defaultId(),
+          ModelCapability.list(),
+        ]);
       return response.status(200).json({
         agents,
         skills,
         tools,
         runtimes: runtimeOptions(),
         defaultAgentId,
+        modelCapabilities,
       });
+    }
+  );
+
+  app.get(
+    "/admin/model-capabilities",
+    [validatedRequest, flexUserRoleValid(EDIT_ROLES)],
+    async (_request, response) => {
+      await ModelCapability.seedBuiltins();
+      return response.status(200).json({
+        modelCapabilities: await ModelCapability.list(),
+      });
+    }
+  );
+
+  app.put(
+    "/admin/model-capabilities",
+    [validatedRequest, flexUserRoleValid(EDIT_ROLES)],
+    async (request, response) => {
+      const body = reqBody(request);
+      if (!cleanText(body.provider, 120) || !cleanText(body.model, 300))
+        return response
+          .status(400)
+          .json({ success: false, error: "Provider and model are required." });
+      const capability = await ModelCapability.upsert(
+        body,
+        response.locals?.user?.id
+      );
+      return response.status(200).json({ success: true, capability });
     }
   );
 

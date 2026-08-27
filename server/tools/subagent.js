@@ -1,5 +1,6 @@
 const { z } = require("zod");
 const { v4: uuidv4 } = require("uuid");
+const { interrupt } = require("@langchain/langgraph");
 const { defineTool, toLangChainTool } = require("./descriptor");
 const { resolveAgent } = require("../resources/agents");
 const { childRunnableConfig } = require("../agent-system/observability");
@@ -31,7 +32,7 @@ function createSubagentTool(context, availableAgents = []) {
       const child = await resolveAgent(agent_id);
       if (!child) throw new Error("Requested Agent is disabled or missing.");
 
-      const childRunId = uuidv4();
+      const childRunId = runnableConfig?.toolCall?.id || uuidv4();
       await context.emit("subagent.started", {
         childRunId,
         parentRunId: context.run.id,
@@ -40,7 +41,7 @@ function createSubagentTool(context, availableAgents = []) {
         agent: { id: child.id, name: child.name },
       });
       try {
-        const result = await invokeAgentRuntime({
+        const invocation = {
           parentRun: context.run,
           workspace: context.workspace,
           user: context.user,
@@ -59,7 +60,24 @@ function createSubagentTool(context, availableAgents = []) {
               subagentDepth: String(context.depth + 1),
             },
           }),
-        });
+        };
+        let result = await invokeAgentRuntime(invocation);
+        if (result.kind === "interrupt") {
+          const response = interrupt({
+            ...result.interrupt,
+            parentTaskId: context.taskId,
+            childRunId,
+            agent: { id: child.id, name: child.name },
+          });
+          result = await invokeAgentRuntime({
+            ...invocation,
+            resume: response,
+          });
+        }
+        if (result.kind === "interrupt")
+          throw new Error(
+            "The delegated Agent requested input more than once."
+          );
         const response = result.text;
         await context.emit("subagent.completed", {
           childRunId,

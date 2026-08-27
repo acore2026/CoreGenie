@@ -33,9 +33,19 @@ function getCustomCheckpointer() {
   return customCheckpointer;
 }
 
+async function deleteCheckpointThread(threadId) {
+  if (!threadId) return;
+  const savers = [getCheckpointer()];
+  if (customCheckpointer) savers.push(customCheckpointer);
+  await Promise.allSettled(
+    savers.map((saver) => saver.deleteThread(String(threadId)))
+  );
+}
+
 module.exports = {
   checkpointPath,
   customCheckpointPath,
   getCheckpointer,
   getCustomCheckpointer,
+  deleteCheckpointThread,
 };

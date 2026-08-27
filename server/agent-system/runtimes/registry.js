@@ -1,28 +1,45 @@
 const { z } = require("zod");
 const { ResourceRegistry } = require("../../resources/registry");
 
-const DEFAULT_RUNTIME_KEY = "default-react";
+const DEFAULT_RUNTIME_KEY = "governed-agent";
+const LEGACY_DEFAULT_RUNTIME_KEY = "default-react";
 const EVIDENCE_RESEARCH_RUNTIME_KEY = "evidence-research";
 
 const roleModelSchema = z
   .object({
     plannerModel: z.string().trim().min(1).nullable().optional(),
+    controllerModel: z.string().trim().min(1).nullable().optional(),
     workerModel: z.string().trim().min(1).nullable().optional(),
     reviewerModel: z.string().trim().min(1).nullable().optional(),
+    visionModel: z.string().trim().min(1).nullable().optional(),
   })
   .strip();
 
 const runtimeRegistry = new ResourceRegistry("Agent runtime");
 
 runtimeRegistry.register({
-  id: DEFAULT_RUNTIME_KEY,
+  id: LEGACY_DEFAULT_RUNTIME_KEY,
   version: 1,
-  label: "Default Agent",
+  label: "Legacy Default Agent",
   description: "General-purpose ReAct Agent using the existing runtime.",
   experimental: false,
+  hidden: true,
   modelRoles: [],
   configSchema: z.object({}).strip(),
   load: () => require("./default"),
+});
+
+runtimeRegistry.register({
+  id: DEFAULT_RUNTIME_KEY,
+  version: 1,
+  label: "Governed Agent",
+  description:
+    "Adaptive controller, dependency-aware workers, review, and durable partial results.",
+  experimental: false,
+  hidden: false,
+  modelRoles: ["controller", "worker", "reviewer", "vision"],
+  configSchema: roleModelSchema,
+  load: () => require("./governed"),
 });
 
 runtimeRegistry.register({
@@ -32,6 +49,7 @@ runtimeRegistry.register({
   description:
     "Plans research, gathers evidence in parallel, reviews gaps, and writes a cited answer.",
   experimental: true,
+  hidden: true,
   modelRoles: ["planner", "worker", "reviewer"],
   configSchema: roleModelSchema,
   load: () => require("./evidenceResearch"),
@@ -66,18 +84,22 @@ function normalizeRuntimeConfig(key, value = {}) {
 }
 
 function runtimeOptions() {
-  return runtimeRegistry.list().map((runtime) => ({
-    key: runtime.id,
-    version: runtime.version,
-    label: runtime.label,
-    description: runtime.description,
-    experimental: runtime.experimental,
-    modelRoles: runtime.modelRoles,
-  }));
+  return runtimeRegistry
+    .list()
+    .filter((runtime) => !runtime.hidden)
+    .map((runtime) => ({
+      key: runtime.id,
+      version: runtime.version,
+      label: runtime.label,
+      description: runtime.description,
+      experimental: runtime.experimental,
+      modelRoles: runtime.modelRoles,
+    }));
 }
 
 module.exports = {
   DEFAULT_RUNTIME_KEY,
+  LEGACY_DEFAULT_RUNTIME_KEY,
   EVIDENCE_RESEARCH_RUNTIME_KEY,
   normalizeRuntimeConfig,
   requireRuntime,

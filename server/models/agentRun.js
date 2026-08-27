@@ -2,7 +2,12 @@ const prisma = require("../utils/prisma");
 const { v4: uuidv4 } = require("uuid");
 const { safeJsonParse } = require("../utils/http");
 
-const TERMINAL_STATUSES = new Set(["completed", "failed", "cancelled"]);
+const TERMINAL_STATUSES = new Set([
+  "completed",
+  "partial",
+  "failed",
+  "cancelled",
+]);
 
 function normalizeRun(run) {
   if (!run) return null;
@@ -10,9 +15,10 @@ function normalizeRun(run) {
     ...run,
     attachments: safeJsonParse(run.attachments, []),
     configuration: safeJsonParse(run.configuration, {}),
-    runtimeKey: run.runtimeKey || "default-react",
+    runtimeKey: run.runtimeKey || "governed-agent",
     runtimeVersion: Number(run.runtimeVersion) || 1,
     runtimeSnapshot: safeJsonParse(run.runtimeSnapshot, {}),
+    policySnapshot: safeJsonParse(run.policySnapshot, {}),
   };
 }
 
@@ -32,6 +38,8 @@ const AgentRun = {
     runtimeKey = "default-react",
     runtimeVersion = 1,
     runtimeSnapshot = {},
+    parentRunId = null,
+    policySnapshot = {},
   }) {
     const id = uuidv4();
     const run = await prisma.agent_runs.create({
@@ -49,10 +57,12 @@ const AgentRun = {
         runtimeKey,
         runtimeVersion: Number(runtimeVersion) || 1,
         runtimeSnapshot: JSON.stringify(runtimeSnapshot || {}),
+        parent_run_id: parentRunId ? String(parentRunId) : null,
+        policySnapshot: JSON.stringify(policySnapshot || {}),
         checkpointThreadId:
-          runtimeKey === "default-react"
-            ? `agent-run:${id}`
-            : `custom:${Number(runtimeVersion) || 1}:${id}`,
+          runtimeKey === "evidence-research"
+            ? `custom:${Number(runtimeVersion) || 1}:${id}`
+            : `agent-run:${id}`,
       },
     });
     return normalizeRun(run);
@@ -72,6 +82,8 @@ const AgentRun = {
       updates.configuration = JSON.stringify(updates.configuration || {});
     if (Object.hasOwn(updates, "runtimeSnapshot"))
       updates.runtimeSnapshot = JSON.stringify(updates.runtimeSnapshot || {});
+    if (Object.hasOwn(updates, "policySnapshot"))
+      updates.policySnapshot = JSON.stringify(updates.policySnapshot || {});
     return normalizeRun(
       await prisma.agent_runs.update({
         where: { id: String(id) },
@@ -103,6 +115,67 @@ const AgentRun = {
   queued: async function (take = 20) {
     const rows = await prisma.agent_runs.findMany({
       where: { status: "queued" },
+      orderBy: { createdAt: "asc" },
+      take,
+    });
+    return rows.map(normalizeRun);
+  },
+
+  claim: async function (id, owner, leaseMs = 30_000) {
+    const now = new Date();
+    const leaseExpiresAt = new Date(now.getTime() + leaseMs);
+    const claimed = await prisma.agent_runs.updateMany({
+      where: {
+        id: String(id),
+        status: { in: ["queued", "running"] },
+        OR: [
+          { leaseOwner: null },
+          { leaseOwner: String(owner) },
+          { leaseExpiresAt: { lt: now } },
+        ],
+      },
+      data: {
+        leaseOwner: String(owner),
+        leaseExpiresAt,
+        heartbeatAt: now,
+      },
+    });
+    if (!claimed.count) return null;
+    return this.get(id);
+  },
+
+  heartbeat: async function (id, owner, leaseMs = 30_000) {
+    const now = new Date();
+    const updated = await prisma.agent_runs.updateMany({
+      where: { id: String(id), leaseOwner: String(owner) },
+      data: {
+        heartbeatAt: now,
+        leaseExpiresAt: new Date(now.getTime() + leaseMs),
+      },
+    });
+    return updated.count === 1;
+  },
+
+  releaseLease: async function (id, owner = null) {
+    await prisma.agent_runs.updateMany({
+      where: {
+        id: String(id),
+        ...(owner ? { leaseOwner: String(owner) } : {}),
+      },
+      data: { leaseOwner: null, leaseExpiresAt: null, heartbeatAt: null },
+    });
+  },
+
+  reclaimable: async function (take = 100) {
+    const now = new Date();
+    const rows = await prisma.agent_runs.findMany({
+      where: {
+        OR: [
+          { status: "queued" },
+          { status: "running", leaseExpiresAt: { lt: now } },
+          { status: "running", leaseExpiresAt: null },
+        ],
+      },
       orderBy: { createdAt: "asc" },
       take,
     });

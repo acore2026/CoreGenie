@@ -2,6 +2,7 @@
 const {
   compactIdentifier,
   estimateTokenUsage,
+  ensureLangfuseResponseModel,
   hasReportedTokenUsage,
   langfuseConfiguration,
   maskTraceData,
@@ -10,6 +11,7 @@ const {
   shouldExportLangfuseSpan,
   subagentObservationName,
   traceAttributes,
+  withLangfuseModel,
 } = require("../../agent-system/observability");
 
 describe("Langfuse Agent observability", () => {
@@ -126,6 +128,34 @@ describe("Langfuse Agent observability", () => {
     });
   });
 
+  it("promotes custom-provider model metadata to the first-class model field", () => {
+    expect(
+      withLangfuseModel(undefined, { ls_model_name: "glm-5.2" })
+    ).toEqual({ invocation_params: { model: "glm-5.2" } });
+    expect(
+      withLangfuseModel(undefined, undefined, {
+        kwargs: { model: "serialized-model" },
+      })
+    ).toEqual({ invocation_params: { model: "serialized-model" } });
+    expect(withLangfuseModel(undefined, undefined, null, "fallback-model"))
+      .toEqual({ invocation_params: { model: "fallback-model" } });
+    expect(
+      withLangfuseModel(
+        { invocation_params: { model: "configured-model", temperature: 0 } },
+        { ls_model_name: "metadata-model" }
+      )
+    ).toEqual({
+      invocation_params: { model: "configured-model", temperature: 0 },
+    });
+    const output = {
+      generations: [[{ message: { response_metadata: {} } }]],
+    };
+    expect(ensureLangfuseResponseModel(output, "glm-5.2")).toBe(output);
+    expect(output.generations[0][0].message.response_metadata.model_name).toBe(
+      "glm-5.2"
+    );
+  });
+
   it("uses a stable, distinct Agent observation name for subagent dispatch", () => {
     expect(subagentObservationName('{"agent_id":42,"task":"research"}')).toBe(
       "subagent-42"
@@ -137,7 +167,7 @@ describe("Langfuse Agent observability", () => {
     const defaultFilter = jest.fn(() => true);
     expect(
       shouldExportLangfuseSpan(
-        { name: "ToolCallLimitMiddleware.after_model" },
+        { name: "ModelCallLimitMiddleware.before_model" },
         defaultFilter
       )
     ).toBe(false);

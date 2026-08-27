@@ -120,14 +120,20 @@ export class AgentSSETransport extends EventTarget {
 function legacyEventFromAgentRun(event) {
   if (!event?.runId || !event?.type || !event?.payload) return event;
   const { runId, type, payload } = event;
-  if (type === "activity.updated")
+  if (
+    type === "activity.updated" ||
+    type.startsWith("plan.") ||
+    type.startsWith("task.") ||
+    type.startsWith("tool.") ||
+    type.startsWith("context.") ||
+    type.startsWith("subagent.") ||
+    type.startsWith("run.")
+  )
     return {
-      type: "agentStatus",
+      type: "agentRunEvent",
       content: {
-        uuid: `${runId}:status`,
-        summary: payload.summary,
-        phase: payload.phase,
-        active: payload.phase !== "complete",
+        runId,
+        event: { id: event.id, type, payload, createdAt: event.createdAt },
       },
     };
   if (type === "message.delta")
@@ -146,58 +152,6 @@ function legacyEventFromAgentRun(event) {
         type: "chatId",
         uuid: payload.messageId,
         chatId: payload.chatId,
-      },
-    };
-  if (type === "context.memory.recalled")
-    return {
-      type: "reportStreamEvent",
-      content: {
-        type: "contextTrace",
-        uuid: `${runId}:memory:${event.id}`,
-        trace: {
-          id: `${runId}:memory:${event.id}`,
-          kind: "memory",
-          title: `Recalled ${payload.count} memories`,
-          details: payload.memories,
-        },
-      },
-    };
-  if (type === "context.rag.recalled")
-    return {
-      type: "reportStreamEvent",
-      content: {
-        type: "contextTrace",
-        uuid: `${runId}:rag:${event.id}`,
-        trace: {
-          id: `${runId}:rag:${event.id}`,
-          kind: "rag",
-          title: `Used ${payload.count} knowledge sources`,
-          details: payload.sources,
-        },
-      },
-    };
-  if (
-    ["subagent.started", "subagent.completed", "subagent.failed"].includes(type)
-  )
-    return {
-      type: "reportStreamEvent",
-      content: {
-        type: "subagentEvent",
-        uuid: `${runId}:subagent:${payload.childRunId}`,
-        run: {
-          id: payload.childRunId,
-          task: payload.task,
-          agent: payload.agent,
-          depth: payload.depth,
-          response: payload.response,
-          error: payload.error,
-          status:
-            type === "subagent.started"
-              ? "running"
-              : type === "subagent.completed"
-                ? "completed"
-                : "failed",
-        },
       },
     };
   if (type === "approval.requested") {
@@ -221,14 +175,129 @@ function legacyEventFromAgentRun(event) {
     };
   if (type === "thread.renamed")
     return { type: "rename_thread", content: payload };
-  if (type === "run.failed")
-    return {
-      type: "wssFailure",
-      content: payload.error || "Agent run failed.",
-    };
-  if (type === "run.cancelled")
-    return { type: "wssFailure", content: "Agent run cancelled." };
   return null;
+}
+
+function reduceAgentRunState(state, event) {
+  const next = {
+    runId: state?.runId,
+    status: state?.status || "queued",
+    phase: state?.phase || "queued",
+    summary: state?.summary || "Preparing the request",
+    agent: state?.agent || null,
+    startedAt: state?.startedAt || event.createdAt,
+    completedAt: state?.completedAt || null,
+    tasks: [...(state?.tasks || [])],
+    evidence: [...(state?.evidence || [])],
+    toolExecutions: [...(state?.toolExecutions || [])],
+  };
+  const { type, payload = {} } = event;
+  if (type === "activity.updated") {
+    next.phase = payload.phase || next.phase;
+    next.summary = payload.summary || next.summary;
+  }
+  if (type === "run.started") {
+    next.status = "running";
+    next.phase = "running";
+    next.agent = payload.agent || next.agent;
+    next.startedAt = event.createdAt;
+  }
+  if (
+    ["run.completed", "run.partial", "run.failed", "run.cancelled"].includes(
+      type
+    )
+  ) {
+    next.status = type.slice("run.".length);
+    next.phase = "complete";
+    next.completedAt = event.createdAt;
+    next.summary =
+      type === "run.partial"
+        ? "Finished with partial results"
+        : type === "run.failed"
+          ? payload.error || "Agent work failed"
+          : type === "run.cancelled"
+            ? "Agent work cancelled"
+            : "Agent work complete";
+  }
+  if (
+    ["plan.created", "plan.updated"].includes(type) &&
+    Array.isArray(payload.tasks)
+  ) {
+    const previous = new Map(next.tasks.map((task) => [task.id, task]));
+    next.tasks = payload.tasks.map((task) => ({
+      ...previous.get(task.id),
+      ...task,
+      status: previous.get(task.id)?.status || task.status || "pending",
+    }));
+  }
+  if (type === "task.created" && payload.task) {
+    const index = next.tasks.findIndex((task) => task.id === payload.task.id);
+    const task = { status: "pending", ...payload.task };
+    if (index >= 0) next.tasks[index] = { ...next.tasks[index], ...task };
+    else next.tasks.push(task);
+  }
+  if (type.startsWith("task.") && payload.taskId) {
+    const index = next.tasks.findIndex((task) => task.id === payload.taskId);
+    const existing = index >= 0 ? next.tasks[index] : { id: payload.taskId };
+    const status =
+      type === "task.started"
+        ? "running"
+        : type === "task.progress"
+          ? existing.status || "running"
+          : type.slice("task.".length);
+    const updated = {
+      ...existing,
+      ...(payload.result || {}),
+      status,
+      agent: payload.agent || payload.result?.agent || existing.agent,
+      progress: type === "task.progress" ? payload.summary : existing.progress,
+      error: payload.error || existing.error,
+      attempt: payload.attempt || existing.attempt,
+    };
+    if (index >= 0) next.tasks[index] = updated;
+    else next.tasks.push(updated);
+    if (type === "task.progress")
+      next.summary = payload.summary || next.summary;
+  }
+  if (type.startsWith("tool.") && payload.callId) {
+    const index = next.toolExecutions.findIndex(
+      (item) => item.call_id === payload.callId
+    );
+    const execution = {
+      ...(index >= 0 ? next.toolExecutions[index] : {}),
+      call_id: payload.callId,
+      task_id: payload.taskId,
+      tool_id: payload.toolId,
+      status: type.slice("tool.".length),
+      result_summary: payload.summary,
+      error: payload.error,
+    };
+    if (index >= 0) next.toolExecutions[index] = execution;
+    else next.toolExecutions.push(execution);
+  }
+  if (type === "context.used" && Array.isArray(payload.items)) {
+    for (const item of payload.items) {
+      if (!next.evidence.some((existing) => existing.id === item.id))
+        next.evidence.push({ ...item, task_id: payload.taskId || null });
+    }
+  }
+  if (type.startsWith("subagent.") && payload.childRunId) {
+    const id = `subagent:${payload.childRunId}`;
+    const index = next.tasks.findIndex((task) => task.id === id);
+    const task = {
+      ...(index >= 0 ? next.tasks[index] : {}),
+      id,
+      title: payload.task || payload.agent?.name || "Delegated Agent task",
+      objective: payload.task,
+      agent: payload.agent,
+      status: type.slice("subagent.".length),
+      resultSummary: payload.response,
+      error: payload.error,
+    };
+    if (index >= 0) next.tasks[index] = task;
+    else next.tasks.push(task);
+  }
+  return next;
 }
 
 export function createAgentSSETransport(uuid) {
@@ -240,6 +309,51 @@ export default function handleSocketResponse(socket, event, setChatHistory) {
   if (data === null) return;
   data = legacyEventFromAgentRun(data);
   if (data === null) return;
+
+  if (data.type === "agentRunEvent") {
+    const { runId, event: runEvent } = data.content || {};
+    if (!runId || !runEvent) return;
+    return setChatHistory((prev) => {
+      const uuid = `${runId}:execution`;
+      const index = prev.findIndex((message) => message.uuid === uuid);
+      const current = index >= 0 ? prev[index].agentRunState : { runId };
+      const agentRunState = reduceAgentRunState(current, runEvent);
+      const message = {
+        uuid,
+        type: "agentExecution",
+        content: agentRunState.summary,
+        agentRunId: runId,
+        agentRunState,
+        role: "assistant",
+        closed: ["completed", "partial", "failed", "cancelled"].includes(
+          agentRunState.status
+        ),
+        animate: false,
+        pending: !["completed", "partial", "failed", "cancelled"].includes(
+          agentRunState.status
+        ),
+        sources: [],
+        metrics: {},
+      };
+      const next =
+        index >= 0
+          ? prev.map((entry, entryIndex) =>
+              entryIndex === index ? message : entry
+            )
+          : [...prev.filter((entry) => !!entry.content), message];
+      if (
+        ["run.completed", "run.partial"].includes(runEvent.type) &&
+        runEvent.payload?.sources?.length
+      ) {
+        return next.map((entry) =>
+          entry.uuid === `${runId}:assistant`
+            ? { ...entry, sources: runEvent.payload.sources }
+            : entry
+        );
+      }
+      return next;
+    });
+  }
 
   // A server-owned lifecycle status is updated in place so there is always one
   // concise line describing the active operation. Detailed statusResponse
@@ -711,7 +825,7 @@ export function setAgentSessionSocket(socket) {
 /**
  * Toggle a tool/skill on or off for the active agent session over the websocket.
  * No-op when there is no open agent session.
- * @param {string} skill - Skill key, `@@flow_<uuid>`, MCP `<server>-<tool>`, hubId, or sub-skill name.
+ * @param {string} skill - Skill key, MCP `<server>-<tool>`, hubId, or sub-skill name.
  * @param {boolean} enabled - Whether the tool should be enabled.
  * @param {string|null} [serverName] - MCP server name; required to enable an MCP tool mid-session.
  */

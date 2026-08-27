@@ -173,54 +173,6 @@ const router = createBrowserRouter([
         },
       },
       {
-        path: "/settings/agents/flows",
-        lazy: async () => {
-          const { default: AgentBuilder } = await import(
-            "@/pages/Admin/AgentBuilder"
-          );
-          return {
-            element: <AdminRoute Component={AgentBuilder} hideUserMenu />,
-          };
-        },
-      },
-      {
-        path: "/settings/agents/flows/:flowId",
-        lazy: async () => {
-          const { default: AgentBuilder } = await import(
-            "@/pages/Admin/AgentBuilder"
-          );
-          return {
-            element: <AdminRoute Component={AgentBuilder} hideUserMenu />,
-          };
-        },
-      },
-      {
-        path: "/settings/agents/builder",
-        lazy: async () => {
-          const { default: AgentBuilder } = await import(
-            "@/pages/Admin/AgentBuilder"
-          );
-          return {
-            element: (
-              <AdminRoute Component={AgentBuilder} hideUserMenu={true} />
-            ),
-          };
-        },
-      },
-      {
-        path: "/settings/agents/builder/:flowId",
-        lazy: async () => {
-          const { default: AgentBuilder } = await import(
-            "@/pages/Admin/AgentBuilder"
-          );
-          return {
-            element: (
-              <AdminRoute Component={AgentBuilder} hideUserMenu={true} />
-            ),
-          };
-        },
-      },
-      {
         path: "/settings/event-logs",
         lazy: async () => {
           const { default: AdminLogs } = await import("@/pages/Admin/Logging");

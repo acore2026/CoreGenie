@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from "react";
 import Admin from "@/models/admin";
 import System from "@/models/system";
 import AgentPlugins from "@/models/experimental/agentPlugins";
-import AgentFlows from "@/models/agentFlows";
 import MCPServers from "@/models/mcpServers";
 import { getSubSkillPreferenceKeys } from "./skillRegistry";
 import useSubSkillPreferences from "./useSubSkillPreferences";
@@ -21,7 +20,6 @@ export default function useAgentSkillsState(defaultSkills) {
   const [disabledDefaults, setDisabledDefaults] = useState([]);
   const [enabledConfigurable, setEnabledConfigurable] = useState([]);
   const [importedSkills, setImportedSkills] = useState([]);
-  const [flows, setFlows] = useState([]);
   const [mcpServers, setMcpServers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [mcpLoading, setMcpLoading] = useState(true);
@@ -38,24 +36,18 @@ export default function useAgentSkillsState(defaultSkills) {
   async function fetchSkillSettings() {
     try {
       const subSkillPrefKeys = getSubSkillPreferenceKeys();
-      const [
-        prefs,
-        flowsRes,
-        fsAgentAvailable,
-        codeSandboxAvailable,
-        multiUserMode,
-      ] = await Promise.all([
-        Admin.systemPreferencesByFields([
-          "disabled_agent_skills",
-          "default_agent_skills",
-          "imported_agent_skills",
-          ...subSkillPrefKeys,
-        ]),
-        AgentFlows.listFlows(),
-        System.isFileSystemAgentAvailable(),
-        System.isSandboxAvailable(),
-        System.isMultiUserMode(),
-      ]);
+      const [prefs, fsAgentAvailable, codeSandboxAvailable, multiUserMode] =
+        await Promise.all([
+          Admin.systemPreferencesByFields([
+            "disabled_agent_skills",
+            "default_agent_skills",
+            "imported_agent_skills",
+            ...subSkillPrefKeys,
+          ]),
+          System.isFileSystemAgentAvailable(),
+          System.isSandboxAvailable(),
+          System.isMultiUserMode(),
+        ]);
 
       if (prefs?.settings) {
         setDisabledDefaults(prefs.settings.disabled_agent_skills ?? []);
@@ -63,7 +55,6 @@ export default function useAgentSkillsState(defaultSkills) {
         setImportedSkills(prefs.settings.imported_agent_skills ?? []);
         subSkillPrefs.loadFromSettings(prefs.settings);
       }
-      if (flowsRes?.flows) setFlows(flowsRes.flows);
       setFileSystemAgentAvailable(fsAgentAvailable);
       setSandboxAvailable(codeSandboxAvailable);
       setIsMultiUser(!!multiUserMode);
@@ -135,15 +126,6 @@ export default function useAgentSkillsState(defaultSkills) {
     toggleAgentSessionTool(skill.hubId, newActive);
   }, []);
 
-  const toggleFlow = useCallback(async (flow) => {
-    const newActive = !flow.active;
-    setFlows((prev) =>
-      prev.map((f) => (f.uuid === flow.uuid ? { ...f, active: newActive } : f))
-    );
-    await AgentFlows.toggleFlow(flow.uuid, newActive);
-    toggleAgentSessionTool(`@@flow_${flow.uuid}`, newActive);
-  }, []);
-
   const toggleMcpTool = useCallback(
     async (serverName, toolName, currentlyEnabled) => {
       const newEnabled = !currentlyEnabled;
@@ -185,7 +167,6 @@ export default function useAgentSkillsState(defaultSkills) {
     disabledDefaults,
     enabledConfigurable,
     importedSkills,
-    flows,
     mcpServers,
     loading,
     mcpLoading,
@@ -196,7 +177,6 @@ export default function useAgentSkillsState(defaultSkills) {
     // Toggle functions
     toggleSkill,
     toggleImportedSkill,
-    toggleFlow,
     toggleMcpTool,
 
     // Sub-skill preferences (delegated)

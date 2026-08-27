@@ -51,17 +51,24 @@ async function toolsForAgent(
     .filter((descriptor) => legacySelectionAllows(allowed, descriptor))
     .filter((descriptor) => allowActions || descriptor.action === false)
     .map((descriptor) => toLangChainTool(descriptor, context));
-  if (allowActions && availableAgents.length > 0) {
+  if (
+    allowActions &&
+    availableAgents.length > 0 &&
+    legacySelectionAllows(allowed, { id: "agent.call", name: "call_agent" })
+  ) {
     const { createSubagentTool } = require("./subagent");
     tools.push(createSubagentTool(context, availableAgents));
   }
   if (allowActions) {
-    const { activeFlowTools } = require("./flows");
-    tools.push(...activeFlowTools(context, allowed));
     const { activeMcpTools } = require("./mcp");
     tools.push(...(await activeMcpTools(context, allowed)));
   }
   return tools;
 }
 
-module.exports = { toolRegistry, toolsForAgent, ...require("./descriptor") };
+module.exports = {
+  legacySelectionAllows,
+  toolRegistry,
+  toolsForAgent,
+  ...require("./descriptor"),
+};

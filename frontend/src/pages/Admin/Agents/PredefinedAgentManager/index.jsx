@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   ChatCircleText,
   Check,
+  CheckCircle,
   NotePencil,
   Plus,
   Robot,
@@ -22,6 +23,7 @@ export default function PredefinedAgentManager({ view = "agents" }) {
     skills: [],
     tools: [],
     runtimes: [],
+    modelCapabilities: [],
     defaultAgentId: null,
   });
   const [loading, setLoading] = useState(true);
@@ -149,11 +151,9 @@ export default function PredefinedAgentManager({ view = "agents" }) {
                             System
                           </span>
                         )}
-                        {agent.runtimeKey === "evidence-research" && (
-                          <span className="rounded-full bg-amber-300/10 px-1.5 py-0.5 text-[9px] text-amber-300 light:bg-amber-50 light:text-amber-700">
-                            Research graph
-                          </span>
-                        )}
+                        <span className="rounded-full bg-emerald-300/10 px-1.5 py-0.5 text-[9px] text-emerald-300 light:bg-emerald-50 light:text-emerald-700">
+                          Governed
+                        </span>
                       </span>
                       <span className="mt-1.5 block line-clamp-2 text-xs leading-5 text-theme-text-secondary">
                         {agent.description || "暂无描述"}
@@ -179,6 +179,12 @@ export default function PredefinedAgentManager({ view = "agents" }) {
             ) : (
               <EmptyState
                 onClick={() => setEditor({ type: "agent", item: null })}
+              />
+            )}
+            {!loading && (
+              <ModelCapabilityRegistry
+                items={data.modelCapabilities || []}
+                onSaved={refresh}
               />
             )}
           </section>
@@ -271,6 +277,142 @@ function EmptyState({ onClick }) {
   );
 }
 
+function ModelCapabilityRegistry({ items, onSaved }) {
+  const [adding, setAdding] = useState(false);
+  const [draft, setDraft] = useState({
+    provider: "generic-openai",
+    model: "",
+    vision: false,
+    toolCalling: true,
+    structuredOutput: true,
+    reasoningControls: false,
+  });
+  const flags = [
+    ["vision", "Vision"],
+    ["toolCalling", "Tools"],
+    ["structuredOutput", "Structured output"],
+    ["reasoningControls", "Reasoning controls"],
+  ];
+
+  async function save(payload) {
+    const result = await PredefinedAgent.saveModelCapability(payload);
+    if (!result.success)
+      return showToast(result.error || "保存模型能力失败", "error");
+    setAdding(false);
+    setDraft((current) => ({ ...current, model: "" }));
+    await onSaved();
+  }
+
+  return (
+    <div className="mt-7 border-t border-white/[0.07] pt-5 light:border-slate-200">
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div>
+          <p className="m-0 text-xs font-semibold uppercase tracking-[0.14em] text-theme-text-secondary">
+            Model capability registry
+          </p>
+          <p className="m-0 mt-1 text-[11px] text-theme-text-secondary">
+            自定义模型必须明确声明能力，运行时不会猜测。
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setAdding((value) => !value)}
+          className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-white/10 px-3 text-xs font-semibold text-theme-text-primary hover:bg-white/[0.04] light:border-slate-200 light:hover:bg-slate-100"
+        >
+          <Plus size={13} /> Add model
+        </button>
+      </div>
+      {adding && (
+        <div className="mb-3 grid gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/[0.025] p-3 md:grid-cols-[150px_minmax(180px,1fr)_auto]">
+          <input
+            value={draft.provider}
+            onChange={(event) =>
+              setDraft({ ...draft, provider: event.target.value })
+            }
+            className={inputClass}
+            placeholder="Provider"
+          />
+          <input
+            value={draft.model}
+            onChange={(event) =>
+              setDraft({ ...draft, model: event.target.value })
+            }
+            className={inputClass}
+            placeholder="Exact model ID"
+          />
+          <button
+            type="button"
+            disabled={!draft.provider.trim() || !draft.model.trim()}
+            onClick={() => save(draft)}
+            className={primaryButtonClass}
+          >
+            Save
+          </button>
+          <div className="flex flex-wrap gap-3 md:col-span-3">
+            {flags.map(([key, label]) => (
+              <label
+                key={key}
+                className="flex items-center gap-1.5 text-[11px] text-theme-text-secondary"
+              >
+                <input
+                  type="checkbox"
+                  checked={draft[key]}
+                  onChange={(event) =>
+                    setDraft({ ...draft, [key]: event.target.checked })
+                  }
+                  className="accent-cyan-300"
+                />
+                {label}
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+      <div className="divide-y divide-white/[0.06] overflow-hidden rounded-xl border border-white/[0.07] light:divide-slate-200 light:border-slate-200">
+        {items.length ? (
+          items.map((item) => (
+            <div
+              key={`${item.provider}:${item.model}`}
+              className="grid min-h-12 items-center gap-2 px-3 py-2 md:grid-cols-[minmax(160px,1fr)_auto]"
+            >
+              <div className="min-w-0">
+                <p className="m-0 truncate text-xs font-semibold text-theme-text-primary">
+                  {item.model}
+                </p>
+                <p className="m-0 mt-0.5 font-mono text-[10px] text-theme-text-secondary">
+                  {item.provider} · {item.source}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-x-3 gap-y-1">
+                {flags.map(([key, label]) => (
+                  <label
+                    key={key}
+                    className="flex items-center gap-1 text-[10px] text-theme-text-secondary"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={Boolean(item[key])}
+                      onChange={(event) =>
+                        save({ ...item, [key]: event.target.checked })
+                      }
+                      className="accent-cyan-300"
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+            </div>
+          ))
+        ) : (
+          <p className="m-0 p-3 text-xs text-theme-text-secondary">
+            No explicit capabilities have been registered yet.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ModalShell({ title, subtitle, onClose, children }) {
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
@@ -318,7 +460,7 @@ function AgentEditor({
     allTools: agent?.tools === null || !agent,
     tools: agent?.tools || [],
     skillIds: agent?.skillIds || [],
-    runtimeKey: agent?.runtimeKey || "default-react",
+    runtimeKey: "governed-agent",
     runtimeConfig: agent?.runtimeConfig || {},
     makeDefault: isCurrentDefault,
   });
@@ -423,8 +565,7 @@ function AgentEditor({
       tools: form.allTools ? null : form.tools,
       skillIds: form.skillIds,
       runtimeKey: form.runtimeKey,
-      runtimeConfig:
-        form.runtimeKey === "evidence-research" ? form.runtimeConfig : {},
+      runtimeConfig: form.runtimeConfig,
     };
     const result = agent
       ? await PredefinedAgent.update(agent.id, payload)
@@ -538,37 +679,16 @@ function AgentEditor({
 
         <div className="mt-4 space-y-4">
           <Field
-            label="Agent Runtime"
-            hint="选择负责规划、工具循环、恢复与最终输出的执行图"
+            label="Governed Agent runtime"
+            hint="自动选择直接回答或依赖任务图；失败任务不会清除成功结果"
           >
-            <div className="rounded-2xl border border-white/[0.08] bg-black/10 p-3 light:border-slate-200 light:bg-slate-50">
-              <select
-                value={form.runtimeKey}
-                onChange={(event) =>
-                  setForm({ ...form, runtimeKey: event.target.value })
-                }
-                className={inputClass}
-                aria-label="Agent Runtime"
-              >
-                {runtimes.map((runtime) => (
-                  <option key={runtime.key} value={runtime.key}>
-                    {runtime.label}
-                    {runtime.experimental ? " · Experimental" : ""}
-                  </option>
-                ))}
-              </select>
-              <div className="mt-2 flex items-start gap-2 px-1">
-                <span
-                  className={`mt-1 h-1.5 w-1.5 shrink-0 rounded-full ${
-                    selectedRuntime?.experimental
-                      ? "bg-amber-300"
-                      : "bg-cyan-300"
-                  }`}
-                />
-                <p className="text-[11px] leading-4 text-zinc-500 light:text-slate-500">
-                  {selectedRuntime?.description}
-                </p>
-              </div>
+            <div className="flex items-start gap-2 rounded-xl border border-emerald-300/15 bg-emerald-300/[0.035] px-3 py-2.5 text-[11px] leading-4 text-theme-text-secondary">
+              <CheckCircle
+                size={15}
+                weight="fill"
+                className="mt-px shrink-0 text-emerald-300 light:text-emerald-700"
+              />
+              <span>{selectedRuntime?.description}</span>
             </div>
           </Field>
 
@@ -577,7 +697,7 @@ function AgentEditor({
               label="Runtime role models"
               hint={`留空时使用聊天框选择的模型${fallbackModel ? `（当前 ${fallbackModel}）` : ""}`}
             >
-              <div className="grid gap-2 rounded-2xl border border-white/[0.08] bg-black/10 p-3 sm:grid-cols-3 light:border-slate-200 light:bg-slate-50">
+              <div className="grid gap-2 rounded-2xl border border-white/[0.08] bg-black/10 p-3 sm:grid-cols-2 xl:grid-cols-4 light:border-slate-200 light:bg-slate-50">
                 {selectedRuntime.modelRoles.map((role) => {
                   const key = `${role}Model`;
                   return (
