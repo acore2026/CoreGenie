@@ -41,10 +41,10 @@ export PY="python3"
 mkdir -p "$TDP_CACHE" "$TDP_CACHE/reports"
 ```
 
-Required system commands are `curl`, `unzip`, and `zip`. `libreoffice` and `pdftoppm` are optional fallbacks for diagrams. Check dependencies before downloading anything:
+Required system commands are `curl`, `unzip`, `zip`, and `pandoc`. `libreoffice` and `pdftoppm` are optional fallbacks for diagrams. Check dependencies before downloading anything:
 
 ```bash
-command -v python3 curl unzip zip
+command -v python3 curl unzip zip pandoc
 command -v libreoffice || true
 command -v pdftoppm || true
 ```

@@ -37,6 +37,7 @@ RUN sed -i \
       netcat-openbsd \
       openssh-client \
       openssl \
+      pandoc \
       p7zip-full \
       patch \
       pkg-config \

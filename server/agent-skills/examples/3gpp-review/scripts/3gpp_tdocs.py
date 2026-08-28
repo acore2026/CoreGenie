@@ -449,7 +449,7 @@ def render_visio(source: Path, assets: Path, stem: str) -> tuple[list[Path], str
         return [], f"Visio 预览生成失败：{exc}"
 
 
-def convert_docx_to_markdown(docx: Path, output: Path) -> dict:
+def convert_docx_to_markdown_legacy(docx: Path, output: Path) -> dict:
     if docx.suffix.lower() != ".docx":
         raise ValueError("Input must be a DOCX file")
     output.mkdir(parents=True, exist_ok=True)
@@ -624,6 +624,240 @@ def convert_docx_to_markdown(docx: Path, output: Path) -> dict:
         for item in sorted(output.rglob("*")):
             if item.is_file():
                 archive.write(item, item.relative_to(output))
+    return summary
+
+
+def pandoc_docx_to_markdown(docx: Path, output: Path) -> tuple[str, list[str]]:
+    pandoc = shutil.which("pandoc")
+    if not pandoc:
+        raise FileNotFoundError("pandoc is not installed")
+    markdown_name = f"{safe_name(docx.stem) or 'proposal'}.md"
+    with tempfile.TemporaryDirectory(prefix="3gpp-pandoc-") as temporary:
+        temporary_path = Path(temporary)
+        execution = subprocess.run(
+            [
+                pandoc,
+                "--from=docx",
+                "--to=gfm",
+                "--wrap=none",
+                "--markdown-headings=atx",
+                "--track-changes=accept",
+                "--extract-media=assets",
+                f"--output={markdown_name}",
+                str(docx.resolve()),
+            ],
+            cwd=temporary_path,
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=180,
+        )
+        markdown = temporary_path / markdown_name
+        if not markdown.is_file() or not markdown.read_text(encoding="utf-8").strip():
+            raise ValueError("Pandoc produced an empty Markdown document")
+        output.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(temporary_path, output, dirs_exist_ok=True)
+    warnings = [
+        f"Pandoc：{line.strip()}"
+        for line in execution.stderr.splitlines()
+        if line.strip()
+    ]
+    return markdown_name, warnings[:20]
+
+
+def preserve_embedded_objects(
+    package: zipfile.ZipFile, output: Path
+) -> tuple[list[str], list[str], list[str]]:
+    assets = output / "assets"
+    embedded = output / "embedded"
+    assets.mkdir(exist_ok=True)
+    embedded.mkdir(exist_ok=True)
+    warnings: list[str] = []
+    embedded_files: list[str] = []
+    rendered_visio: list[str] = []
+    relationships = relationship_map(package)
+    targets: list[tuple[str, str]] = []
+    seen_targets: set[str] = set()
+
+    for rid, relation in relationships.items():
+        relation_type = relation["type"].lower()
+        target = package_target(relation["target"])
+        if "oleobject" not in relation_type and not target.startswith("word/embeddings/"):
+            continue
+        if target not in package.namelist():
+            warnings.append(f"嵌入对象 {rid} 指向的文件不存在。")
+            continue
+        if target not in seen_targets:
+            seen_targets.add(target)
+            targets.append((rid, target))
+
+    for target in package.namelist():
+        if (
+            target.startswith("word/embeddings/")
+            and not target.endswith("/")
+            and target not in seen_targets
+        ):
+            seen_targets.add(target)
+            targets.append((target, target))
+
+    used_embedded: set[str] = set()
+    for _, target in targets:
+        name = unique_asset_name(target, used_embedded)
+        destination = embedded / name
+        destination.write_bytes(package.read(target))
+        embedded_files.append(f"embedded/{name}")
+        if destination.suffix.lower() in {".vsd", ".vsdx"}:
+            images, warning = render_visio(
+                destination, assets, f"{destination.stem}-visio"
+            )
+            rendered_visio.extend(f"assets/{image.name}" for image in images)
+            if warning:
+                warnings.append(f"{name}：{warning}")
+        else:
+            warnings.append(f"{name} 无法直接转换，已保留原始嵌入对象。")
+    return embedded_files, rendered_visio, warnings
+
+
+def output_files(directory: Path, root: Path) -> list[str]:
+    if not directory.is_dir():
+        return []
+    return [
+        item.relative_to(root).as_posix()
+        for item in sorted(directory.rglob("*"))
+        if item.is_file()
+    ]
+
+
+def append_visio_previews(markdown: Path, images: list[str]) -> None:
+    if not images:
+        return
+    content = markdown.read_text(encoding="utf-8").rstrip()
+    appendix = "## 单独导出的 Visio 图\n\n" + "\n\n".join(
+        f"![Visio 图 {index}]({path_value})"
+        for index, path_value in enumerate(images, 1)
+    )
+    markdown.write_text(f"{content}\n\n{appendix}\n", encoding="utf-8")
+
+
+def normalize_mixed_ordered_lists(markdown: Path) -> None:
+    lines = markdown.read_text(encoding="utf-8").splitlines()
+    ordered = re.compile(r"^(?P<indent> {0,12})(?P<number>\d+)[.)][ \t]+")
+    escaped = re.compile(
+        r"^(?P<indent> {0,12})(?P<number>\d+)\\[.)][ \t]+(?P<content>.*)$"
+    )
+    normalized: list[str] = []
+    previous: tuple[str, int] | None = None
+    in_fence = False
+
+    for line in lines:
+        stripped = line.lstrip()
+        if stripped.startswith("```") or stripped.startswith("~~~"):
+            in_fence = not in_fence
+            previous = None
+            normalized.append(line)
+            continue
+        if in_fence:
+            normalized.append(line)
+            continue
+        if not line.strip():
+            normalized.append(line)
+            continue
+
+        manual = escaped.match(line)
+        if (
+            manual
+            and previous
+            and manual.group("indent") == previous[0]
+            and int(manual.group("number")) == previous[1] + 1
+        ):
+            while normalized and not normalized[-1].strip():
+                normalized.pop()
+            number = int(manual.group("number"))
+            normalized.append(
+                f"{manual.group('indent')}{number}.  {manual.group('content')}"
+            )
+            previous = (manual.group("indent"), number)
+            continue
+
+        item = ordered.match(line)
+        previous = (
+            (item.group("indent"), int(item.group("number"))) if item else None
+        )
+        normalized.append(line)
+
+    markdown.write_text("\n".join(normalized).rstrip() + "\n", encoding="utf-8")
+
+
+def write_conversion_package(output: Path, summary: dict) -> None:
+    summary_path = output / "conversion-summary.json"
+    summary_path.write_text(
+        json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+    archive_path = output.with_suffix(".zip")
+    with zipfile.ZipFile(archive_path, "w", zipfile.ZIP_DEFLATED) as archive:
+        for item in sorted(output.rglob("*")):
+            if item.is_file():
+                archive.write(item, item.relative_to(output))
+
+
+def pandoc_fallback_warning(error: Exception) -> str:
+    if isinstance(error, FileNotFoundError):
+        reason = "运行环境中没有安装 Pandoc"
+    elif isinstance(error, subprocess.TimeoutExpired):
+        reason = "Pandoc 转换超时"
+    elif isinstance(error, subprocess.CalledProcessError):
+        reason = f"Pandoc 返回退出码 {error.returncode}"
+    else:
+        reason = "Pandoc 没有生成有效结果"
+    return f"{reason}，已使用兼容转换器。"
+
+
+def convert_docx_to_markdown(docx: Path, output: Path) -> dict:
+    if docx.suffix.lower() != ".docx":
+        raise ValueError("Input must be a DOCX file")
+    with zipfile.ZipFile(docx) as package:
+        validate_archive(package)
+        if "word/document.xml" not in package.namelist():
+            raise ValueError("DOCX does not contain word/document.xml")
+
+    try:
+        markdown_name, warnings = pandoc_docx_to_markdown(docx, output)
+    except (OSError, ValueError, subprocess.SubprocessError) as exc:
+        summary = convert_docx_to_markdown_legacy(docx, output)
+        summary["engine"] = "legacy-ooxml"
+        summary["warnings"].insert(0, pandoc_fallback_warning(exc))
+        write_conversion_package(output, summary)
+        return summary
+
+    with zipfile.ZipFile(docx) as package:
+        embedded_files, rendered_visio, embedded_warnings = preserve_embedded_objects(
+            package, output
+        )
+    warnings.extend(embedded_warnings)
+    markdown_path = output / markdown_name
+    normalize_mixed_ordered_lists(markdown_path)
+    append_visio_previews(markdown_path, rendered_visio)
+    image_files = output_files(output / "assets", output)
+    for image in image_files:
+        if Path(image).suffix.lower() in {".emf", ".wmf"}:
+            warnings.append(
+                f"{Path(image).name} 是 {Path(image).suffix.upper()[1:]} 图片，部分 Markdown 阅读器可能无法显示。"
+            )
+
+    archive_path = output.with_suffix(".zip")
+    summary = {
+        "schema": CONVERSION_SCHEMA,
+        "engine": "pandoc",
+        "input": str(docx.resolve()),
+        "markdown": markdown_name,
+        "images": image_files,
+        "embedded": embedded_files,
+        "warnings": warnings,
+        "archive": str(archive_path.resolve()),
+        "convertedAt": datetime.now(timezone.utc).isoformat(),
+    }
+    write_conversion_package(output, summary)
     return summary
 
 

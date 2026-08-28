@@ -1,9 +1,11 @@
 import importlib.util
 import json
+import subprocess
 import tempfile
 import unittest
 import zipfile
 from pathlib import Path
+from unittest.mock import patch
 
 
 SCRIPT = Path(__file__).parents[1] / "scripts" / "3gpp_tdocs.py"
@@ -57,7 +59,8 @@ class ConvertDocxTest(unittest.TestCase):
             output = root / "result"
             make_docx(source)
 
-            summary = MODULE.convert_docx_to_markdown(source, output)
+            with patch.object(MODULE.shutil, "which", return_value=None):
+                summary = MODULE.convert_docx_to_markdown(source, output)
             markdown = (output / "S2-2600001.md").read_text(encoding="utf-8")
 
             self.assertIn("# Test proposal", markdown)
@@ -66,6 +69,10 @@ class ConvertDocxTest(unittest.TestCase):
             self.assertIn("| Item | Value |", markdown)
             self.assertEqual(summary["images"], ["assets/image1.png"])
             self.assertEqual(summary["embedded"], ["embedded/object1.bin"])
+            self.assertEqual(summary["engine"], "legacy-ooxml")
+            self.assertTrue(
+                any("没有安装 Pandoc" in warning for warning in summary["warnings"])
+            )
             self.assertTrue((root / "result.zip").is_file())
             with zipfile.ZipFile(root / "result.zip") as archive:
                 self.assertIn("S2-2600001.md", archive.namelist())
@@ -84,8 +91,60 @@ class ConvertDocxTest(unittest.TestCase):
                     "media/image1.png", "media/missing.png"
                 ),
             )
-            summary = MODULE.convert_docx_to_markdown(source, root / "result")
+            with patch.object(MODULE.shutil, "which", return_value=None):
+                summary = MODULE.convert_docx_to_markdown(source, root / "result")
             self.assertTrue(any("不存在" in warning for warning in summary["warnings"]))
+
+    def test_uses_pandoc_for_lists_and_keeps_the_3gpp_package(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "S2-2600002.docx"
+            output = root / "result"
+            make_docx(source)
+            calls = []
+
+            def fake_pandoc(command, **options):
+                calls.append((command, options))
+                working_directory = Path(options["cwd"])
+                (working_directory / "assets" / "media").mkdir(parents=True)
+                (working_directory / "assets" / "media" / "image1.png").write_bytes(
+                    b"image"
+                )
+                (working_directory / "S2-2600002.md").write_text(
+                    "# Procedure\n\n1.  First step\n\n2\\.    Second step\n\n3\\. Third step\n",
+                    encoding="utf-8",
+                )
+                return subprocess.CompletedProcess(command, 0, "", "")
+
+            with (
+                patch.object(
+                    MODULE.shutil,
+                    "which",
+                    side_effect=lambda name: "/usr/bin/pandoc"
+                    if name == "pandoc"
+                    else None,
+                ),
+                patch.object(MODULE.subprocess, "run", side_effect=fake_pandoc),
+            ):
+                summary = MODULE.convert_docx_to_markdown(source, output)
+
+            markdown = (output / "S2-2600002.md").read_text(encoding="utf-8")
+            self.assertEqual(summary["engine"], "pandoc")
+            self.assertIn(
+                "1.  First step\n2.  Second step\n3.  Third step", markdown
+            )
+            self.assertNotIn("2\\.", markdown)
+            self.assertNotIn("- First step", markdown)
+            self.assertEqual(summary["images"], ["assets/media/image1.png"])
+            self.assertEqual(summary["embedded"], ["embedded/object1.bin"])
+            self.assertEqual(len(calls), 1)
+            self.assertIn("--from=docx", calls[0][0])
+            self.assertIn("--to=gfm", calls[0][0])
+            self.assertIn("--extract-media=assets", calls[0][0])
+            with zipfile.ZipFile(root / "result.zip") as archive:
+                self.assertIn("S2-2600002.md", archive.namelist())
+                self.assertIn("assets/media/image1.png", archive.namelist())
+                self.assertIn("embedded/object1.bin", archive.namelist())
 
     def test_rejects_non_docx_archive(self):
         with tempfile.TemporaryDirectory() as directory:
