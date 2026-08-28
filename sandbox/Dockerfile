@@ -2,9 +2,13 @@ FROM python:3.12.11-slim-bookworm
 
 ARG SANDBOX_UID=1000
 ARG SANDBOX_GID=1000
+ARG DEBIAN_MIRROR=http://mirrors.aliyun.com/debian
+ARG DEBIAN_SECURITY_MIRROR=http://mirrors.aliyun.com/debian-security
 
 RUN sed -i \
-      's/Components: main/Components: main contrib non-free non-free-firmware/g' \
+      -e "s#http://deb.debian.org/debian-security#${DEBIAN_SECURITY_MIRROR}#g" \
+      -e "s#http://deb.debian.org/debian#${DEBIAN_MIRROR}#g" \
+      -e 's/Components: main/Components: main contrib non-free non-free-firmware/g' \
       /etc/apt/sources.list.d/debian.sources && \
     apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
@@ -27,6 +31,7 @@ RUN sed -i \
       iputils-ping \
       jq \
       less \
+      libreoffice-writer \
       lsof \
       make \
       netcat-openbsd \
@@ -36,6 +41,7 @@ RUN sed -i \
       patch \
       pkg-config \
       procps \
+      poppler-utils \
       python3-dev \
       rar \
       ripgrep \

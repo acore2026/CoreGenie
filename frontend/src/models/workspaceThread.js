@@ -75,7 +75,7 @@ const WorkspaceThread = {
       .catch(() => false);
   },
   chatHistory: async function (workspaceSlug, threadSlug) {
-    const history = await fetch(
+    return await fetch(
       `${API_BASE}/workspace/${workspaceSlug}/thread/${threadSlug}/chats`,
       {
         method: "GET",
@@ -83,9 +83,11 @@ const WorkspaceThread = {
       }
     )
       .then((res) => res.json())
-      .then((res) => res.history || [])
-      .catch(() => []);
-    return history;
+      .then((res) => ({
+        history: res.history || [],
+        thread: res.thread || null,
+      }))
+      .catch(() => ({ history: [], thread: null }));
   },
   streamChat: async function (
     { workspaceSlug, threadSlug },

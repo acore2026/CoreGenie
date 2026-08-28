@@ -6,6 +6,7 @@ const { AgentRunCommand } = require("../models/agentRunCommand");
 const { normalizeExecution } = require("../models/agentToolExecution");
 const prisma = require("../utils/prisma");
 const { Workspace } = require("../models/workspace");
+const { WorkspaceThread } = require("../models/workspaceThread");
 const { User } = require("../models/user");
 const { reqBody, userFromSession, multiUserMode } = require("../utils/http");
 const { validatedRequest } = require("../utils/middleware/validatedRequest");
@@ -16,6 +17,7 @@ const {
 const {
   validWorkspaceSlug,
   validWorkspaceAndThreadSlug,
+  manageWorkspaceThread,
 } = require("../utils/middleware/validWorkspace");
 const { agentRunEventBus } = require("../agent-system/eventBus");
 const { agentRunSupervisor } = require("../agent-system/supervisor");
@@ -29,15 +31,36 @@ const ACTIVE_STATUSES = [
   "waiting_for_approval",
 ];
 
-async function authorizedRun(request, response) {
+async function authorizedRun(
+  request,
+  response,
+  { requireManage = false } = {}
+) {
   const run = await AgentRun.get(request.params.runId);
   if (!run) return null;
   if (!multiUserMode(response)) return run;
   const user = await userFromSession(request, response);
-  if (!user || run.user_id !== user.id) return null;
-  return (await Workspace.getWithUser(user, { id: run.workspace_id }))
-    ? run
-    : null;
+  if (!user) return null;
+  const workspace = await Workspace.getWithUser(user, { id: run.workspace_id });
+  if (!workspace) return null;
+  if (requireManage) {
+    const ownsThread = run.thread_id
+      ? Boolean(
+          await WorkspaceThread.get({
+            id: run.thread_id,
+            workspace_id: run.workspace_id,
+            user_id: user.id,
+          })
+        )
+      : false;
+    if (
+      run.user_id !== user.id &&
+      !ownsThread &&
+      ![ROLES.admin, ROLES.manager].includes(user.role)
+    )
+      return null;
+  }
+  return run;
 }
 
 async function createRun(request, response) {
@@ -161,6 +184,7 @@ function agentRunEndpoints(app) {
       validatedRequest,
       flexUserRoleValid([ROLES.all]),
       validWorkspaceAndThreadSlug,
+      manageWorkspaceThread,
     ],
     createRun
   );
@@ -172,7 +196,7 @@ function agentRunEndpoints(app) {
       const run = await authorizedRun(request, response);
       if (!run)
         return response.status(404).json({ error: "Agent run not found." });
-      const [tasks, evidence, toolExecutions] = await Promise.all([
+      const [tasks, evidence, toolExecutions, events] = await Promise.all([
         AgentRunTask.list(run.id),
         AgentRunEvidence.list(run.id),
         prisma.agent_tool_executions
@@ -181,12 +205,14 @@ function agentRunEndpoints(app) {
             orderBy: { createdAt: "asc" },
           })
           .then((rows) => rows.map(normalizeExecution)),
+        AgentRunEvent.traceSnapshot(run.id),
       ]);
       return response.status(200).json({
         run,
         tasks,
         evidence,
         toolExecutions,
+        events,
         cursor: await AgentRunEvent.latestSequence(run.id),
       });
     }
@@ -195,7 +221,9 @@ function agentRunEndpoints(app) {
     "/agent-runs/:runId/commands",
     [validatedRequest],
     async (request, response) => {
-      const run = await authorizedRun(request, response);
+      const run = await authorizedRun(request, response, {
+        requireManage: true,
+      });
       if (!run)
         return response.status(404).json({ error: "Agent run not found." });
       const command = reqBody(request);

@@ -12,6 +12,10 @@ const roleModelSchema = z
     workerModel: z.string().trim().min(1).nullable().optional(),
     reviewerModel: z.string().trim().min(1).nullable().optional(),
     visionModel: z.string().trim().min(1).nullable().optional(),
+    requiredCompletionTools: z
+      .array(z.string().trim().min(1))
+      .max(20)
+      .default([]),
   })
   .strip();
 

@@ -15,8 +15,11 @@ const { WorkspaceThread } = require("../models/workspaceThread");
 const {
   validWorkspaceSlug,
   validWorkspaceAndThreadSlug,
+  canManageWorkspaceThread,
+  manageWorkspaceThread,
 } = require("../utils/middleware/validWorkspace");
 const { WorkspaceChats } = require("../models/workspaceChats");
+const { User } = require("../models/user");
 const { convertToChatHistory } = require("../utils/helpers/chat/responses");
 const { getModelTag } = require("./utils");
 
@@ -54,7 +57,16 @@ function workspaceThreadEndpoints(app) {
           },
           user?.id
         );
-        response.status(200).json({ thread, message });
+        response.status(200).json({
+          thread: thread
+            ? {
+                ...thread,
+                owner: user ? { id: user.id, username: user.username } : null,
+                canModify: true,
+              }
+            : null,
+          message,
+        });
       } catch (e) {
         console.error(e.message, e);
         response.sendStatus(500).end();
@@ -69,10 +81,20 @@ function workspaceThreadEndpoints(app) {
       try {
         const user = await userFromSession(request, response);
         const workspace = response.locals.workspace;
-        const threads = await WorkspaceThread.where({
-          workspace_id: workspace.id,
-          user_id: user?.id || null,
-        });
+        const threads = await WorkspaceThread.where(
+          { workspace_id: workspace.id },
+          null,
+          { createdAt: "asc" },
+          { user: { select: { id: true, username: true } } }
+        );
+        const visibleThreads = threads.map(({ user: owner, ...thread }) => ({
+          ...thread,
+          owner,
+          canModify:
+            !multiUserMode(response) ||
+            thread.user_id === user?.id ||
+            [ROLES.admin, ROLES.manager].includes(user?.role),
+        }));
 
         const defaultThreadChatCount = await WorkspaceChats.count({
           workspaceId: workspace.id,
@@ -82,7 +104,10 @@ function workspaceThreadEndpoints(app) {
           include: true,
         });
 
-        response.status(200).json({ threads, defaultThreadChatCount });
+        response.status(200).json({
+          threads: visibleThreads,
+          defaultThreadChatCount,
+        });
       } catch (e) {
         console.error(e.message, e);
         response.sendStatus(500).end();
@@ -96,6 +121,7 @@ function workspaceThreadEndpoints(app) {
       validatedRequest,
       flexUserRoleValid([ROLES.all]),
       validWorkspaceAndThreadSlug,
+      manageWorkspaceThread,
     ],
     async (_, response) => {
       try {
@@ -141,13 +167,11 @@ function workspaceThreadEndpoints(app) {
     ],
     async (request, response) => {
       try {
-        const user = await userFromSession(request, response);
         const workspace = response.locals.workspace;
         const thread = response.locals.thread;
         const history = await WorkspaceChats.where(
           {
             workspaceId: workspace.id,
-            user_id: user?.id || null,
             thread_id: thread.id,
             api_session_id: null, // Do not include API session chats.
             include: true,
@@ -156,7 +180,17 @@ function workspaceThreadEndpoints(app) {
           { id: "asc" }
         );
 
-        response.status(200).json({ history: convertToChatHistory(history) });
+        const owner = thread.user_id
+          ? await User.get({ id: thread.user_id })
+          : null;
+        response.status(200).json({
+          history: convertToChatHistory(history),
+          thread: {
+            ...thread,
+            owner: owner ? { id: owner.id, username: owner.username } : null,
+            canModify: await canManageWorkspaceThread(request, response),
+          },
+        });
       } catch (e) {
         console.error(e.message, e);
         response.sendStatus(500).end();
@@ -170,6 +204,7 @@ function workspaceThreadEndpoints(app) {
       validatedRequest,
       flexUserRoleValid([ROLES.all]),
       validWorkspaceAndThreadSlug,
+      manageWorkspaceThread,
     ],
     async (request, response) => {
       try {
@@ -193,18 +228,17 @@ function workspaceThreadEndpoints(app) {
       validatedRequest,
       flexUserRoleValid([ROLES.all]),
       validWorkspaceAndThreadSlug,
+      manageWorkspaceThread,
     ],
     async (request, response) => {
       try {
         const { startingId } = reqBody(request);
-        const user = await userFromSession(request, response);
         const workspace = response.locals.workspace;
         const thread = response.locals.thread;
 
         await WorkspaceChats.delete({
           workspaceId: Number(workspace.id),
           thread_id: Number(thread.id),
-          user_id: user?.id,
           id: { gte: Number(startingId) },
         });
 
@@ -222,6 +256,7 @@ function workspaceThreadEndpoints(app) {
       validatedRequest,
       flexUserRoleValid([ROLES.all]),
       validWorkspaceAndThreadSlug,
+      manageWorkspaceThread,
     ],
     async (request, response) => {
       try {
@@ -229,13 +264,11 @@ function workspaceThreadEndpoints(app) {
         if (!newText || !String(newText).trim())
           throw new Error("Cannot save empty edit");
 
-        const user = await userFromSession(request, response);
         const workspace = response.locals.workspace;
         const thread = response.locals.thread;
         const existingChat = await WorkspaceChats.get({
           workspaceId: workspace.id,
           thread_id: thread.id,
-          user_id: user?.id,
           id: Number(chatId),
         });
         if (!existingChat) throw new Error("Invalid chat.");

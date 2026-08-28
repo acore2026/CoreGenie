@@ -1,5 +1,6 @@
 const prisma = require("../utils/prisma");
 const { safeJsonParse } = require("../utils/http");
+const { withPrismaRetry } = require("../utils/prismaRetry");
 
 const JSON_FIELDS = [
   "dependsOn",
@@ -65,15 +66,17 @@ const AgentRunTask = {
         budget: task.budget || {},
         lastUpdatedAt: new Date(),
       });
-      const row = await prisma.agent_run_tasks.upsert({
-        where: { id: String(task.id) },
-        create: {
-          id: String(task.id),
-          run_id: String(runId),
-          ...data,
-        },
-        update: data,
-      });
+      const row = await withPrismaRetry(() =>
+        prisma.agent_run_tasks.upsert({
+          where: { id: String(task.id) },
+          create: {
+            id: String(task.id),
+            run_id: String(runId),
+            ...data,
+          },
+          update: data,
+        })
+      );
       rows.push(normalizeTask(row));
     }
     return rows;
@@ -81,26 +84,30 @@ const AgentRunTask = {
 
   update: async function (id, data = {}) {
     return normalizeTask(
-      await prisma.agent_run_tasks.update({
-        where: { id: String(id) },
-        data: serializeTask({ ...data, lastUpdatedAt: new Date() }),
-      })
+      await withPrismaRetry(() =>
+        prisma.agent_run_tasks.update({
+          where: { id: String(id) },
+          data: serializeTask({ ...data, lastUpdatedAt: new Date() }),
+        })
+      )
     );
   },
 
   reconcileTerminal: async function (runId, status = "failed") {
-    await prisma.agent_run_tasks.updateMany({
-      where: {
-        run_id: String(runId),
-        status: { in: ["pending", "queued", "running", "retrying"] },
-      },
-      data: {
-        status,
-        error: "The run ended before this task completed.",
-        completedAt: new Date(),
-        lastUpdatedAt: new Date(),
-      },
-    });
+    await withPrismaRetry(() =>
+      prisma.agent_run_tasks.updateMany({
+        where: {
+          run_id: String(runId),
+          status: { in: ["pending", "queued", "running", "retrying"] },
+        },
+        data: {
+          status,
+          error: "The run ended before this task completed.",
+          completedAt: new Date(),
+          lastUpdatedAt: new Date(),
+        },
+      })
+    );
   },
 };
 

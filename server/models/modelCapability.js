@@ -19,6 +19,15 @@ const BUILTIN_CAPABILITIES = [
     reasoningControls: false,
     contextWindow: 128_000,
   },
+  {
+    provider: "generic-openai",
+    model: "qwen3.7-plus",
+    vision: true,
+    toolCalling: true,
+    structuredOutput: false,
+    reasoningControls: true,
+    contextWindow: 131_072,
+  },
 ];
 
 const ModelCapability = {

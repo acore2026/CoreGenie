@@ -13,7 +13,7 @@ const FAST_LEVENSHTEIN_DISTANCE = 3;
  * - If the normalized name is within 2 levenshtein distance of the search term => match
  * @param {string} searchTerm - The search term to search for.
  * @param {Object} user - The user to search for.
- * @returns {Promise<{workspaces: Array<{slug: string, name: string}>, threads: Array<{slug: string, name: string, workspace: {slug: string, name: string}}>}>} - The search results.
+ * @returns {Promise<{workspaces: Array<{slug: string, name: string}>, threads: Array<{slug: string, name: string, workspace: {slug: string, name: string}, owner: {username: string}|null}>}>} - The search results.
  */
 async function searchWorkspaceAndThreads(searchTerm, user = null) {
   searchTerm = String(searchTerm).trim(); // Ensure searchTerm is a string and trimmed.
@@ -50,16 +50,20 @@ async function searchWorkspaceAndThreads(searchTerm, user = null) {
   }
 
   async function searchThreads() {
-    const threads = !!user
-      ? await WorkspaceThread.where(
-          { user_id: user.id },
-          undefined,
-          undefined,
-          { workspace: { select: { slug: true, name: true } } }
-        )
-      : await WorkspaceThread.where(undefined, undefined, undefined, {
-          workspace: { select: { slug: true, name: true } },
-        });
+    const accessibleWorkspaces = user
+      ? await Workspace.whereWithUser(user)
+      : null;
+    const threads = await WorkspaceThread.where(
+      accessibleWorkspaces
+        ? { workspace_id: { in: accessibleWorkspaces.map(({ id }) => id) } }
+        : undefined,
+      undefined,
+      undefined,
+      {
+        workspace: { select: { slug: true, name: true } },
+        user: { select: { username: true } },
+      }
+    );
 
     for (const thread of threads) {
       const threadName = thread.name.toLowerCase();
@@ -77,6 +81,7 @@ async function searchWorkspaceAndThreads(searchTerm, user = null) {
               slug: thread.workspace.slug,
               name: thread.workspace.name,
             },
+            owner: thread.user ? { username: thread.user.username } : null,
           })
         );
     }

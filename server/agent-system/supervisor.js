@@ -4,6 +4,7 @@ const { v4: uuidv4 } = require("uuid");
 const { AgentRun } = require("../models/agentRun");
 const { AgentRunEvent } = require("../models/agentRunEvent");
 const { AgentRunTask } = require("../models/agentRunTask");
+const { AgentToolExecution } = require("../models/agentToolExecution");
 const { executeAgentRun, persistFailedAgentRun } = require("./executor");
 const { flushLangfuse } = require("./observability");
 const { deleteCheckpointThread } = require("./checkpointer");
@@ -15,13 +16,21 @@ class AgentRunSupervisor {
     this.scheduled = new Set();
     this.started = false;
     this.owner = `${os.hostname()}:${process.pid}:${uuidv4()}`;
-    this.leaseMs = 30_000;
+    // Tool/model calls can synchronously prepare large visual payloads and delay
+    // the event loop long enough to miss several heartbeats. Keep a generous
+    // reclaim window so an otherwise healthy run is not executed twice.
+    this.leaseMs = 5 * 60_000;
     this.poller = null;
   }
 
   async start() {
     if (this.started) return;
     this.started = true;
+    await AgentToolExecution.reconcileTerminalRuns().catch((error) =>
+      console.error(
+        `[AgentRunSupervisor] Failed to reconcile terminal tool calls: ${error.message}`
+      )
+    );
     for (const run of await AgentRun.reclaimable(100)) this.enqueue(run.id);
     this.poller = setInterval(async () => {
       for (const run of await AgentRun.reclaimable(100)) this.enqueue(run.id);
@@ -40,6 +49,11 @@ class AgentRunSupervisor {
         return;
       }
       if (claimed.status === "running") {
+        await AgentToolExecution.reconcileActive(id, {
+          error:
+            "This tool call was interrupted when the Agent worker restarted; the run resumed from its checkpoint.",
+          outcomeCode: "WORKER_RESTARTED",
+        }).catch(() => null);
         claimed = await AgentRun.update(id, {
           status: "queued",
           configuration: { ...claimed.configuration, recover: true },
@@ -101,6 +115,17 @@ class AgentRunSupervisor {
           finalResponse: persisted?.responseText || null,
           completedAt: new Date(),
         }).catch(() => null);
+        await AgentToolExecution.reconcileActive(id, {
+          status: cancelled ? "cancelled" : "failed",
+          error: cancelled
+            ? "The run was cancelled before this tool call completed."
+            : `The run ended before this tool call completed: ${error.message}`,
+          outcomeCode: cancelled ? "RUN_CANCELLED" : "RUN_FAILED",
+        }).catch(() => null);
+        await AgentRunTask.reconcileTerminal(
+          id,
+          cancelled ? "cancelled" : partial ? "cancelled" : "failed"
+        ).catch(() => null);
         await AgentRunEvent.append(
           id,
           cancelled ? "run.cancelled" : partial ? "run.partial" : "run.failed",
@@ -110,10 +135,6 @@ class AgentRunSupervisor {
             chatId: persisted?.chatId || null,
             sources: [],
           }
-        ).catch(() => null);
-        await AgentRunTask.reconcileTerminal(
-          id,
-          cancelled ? "cancelled" : partial ? "cancelled" : "failed"
         ).catch(() => null);
         await deleteCheckpointThread(latest?.checkpointThreadId).catch(
           () => null
@@ -141,8 +162,14 @@ class AgentRunSupervisor {
       error: "Cancelled by user.",
       completedAt: new Date(),
     });
+    await Promise.allSettled([
+      AgentToolExecution.reconcileActive(id, {
+        error: "The run was cancelled before this tool call completed.",
+        outcomeCode: "RUN_CANCELLED",
+      }),
+      AgentRunTask.reconcileTerminal(id, "cancelled"),
+    ]);
     await AgentRunEvent.append(id, "run.cancelled", { status: "cancelled" });
-    await AgentRunTask.reconcileTerminal(id, "cancelled");
     await deleteCheckpointThread(run.checkpointThreadId);
     return true;
   }

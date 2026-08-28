@@ -1,0 +1,4 @@
+{
+  "Huawei": ["Huawei", "HiSilicon"],
+  "notes": "Conservative seed aliases only. Verify meeting-index spellings and add aliases in scope.json; do not infer ownership from this file."
+}

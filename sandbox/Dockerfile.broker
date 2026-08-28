@@ -1,4 +1,5 @@
-FROM docker:29.3.0-cli AS docker-cli
+ARG DOCKER_CLI_IMAGE=docker:29.3.0-cli
+FROM ${DOCKER_CLI_IMAGE} AS docker-cli
 
 FROM python:3.12.11-slim-bookworm
 

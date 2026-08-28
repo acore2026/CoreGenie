@@ -54,14 +54,16 @@ export default function WorkspaceChat({ loading, workspace }) {
         return false;
       }
 
-      const chatHistory = threadSlug
+      const result = threadSlug
         ? await Workspace.threads.chatHistory(workspace.slug, threadSlug)
         : await Workspace.chatHistory(workspace.slug);
+      const chatHistory = threadSlug ? result.history : result;
 
       setLoaded({
         key: `${workspace.slug}:${threadSlug ?? "default"}`,
         workspace,
         threadSlug,
+        thread: threadSlug ? result.thread : null,
         history: chatHistory,
       });
     }
@@ -135,6 +137,7 @@ export default function WorkspaceChat({ loading, workspace }) {
           key={loaded.key}
           workspace={loaded.workspace}
           threadSlug={loaded.threadSlug}
+          thread={loaded.thread}
           knownHistory={loaded.history}
         />
       </DnDWrapper>
@@ -143,9 +146,15 @@ export default function WorkspaceChat({ loading, workspace }) {
 }
 
 function DnDWrapper({ children, loaded, opts }) {
-  if (!loaded?.threadSlug) {
+  if (!loaded?.threadSlug || loaded.thread?.canModify === false) {
     return (
-      <DndUploaderContext.Provider value={opts}>
+      <DndUploaderContext.Provider
+        value={
+          loaded.thread?.canModify === false
+            ? { ...opts, ready: false, onDrop: () => {} }
+            : opts
+        }
+      >
         {children}
       </DndUploaderContext.Provider>
     );

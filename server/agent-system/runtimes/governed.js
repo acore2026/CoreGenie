@@ -13,12 +13,18 @@ const {
 const { Memory } = require("../../models/memory");
 const { AgentRunTask } = require("../../models/agentRunTask");
 const { AgentRunEvidence } = require("../../models/agentRunEvidence");
+const { AgentToolExecution } = require("../../models/agentToolExecution");
 const { ModelCapability } = require("../../models/modelCapability");
 const { resolveAgent, agentListForPrompt } = require("../../resources/agents");
 const { createChatModel, selectedProvider } = require("../../resources/models");
 const { legacySelectionAllows, toolRegistry } = require("../../tools");
 const { retrieveWorkspaceContext } = require("../../tools/rag");
 const { buildAgentGraph } = require("../graph");
+const {
+  allowedToolIds: skillAllowedToolIds,
+  availableSkills,
+  skillCatalogPrompt,
+} = require("../../agent-skills/registry");
 const { getCheckpointer } = require("../checkpointer");
 const { contentText, finalText, userContent } = require("../message");
 const {
@@ -38,9 +44,9 @@ const DEFAULTS = Object.freeze({
   maxTasks: 12,
   maxConcurrency: 3,
   maxReviewRounds: 2,
-  maxTaskToolCalls: 40,
-  maxTaskModelCalls: 30,
-  maxTaskMs: 10 * 60 * 1_000,
+  maxTaskToolCalls: 100,
+  maxTaskModelCalls: 100,
+  maxTaskMs: 20 * 60 * 1_000,
   maxRunMs: 30 * 60 * 1_000,
 });
 
@@ -80,6 +86,69 @@ function mergeById(current = [], updates = []) {
   return [...merged.values()];
 }
 
+function resolvedTaskDependencies(taskItem, resultsById) {
+  const dependencies = taskItem.dependsOn.map((id) => resultsById.get(id));
+  return dependencies.every(Boolean) ? dependencies : null;
+}
+
+async function streamControllerDecision(
+  model,
+  messages,
+  { onToken, streamOptions }
+) {
+  let combined = null;
+  let directText = "";
+  let streamedDirect = false;
+  const stream = await model.stream(messages, streamOptions);
+  for await (const chunk of stream) {
+    combined = combined ? combined.concat(chunk) : chunk;
+    const hasControl =
+      (combined.tool_call_chunks?.length || combined.tool_calls?.length) > 0;
+    const token = contentText(chunk.content);
+    if (token && !hasControl) {
+      directText += token;
+      streamedDirect = true;
+      await onToken(token);
+    }
+  }
+  return {
+    message: combined,
+    calls: combined?.tool_calls || [],
+    response: contentText(combined?.content) || directText,
+    streamedDirect,
+  };
+}
+
+async function controllerDecisionWithFallback({
+  primaryModel,
+  createFallbackModel,
+  messages,
+  onToken,
+  emit,
+  primaryStreamOptions,
+  fallbackStreamOptions,
+}) {
+  let decision = await streamControllerDecision(primaryModel, messages, {
+    onToken,
+    streamOptions: primaryStreamOptions,
+  });
+  if (decision.calls.length || decision.response.trim()) return decision;
+  await emit("model.fallback", {
+    role: "controller",
+    reason: "empty_visible_response",
+    thinking: false,
+  });
+  await emit("activity.updated", {
+    phase: "planning",
+    summary: "Retrying with a standard visible response",
+    summaryKey: "retrying_visible_response",
+  });
+  return streamControllerDecision(createFallbackModel(), messages, {
+    onToken,
+    streamOptions: fallbackStreamOptions,
+  });
+}
+
 const GovernedState = Annotation.Root({
   request: Annotation({ default: () => "" }),
   history: Annotation({ default: () => [] }),
@@ -113,6 +182,65 @@ function requestAllowsWrite(request = "") {
   );
 }
 
+function normalizedActionPlan({
+  descriptor,
+  args = {},
+  request,
+  agent,
+  skills = [],
+}) {
+  const allowedToolIds = new Set([descriptor.id]);
+  let objective = `Use ${descriptor.id} to complete this request: ${request}\n\nThe controller suggested these arguments:\n${JSON.stringify(args)}`;
+  let successCriteria = [
+    "Capture the tool result and explain any execution failure.",
+  ];
+
+  if (descriptor.id === "skill.activate") {
+    allowedToolIds.add("skill.read_resource");
+    const requestedName = String(args?.name || "").trim();
+    const relevantSkills = requestedName
+      ? skills.filter((skill) => skill.name === requestedName)
+      : skills;
+    const configuredTools = Array.isArray(agent?.tools)
+      ? new Set(agent.tools)
+      : null;
+    for (const skill of relevantSkills) {
+      for (const toolId of skillAllowedToolIds(skill)) {
+        const toolDescriptor = toolRegistry.get(toolId);
+        if (!toolDescriptor) continue;
+        if (
+          toolDescriptor.id.startsWith("skill.") ||
+          legacySelectionAllows(configuredTools, toolDescriptor)
+        )
+          allowedToolIds.add(toolDescriptor.id);
+      }
+    }
+    objective = `Activate the relevant Agent Skill, follow its instructions, and complete the user's request with the skill-permitted tools: ${request}\n\nThe controller suggested these arguments:\n${JSON.stringify(args)}`;
+    successCriteria = [
+      "Activate and follow the relevant Agent Skill.",
+      "Complete the requested workflow using the skill-permitted tools instead of stopping after activation.",
+      "Capture verified results and explain only genuine execution failures.",
+    ];
+  }
+
+  return {
+    goal: `Complete the request using ${descriptor.name}`,
+    tasks: [
+      {
+        id: `${descriptor.id}-request`,
+        title: `Use ${descriptor.name} for the request`,
+        objective,
+        dependsOn: [],
+        allowedToolIds: [...allowedToolIds],
+        requiredCapabilities: descriptor.capabilities || [],
+        successCriteria,
+        acceptsPartialDependencies: false,
+        writeIntent: descriptor.effect !== "read",
+      },
+    ],
+  };
+}
+
 function validatePlan(rawPlan, { run, agent, availableAgents = [] }) {
   const parsed = planSchema.parse(rawPlan);
   const knownAgents = new Set([
@@ -144,7 +272,10 @@ function validatePlan(rawPlan, { run, agent, availableAgents = [] }) {
         toolId === "agent.call"
           ? { id: "agent.call", name: "call_agent" }
           : toolRegistry.get(toolId);
-      if (!legacySelectionAllows(configuredTools, descriptor))
+      if (
+        !descriptor.id.startsWith("skill.") &&
+        !legacySelectionAllows(configuredTools, descriptor)
+      )
         throw new Error(`Task ${task.id} selected disallowed tool ${toolId}.`);
     }
     if (
@@ -211,10 +342,15 @@ function askUserTool() {
   return tool(async () => "Input requested.", {
     name: "ask_user",
     description:
-      "Pause and ask the user only when a missing answer would materially change the work.",
+      "Pause and ask the user only when a missing answer would materially change the work. Provide exactly three concise, mutually exclusive choices with the recommended choice first. Do not add an Other or custom choice; the client adds a fourth Custom answer option and lets the user leave notes.",
     schema: z.object({
       question: z.string().trim().min(1).max(1_000),
-      choices: z.array(z.string().trim().min(1)).max(8).default([]),
+      choices: z
+        .array(z.string().trim().min(1).max(240))
+        .length(3)
+        .describe(
+          "Exactly three mutually exclusive choices, recommended choice first."
+        ),
     }),
   });
 }
@@ -488,8 +624,18 @@ function createGovernedGraph(context) {
         await emit("activity.updated", {
           phase: "planning",
           summary: `Determining the best approach for ${state.request.replace(/\s+/g, " ").slice(0, 120)}`,
+          summaryKey: "determining_approach",
+          summaryArgs: {
+            request: state.request.replace(/\s+/g, " ").slice(0, 120),
+          },
         });
         const agents = await agentListForPrompt(agent.id);
+        const skills = await availableSkills(agent, workspace);
+        const currentSkillCatalog = await skillCatalogPrompt(
+          agent,
+          workspace,
+          skills
+        );
         const toolList = toolRegistry
           .list()
           .map(
@@ -500,44 +646,60 @@ function createGovernedGraph(context) {
         const agentList = agents
           .map((item) => `${item.id}: ${item.name} — ${item.description || ""}`)
           .join("\n");
-        const controlModel = createChatModel({
-          workspace,
-          model: roleModel(run, "controller"),
-          temperature: run.configuration?.temperature ?? 0.2,
-          thinking: run.configuration?.thinking !== false,
-        }).bindTools([planTool(), askUserTool()], {
-          parallel_tool_calls: false,
-        });
+        const createControlModel = (thinking) =>
+          createChatModel({
+            workspace,
+            model: roleModel(run, "controller"),
+            temperature: run.configuration?.temperature ?? 0.2,
+            thinking,
+          }).bindTools([planTool(), askUserTool()], {
+            parallel_tool_calls: false,
+          });
         const messages = modelMessages(
-          `${basePrompt}\n\nYou are the controller for a governed Agent runtime. Answer ordinary questions directly. Call create_plan only when tools, independent work, delegation, or verification are genuinely useful. Call ask_user only when a missing answer materially changes the work. Never combine normal answer text with a control tool call. Plans must contain concrete evidence or action tasks, not a final-answer task. Give each worker the smallest relevant allowedToolIds set. Read-only requests must not request write tools. Direct answers using context evidence must cite it as [C1], [C2], and so on.\n\nAvailable tools:\n${toolList || "None"}\n\nAvailable specialist Agents:\n${agentList || "None"}`,
+          `${basePrompt}${currentSkillCatalog ? `\n\n${currentSkillCatalog}` : ""}\n\nYou are the controller for a governed Agent runtime. Answer ordinary questions directly. Call create_plan only when tools, independent work, delegation, or verification are genuinely useful. Call ask_user only when a missing answer materially changes the work. Every ask_user call must contain exactly three concise, mutually exclusive choices with the recommended choice first; the client supplies the fourth custom-answer option and notes field. Never combine normal answer text with a control tool call. Plans must contain concrete evidence or action tasks, not a final-answer task. Give each worker the smallest relevant allowedToolIds set. When a task activates a skill, include the skill's declared allowed-tools needed to carry out the workflow in that same task; activation alone is not completion. For read-only requests, exclude unrelated state-changing tools, but retain skill-declared execution or file tools required to create the workflow's cache and requested artifacts. Direct answers using context evidence must cite it as [C1], [C2], and so on.\n\nAvailable tools:\n${toolList || "None"}\n\nAvailable specialist Agents:\n${agentList || "None"}`,
           state,
           `${state.request}${state.clarification ? `\n\nUser clarification:\n${state.clarification}` : ""}${contextPrompt(state.contextItems)}`,
           state.controllerAttachments
         );
-        let combined = null;
-        let streamedDirect = false;
-        const stream = await controlModel.stream(messages, {
+        const primaryStreamOptions = {
           ...childRunnableConfig(runnableConfig, {
             tags: ["governed-agent", "role:controller"],
             metadata: { role: "controller" },
           }),
           runName: "govern-request",
           signal,
+        };
+        const decision = await controllerDecisionWithFallback({
+          primaryModel: createControlModel(
+            run.configuration?.thinking !== false
+          ),
+          createFallbackModel: () => createControlModel(false),
+          messages,
+          onToken,
+          emit,
+          primaryStreamOptions,
+          fallbackStreamOptions: {
+            ...childRunnableConfig(runnableConfig, {
+              tags: [
+                "governed-agent",
+                "role:controller",
+                "fallback:thinking-disabled",
+              ],
+              metadata: {
+                role: "controller",
+                fallbackReason: "empty_visible_response",
+              },
+            }),
+            runName: "govern-request-fallback",
+            signal,
+          },
         });
-        for await (const chunk of stream) {
-          combined = combined ? combined.concat(chunk) : chunk;
-          const hasControl =
-            (combined.tool_call_chunks?.length || combined.tool_calls?.length) >
-            0;
-          const token = contentText(chunk.content);
-          if (token && !hasControl) {
-            streamedDirect = true;
-            await onToken(token);
-          }
-        }
-        const calls = combined?.tool_calls || [];
+        const { calls, response, streamedDirect } = decision;
         if (!calls.length) {
-          const response = contentText(combined?.content);
+          if (!response.trim())
+            throw new Error(
+              "The controller returned no visible response after retrying with thinking disabled."
+            );
           return {
             control: { kind: "direct", streamed: streamedDirect },
             finalResponse: response,
@@ -567,24 +729,13 @@ function createGovernedGraph(context) {
             requestedAction: call.name,
             toolId: descriptor.id,
           });
-          rawPlan = {
-            goal: `Complete the request using ${descriptor.name}`,
-            tasks: [
-              {
-                id: `${descriptor.id}-request`,
-                title: `Use ${descriptor.name} for the request`,
-                objective: `Use ${descriptor.id} to complete this request: ${state.request}\n\nThe controller suggested these arguments:\n${JSON.stringify(call.args || {})}`,
-                dependsOn: [],
-                allowedToolIds: [descriptor.id],
-                requiredCapabilities: descriptor.capabilities || [],
-                successCriteria: [
-                  "Capture the tool result and explain any execution failure.",
-                ],
-                acceptsPartialDependencies: false,
-                writeIntent: descriptor.effect !== "read",
-              },
-            ],
-          };
+          rawPlan = normalizedActionPlan({
+            descriptor,
+            args: call.args,
+            request: state.request,
+            agent,
+            skills,
+          });
         }
         const plan = validatePlan(rawPlan, {
           run,
@@ -609,9 +760,11 @@ function createGovernedGraph(context) {
       requestId: `${run.id}:controller-input:${state.reviewRound}`,
       questions: [
         {
+          kind: "choice",
           question: state.control?.question || "What should the Agent use?",
-          type: state.control?.choices?.length ? "select" : "text",
           options: state.control?.choices || [],
+          multiSelect: false,
+          allowOther: true,
         },
       ],
     });
@@ -634,8 +787,8 @@ function createGovernedGraph(context) {
     const skipped = [];
     for (const taskItem of state.plan?.tasks || []) {
       if (results.has(taskItem.id)) continue;
-      const dependencies = taskItem.dependsOn.map((id) => results.get(id));
-      if (dependencies.length !== taskItem.dependsOn.length) continue;
+      const dependencies = resolvedTaskDependencies(taskItem, results);
+      if (!dependencies) continue;
       const failed = dependencies.filter((item) => item.status !== "completed");
       if (failed.length && !taskItem.acceptsPartialDependencies) {
         const result = {
@@ -728,6 +881,8 @@ function createGovernedGraph(context) {
         ...run.configuration,
         model: roleModel(run, "worker"),
         toolOverrides: allowedToolIds,
+        maxModelCallsPerTask:
+          run.configuration?.maxModelCallsPerTask || DEFAULTS.maxTaskModelCalls,
       },
     };
     let lastError = null;
@@ -757,48 +912,104 @@ function createGovernedGraph(context) {
           budget: sharedBudget,
           depth: context.depth || 0,
           maxLocalToolCalls: DEFAULTS.maxTaskToolCalls,
-          systemPromptOverride: `${basePrompt}\n\nYou are a bounded worker in a governed task graph. Complete only the assigned task. Use only allowed tools. Do not write the final user response. Stop when success criteria are met or progress is blocked. Return one JSON object with summary, evidence, and unresolved. Evidence entries require kind, title, uri, excerpt, and metadata. Never invent sources.\n\nTask: ${taskItem.title}\nObjective: ${taskItem.objective}\nSuccess criteria: ${taskItem.successCriteria.join("; ") || "Satisfy the objective"}\nDependency results: ${JSON.stringify(dependencyResults)}`,
+          systemPromptOverride: `${basePrompt}\n\nYou are a bounded worker in a governed task graph. Complete only the assigned task. Use only allowed tools. Do not write the final user response. Stop only after the success criteria and every required completion tool are satisfied, or progress is genuinely blocked. Never end a turn with future intent such as “I will create/publish the report”; execute that action with a tool in the same turn. When a report is required, write the complete report to the persistent workspace, read it back to verify it, then publish it before returning. Reuse existing workspace artifacts and activated Skills instead of repeating discovery, downloads, extraction, or visual analysis. Return one JSON object with summary, evidence, and unresolved. Evidence entries require kind, title, uri, excerpt, and metadata. Never invent sources.\n\nTask: ${taskItem.title}\nObjective: ${taskItem.objective}\nSuccess criteria: ${taskItem.successCriteria.join("; ") || "Satisfy the objective"}\nDependency results: ${JSON.stringify(dependencyResults)}`,
           checkpointerOverride: getCheckpointer(),
           taskId: taskItem.id,
           taskTitle: taskItem.title,
         });
-        const resultState = await workerGraph.invoke(
-          {
+        const invocationConfig = {
+          ...childRunnableConfig(config, {
+            tags: ["governed-worker"],
+            metadata: {
+              taskId: taskItem.id,
+              agentId: String(workerAgent.id),
+              attempt: String(attempt),
+            },
+          }),
+          configurable: {
+            thread_id: `${run.checkpointThreadId}:task:${taskItem.id}:attempt:${attempt}`,
+          },
+          // A tool round consumes several LangGraph steps. Complex Skills
+          // (for example, document extraction plus visual verification)
+          // legitimately need more than the framework's small default.
+          recursionLimit: DEFAULTS.maxTaskToolCalls * 4 + 40,
+          signal,
+        };
+        const requiredToolIds =
+          run.runtimeSnapshot?.runtimeConfig?.requiredCompletionTools || [];
+        let invocationInput = {
+          messages: [
+            {
+              role: "user",
+              content: `${taskItem.objective}${contextPrompt(state.contextItems)}`,
+            },
+          ],
+        };
+        let resultState;
+        let parsed = null;
+        let parseError = null;
+        let missingToolIds = [];
+        for (let continuation = 0; continuation < 3; continuation += 1) {
+          resultState = await workerGraph.invoke(
+            invocationInput,
+            invocationConfig
+          );
+          try {
+            parsed = workerResultSchema.parse(
+              parseJsonObject(finalText(resultState))
+            );
+            parseError = null;
+          } catch (error) {
+            parsed = null;
+            parseError = error;
+          }
+          const completedToolIds = new Set(
+            await AgentToolExecution.completedToolIds(run.id)
+          );
+          missingToolIds = requiredToolIds.filter(
+            (toolId) => !completedToolIds.has(toolId)
+          );
+          if (parsed && !missingToolIds.length) break;
+          if (continuation === 2) break;
+
+          const reasons = [
+            parseError
+              ? "Your previous response was not the required JSON worker result."
+              : null,
+            missingToolIds.length
+              ? `Required completion tools have not succeeded: ${missingToolIds.join(", ")}.`
+              : null,
+          ].filter(Boolean);
+          await emit("task.progress", {
+            taskId: taskItem.id,
+            phase: "continuing",
+            summary: "Continuing unfinished worker actions before review",
+          });
+          invocationInput = {
             messages: [
               {
                 role: "user",
-                content: `${taskItem.objective}${contextPrompt(state.contextItems)}`,
+                content: `${reasons.join(" ")} Continue the same task now. Your next response must begin with the tool calls needed to finish, not prose. Reuse the already downloaded, extracted, and analyzed workspace artifacts; do not restart meeting discovery or document analysis unless a specific required artifact is missing. Locate an existing report draft or write the final report now, read it back to verify it, execute every missing completion tool, and only then return exactly one JSON object with summary, evidence, and unresolved. Completed tool IDs so far: ${[...completedToolIds].join(", ") || "none"}.`,
               },
             ],
-          },
-          {
-            ...childRunnableConfig(config, {
-              tags: ["governed-worker"],
-              metadata: {
-                taskId: taskItem.id,
-                agentId: String(workerAgent.id),
-                attempt: String(attempt),
-              },
-            }),
-            configurable: {
-              thread_id: `${run.checkpointThreadId}:task:${taskItem.id}:attempt:${attempt}`,
-            },
-            recursionLimit: 120,
-            signal,
-          }
-        );
-        let parsed;
-        try {
-          parsed = workerResultSchema.parse(
-            parseJsonObject(finalText(resultState))
-          );
-        } catch (error) {
+          };
+        }
+        if (!parsed) {
           parsed = {
             summary:
               finalText(resultState) || "Worker completed without a summary.",
             evidence: [],
-            unresolved: [`Structured result was unavailable: ${error.message}`],
+            unresolved: [
+              `Structured result was unavailable: ${parseError?.message || "unknown parse error"}`,
+              ...(missingToolIds.length
+                ? [`Missing completion tools: ${missingToolIds.join(", ")}`]
+                : []),
+            ],
           };
+        } else if (missingToolIds.length) {
+          parsed.unresolved.push(
+            `Missing completion tools: ${missingToolIds.join(", ")}`
+          );
         }
         const evidence = normalizeEvidence(parsed.evidence, {
           id: taskItem.id,
@@ -1101,11 +1312,16 @@ async function executeSegment(context) {
 module.exports = {
   DEFAULTS,
   GovernedState,
+  askUserTool,
+  controllerDecisionWithFallback,
   createGovernedGraph,
   executeSegment,
   mergeById,
+  normalizedActionPlan,
   requestAllowsWrite,
+  resolvedTaskDependencies,
   scopedTaskId,
+  streamControllerDecision,
   taskSchema,
   validatePlan,
 };

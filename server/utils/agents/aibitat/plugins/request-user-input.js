@@ -83,7 +83,7 @@ function normalizeQuestion(raw) {
   }
 
   if (raw.kind === "choice") {
-    if (!Array.isArray(raw.options) || raw.options.length < 2) return null;
+    if (!Array.isArray(raw.options) || raw.options.length !== 3) return null;
     return {
       kind: "choice",
       question: raw.question.trim(),
@@ -92,7 +92,7 @@ function normalizeQuestion(raw) {
         ? raw.optionDescriptions.map(String)
         : [],
       multiSelect: !!raw.multiSelect,
-      allowOther: raw.allowOther !== false,
+      allowOther: true,
     };
   }
 
@@ -159,6 +159,7 @@ const AskUser = {
             "Prompt the user for input via an interactive form. " +
             "This is the ONLY way to ask the user questions - text responses cannot receive replies. " +
             "Call this tool when you need a URL, file path, name, date, preference, or any other detail to proceed. " +
+            "For every choice question, provide exactly three concise, mutually exclusive options with the recommended option first. Do not include Other or Custom; the client adds a fourth Custom answer option with notes. " +
             "The user will see a form and their answers are returned to you.",
           examples: [
             {
@@ -191,7 +192,6 @@ const AskUser = {
                     kind: "choice",
                     question: "What's the priority?",
                     options: ["P0", "P1", "P2"],
-                    allowOther: false,
                   },
                 ],
               }),
@@ -231,15 +231,16 @@ const AskUser = {
                     options: {
                       type: "array",
                       items: { type: "string" },
+                      minItems: 3,
+                      maxItems: 3,
                       description:
-                        "Required when kind='choice'. The list of choices.",
+                        "Required when kind='choice'. Exactly three mutually exclusive choices, with the recommended choice first. The client adds the fourth custom-answer option.",
                     },
                     optionDescriptions: {
                       type: "array",
                       items: { type: "string" },
                     },
                     multiSelect: { type: "boolean" },
-                    allowOther: { type: "boolean" },
                   },
                 },
               },

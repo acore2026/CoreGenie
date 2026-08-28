@@ -20,6 +20,7 @@ const {
   normalizeRuntimeConfig,
   runtimeOptions,
 } = require("../agent-system/runtimes/registry");
+const { publicSkill } = require("./agentSkills");
 
 const EDIT_ROLES = [ROLES.admin];
 const MAX_NAME = 80;
@@ -212,6 +213,7 @@ function predefinedAgentEndpoints(app) {
     "/admin/predefined-agents",
     [validatedRequest, flexUserRoleValid(EDIT_ROLES)],
     async (_request, response) => {
+      await require("../agent-skills/seed").seedBuiltinSkills();
       await ModelCapability.seedBuiltins();
       const [agents, skills, tools, defaultAgentId, modelCapabilities] =
         await Promise.all([
@@ -223,7 +225,7 @@ function predefinedAgentEndpoints(app) {
         ]);
       return response.status(200).json({
         agents,
-        skills,
+        skills: skills.map((skill) => publicSkill(skill)),
         tools,
         runtimes: runtimeOptions(),
         defaultAgentId,
@@ -314,7 +316,7 @@ function predefinedAgentEndpoints(app) {
       if (agent.isBuiltinDefault)
         return response.status(400).json({
           success: false,
-          error: "The built-in Default Agent cannot be deleted.",
+          error: "The built-in general-purpose Agent cannot be deleted.",
         });
       if (agent.id === (await PredefinedAgent.defaultId()))
         return response.status(400).json({
@@ -340,7 +342,9 @@ function predefinedAgentEndpoints(app) {
       return response.status(success ? 200 : 400).json({
         success,
         defaultAgentId: success ? Number(agentId) : null,
-        error: success ? null : "Default Agent must be enabled and available.",
+        error: success
+          ? null
+          : "The general-purpose Agent must be enabled and available.",
       });
     }
   );
@@ -392,12 +396,25 @@ function predefinedAgentEndpoints(app) {
     "/admin/predefined-agent-skills",
     [validatedRequest, flexUserRoleValid(EDIT_ROLES)],
     async (request, response) => {
-      const { data, error } = validateSkillPayload(reqBody(request));
+      const body = reqBody(request);
+      let skill;
+      let error;
+      if (body.skillMd) {
+        const result = await PredefinedAgentSkill.createPackage(
+          body,
+          response.locals?.user?.id
+        );
+        skill = result.skill;
+        error = result.error;
+      } else {
+        const validated = validateSkillPayload(body);
+        error = validated.error;
+        if (!error) skill = await PredefinedAgentSkill.create(validated.data);
+      }
       if (error) return response.status(400).json({ success: false, error });
-      const skill = await PredefinedAgentSkill.create(data);
       return response.status(skill ? 200 : 500).json({
         success: !!skill,
-        skill,
+        skill: publicSkill(skill, { includeContent: true }),
         error: skill ? null : "Unable to create skill.",
       });
     }
@@ -407,12 +424,45 @@ function predefinedAgentEndpoints(app) {
     "/admin/predefined-agent-skills/:id",
     [validatedRequest, flexUserRoleValid(EDIT_ROLES)],
     async (request, response) => {
-      const { data, error } = validateSkillPayload(reqBody(request));
+      const body = reqBody(request);
+      let skill;
+      let error;
+      if (body.skillMd) {
+        const result = await PredefinedAgentSkill.updatePackage(
+          request.params.id,
+          body,
+          response.locals?.user?.id
+        );
+        skill = result.skill;
+        error = result.error;
+      } else {
+        const validated = validateSkillPayload(body);
+        error = validated.error;
+        if (!error)
+          skill = await PredefinedAgentSkill.update(
+            request.params.id,
+            validated.data
+          );
+      }
       if (error) return response.status(400).json({ success: false, error });
-      const skill = await PredefinedAgentSkill.update(request.params.id, data);
       return response.status(skill ? 200 : 404).json({
         success: !!skill,
-        skill,
+        skill: publicSkill(skill, { includeContent: true }),
+        error: skill ? null : "Skill not found.",
+      });
+    }
+  );
+
+  app.get(
+    "/admin/predefined-agent-skills/:id",
+    [validatedRequest, flexUserRoleValid(EDIT_ROLES)],
+    async (request, response) => {
+      const skill = await PredefinedAgentSkill.get(request.params.id, {
+        editor: true,
+      });
+      return response.status(skill ? 200 : 404).json({
+        success: !!skill,
+        skill: publicSkill(skill, { includeContent: true }),
         error: skill ? null : "Skill not found.",
       });
     }

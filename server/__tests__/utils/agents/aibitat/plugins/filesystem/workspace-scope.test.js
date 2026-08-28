@@ -28,10 +28,10 @@ describe("filesystem workspace scoping", () => {
     const laterInvocation = filesystem.forWorkspace(7);
     const sameFile = await laterInvocation.validatePath("result.txt");
     await expect(laterInvocation.readFileContent(sameFile)).resolves.toBe(
-      "persistent",
+      "persistent"
     );
     expect(sameFile).toContain(
-      path.join("anythingllm-fs", "workspaces", "workspace-7"),
+      path.join("anythingllm-fs", "workspaces", "workspace-7")
     );
   });
 
@@ -42,13 +42,36 @@ describe("filesystem workspace scoping", () => {
     await workspaceOne.writeFileContent(privatePath, "workspace one");
 
     await expect(workspaceTwo.validatePath(privatePath)).rejects.toThrow(
-      "Access denied",
+      "Access denied"
     );
+  });
+
+  it("maps sandbox /workspace paths to the authenticated workspace", async () => {
+    const manager = filesystem.forWorkspace(7);
+    const relativePath = await manager.validatePath(
+      "sources/meeting/catalog.json"
+    );
+    await manager.writeFileContent(relativePath, '{"count":174}');
+
+    const sandboxPath = await manager.validatePath(
+      "/workspace/sources/meeting/catalog.json"
+    );
+    expect(sandboxPath).toBe(relativePath);
+    await expect(manager.readFileContent(sandboxPath)).resolves.toBe(
+      '{"count":174}'
+    );
+  });
+
+  it("rejects traversal through the sandbox workspace alias", async () => {
+    const manager = filesystem.forWorkspace(7);
+    await expect(
+      manager.validatePath("/workspace/../workspace-8/private.txt")
+    ).rejects.toThrow("Access denied");
   });
 
   it("requires authenticated workspace state", () => {
     expect(() => filesystem.forInvocation({})).toThrow(
-      "Authenticated workspace is required",
+      "Authenticated workspace is required"
     );
   });
 
@@ -65,7 +88,7 @@ describe("filesystem workspace scoping", () => {
     await fs.mkdir(path.dirname(nestedFile), { recursive: true });
     await manager.writeFileContent(nestedFile, "temporary");
     await expect(
-      manager.deletePath("old", { recursive: true }),
+      manager.deletePath("old", { recursive: true })
     ).resolves.toMatchObject({ type: "directory" });
 
     const targetPath = await manager.validatePath("keep-me.txt");
@@ -77,7 +100,7 @@ describe("filesystem workspace scoping", () => {
 
     const [workspaceRoot] = manager.getAllowedDirectories();
     await expect(manager.deletePath(workspaceRoot)).rejects.toThrow(
-      "workspace root cannot be deleted",
+      "workspace root cannot be deleted"
     );
   });
 });

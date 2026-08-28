@@ -1,12 +1,17 @@
 const sandbox = require("./lib");
 
-const MAX_TIMEOUT_SECONDS = 30;
+const DEFAULT_TIMEOUT_SECONDS = 300;
+const MAX_TIMEOUT_SECONDS = 1800;
 
-function formatResult(result) {
-  const sections = [
-    `Exit code: ${result.exitCode}`,
-    `Timed out: ${result.timedOut ? "yes" : "no"}`,
-  ];
+function formatResult(result, timeoutSeconds = null) {
+  const sections = [`Exit code: ${result.exitCode}`];
+  if (result.timedOut) {
+    sections.push(
+      timeoutSeconds
+        ? `Timed out after ${timeoutSeconds} seconds.`
+        : "Timed out before completion."
+    );
+  }
   if (result.stdout) sections.push(`stdout:\n${result.stdout}`);
   if (result.stderr) sections.push(`stderr:\n${result.stderr}`);
   if (!result.stdout && !result.stderr)
@@ -42,7 +47,7 @@ function sandboxTool(language) {
                     language === "bash"
                       ? "find . -maxdepth 2 -type f -print"
                       : 'import json\nwith open("result.json", "w") as f:\n    json.dump({"ok": True}, f)',
-                  timeout_seconds: 30,
+                  timeout_seconds: DEFAULT_TIMEOUT_SECONDS,
                 }),
               },
             ],
@@ -58,8 +63,9 @@ function sandboxTool(language) {
                   type: "integer",
                   minimum: 1,
                   maximum: MAX_TIMEOUT_SECONDS,
-                  default: MAX_TIMEOUT_SECONDS,
-                  description: "Execution timeout in seconds (maximum 30).",
+                  default: DEFAULT_TIMEOUT_SECONDS,
+                  description:
+                    "Execution timeout in seconds (default 300, maximum 1800).",
                 },
               },
               required: ["code"],
@@ -67,7 +73,7 @@ function sandboxTool(language) {
             },
             handler: async function ({
               code = "",
-              timeout_seconds = MAX_TIMEOUT_SECONDS,
+              timeout_seconds = DEFAULT_TIMEOUT_SECONDS,
             }) {
               try {
                 const invocation = this.super.handlerProps?.invocation;
@@ -112,7 +118,7 @@ function sandboxTool(language) {
                 this.super.introspect(
                   `${this.caller}: ${language} sandbox exited with code ${result.exitCode}`
                 );
-                return formatResult(result);
+                return formatResult(result, timeoutSeconds);
               } catch (error) {
                 this.super.handlerProps.log(
                   `${language} sandbox error: ${error.message}`

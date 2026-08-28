@@ -403,6 +403,28 @@ model agent_run_commands {
   @@index([run_id, status])
 }
 
+/// Immutable publications created from Agent workspace reports and embedded
+/// into the originating Workspace knowledge base.
+model agent_report_publications {
+  id            String   @id
+  run_id        String
+  workspace_id  Int
+  sourcePath    String
+  contentHash   String
+  documentId    Int?
+  documentPath  String?
+  title         String
+  status        String   @default("publishing")
+  metadata      String   @default("{}")
+  error         String?
+  createdAt     DateTime @default(now())
+  lastUpdatedAt DateTime @default(now())
+
+  @@unique([run_id, sourcePath])
+  @@index([workspace_id, createdAt])
+  @@index([run_id, status])
+}
+
 /// Explicit model capability registry. Custom models are never guessed at runtime.
 model model_capabilities {
   id                Int      @id @default(autoincrement())
@@ -423,12 +445,31 @@ model model_capabilities {
 }
 
 model predefined_agent_skills {
-  id            Int      @id @default(autoincrement())
-  name          String
-  description   String   @default("")
-  instructions  String
-  createdAt     DateTime @default(now())
-  lastUpdatedAt DateTime @default(now())
+  id             Int      @id @default(autoincrement())
+  name           String
+  description    String   @default("")
+  instructions   String
+  activeRevision String?
+  archived       Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  lastUpdatedAt  DateTime @default(now())
+
+  @@index([name])
+  @@index([archived])
+}
+
+model agent_skill_revisions {
+  id           String   @id
+  skillId      Int
+  sha256       String
+  manifest     String
+  fileManifest String   @default("[]")
+  packagePath  String
+  createdBy    Int?
+  createdAt    DateTime @default(now())
+
+  @@unique([skillId, sha256])
+  @@index([skillId, createdAt])
 }
 
 model predefined_agents {

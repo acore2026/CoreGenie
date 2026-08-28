@@ -6,6 +6,9 @@ const memory = require("./memory");
 const web = require("./web");
 const rag = require("./rag");
 const userInput = require("./userInput");
+const skills = require("./skills");
+const vision = require("./vision");
+const knowledge = require("./knowledge");
 
 const toolRegistry = new ResourceRegistry("tool");
 for (const descriptor of [
@@ -15,6 +18,10 @@ for (const descriptor of [
   ...Object.values(web),
   rag.ragSearch,
   userInput.askUser,
+  skills.activateSkill,
+  skills.readSkillResource,
+  vision.inspectImage,
+  knowledge.publishReport,
 ]) {
   toolRegistry.register(descriptor);
 }
@@ -48,7 +55,11 @@ async function toolsForAgent(
   const tools = toolRegistry
     .list()
     .filter((descriptor) => !excluded.has(descriptor.id))
-    .filter((descriptor) => legacySelectionAllows(allowed, descriptor))
+    .filter(
+      (descriptor) =>
+        descriptor.id.startsWith("skill.") ||
+        legacySelectionAllows(allowed, descriptor)
+    )
     .filter((descriptor) => allowActions || descriptor.action === false)
     .map((descriptor) => toLangChainTool(descriptor, context));
   if (

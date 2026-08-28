@@ -69,8 +69,8 @@ async function recentChatHistory({
     await WorkspaceChats.where(
       {
         workspaceId: workspace.id,
-        user_id: user?.id || null,
         thread_id: thread?.id || null,
+        ...(thread?.id ? {} : { user_id: user?.id || null }),
         api_session_id: apiSessionId || null,
         include: true,
       },

@@ -1,4 +1,7 @@
 const GLOBAL_SYSTEM_PROMPT_LABEL = "global_system_prompt";
+const {
+  loadWorkspaceAgentInstructions,
+} = require("./workspaceAgentInstructions");
 
 function promptText(value) {
   return typeof value === "string" ? value.trim() : "";
@@ -7,7 +10,8 @@ function promptText(value) {
 /**
  * Build the single system message used by normal chats and Agents.
  * Global instructions have the highest precedence, followed by the selected
- * Agent/base prompt, then the signed-in user's personal instructions.
+ * Agent/base prompt, workspace agent.md, then the signed-in user's personal
+ * instructions.
  */
 async function composeSystemPrompt({
   basePrompt,
@@ -25,10 +29,13 @@ async function composeSystemPrompt({
     )
   );
   const agentPrompt = promptText(basePrompt);
+  const workspacePrompt = promptText(
+    await loadWorkspaceAgentInstructions(workspace)
+  );
   const userPrompt = promptText(user?.systemPrompt);
 
   let combinedPrompt = agentPrompt;
-  if (globalPrompt || userPrompt) {
+  if (globalPrompt || workspacePrompt || userPrompt) {
     const sections = [
       globalPrompt
         ? `<global_system_prompt>\n${globalPrompt}\n</global_system_prompt>`
@@ -36,13 +43,16 @@ async function composeSystemPrompt({
       agentPrompt
         ? `<agent_system_prompt>\n${agentPrompt}\n</agent_system_prompt>`
         : null,
+      workspacePrompt
+        ? `<workspace_agent_md>\n${workspacePrompt}\n</workspace_agent_md>`
+        : null,
       userPrompt
         ? `<user_system_prompt>\n${userPrompt}\n</user_system_prompt>`
         : null,
     ].filter(Boolean);
 
     combinedPrompt = [
-      "Follow all instruction sections below. If instructions conflict, precedence is global, then Agent, then user.",
+      "Follow all instruction sections below. If instructions conflict, precedence is global, then Agent, then workspace agent.md, then user.",
       ...sections,
     ].join("\n\n");
   }

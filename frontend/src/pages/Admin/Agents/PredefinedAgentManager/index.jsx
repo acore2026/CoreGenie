@@ -3,6 +3,10 @@ import {
   ChatCircleText,
   Check,
   CheckCircle,
+  Code,
+  FileText,
+  FolderOpen,
+  Globe,
   NotePencil,
   Plus,
   Robot,
@@ -16,6 +20,7 @@ import AgentAvatar from "@/components/PredefinedAgents/AgentAvatar";
 import showToast from "@/utils/toast";
 import System from "@/models/system";
 import useGetProviderModels from "@/hooks/useGetProvidersModels";
+import Workspace from "@/models/workspace";
 
 export default function PredefinedAgentManager({ view = "agents" }) {
   const [data, setData] = useState({
@@ -28,18 +33,45 @@ export default function PredefinedAgentManager({ view = "agents" }) {
   });
   const [loading, setLoading] = useState(true);
   const [editor, setEditor] = useState(null);
+  const [skillScope, setSkillScope] = useState("global");
+  const [workspaces, setWorkspaces] = useState([]);
+  const [workspaceSlug, setWorkspaceSlug] = useState("");
+  const [workspaceSkills, setWorkspaceSkills] = useState([]);
   const showingSkills = view === "skills";
 
   async function refresh() {
-    const next = await PredefinedAgent.adminList();
+    const [next, availableWorkspaces] = await Promise.all([
+      PredefinedAgent.adminList(),
+      showingSkills ? Workspace.all() : Promise.resolve([]),
+    ]);
     if (next.error) showToast(next.error, "error");
     else setData(next);
+    if (showingSkills) {
+      setWorkspaces(availableWorkspaces);
+      setWorkspaceSlug(
+        (current) => current || availableWorkspaces[0]?.slug || ""
+      );
+    }
     setLoading(false);
   }
 
   useEffect(() => {
     refresh();
   }, []);
+
+  useEffect(() => {
+    if (!showingSkills || !workspaceSlug) {
+      setWorkspaceSkills([]);
+      return;
+    }
+    PredefinedAgent.workspaceSkills(workspaceSlug).then((result) => {
+      if (result.error) showToast(result.error, "error");
+      setWorkspaceSkills(result.skills || []);
+    });
+  }, [showingSkills, workspaceSlug]);
+
+  const visibleSkills =
+    skillScope === "workspace" ? workspaceSkills : data.skills;
 
   async function setDefaultAgent(event) {
     const agentId = Number(event.target.value);
@@ -74,7 +106,9 @@ export default function PredefinedAgentManager({ view = "agents" }) {
           {showingSkills ? (
             <button
               type="button"
-              onClick={() => setEditor({ type: "skill", item: null })}
+              onClick={() =>
+                setEditor({ type: "skill", item: null, scope: skillScope })
+              }
               className="flex h-9 items-center gap-1.5 rounded-xl bg-amber-300 px-3 text-xs font-semibold text-zinc-950 transition hover:bg-amber-200"
             >
               <Plus size={14} weight="bold" /> 新建 Skill
@@ -192,20 +226,58 @@ export default function PredefinedAgentManager({ view = "agents" }) {
 
         {showingSkills && (
           <section className="p-5">
-            <div className="mb-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-theme-text-secondary">
-                Skill library
-              </p>
-              <p className="mt-1 text-[11px] text-theme-text-secondary">
-                可复用的行为与专业知识指令
-              </p>
+            <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-theme-text-secondary">
+                  Skill library
+                </p>
+                <p className="mt-1 text-[11px] text-theme-text-secondary">
+                  Agent Skills 标准包、脚本、参考资料与资源
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="flex rounded-xl border border-white/10 p-1 light:border-slate-200">
+                  {[
+                    ["global", "Global", Globe],
+                    ["workspace", "Workspace", FolderOpen],
+                  ].map(([scope, label, Icon]) => (
+                    <button
+                      key={scope}
+                      type="button"
+                      onClick={() => setSkillScope(scope)}
+                      className={`flex h-8 items-center gap-1.5 rounded-lg px-3 text-xs ${
+                        skillScope === scope
+                          ? "bg-amber-300 text-zinc-950"
+                          : "text-theme-text-secondary hover:text-theme-text-primary"
+                      }`}
+                    >
+                      <Icon size={13} /> {label}
+                    </button>
+                  ))}
+                </div>
+                {skillScope === "workspace" && (
+                  <select
+                    value={workspaceSlug}
+                    onChange={(event) => setWorkspaceSlug(event.target.value)}
+                    className={`${inputClass} h-10 min-w-44 py-0 text-xs`}
+                  >
+                    {workspaces.map((workspace) => (
+                      <option key={workspace.id} value={workspace.slug}>
+                        {workspace.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
             </div>
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {data.skills.map((skill) => (
+              {visibleSkills.map((skill) => (
                 <button
-                  key={skill.id}
+                  key={`${skillScope}:${skill.id || skill.name}`}
                   type="button"
-                  onClick={() => setEditor({ type: "skill", item: skill })}
+                  onClick={() =>
+                    setEditor({ type: "skill", item: skill, scope: skillScope })
+                  }
                   className="group flex w-full items-start gap-3 rounded-xl border border-white/[0.07] p-3 text-left transition hover:border-amber-300/30 hover:bg-amber-300/[0.03] light:border-slate-200"
                 >
                   <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-amber-300/10 text-amber-300 light:bg-amber-50 light:text-amber-700">
@@ -215,6 +287,11 @@ export default function PredefinedAgentManager({ view = "agents" }) {
                     <span className="block truncate text-xs font-semibold">
                       {skill.name}
                     </span>
+                    {!skill.valid && (
+                      <span className="mt-1 block text-[10px] text-red-400">
+                        {skill.errors?.[0] || "Invalid skill"}
+                      </span>
+                    )}
                     <span className="mt-1 block line-clamp-2 text-[11px] leading-4 text-theme-text-secondary">
                       {skill.description || skill.instructions}
                     </span>
@@ -225,7 +302,7 @@ export default function PredefinedAgentManager({ view = "agents" }) {
                   />
                 </button>
               ))}
-              {!loading && !data.skills.length && (
+              {!loading && !visibleSkills.length && (
                 <p className="rounded-xl border border-dashed border-white/10 p-5 text-center text-xs text-theme-text-secondary light:border-slate-300">
                   还没有自定义 Skill
                 </p>
@@ -252,10 +329,17 @@ export default function PredefinedAgentManager({ view = "agents" }) {
       {editor?.type === "skill" && (
         <SkillEditor
           skill={editor.item}
+          scope={editor.scope}
+          workspaceSlug={workspaceSlug}
           onClose={() => setEditor(null)}
           onSaved={async () => {
             setEditor(null);
             await refresh();
+            if (workspaceSlug) {
+              const result =
+                await PredefinedAgent.workspaceSkills(workspaceSlug);
+              setWorkspaceSkills(result.skills || []);
+            }
           }}
         />
       )}
@@ -413,10 +497,12 @@ function ModelCapabilityRegistry({ items, onSaved }) {
   );
 }
 
-function ModalShell({ title, subtitle, onClose, children }) {
+function ModalShell({ title, subtitle, onClose, children, wide = false }) {
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-      <div className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-zinc-900 shadow-2xl light:border-slate-200 light:bg-white">
+      <div
+        className={`flex max-h-[92vh] w-full ${wide ? "max-w-6xl" : "max-w-3xl"} flex-col overflow-hidden rounded-2xl border border-white/10 bg-zinc-900 shadow-2xl light:border-slate-200 light:bg-white`}
+      >
         <header className="flex shrink-0 items-start justify-between border-b border-white/10 px-5 py-4 light:border-slate-200">
           <div>
             <h2 className="text-base font-semibold text-white light:text-slate-900">
@@ -669,7 +755,7 @@ function AgentEditor({
                 className="accent-cyan-300 disabled:cursor-not-allowed disabled:opacity-50"
               />
               {agent?.isBuiltinDefault
-                ? "内置 Default Agent 始终启用"
+                ? "内置通用助手始终启用"
                 : isCurrentDefault
                   ? "全局默认 Agent 必须保持启用"
                   : "在 Agent 展示区启用"}
@@ -836,7 +922,10 @@ function AgentEditor({
             </label>
           )}
 
-          <Field label="Skills" hint="这些指令会追加到 Agent 的 System Prompt">
+          <Field
+            label="Skills"
+            hint="只注入目录，Agent 使用前会按需激活完整指令"
+          >
             <div className="grid gap-2 sm:grid-cols-2">
               {skills.map((skill) => (
                 <CheckCard
@@ -886,7 +975,7 @@ function AgentEditor({
           </Field>
         </div>
 
-        <footer className="mt-6 flex items-center justify-between border-t border-white/10 pt-4 light:border-slate-200">
+        <footer className="flex items-center justify-between border-t border-white/10 px-5 py-4 light:border-slate-200">
           <div>
             {agent && !agent.isBuiltinDefault && !isCurrentDefault && (
               <button
@@ -920,20 +1009,119 @@ function AgentEditor({
   );
 }
 
-function SkillEditor({ skill, onClose, onSaved }) {
-  const [form, setForm] = useState({
-    name: skill?.name || "",
-    description: skill?.description || "",
-    instructions: skill?.instructions || "",
-  });
+function SkillEditor({ skill, scope, workspaceSlug, onClose, onSaved }) {
+  const newSkillMd = `---\nname: new-skill\ndescription: Describe what this skill does and when the Agent should use it.\n---\n\n# New skill\n\nWrite the skill instructions here.\n`;
+  const [skillMd, setSkillMd] = useState(skill?.skillMd || newSkillMd);
+  const [files, setFiles] = useState(skill?.files || []);
+  const [deletedPaths, setDeletedPaths] = useState([]);
+  const [selectedPath, setSelectedPath] = useState("SKILL.md");
+  const [loading, setLoading] = useState(Boolean(skill));
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!skill) return;
+    const loader =
+      scope === "workspace"
+        ? PredefinedAgent.getWorkspaceSkill(workspaceSlug, skill.name)
+        : PredefinedAgent.getSkill(skill.id);
+    loader.then((result) => {
+      if (!result.skill) showToast(result.error || "无法加载 Skill", "error");
+      else {
+        setSkillMd(result.skill.skillMd || newSkillMd);
+        setFiles(result.skill.files || []);
+      }
+      setLoading(false);
+    });
+  }, [skill?.id, skill?.name, scope, workspaceSlug]);
+
+  const selectedFile = files.find((file) => file.path === selectedPath);
+  const currentName =
+    skillMd.match(/^---[\s\S]*?\nname:\s*["']?([^\n"']+)/)?.[1]?.trim() ||
+    skill?.name ||
+    "new-skill";
+
+  function updateSelected(content) {
+    if (selectedPath === "SKILL.md") return setSkillMd(content);
+    setFiles((current) =>
+      current.map((file) =>
+        file.path === selectedPath
+          ? { ...file, content, encoding: "utf8", text: true }
+          : file
+      )
+    );
+  }
+
+  function addTextFile(folder, extension) {
+    const proposed = `${folder}/new-${folder === "scripts" ? "script" : "resource"}.${extension}`;
+    const value = window.prompt("Package-relative file path", proposed)?.trim();
+    if (!value || value === "SKILL.md") return;
+    if (files.some((file) => file.path === value))
+      return showToast("文件已经存在", "error");
+    setFiles((current) => [
+      ...current,
+      { path: value, content: "", encoding: "utf8", text: true, size: 0 },
+    ]);
+    setDeletedPaths((current) => current.filter((path) => path !== value));
+    setSelectedPath(value);
+  }
+
+  function deleteSelected() {
+    if (selectedPath === "SKILL.md") return;
+    setFiles((current) => current.filter((file) => file.path !== selectedPath));
+    setDeletedPaths((current) => [...new Set([...current, selectedPath])]);
+    setSelectedPath("SKILL.md");
+  }
+
+  async function addAsset(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    const target = window
+      .prompt("Package-relative asset path", `assets/${file.name}`)
+      ?.trim();
+    if (!target) return;
+    const text =
+      file.type.startsWith("text/") ||
+      /\.(md|txt|json|ya?ml|csv|xml|html|css|js|ts|py|sh)$/i.test(file.name);
+    const content = text
+      ? await file.text()
+      : await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result).split(",")[1]);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+    setFiles((current) => [
+      ...current.filter((item) => item.path !== target),
+      {
+        path: target,
+        content,
+        encoding: text ? "utf8" : "base64",
+        text,
+        size: file.size,
+      },
+    ]);
+    setDeletedPaths((current) => current.filter((path) => path !== target));
+    setSelectedPath(target);
+  }
 
   async function save(event) {
     event.preventDefault();
     setSaving(true);
-    const result = skill
-      ? await PredefinedAgent.updateSkill(skill.id, form)
-      : await PredefinedAgent.createSkill(form);
+    const payload = {
+      skillMd,
+      files: files
+        .filter((file) => file.content != null)
+        .map(({ path, content, encoding }) => ({ path, content, encoding })),
+      deletedPaths,
+      ...(scope === "workspace" && skill ? { previousName: skill.name } : {}),
+    };
+    const result =
+      scope === "workspace"
+        ? await PredefinedAgent.saveWorkspaceSkill(workspaceSlug, payload)
+        : skill
+          ? await PredefinedAgent.updateSkill(skill.id, payload)
+          : await PredefinedAgent.createSkill(payload);
     if (!result.success) {
       showToast(result.error || "保存失败", "error");
       setSaving(false);
@@ -945,7 +1133,10 @@ function SkillEditor({ skill, onClose, onSaved }) {
 
   async function remove() {
     if (!skill || !window.confirm(`删除 Skill“${skill.name}”？`)) return;
-    const result = await PredefinedAgent.deleteSkill(skill.id);
+    const result =
+      scope === "workspace"
+        ? await PredefinedAgent.deleteWorkspaceSkill(workspaceSlug, skill.name)
+        : await PredefinedAgent.deleteSkill(skill.id);
     if (!result.success) return showToast(result.error || "删除失败", "error");
     showToast("Skill 已删除", "success");
     await onSaved();
@@ -954,47 +1145,111 @@ function SkillEditor({ skill, onClose, onSaved }) {
   return (
     <ModalShell
       title={skill ? `编辑 ${skill.name}` : "新建 Skill"}
-      subtitle="Skill 是可被多个 Agent 复用的专业指令块。"
+      subtitle={`${scope === "workspace" ? "Workspace · live" : "Global · versioned"} · Agent Skills specification`}
       onClose={onClose}
+      wide
     >
-      <form onSubmit={save} className="min-h-0 overflow-y-auto p-5">
-        <div className="space-y-4">
-          <Field label="名称">
-            <input
-              required
-              maxLength={80}
-              className={inputClass}
-              value={form.name}
-              onChange={(event) =>
-                setForm({ ...form, name: event.target.value })
-              }
-              placeholder="例如：技术调研"
-            />
-          </Field>
-          <Field label="描述">
-            <input
-              maxLength={500}
-              className={inputClass}
-              value={form.description}
-              onChange={(event) =>
-                setForm({ ...form, description: event.target.value })
-              }
-              placeholder="简要说明用途"
-            />
-          </Field>
-          <Field label="Skill instructions">
-            <textarea
-              required
-              className={`${inputClass} min-h-64 resize-y leading-5`}
-              value={form.instructions}
-              onChange={(event) =>
-                setForm({ ...form, instructions: event.target.value })
-              }
-              placeholder="写明执行流程、质量标准、输出格式、注意事项……"
-            />
-          </Field>
+      <form onSubmit={save} className="flex min-h-0 flex-1 flex-col">
+        <div className="grid min-h-0 flex-1 md:grid-cols-[250px_minmax(0,1fr)]">
+          <aside className="min-h-0 overflow-y-auto border-r border-white/10 p-3 light:border-slate-200">
+            <div className="mb-3 flex flex-wrap gap-1.5">
+              <button
+                type="button"
+                onClick={() => addTextFile("scripts", "py")}
+                className={miniButtonClass}
+              >
+                <Code size={12} /> Python
+              </button>
+              <button
+                type="button"
+                onClick={() => addTextFile("scripts", "sh")}
+                className={miniButtonClass}
+              >
+                <Code size={12} /> Bash
+              </button>
+              <button
+                type="button"
+                onClick={() => addTextFile("references", "md")}
+                className={miniButtonClass}
+              >
+                <FileText size={12} /> Reference
+              </button>
+              <label className={`${miniButtonClass} cursor-pointer`}>
+                <UploadSimple size={12} /> Asset
+                <input type="file" className="hidden" onChange={addAsset} />
+              </label>
+            </div>
+            {[{ path: "SKILL.md", text: true }, ...files].map((file) => (
+              <button
+                key={file.path}
+                type="button"
+                onClick={() => setSelectedPath(file.path)}
+                className={`mb-1 flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs ${
+                  selectedPath === file.path
+                    ? "bg-amber-300/15 text-amber-200 light:text-amber-800"
+                    : "text-theme-text-secondary hover:bg-white/5 light:hover:bg-slate-100"
+                }`}
+              >
+                {file.path.startsWith("scripts/") ? (
+                  <Code size={13} />
+                ) : (
+                  <FileText size={13} />
+                )}
+                <span className="min-w-0 flex-1 truncate font-mono">
+                  {file.path}
+                </span>
+                {file.text === false && <span className="text-[9px]">BIN</span>}
+              </button>
+            ))}
+          </aside>
+          <section className="flex min-h-[440px] min-w-0 flex-col p-4">
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="m-0 truncate font-mono text-xs font-semibold text-theme-text-primary">
+                  {selectedPath}
+                </p>
+                <p className="m-0 mt-1 text-[10px] text-theme-text-secondary">
+                  {currentName} · changes become available on the next Agent
+                  step
+                </p>
+              </div>
+              {selectedPath !== "SKILL.md" && (
+                <button
+                  type="button"
+                  onClick={deleteSelected}
+                  className="text-xs text-red-400 hover:text-red-300"
+                >
+                  删除文件
+                </button>
+              )}
+            </div>
+            {loading ? (
+              <div className="flex-1 animate-pulse rounded-xl bg-white/5 light:bg-slate-100" />
+            ) : selectedPath === "SKILL.md" || selectedFile?.text !== false ? (
+              <textarea
+                required={selectedPath === "SKILL.md"}
+                spellCheck={false}
+                value={
+                  selectedPath === "SKILL.md"
+                    ? skillMd
+                    : selectedFile?.content || ""
+                }
+                onChange={(event) => updateSelected(event.target.value)}
+                className={`${inputClass} min-h-0 flex-1 resize-none whitespace-pre font-mono text-xs leading-5`}
+              />
+            ) : (
+              <div className="flex flex-1 items-center justify-center rounded-xl border border-dashed border-white/10 text-xs text-theme-text-secondary light:border-slate-300">
+                Binary asset · {selectedFile?.size || 0} bytes
+              </div>
+            )}
+            {!!skill?.warnings?.length && (
+              <p className="mt-2 text-[10px] text-amber-300">
+                {skill.warnings.join(" · ")}
+              </p>
+            )}
+          </section>
         </div>
-        <footer className="mt-6 flex items-center justify-between border-t border-white/10 pt-4 light:border-slate-200">
+        <footer className="flex items-center justify-between border-t border-white/10 px-5 py-4 light:border-slate-200">
           <div>
             {skill && (
               <button
@@ -1015,7 +1270,9 @@ function SkillEditor({ skill, onClose, onSaved }) {
               取消
             </button>
             <button
-              disabled={saving}
+              disabled={
+                saving || loading || (scope === "workspace" && !workspaceSlug)
+              }
               type="submit"
               className={primaryButtonClass}
             >
@@ -1084,3 +1341,5 @@ const primaryButtonClass =
   "h-9 rounded-xl bg-cyan-300 px-4 text-xs font-semibold text-zinc-950 hover:bg-cyan-200 disabled:opacity-50";
 const secondaryButtonClass =
   "h-9 rounded-xl border border-white/10 px-4 text-xs text-zinc-400 hover:bg-white/5 hover:text-white light:border-slate-200 light:text-slate-600 light:hover:bg-slate-100";
+const miniButtonClass =
+  "inline-flex h-8 items-center gap-1 rounded-lg border border-white/10 px-2 text-[10px] text-theme-text-secondary hover:border-amber-300/30 hover:text-amber-200 light:border-slate-200 light:hover:text-amber-700";

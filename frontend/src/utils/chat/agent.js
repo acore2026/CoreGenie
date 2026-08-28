@@ -6,6 +6,7 @@ import { emitAssistantMessageCompleteEvent } from "@/components/contexts/TTSProv
 import { THREAD_RENAME_EVENT } from "@/components/Sidebar/ActiveWorkspaces/ThreadContainer";
 import { fetchEventSource } from "@microsoft/fetch-event-source";
 import { baseHeaders } from "../request";
+import { appendResourceTrace } from "./agentResourceTraces";
 
 export const AGENT_SESSION_START = "agentSessionStart";
 export const AGENT_SESSION_END = "agentSessionEnd";
@@ -126,6 +127,7 @@ function legacyEventFromAgentRun(event) {
     type.startsWith("task.") ||
     type.startsWith("tool.") ||
     type.startsWith("context.") ||
+    type.startsWith("skill.") ||
     type.startsWith("subagent.") ||
     type.startsWith("run.")
   )
@@ -178,23 +180,203 @@ function legacyEventFromAgentRun(event) {
   return null;
 }
 
-function reduceAgentRunState(state, event) {
+const MAX_AGENT_ACTIVITIES = 24;
+
+function resourceTraceFromEvent(event) {
+  const { type, payload = {} } = event;
+  const base = {
+    id: `${event.runId || "run"}:resource:${event.id ?? `${type}:${event.createdAt || Date.now()}`}`,
+    createdAt: event.createdAt,
+  };
+  if (type === "skill.activated")
+    return {
+      ...base,
+      kind: "skill",
+      titleKey: "skill_activated",
+      titleArgs: { name: payload.name || "Skill" },
+      detail: payload.scope,
+    };
+  if (type === "skill.updated")
+    return {
+      ...base,
+      kind: "skill",
+      titleKey: "skill_updated",
+      titleArgs: { name: payload.name || "Skill" },
+      detail: payload.scope,
+    };
+  if (type === "skill.resource.used")
+    return {
+      ...base,
+      kind: "skill",
+      titleKey: "skill_resource_used",
+      titleArgs: { name: payload.name || "Skill" },
+      detail: payload.path,
+    };
+  if (type === "skill.script.executed")
+    return {
+      ...base,
+      kind: "skill",
+      titleKey: "skill_script_executed",
+      titleArgs: { name: payload.name || "Skill" },
+      detail: payload.path || payload.language,
+    };
+  if (type === "context.memory.recalled") {
+    const memories = Array.isArray(payload.memories) ? payload.memories : [];
+    return {
+      ...base,
+      kind: "memory",
+      titleKey: "memory_recalled",
+      titleArgs: { count: Number(payload.count) || 0 },
+      count: Number(payload.count) || 0,
+      scopes: [...new Set(memories.map((item) => item.scope).filter(Boolean))],
+    };
+  }
+  if (type === "context.memory.updated") {
+    const action = payload.action || "stored";
+    return {
+      ...base,
+      kind: action === "deleted" ? "memory-delete" : "memory-store",
+      titleKey: action === "deleted" ? "memory_deleted" : "memory_updated",
+      titleArgs: { count: Number(payload.count) || 1 },
+      count: Number(payload.count) || 1,
+      scopes: payload.scope ? [payload.scope] : [],
+    };
+  }
+  if (type === "context.rag.recalled") {
+    const sources = Array.isArray(payload.sources) ? payload.sources : [];
+    return {
+      ...base,
+      kind: "rag",
+      titleKey: "rag_recalled",
+      titleArgs: { count: Number(payload.count) || 0 },
+      count: Number(payload.count) || 0,
+      items: sources
+        .map((source) => source?.title || source?.sourceDocument)
+        .filter(Boolean)
+        .slice(0, 3),
+    };
+  }
+  return null;
+}
+
+function activityFromEvent(event) {
+  const { type, payload = {} } = event;
+  const base = {
+    id: event.id ?? `${type}:${event.createdAt || Date.now()}`,
+    createdAt: event.createdAt,
+    phase: payload.phase,
+  };
+  if (type === "run.started") return { ...base, summaryKey: "agent_started" };
+  if (type === "activity.updated")
+    return {
+      ...base,
+      summary: payload.summary,
+      summaryKey: payload.summaryKey,
+      summaryArgs: payload.summaryArgs,
+    };
+  if (type === "plan.created")
+    return {
+      ...base,
+      summaryKey: "plan_ready",
+      summaryArgs: { count: payload.tasks?.length || 0 },
+    };
+  if (type === "task.started")
+    return {
+      ...base,
+      summaryKey: "task_started",
+      summaryArgs: { task: payload.title || payload.taskId },
+    };
+  if (type === "task.progress" && payload.summary)
+    return { ...base, summary: payload.summary };
+  if (["task.completed", "task.failed", "task.retrying"].includes(type))
+    return {
+      ...base,
+      summaryKey: type.replace(".", "_"),
+      summaryArgs: {
+        task:
+          payload.result?.title ||
+          payload.result?.summary ||
+          payload.title ||
+          payload.taskId,
+      },
+    };
+  if (type.startsWith("tool.") && payload.toolId)
+    return {
+      ...base,
+      summary:
+        type === "tool.skipped" ||
+        (type === "tool.failed" && payload.code === "NO_PROGRESS")
+          ? payload.reason || payload.error || payload.summary
+          : null,
+      summaryKey:
+        type === "tool.skipped" ||
+        (type === "tool.failed" && payload.code === "NO_PROGRESS")
+          ? null
+          : ["tool.completed", "tool.failed"].includes(type)
+            ? type.replace(".", "_")
+            : "tool_started",
+      summaryArgs: { tool: payload.toolId },
+    };
+  if (
+    ["run.completed", "run.partial", "run.failed", "run.cancelled"].includes(
+      type
+    )
+  )
+    return {
+      ...base,
+      summaryKey:
+        type === "run.failed" && payload.error
+          ? "run_failed_with_error"
+          : type.replace(".", "_"),
+      summaryArgs: payload.error ? { error: payload.error } : null,
+    };
+  return null;
+}
+
+function appendActivity(activities, activity) {
+  if (!activity || (!activity.summary && !activity.summaryKey))
+    return activities;
+  const previous = activities.at(-1);
+  const fingerprint = JSON.stringify([
+    activity.summaryKey,
+    activity.summary,
+    activity.summaryArgs,
+  ]);
+  const previousFingerprint = previous
+    ? JSON.stringify([
+        previous.summaryKey,
+        previous.summary,
+        previous.summaryArgs,
+      ])
+    : null;
+  if (fingerprint === previousFingerprint)
+    return [...activities.slice(0, -1), activity];
+  return [...activities, activity].slice(-MAX_AGENT_ACTIVITIES);
+}
+
+export function reduceAgentRunState(state, event) {
   const next = {
     runId: state?.runId,
     status: state?.status || "queued",
     phase: state?.phase || "queued",
     summary: state?.summary || "Preparing the request",
+    summaryKey: state?.summaryKey || "preparing",
+    summaryArgs: state?.summaryArgs || null,
     agent: state?.agent || null,
     startedAt: state?.startedAt || event.createdAt,
     completedAt: state?.completedAt || null,
     tasks: [...(state?.tasks || [])],
     evidence: [...(state?.evidence || [])],
     toolExecutions: [...(state?.toolExecutions || [])],
+    activities: [...(state?.activities || [])],
+    resourceTraces: [...(state?.resourceTraces || [])],
   };
   const { type, payload = {} } = event;
   if (type === "activity.updated") {
     next.phase = payload.phase || next.phase;
     next.summary = payload.summary || next.summary;
+    next.summaryKey = payload.summaryKey || null;
+    next.summaryArgs = payload.summaryArgs || null;
   }
   if (type === "run.started") {
     next.status = "running";
@@ -218,6 +400,28 @@ function reduceAgentRunState(state, event) {
           : type === "run.cancelled"
             ? "Agent work cancelled"
             : "Agent work complete";
+    next.summaryKey =
+      type === "run.failed" && payload.error
+        ? "run_failed_with_error"
+        : type.replace(".", "_");
+    next.summaryArgs = payload.error ? { error: payload.error } : null;
+    const unfinishedStatus = type === "run.failed" ? "failed" : "cancelled";
+    const unfinishedError =
+      payload.error || "The run ended before this operation completed.";
+    next.tasks = next.tasks.map((task) =>
+      ["pending", "queued", "running", "retrying"].includes(task.status)
+        ? { ...task, status: unfinishedStatus, error: unfinishedError }
+        : task
+    );
+    next.toolExecutions = next.toolExecutions.map((execution) =>
+      ["requested", "running", "started", "retrying"].includes(execution.status)
+        ? {
+            ...execution,
+            status: unfinishedStatus,
+            error: unfinishedError,
+          }
+        : execution
+    );
   }
   if (
     ["plan.created", "plan.updated"].includes(type) &&
@@ -258,19 +462,27 @@ function reduceAgentRunState(state, event) {
     else next.tasks.push(updated);
     if (type === "task.progress")
       next.summary = payload.summary || next.summary;
+    if (type === "task.progress" && payload.summary) {
+      next.summaryKey = null;
+      next.summaryArgs = null;
+    }
   }
   if (type.startsWith("tool.") && payload.callId) {
     const index = next.toolExecutions.findIndex(
       (item) => item.call_id === payload.callId
     );
+    const status =
+      type === "tool.failed" && payload.code === "NO_PROGRESS"
+        ? "skipped"
+        : type.slice("tool.".length);
     const execution = {
       ...(index >= 0 ? next.toolExecutions[index] : {}),
       call_id: payload.callId,
       task_id: payload.taskId,
       tool_id: payload.toolId,
-      status: type.slice("tool.".length),
+      status,
       result_summary: payload.summary,
-      error: payload.error,
+      error: status === "skipped" ? null : payload.error,
     };
     if (index >= 0) next.toolExecutions[index] = execution;
     else next.toolExecutions.push(execution);
@@ -297,6 +509,11 @@ function reduceAgentRunState(state, event) {
     if (index >= 0) next.tasks[index] = task;
     else next.tasks.push(task);
   }
+  next.resourceTraces = appendResourceTrace(
+    next.resourceTraces,
+    resourceTraceFromEvent(event)
+  );
+  next.activities = appendActivity(next.activities, activityFromEvent(event));
   return next;
 }
 
@@ -341,13 +558,18 @@ export default function handleSocketResponse(socket, event, setChatHistory) {
               entryIndex === index ? message : entry
             )
           : [...prev.filter((entry) => !!entry.content), message];
-      if (
-        ["run.completed", "run.partial"].includes(runEvent.type) &&
-        runEvent.payload?.sources?.length
-      ) {
+      if (["run.completed", "run.partial"].includes(runEvent.type)) {
         return next.map((entry) =>
           entry.uuid === `${runId}:assistant`
-            ? { ...entry, sources: runEvent.payload.sources }
+            ? {
+                ...entry,
+                ...(runEvent.payload?.sources?.length
+                  ? { sources: runEvent.payload.sources }
+                  : {}),
+                ...(runEvent.payload?.outputs?.length
+                  ? { outputs: runEvent.payload.outputs }
+                  : {}),
+              }
             : entry
         );
       }

@@ -1,10 +1,14 @@
 const { AgentRun } = require("../models/agentRun");
 const { AgentRunEvent } = require("../models/agentRunEvent");
 const { AgentRunTask } = require("../models/agentRunTask");
+const { AgentToolExecution } = require("../models/agentToolExecution");
 const { Workspace } = require("../models/workspace");
 const { WorkspaceChats } = require("../models/workspaceChats");
 const { WorkspaceThread } = require("../models/workspaceThread");
 const { User } = require("../models/user");
+const { AgentReportPublication } = require("../models/agentReportPublication");
+const { publicationOutput } = require("../tools/knowledge");
+const filesystem = require("../utils/agents/aibitat/plugins/filesystem/lib");
 const { resolveAgent } = require("../resources/agents");
 const { normalizedHistory } = require("./message");
 const { withAgentTrace } = require("./observability");
@@ -110,6 +114,10 @@ async function executeAgentRunSegment(initialRun, signal, runnableConfig = {}) {
   await emit("activity.updated", {
     phase: "planning",
     summary: `Understanding: ${run.prompt.replace(/\s+/g, " ").slice(0, 120)}`,
+    summaryKey: "understanding",
+    summaryArgs: {
+      request: run.prompt.replace(/\s+/g, " ").slice(0, 120),
+    },
   });
 
   const configuredHistory = run.configuration?.history;
@@ -119,7 +127,7 @@ async function executeAgentRunSegment(initialRun, signal, runnableConfig = {}) {
         {
           workspaceId: workspace.id,
           thread_id: thread?.id || null,
-          user_id: user?.id || null,
+          ...(thread?.id ? {} : { user_id: user?.id || null }),
           api_session_id: run.configuration?.apiSessionId || null,
           include: true,
         },
@@ -183,7 +191,27 @@ async function executeAgentRunSegment(initialRun, signal, runnableConfig = {}) {
     return AgentRun.get(run.id);
   }
 
-  const responseText = String(result.text || streamedText || "");
+  let responseText = String(result.text || streamedText || "");
+  let partial = Boolean(result.partial);
+  const requiredCompletionTools =
+    run.runtimeSnapshot?.runtimeConfig?.requiredCompletionTools || [];
+  if (requiredCompletionTools.length) {
+    const completed = new Set(
+      await AgentToolExecution.completedToolIds(run.id)
+    );
+    const missing = requiredCompletionTools.filter(
+      (toolId) => !completed.has(toolId)
+    );
+    if (missing.length) {
+      partial = true;
+      const warning = `\n\n未完成自动发布：缺少成功的 ${missing.join(
+        ", "
+      )} 工具执行。报告如已生成，仍保留在 Workspace 文件中。`;
+      responseText += warning;
+      if (streamedText)
+        await emit("message.delta", { messageId, delta: warning });
+    }
+  }
   const sources = Array.isArray(result.sources) ? result.sources : [];
   if (!responseText.trim())
     throw new Error("The Agent returned an empty response.");
@@ -193,6 +221,19 @@ async function executeAgentRunSegment(initialRun, signal, runnableConfig = {}) {
     run.runtimeKey === "governed-agent"
       ? {}
       : historicalTrace(await AgentRunEvent.after(run.id, 0, 10_000));
+  const publicationRows = await AgentReportPublication.forRun(run.id);
+  const workspaceManager = filesystem.forWorkspace(workspace.id);
+  await workspaceManager.ensureInitialized();
+  const outputs = [];
+  for (const publication of publicationRows) {
+    try {
+      const absolute = await workspaceManager.validatePath(
+        publication.sourcePath
+      );
+      const stats = await require("fs/promises").stat(absolute);
+      outputs.push(publicationOutput(publication, workspace, stats));
+    } catch {}
+  }
   const { chat, message } =
     run.configuration?.persistChat === false
       ? { chat: null, message: null }
@@ -202,6 +243,7 @@ async function executeAgentRunSegment(initialRun, signal, runnableConfig = {}) {
           response: {
             text: responseText,
             sources,
+            outputs,
             type: run.mode,
             attachments: run.attachments,
             agentRunId: run.id,
@@ -221,16 +263,21 @@ async function executeAgentRunSegment(initialRun, signal, runnableConfig = {}) {
     messageId,
     text: responseText,
     chatId: chat?.id || null,
+    outputs,
   });
-  const terminalStatus = result.partial ? "partial" : "completed";
+  const terminalStatus = partial ? "partial" : "completed";
   await AgentRun.update(run.id, {
     status: terminalStatus,
     phase: "complete",
-    terminationReason: result.partial ? "partial_results" : "completed",
+    terminationReason: partial ? "partial_results" : "completed",
     finalResponse: responseText,
     completedAt: new Date(),
   });
-  await emit("activity.updated", { phase: "complete", summary: "Completed" });
+  await emit("activity.updated", {
+    phase: "complete",
+    summary: "Completed",
+    summaryKey: "completed",
+  });
 
   if (thread && run.configuration?.autoTitle !== false) {
     await WorkspaceThread.autoRenameThread({
@@ -241,12 +288,16 @@ async function executeAgentRunSegment(initialRun, signal, runnableConfig = {}) {
         emit("thread.renamed", { slug: renamed.slug, name: renamed.name }),
     }).catch((error) => console.error(error.message));
   }
-  await emit(result.partial ? "run.partial" : "run.completed", {
+  await Promise.allSettled([
+    AgentToolExecution.reconcileActive(run.id),
+    AgentRunTask.reconcileTerminal(run.id, "cancelled"),
+  ]);
+  await emit(partial ? "run.partial" : "run.completed", {
     status: terminalStatus,
     chatId: chat?.id || null,
     sources,
+    outputs,
   });
-  await AgentRunTask.reconcileTerminal(run.id, "cancelled");
   await deleteCheckpointThread(run.checkpointThreadId);
   return AgentRun.get(run.id);
 }

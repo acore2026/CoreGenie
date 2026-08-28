@@ -34,7 +34,6 @@ async function validWorkspaceAndThreadSlug(request, response, next) {
 
   const thread = await WorkspaceThread.get({
     slug: threadSlug,
-    user_id: user?.id || null,
     workspace_id: workspace.id,
   });
   if (!thread) {
@@ -47,7 +46,29 @@ async function validWorkspaceAndThreadSlug(request, response, next) {
   next();
 }
 
+async function canManageWorkspaceThread(request, response) {
+  if (!multiUserMode(response)) return true;
+  const user = await userFromSession(request, response);
+  const thread = response.locals.thread;
+  return (
+    thread?.user_id === user?.id || ["admin", "manager"].includes(user?.role)
+  );
+}
+
+async function manageWorkspaceThread(request, response, next) {
+  if (await canManageWorkspaceThread(request, response)) {
+    next();
+    return;
+  }
+
+  response.status(403).json({
+    error: "You do not have permission to modify this workspace thread.",
+  });
+}
+
 module.exports = {
   validWorkspaceSlug,
   validWorkspaceAndThreadSlug,
+  canManageWorkspaceThread,
+  manageWorkspaceThread,
 };

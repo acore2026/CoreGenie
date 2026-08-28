@@ -8,7 +8,6 @@ import {
 } from "react";
 import HistoricalMessage from "./HistoricalMessage";
 import PromptReply from "./PromptReply";
-import AgentStatus from "./AgentStatus";
 import ToolApprovalRequest from "./ToolApprovalRequest";
 import ClarifyingQuestionCard from "./ClarifyingQuestion";
 import FileDownloadCard from "./FileDownloadCard";
@@ -38,6 +37,7 @@ export default forwardRef(function (
     updateHistory,
     regenerateAssistantMessage,
     websocket = null,
+    readOnly = false,
   },
   ref
 ) {
@@ -209,6 +209,7 @@ export default forwardRef(function (
         saveEditedMessage,
         forkThread,
         websocket,
+        readOnly,
       }),
     [
       workspace,
@@ -217,6 +218,7 @@ export default forwardRef(function (
       saveEditedMessage,
       forkThread,
       websocket,
+      readOnly,
     ]
   );
   return (
@@ -272,6 +274,7 @@ export default forwardRef(function (
  * @param {Function} param0.saveEditedMessage - The function to save the edited message.
  * @param {Function} param0.forkThread - The function to fork the thread.
  * @param {WebSocket} param0.websocket - The active websocket connection for agent communication.
+ * @param {boolean} param0.readOnly - Whether message mutation actions are disabled.
  * @returns {Array} The compiled history of messages.
  */
 function buildMessages({
@@ -281,9 +284,8 @@ function buildMessages({
   saveEditedMessage,
   forkThread,
   websocket,
+  readOnly,
 }) {
-  let agentStatus = null;
-  const workingTrace = [];
   const lastBotReplyIndex = history.findLastIndex(
     (message) => message.role === "assistant" && message.type !== "agentStatus"
   );
@@ -291,13 +293,10 @@ function buildMessages({
     const isLastBotReply =
       index === lastBotReplyIndex && props.role === "assistant";
 
-    if (props?.type === "statusResponse" && !!props.content) {
-      workingTrace.push(props);
-      return acc;
-    }
-
-    if (props?.type === "agentStatus" && !!props.content) {
-      agentStatus = props;
+    // The execution rail is the single surface for live Agent activity. These
+    // legacy lifecycle records remain in the stream for compatibility, but
+    // rendering them would create a second "Agent working" box.
+    if (["statusResponse", "agentStatus"].includes(props?.type)) {
       return acc;
     }
 
@@ -425,37 +424,12 @@ function buildMessages({
           subagentRuns={props.subagentRuns}
           contextTraces={props.contextTraces}
           agentRunId={props.agentRunId}
+          readOnly={readOnly}
         />
       );
     }
     return acc;
   }, []);
 
-  const fallbackSummary = workingTrace.at(-1)?.content;
-  const mergedStatus =
-    agentStatus ||
-    (fallbackSummary
-      ? {
-          uuid: "agent-status:fallback",
-          content: fallbackSummary,
-          phase: "completed",
-          active: false,
-        }
-      : null);
-
-  // The rolling lifecycle and detailed work log share one visual container.
-  // Context/tool events may interleave with statusResponse events, but they can
-  // no longer split the Agent work into multiple bubbles.
-  return mergedStatus
-    ? [
-        ...messages,
-        <AgentStatus
-          key={mergedStatus.uuid || "agent-status"}
-          summary={mergedStatus.content}
-          phase={mergedStatus.phase}
-          active={mergedStatus.active !== false}
-          details={workingTrace}
-        />,
-      ]
-    : messages;
+  return messages;
 }

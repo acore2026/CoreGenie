@@ -25,9 +25,14 @@ describe("Agent runtime registry", () => {
       normalizeRuntimeConfig(EVIDENCE_RESEARCH_RUNTIME_KEY, {
         plannerModel: "planner-v1",
         workerModel: null,
+        requiredCompletionTools: ["knowledge.publish"],
         unknown: "ignored",
       })
-    ).toEqual({ plannerModel: "planner-v1", workerModel: null });
+    ).toEqual({
+      plannerModel: "planner-v1",
+      workerModel: null,
+      requiredCompletionTools: ["knowledge.publish"],
+    });
     expect(() =>
       normalizeRuntimeConfig(EVIDENCE_RESEARCH_RUNTIME_KEY, {
         reviewerModel: "",

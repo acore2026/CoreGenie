@@ -65,6 +65,42 @@ const PredefinedAgent = {
     jsonRequest(`${API_BASE}/admin/predefined-agent-skills/${id}`, {
       method: "DELETE",
     }),
+  getSkill: async (id) =>
+    jsonRequest(`${API_BASE}/admin/predefined-agent-skills/${id}`),
+  uploadSkillFile: async (id, path, file) => {
+    const form = new FormData();
+    form.append("path", path);
+    form.append("file", file);
+    return jsonRequest(`${API_BASE}/admin/predefined-agent-skills/${id}/file`, {
+      method: "POST",
+      body: form,
+    });
+  },
+  workspaceSkills: async (slug) =>
+    jsonRequest(`${API_BASE}/workspace/${slug}/agent-skills`),
+  getWorkspaceSkill: async (slug, name) =>
+    jsonRequest(
+      `${API_BASE}/workspace/${slug}/agent-skills/${encodeURIComponent(name)}`
+    ),
+  saveWorkspaceSkill: async (slug, payload) =>
+    jsonRequest(`${API_BASE}/workspace/${slug}/agent-skills`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  deleteWorkspaceSkill: async (slug, name) =>
+    jsonRequest(
+      `${API_BASE}/workspace/${slug}/agent-skills/${encodeURIComponent(name)}`,
+      { method: "DELETE" }
+    ),
+  uploadWorkspaceSkillFile: async (slug, name, path, file) => {
+    const form = new FormData();
+    form.append("path", path);
+    form.append("file", file);
+    return jsonRequest(
+      `${API_BASE}/workspace/${slug}/agent-skills/${encodeURIComponent(name)}/file`,
+      { method: "POST", body: form }
+    );
+  },
   saveModelCapability: async (payload) =>
     jsonRequest(`${API_BASE}/admin/model-capabilities`, {
       method: "PUT",

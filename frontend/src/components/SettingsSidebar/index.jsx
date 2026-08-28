@@ -453,8 +453,7 @@ const SidebarOptions = ({ user = null, t }) => (
           href={paths.settings.security()}
           user={user}
           flex={true}
-          roles={["admin", "manager"]}
-          hidden={user?.role}
+          roles={["admin"]}
         />
         <HoldToReveal key="exp_features">
           <Option

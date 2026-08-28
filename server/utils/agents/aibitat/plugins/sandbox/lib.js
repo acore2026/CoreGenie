@@ -35,7 +35,14 @@ class SandboxClient {
     return fs.existsSync(this.socketPath()) && fs.existsSync(this.tokenPath());
   }
 
-  async run({ language, code, workspaceId, invocationId, timeoutSeconds }) {
+  async run({
+    language,
+    code,
+    workspaceId,
+    invocationId,
+    timeoutSeconds,
+    skill = null,
+  }) {
     const token = (await fsp.readFile(this.tokenPath(), "utf8")).trim();
     if (!token) throw new Error("Sandbox broker token is empty");
 
@@ -46,6 +53,7 @@ class SandboxClient {
       workspaceId,
       invocationId,
       timeoutSeconds,
+      skill,
     });
 
     return new Promise((resolve, reject) => {

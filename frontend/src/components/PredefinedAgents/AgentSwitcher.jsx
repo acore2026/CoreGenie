@@ -70,9 +70,7 @@ export default function AgentSwitcher({ disabled = false }) {
         ) : (
           <Robot size={14} weight="bold" />
         )}
-        <span className="truncate">
-          {selectedAgent?.name || "Default Agent"}
-        </span>
+        <span className="truncate">{selectedAgent?.name || "通用助手"}</span>
         <CaretDown size={11} weight="bold" className="shrink-0" />
       </button>
       {open &&

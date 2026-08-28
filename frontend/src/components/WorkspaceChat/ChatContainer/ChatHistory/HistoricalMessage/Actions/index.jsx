@@ -18,6 +18,7 @@ const Actions = ({
   isEditing,
   role,
   metrics = {},
+  readOnly = false,
 }) => {
   const { t } = useTranslation();
   const [selectedFeedback, setSelectedFeedback] = useState(feedbackScore);
@@ -38,20 +39,22 @@ const Actions = ({
             className={`flex justify-start items-center gap-x-[8px] ${role === "user" ? "flex-row-reverse" : ""}`}
           >
             <CopyMessage message={message} />
-            <EditMessageAction
-              chatId={chatId}
-              role={role}
-              isEditing={isEditing}
-            />
+            {!readOnly && (
+              <EditMessageAction
+                chatId={chatId}
+                role={role}
+                isEditing={isEditing}
+              />
+            )}
           </div>
-          {isLastMessage && !isEditing && (
+          {!readOnly && isLastMessage && !isEditing && (
             <RegenerateMessage
               regenerateMessage={regenerateMessage}
               slug={slug}
               chatId={chatId}
             />
           )}
-          {chatId && role !== "user" && !isEditing && (
+          {!readOnly && chatId && role !== "user" && !isEditing && (
             <FeedbackButton
               isSelected={selectedFeedback === true}
               handleFeedback={() => handleFeedback(true)}
@@ -65,6 +68,7 @@ const Actions = ({
             forkThread={forkThread}
             isEditing={isEditing}
             role={role}
+            readOnly={readOnly}
           />
         </div>
       </div>

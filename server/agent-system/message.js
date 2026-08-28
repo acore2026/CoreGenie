@@ -2,19 +2,16 @@ const { safeJsonParse } = require("../utils/http");
 
 function contentText(content) {
   if (typeof content === "string") return content;
-  if (!Array.isArray(content)) return "";
-  return content
-    .map((block) => {
-      if (typeof block === "string") return block;
-      if (typeof block?.text === "string") return block.text;
-      if (
-        ["text", "text_delta", "output_text"].includes(block?.type) &&
-        typeof block?.content === "string"
-      )
-        return block.content;
-      return "";
-    })
-    .join("");
+  if (Array.isArray(content)) return content.map(contentText).join("");
+  if (!content || typeof content !== "object") return "";
+  if (typeof content.text === "string") return content.text;
+  if (typeof content.output_text === "string") return content.output_text;
+  if (
+    ["text", "text_delta", "output_text"].includes(content.type) &&
+    typeof content.content === "string"
+  )
+    return content.content;
+  return "";
 }
 
 function messageRole(message) {

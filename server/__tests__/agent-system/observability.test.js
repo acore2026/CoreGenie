@@ -111,6 +111,31 @@ describe("Langfuse Agent observability", () => {
     );
   });
 
+  it("marks 3GPP Skill runs with stable feature tags and revision metadata", () => {
+    const attributes = traceAttributes({
+      id: "run-3gpp",
+      workspace_id: 2,
+      thread_id: 3,
+      user_id: 4,
+      mode: "automatic",
+      source: "workspace",
+      runtimeKey: "governed-agent",
+      runtimeVersion: 1,
+      configuration: {},
+      runtimeSnapshot: {
+        agent: {
+          skills: [{ name: "3gpp-review", revision: "sha256:abc" }],
+        },
+      },
+    });
+    expect(attributes.tags).toEqual(
+      expect.arrayContaining(["feature:3gpp-review", "skill:3gpp-review"])
+    );
+    expect(attributes.metadata.skillRevisions).toEqual([
+      { name: "3gpp-review", revision: "sha256:abc" },
+    ]);
+  });
+
   it("preserves provider usage and estimates it only when absent", () => {
     const reported = {
       llmOutput: { tokenUsage: { promptTokens: 3, completionTokens: 2 } },

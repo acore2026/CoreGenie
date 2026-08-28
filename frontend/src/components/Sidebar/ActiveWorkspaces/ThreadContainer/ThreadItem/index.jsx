@@ -43,6 +43,8 @@ export default function ThreadItem({
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(thread.name);
   const [isProcessing, setIsProcessing] = useState(false);
+  const canModify = thread.canModify !== false;
+  const ownerName = thread.owner?.username;
   const linkTo = thread.virtual
     ? "/"
     : !thread.slug
@@ -79,7 +81,7 @@ export default function ThreadItem({
   }, [workspaceSlug, thread.slug, thread.virtual, thread.deleted]);
 
   function startInlineRename() {
-    if (!thread.slug || thread.virtual || thread.deleted) return;
+    if (!canModify || !thread.slug || thread.virtual || thread.deleted) return;
     setShowOptions(false);
     renameCancelledRef.current = false;
     setRenameValue(thread.name);
@@ -123,7 +125,7 @@ export default function ThreadItem({
 
   return (
     <div
-      className="w-full relative flex h-[38px] items-center border-none rounded-lg"
+      className={`w-full relative flex ${ownerName ? "h-[46px]" : "h-[38px]"} items-center border-none rounded-lg`}
       role="listitem"
     >
       {/* Curved line Element and leader if required */}
@@ -164,7 +166,7 @@ export default function ThreadItem({
                 deleted thread
               </p>
             </div>
-            {ctrlPressed && (
+            {canModify && ctrlPressed && (
               <button
                 type="button"
                 className="border-none"
@@ -205,7 +207,8 @@ export default function ThreadItem({
             ref={ref}
             to={linkTo}
             onClick={(event) => {
-              if (!isActive || !thread.slug || thread.virtual) return;
+              if (!canModify || !isActive || !thread.slug || thread.virtual)
+                return;
               event.preventDefault();
               startInlineRename();
             }}
@@ -214,15 +217,22 @@ export default function ThreadItem({
             className="flex w-full min-w-0 items-center gap-1.5 overflow-hidden py-1 pl-2"
             aria-current={isActive ? "page" : ""}
           >
-            <p
-              className={`min-w-0 flex-1 truncate text-left text-sm ${
-                isActive
-                  ? "font-semibold text-theme-text-primary light:text-blue-900"
-                  : "text-theme-text-primary font-medium light:text-slate-800"
-              }`}
-            >
-              {thread.name}
-            </p>
+            <div className="min-w-0 flex-1">
+              <p
+                className={`m-0 truncate text-left text-sm ${
+                  isActive
+                    ? "font-semibold text-theme-text-primary light:text-blue-900"
+                    : "text-theme-text-primary font-medium light:text-slate-800"
+                }`}
+              >
+                {thread.name}
+              </p>
+              {ownerName && (
+                <p className="m-0 truncate text-left text-[10px] font-medium leading-3 text-theme-text-secondary/70">
+                  {t("chat_window.thread_by", { username: ownerName })}
+                </p>
+              )}
+            </div>
             {isProcessing && (
               <span
                 title={t("chat_window.thread_processing")}
@@ -234,7 +244,7 @@ export default function ThreadItem({
             )}
           </Link>
         )}
-        {!!thread.slug && !thread.deleted && !thread.virtual && (
+        {canModify && !!thread.slug && !thread.deleted && !thread.virtual && (
           <div ref={optionsContainer} className="flex items-center">
             {" "}
             {/* Added flex and items-center */}

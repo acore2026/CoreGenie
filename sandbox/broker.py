@@ -7,6 +7,7 @@ import argparse
 import hmac
 import json
 import os
+import re
 import secrets
 import signal
 import socketserver
@@ -20,8 +21,9 @@ from typing import BinaryIO
 MAX_REQUEST_BYTES = 96 * 1024
 MAX_CODE_BYTES = 64 * 1024
 MAX_OUTPUT_BYTES = 1024 * 1024
-DEFAULT_TIMEOUT_SECONDS = 30
-MAX_TIMEOUT_SECONDS = 30
+DEFAULT_TIMEOUT_SECONDS = 300
+MAX_TIMEOUT_SECONDS = 1800
+SKILL_NAME_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 
 
 class BrokerError(Exception):
@@ -71,12 +73,36 @@ def validate_request(payload: object, expected_token: str) -> dict:
     timeout_seconds = parse_positive_int(timeout_seconds, "timeoutSeconds")
     timeout_seconds = min(timeout_seconds, MAX_TIMEOUT_SECONDS)
 
+    skill = payload.get("skill")
+    if skill is not None:
+        if not isinstance(skill, dict):
+            raise BrokerError("skill must be an object")
+        name = skill.get("name")
+        scope = skill.get("scope")
+        revision = skill.get("revision")
+        if not isinstance(name, str) or not SKILL_NAME_PATTERN.fullmatch(name):
+            raise BrokerError("invalid skill name")
+        if scope not in {"global", "workspace"}:
+            raise BrokerError("skill scope must be global or workspace")
+        if not isinstance(revision, str) or not re.fullmatch(r"[a-f0-9]{64}", revision):
+            raise BrokerError("invalid skill revision")
+        skill_id = None
+        if scope == "global":
+            skill_id = parse_positive_int(skill.get("id"), "skill.id")
+        skill = {
+            "id": skill_id,
+            "name": name,
+            "scope": scope,
+            "revision": revision,
+        }
+
     return {
         "language": language,
         "code": code,
         "workspace_id": workspace_id,
         "invocation_id": invocation_id,
         "timeout_seconds": timeout_seconds,
+        "skill": skill,
     }
 
 
@@ -116,6 +142,8 @@ class SandboxBroker:
         token: str,
         workspace_root: Path,
         docker_workspace_root: Path,
+        global_skills_root: Path,
+        docker_global_skills_root: Path,
         image: str,
         docker_binary: str,
         max_concurrency: int,
@@ -129,6 +157,10 @@ class SandboxBroker:
         if not docker_workspace_root.is_absolute():
             raise BrokerError("Docker workspace root must be absolute")
         self.docker_workspace_root = docker_workspace_root
+        self.global_skills_root = global_skills_root.resolve()
+        if not docker_global_skills_root.is_absolute():
+            raise BrokerError("Docker global skills root must be absolute")
+        self.docker_global_skills_root = docker_global_skills_root
         self.image = image
         self.docker_binary = docker_binary
         self.capacity = threading.BoundedSemaphore(max_concurrency)
@@ -160,6 +192,38 @@ class SandboxBroker:
             raise BrokerError("invalid workspace path")
         return resolved
 
+    def skill_runtime(self, request: dict, workspace_path: Path) -> tuple[str, list[str]]:
+        skill = request.get("skill")
+        if not skill:
+            return "/workspace", []
+        name = skill["name"]
+        if skill["scope"] == "workspace":
+            skills_root = (workspace_path / ".agent" / "skills").resolve()
+            candidate = skills_root / name
+            if candidate.is_symlink() or not candidate.is_dir():
+                raise BrokerError("workspace skill directory is unavailable")
+            resolved = candidate.resolve()
+            if resolved.parent != skills_root:
+                raise BrokerError("invalid workspace skill path")
+            return f"/workspace/.agent/skills/{name}", []
+
+        relative = Path(str(skill["id"])) / "revisions" / skill["revision"]
+        candidate = self.global_skills_root / relative
+        if candidate.is_symlink() or not candidate.is_dir():
+            raise BrokerError("global skill revision is unavailable")
+        resolved = candidate.resolve()
+        expected_parent = (
+            self.global_skills_root / str(skill["id"]) / "revisions"
+        ).resolve()
+        if resolved.parent != expected_parent:
+            raise BrokerError("invalid global skill path")
+        docker_source = self.docker_global_skills_root / relative
+        destination = f"/skills/{name}"
+        return destination, [
+            "--mount",
+            f"type=bind,src={docker_source},dst={destination},readonly",
+        ]
+
     def docker_command(self, request: dict, workspace_path: Path) -> tuple[list[str], str]:
         run_id = secrets.token_hex(6)
         invocation_label = request["invocation_id"].replace("-", "")[:12]
@@ -167,6 +231,7 @@ class SandboxBroker:
         docker_workspace_path = (
             self.docker_workspace_root / workspace_path.name
         )
+        workdir, skill_mount = self.skill_runtime(request, workspace_path)
         command = [
             self.docker_binary,
             "run",
@@ -212,15 +277,24 @@ class SandboxBroker:
             "--env",
             "PIP_USER=1",
             "--env",
-            "PIP_CACHE_DIR=/tmp/pip-cache",
+            "PIP_CACHE_DIR=/workspace/.agent/cache/pip",
+            "--env",
+            "XDG_CACHE_HOME=/workspace/.agent/cache",
+            "--env",
+            "UV_CACHE_DIR=/workspace/.agent/cache/uv",
+            "--env",
+            "WORKSPACE=/workspace",
+            "--env",
+            f"SKILL_ROOT={workdir if request.get('skill') else ''}",
             "--env",
             "PATH=/workspace/.python/bin:/usr/local/bin:/usr/bin:/bin",
             "--tmpfs",
             f"/tmp:rw,noexec,nosuid,nodev,size=64m,uid={self.workspace_uid},gid={self.workspace_gid},mode=700",
             "--mount",
             f"type=bind,src={docker_workspace_path},dst=/workspace",
+            *skill_mount,
             "--workdir",
-            "/workspace",
+            workdir,
         ]
         if self.proxy_url:
             for variable in ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"):
@@ -374,6 +448,8 @@ def main() -> None:
     parser.add_argument("--token-file", required=True, type=Path)
     parser.add_argument("--workspace-root", required=True, type=Path)
     parser.add_argument("--docker-workspace-root", required=True, type=Path)
+    parser.add_argument("--global-skills-root", required=True, type=Path)
+    parser.add_argument("--docker-global-skills-root", required=True, type=Path)
     parser.add_argument("--image", default="anythingllm-sandbox:local")
     parser.add_argument("--docker-binary", default="docker")
     parser.add_argument("--max-concurrency", type=int, default=2)
@@ -397,6 +473,8 @@ def main() -> None:
         token=token,
         workspace_root=args.workspace_root,
         docker_workspace_root=args.docker_workspace_root,
+        global_skills_root=args.global_skills_root,
+        docker_global_skills_root=args.docker_global_skills_root,
         image=args.image,
         docker_binary=args.docker_binary,
         max_concurrency=args.max_concurrency,

@@ -3,24 +3,34 @@ import { saveAs } from "file-saver";
 import { DownloadSimple, CircleNotch } from "@phosphor-icons/react";
 import { humanFileSize } from "@/utils/numbers";
 import StorageFiles from "@/models/files";
+import Workspace from "@/models/workspace";
 
 /**
  * @param {{content: {filename: string, storageFilename?: string, fileSize?: number}}} props
  */
 function FileDownloadCard({ props }) {
-  const { filename, storageFilename, fileSize } = props.content || {};
+  const {
+    filename,
+    storageFilename,
+    fileSize,
+    workspaceSlug,
+    path: workspacePath,
+  } = props.content || {};
   const { badge, badgeBg, badgeText, fileType } = getFileDisplayInfo(filename);
   const [downloading, setDownloading] = useState(false);
 
   const handleDownload = async () => {
     if (downloading) return;
-    if (!storageFilename) return;
+    if (!storageFilename && !(workspaceSlug && workspacePath)) return;
 
     setDownloading(true);
     try {
-      const blob = await StorageFiles.download(storageFilename);
+      const blob =
+        props.outputType === "workspaceFile"
+          ? await Workspace.downloadFile(workspaceSlug, workspacePath)
+          : await StorageFiles.download(storageFilename);
       if (!blob) throw new Error("Failed to download file");
-      saveAs(blob, filename || storageFilename);
+      saveAs(blob, filename || storageFilename || workspacePath);
     } catch {
       console.error("Failed to download file");
     } finally {

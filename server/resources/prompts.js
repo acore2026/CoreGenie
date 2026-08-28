@@ -1,22 +1,20 @@
 const { composeSystemPrompt } = require("../utils/systemPrompt");
+const { skillCatalogPrompt } = require("../agent-skills/registry");
 
 async function composeAgentPrompt({
   agent,
   user = null,
   workspace = null,
   runtimePrompt = null,
+  includeSkillCatalog = true,
 }) {
-  const skills = Array.isArray(agent?.skills) ? agent.skills : [];
-  const skillPrompt = skills
-    .map(
-      (skill) =>
-        `<skill id="${skill.id}" name="${skill.name}">\n${skill.instructions}\n</skill>`
-    )
-    .join("\n\n");
+  const catalog = includeSkillCatalog
+    ? await skillCatalogPrompt(agent, workspace)
+    : "";
   const basePrompt = [
     agent?.systemPrompt ||
       "You are a helpful Agent. Complete the user's request using the available tools.",
-    skillPrompt ? `<agent_skills>\n${skillPrompt}\n</agent_skills>` : null,
+    catalog || null,
   ]
     .filter(Boolean)
     .join("\n\n");

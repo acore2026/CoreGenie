@@ -71,6 +71,7 @@ function defineTool({
   concurrencyKey = null,
   capabilities = [],
   activity = null,
+  failureScope = null,
 }) {
   if (!id || !description || !schema || typeof execute !== "function")
     throw new Error(
@@ -94,7 +95,46 @@ function defineTool({
     concurrencyKey,
     capabilities,
     activity,
+    failureScope,
   });
+}
+
+async function recordSkippedExecution({
+  descriptor,
+  context,
+  callId,
+  opKey,
+  args,
+  attempt,
+  result,
+}) {
+  await AgentToolExecution.begin({
+    runId: context.run.id,
+    callId,
+    taskId: context.taskId,
+    toolId: descriptor.id,
+    agentId: context.agent?.id,
+    args,
+    operationKey: opKey,
+    attempt,
+  });
+  await AgentToolExecution.finish(context.run.id, callId, {
+    result,
+    outcomeCode: result.code,
+    retryable: false,
+    resultSummary: result.summary,
+    status: "skipped",
+  });
+  await context.emit("tool.skipped", {
+    callId,
+    taskId: context.taskId,
+    toolId: descriptor.id,
+    operationKey: opKey,
+    code: result.code,
+    reason: result.summary,
+    result,
+  });
+  return JSON.stringify(result);
 }
 
 function toLangChainTool(descriptor, context) {
@@ -107,8 +147,29 @@ function toLangChainTool(descriptor, context) {
         return typeof existing.result === "string"
           ? existing.result
           : JSON.stringify(existing.result);
-      const previousCount = context.operationCount(opKey);
-      if (previousCount >= 2) {
+      context.consumeToolCall();
+      const attempt = context.recordOperation(opKey);
+      const capabilityBlock = context.capabilityBlock?.(
+        descriptor.failureScope
+      );
+      if (capabilityBlock) {
+        const blocked = {
+          ok: false,
+          code: "CAPABILITY_UNAVAILABLE",
+          summary: `${descriptor.failureScope} is unavailable for this run: ${capabilityBlock.summary}`,
+          retryable: false,
+        };
+        return recordSkippedExecution({
+          descriptor,
+          context,
+          callId,
+          opKey,
+          args,
+          attempt,
+          result: blocked,
+        });
+      }
+      if (attempt > 2) {
         const blocked = {
           ok: false,
           code: "NO_PROGRESS",
@@ -116,18 +177,16 @@ function toLangChainTool(descriptor, context) {
             "This exact operation has already been attempted twice. Change the approach or finish with the available evidence.",
           retryable: false,
         };
-        await context.emit("tool.failed", {
+        return recordSkippedExecution({
+          descriptor,
+          context,
           callId,
-          taskId: context.taskId,
-          toolId: descriptor.id,
-          operationKey: opKey,
-          code: blocked.code,
-          error: blocked.summary,
+          opKey,
+          args,
+          attempt,
+          result: blocked,
         });
-        return JSON.stringify(blocked);
       }
-      context.consumeToolCall();
-      const attempt = context.recordOperation(opKey);
       await AgentToolExecution.begin({
         runId: context.run.id,
         callId,
@@ -198,26 +257,31 @@ function toLangChainTool(descriptor, context) {
         const serialized = JSON.stringify(result);
         if (Buffer.byteLength(serialized, "utf8") > descriptor.maxResultBytes) {
           result.data = String(serialized).slice(0, descriptor.maxResultBytes);
-          result.code = "OK_TRUNCATED";
+          if (result.ok) result.code = "OK_TRUNCATED";
           result.summary = `${result.summary} (Large result truncated for Agent context.)`;
         }
         if (attempt === 2)
           result.noProgressWarning =
             "This operation has now been repeated. Do not run it again without changing the inputs or approach.";
+        const resultError = result.ok ? null : result.summary;
         await AgentToolExecution.finish(context.run.id, callId, {
           result,
+          error: resultError,
           outcomeCode: result.code,
           retryable: result.retryable,
           resultSummary: result.summary,
           artifactIds: result.artifactIds,
         });
-        await context.emit("tool.completed", {
+        if (result.blocksCapability && descriptor.failureScope)
+          context.blockCapability?.(descriptor.failureScope, result);
+        await context.emit(result.ok ? "tool.completed" : "tool.failed", {
           callId,
           taskId: context.taskId,
           toolId: descriptor.id,
           operationKey: opKey,
           code: result.code,
           summary: result.summary,
+          error: resultError,
           result,
         });
         await context.emit("task.progress", {

@@ -223,6 +223,21 @@ function handleAgentIconUpload(request, response, next) {
   });
 }
 
+function handleSkillAssetUpload(request, response, next) {
+  const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 25 * 1024 * 1024 },
+  }).single("file");
+  upload(request, response, function (err) {
+    if (err)
+      return response.status(400).json({
+        success: false,
+        error: `Invalid skill asset upload. ${err.message}`,
+      });
+    next();
+  });
+}
+
 module.exports = {
   handleFileUpload,
   handleAPIFileUpload,
@@ -230,4 +245,5 @@ module.exports = {
   handlePfpUpload,
   handleAudioUpload,
   handleAgentIconUpload,
+  handleSkillAssetUpload,
 };

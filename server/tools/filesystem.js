@@ -12,7 +12,7 @@ const readFile = defineTool({
   id: "filesystem.read",
   name: "filesystem_read",
   description:
-    "Read a workspace file by exact relative path, optionally limiting it to the first or last lines.",
+    "Read a workspace file by exact relative path or its sandbox path under /workspace, optionally limiting it to the first or last lines.",
   schema: z.object({
     path: z.string().min(1),
     head: z.number().int().positive().optional(),
@@ -46,7 +46,8 @@ const writeFile = defineTool({
 const listDirectory = defineTool({
   id: "filesystem.list",
   name: "filesystem_list",
-  description: "List files and folders in a workspace directory.",
+  description:
+    "List files and folders using a workspace-relative path or a sandbox path under /workspace.",
   schema: z.object({ path: z.string().default(".") }),
   action: false,
   execute: async ({ path: directory }, context) => {
@@ -79,7 +80,7 @@ const searchFiles = defineTool({
   id: "filesystem.search",
   name: "filesystem_search",
   description:
-    "Search persistent workspace paths using a glob such as **/*.md.",
+    "Search persistent workspace paths using a relative or /workspace root and a glob such as **/*.md.",
   schema: z.object({
     root: z.string().default("."),
     pattern: z.string().min(1),

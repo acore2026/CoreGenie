@@ -70,8 +70,31 @@ describe("sandbox agent tools", () => {
       });
       expect(result).toContain("Exit code: 0");
       expect(result).toContain("ok");
+      expect(result).not.toContain("Timed out");
     }
   );
+
+  it("reports a real timeout without showing a misleading negative status", async () => {
+    const approve = jest.fn().mockResolvedValue({ approved: true });
+    approve.isInteractive = true;
+    sandbox.run.mockResolvedValue({
+      exitCode: 137,
+      stdout: "partial output\n",
+      stderr: "",
+      timedOut: true,
+      truncated: false,
+    });
+    const { definition } = registeredTool(python, approve);
+
+    const result = await definition.handler.call(
+      { ...definition, caller: "@agent" },
+      { code: "print('partial output')", timeout_seconds: 12 }
+    );
+
+    expect(result).toContain("Timed out after 12 seconds.");
+    expect(result).not.toContain("Timed out: no");
+    expect(result).toContain("partial output");
+  });
 
   it("refuses execution without an interactive approval channel", async () => {
     const { definition } = registeredTool(python, jest.fn());

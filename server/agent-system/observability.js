@@ -277,6 +277,13 @@ function traceAttributes(run) {
     : run.configuration?.resume
       ? "resume"
       : "initial";
+  const skills = Array.isArray(run.runtimeSnapshot?.agent?.skills)
+    ? run.runtimeSnapshot.agent.skills
+    : [];
+  const skillNames = skills
+    .map((skill) => String(skill?.name || "").trim())
+    .filter(Boolean);
+  const is3gppReview = skillNames.includes("3gpp-review");
   return {
     userId: compactIdentifier(run.user_id || "anonymous", "user"),
     sessionId: compactIdentifier(conversation, "conversation"),
@@ -286,6 +293,7 @@ function traceAttributes(run) {
       `source:${run.source}`,
       `runtime:${run.runtimeKey || "default-react"}`,
       segment,
+      ...(is3gppReview ? ["feature:3gpp-review", "skill:3gpp-review"] : []),
     ],
     metadata: {
       runId: String(run.id),
@@ -299,6 +307,15 @@ function traceAttributes(run) {
       model: String(run.configuration?.model || "workspace-default"),
       runtimeKey: String(run.runtimeKey || "default-react"),
       runtimeVersion: String(run.runtimeVersion || 1),
+      ...(skillNames.length ? { skillNames } : {}),
+      ...(skills.length
+        ? {
+            skillRevisions: skills.map((skill) => ({
+              name: String(skill?.name || "unknown"),
+              revision: String(skill?.revision || "unversioned"),
+            })),
+          }
+        : {}),
     },
     version: `${run.runtimeKey || "default-react"}@${run.runtimeVersion || 1}`,
     segment,

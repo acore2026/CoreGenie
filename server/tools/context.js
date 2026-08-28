@@ -36,6 +36,8 @@ class AgentToolContext {
     };
     if (!this.budget.actionTail) this.budget.actionTail = Promise.resolve();
     if (!this.budget.operationCounts) this.budget.operationCounts = new Map();
+    if (!this.budget.capabilityBlocks) this.budget.capabilityBlocks = new Map();
+    if (!this.budget.activatedSkills) this.budget.activatedSkills = new Map();
   }
 
   consumeToolCall() {
@@ -61,6 +63,24 @@ class AgentToolContext {
     const count = this.operationCount(operationKey) + 1;
     this.budget.operationCounts.set(operationKey, count);
     return count;
+  }
+
+  capabilityBlock(scope) {
+    if (!scope) return null;
+    return this.budget.capabilityBlocks.get(scope) || null;
+  }
+
+  blockCapability(scope, failure) {
+    if (!scope) return;
+    this.budget.capabilityBlocks.set(scope, failure);
+  }
+
+  activateSkill(skill) {
+    this.budget.activatedSkills.set(skill.name, skill);
+  }
+
+  activatedSkill(name) {
+    return this.budget.activatedSkills.get(String(name || "")) || null;
   }
 
   async runAction(operation) {

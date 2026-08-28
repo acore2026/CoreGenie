@@ -30,7 +30,7 @@ function agentSnapshot(agent) {
       id: skill.id,
       name: skill.name,
       description: skill.description || "",
-      instructions: skill.instructions,
+      revision: skill.revision || null,
     })),
   };
 }
@@ -75,6 +75,7 @@ async function createRuntimeSnapshot({
         user,
         workspace,
         runtimePrompt: configuration.systemPrompt || null,
+        includeSkillCatalog: false,
       }),
       createdAt: new Date().toISOString(),
     },

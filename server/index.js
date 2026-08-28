@@ -47,6 +47,7 @@ const { memoryEndpoints } = require("./endpoints/memory");
 const { publicChatShareEndpoints } = require("./endpoints/publicChatShare");
 const { workspaceFileEndpoints } = require("./endpoints/workspaceFiles");
 const { predefinedAgentEndpoints } = require("./endpoints/predefinedAgents");
+const { workspaceSkillEndpoints } = require("./endpoints/agentSkills");
 const { httpLogger } = require("./middleware/httpLogger");
 const app = express();
 const apiRouter = express.Router();
@@ -104,6 +105,7 @@ memoryEndpoints(apiRouter);
 publicChatShareEndpoints(apiRouter);
 workspaceFileEndpoints(apiRouter);
 predefinedAgentEndpoints(apiRouter);
+workspaceSkillEndpoints(apiRouter);
 require("./agent-system/supervisor")
   .agentRunSupervisor.start()
   .catch((error) =>

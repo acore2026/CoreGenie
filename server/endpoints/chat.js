@@ -11,6 +11,7 @@ const { EventLogs } = require("../models/eventLogs");
 const {
   validWorkspaceAndThreadSlug,
   validWorkspaceSlug,
+  manageWorkspaceThread,
 } = require("../utils/middleware/validWorkspace");
 const { writeResponseChunk } = require("../utils/helpers/chat/responses");
 const { WorkspaceThread } = require("../models/workspaceThread");
@@ -113,6 +114,7 @@ function chatEndpoints(app) {
       validatedRequest,
       flexUserRoleValid([ROLES.all]),
       validWorkspaceAndThreadSlug,
+      manageWorkspaceThread,
     ],
     async (request, response) => {
       try {

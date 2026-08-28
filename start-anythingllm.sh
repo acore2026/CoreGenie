@@ -15,6 +15,8 @@ Environment overrides:
   ANYTHINGLLM_NO_PROXY   Container proxy bypass list
   ANYTHINGLLM_UID        Image user ID used for root-created storage (default: 1000)
   ANYTHINGLLM_GID        Image group ID used for root-created storage (default: 1000)
+  APP_REBUILD            Rebuild the AnythingLLM image before start (default: false)
+  APP_RECREATE           Recreate the AnythingLLM container (default: false)
   SANDBOX_ENABLED        Start the disposable code sandbox (default: true)
   SANDBOX_IMAGE          Sandbox runner image (default: anythingllm-sandbox:local)
   SANDBOX_BROKER_IMAGE   Sandbox broker image (default: anythingllm-sandbox-broker:local)
@@ -40,6 +42,8 @@ HOST_PORT="${HOST_PORT:-7555}"
 ANYTHINGLLM_NO_PROXY="${ANYTHINGLLM_NO_PROXY:-localhost,127.0.0.1,::1,host.docker.internal,jp.cloud.langfuse.com}"
 ANYTHINGLLM_UID="${ANYTHINGLLM_UID:-1000}"
 ANYTHINGLLM_GID="${ANYTHINGLLM_GID:-1000}"
+APP_REBUILD="${APP_REBUILD:-false}"
+APP_RECREATE="${APP_RECREATE:-false}"
 SANDBOX_ENABLED="${SANDBOX_ENABLED:-true}"
 SANDBOX_IMAGE="${SANDBOX_IMAGE:-anythingllm-sandbox:local}"
 SANDBOX_BROKER_IMAGE="${SANDBOX_BROKER_IMAGE:-anythingllm-sandbox-broker:local}"
@@ -95,12 +99,21 @@ if [[ "$SANDBOX_NETWORK" != "bridge" && "$SANDBOX_NETWORK" != "none" ]]; then
   exit 1
 fi
 
+if [[ "$APP_REBUILD" == "true" ]]; then
+  echo "Building AnythingLLM image '$ANYTHINGLLM_IMAGE'..."
+  docker build \
+    --tag "$ANYTHINGLLM_IMAGE" \
+    --file "$SCRIPT_DIR/docker/Dockerfile" \
+    "$SCRIPT_DIR"
+fi
+
 mkdir -p -- "$STORAGE_LOCATION"
 STORAGE_LOCATION="$(cd "$STORAGE_LOCATION" && pwd -P)"
 touch "$STORAGE_LOCATION/.env"
 mkdir -p \
   "$STORAGE_LOCATION/sandbox" \
-  "$STORAGE_LOCATION/anythingllm-fs/workspaces"
+  "$STORAGE_LOCATION/anythingllm-fs/workspaces" \
+  "$STORAGE_LOCATION/agent-skills/global"
 
 # The official image runs as UID/GID 1000. Storage created by root must be
 # writable by that unprivileged container user.
@@ -110,13 +123,16 @@ if ((EUID == 0)); then
     "$STORAGE_LOCATION/.env" \
     "$STORAGE_LOCATION/sandbox" \
     "$STORAGE_LOCATION/anythingllm-fs" \
-    "$STORAGE_LOCATION/anythingllm-fs/workspaces"
+    "$STORAGE_LOCATION/anythingllm-fs/workspaces" \
+    "$STORAGE_LOCATION/agent-skills" \
+    "$STORAGE_LOCATION/agent-skills/global"
 fi
 
 start_sandbox_broker() {
   local sandbox_socket="$STORAGE_LOCATION/sandbox/run.sock"
   local sandbox_broker_name="${CONTAINER_NAME}-sandbox-broker"
   local workspace_root="$STORAGE_LOCATION/anythingllm-fs/workspaces"
+  local global_skills_root="$STORAGE_LOCATION/agent-skills/global"
   local docker_socket_gid
   docker_socket_gid="$(stat -c '%g' /var/run/docker.sock)"
 
@@ -142,6 +158,13 @@ start_sandbox_broker() {
   if [[ "$SANDBOX_REBUILD" == "true" ]] && \
     docker container inspect "$sandbox_broker_name" >/dev/null 2>&1; then
     echo "Replacing sandbox broker '$sandbox_broker_name'..."
+    docker rm --force "$sandbox_broker_name" >/dev/null
+  fi
+
+  if docker container inspect "$sandbox_broker_name" >/dev/null 2>&1 && \
+    ! docker inspect --format '{{json .Config.Cmd}}' "$sandbox_broker_name" | \
+      grep -q -- '--global-skills-root'; then
+    echo "Replacing sandbox broker to enable Agent Skill mounts..."
     docker rm --force "$sandbox_broker_name" >/dev/null
   fi
 
@@ -172,11 +195,14 @@ start_sandbox_broker() {
       --volume /var/run/docker.sock:/var/run/docker.sock \
       --volume "$STORAGE_LOCATION/sandbox:/broker" \
       --volume "$workspace_root:/workspaces" \
+      --volume "$global_skills_root:/global-skills:ro" \
       "$SANDBOX_BROKER_IMAGE" \
       --socket /broker/run.sock \
       --token-file /broker/token \
       --workspace-root /workspaces \
       --docker-workspace-root "$workspace_root" \
+      --global-skills-root /global-skills \
+      --docker-global-skills-root "$global_skills_root" \
       --image "$SANDBOX_IMAGE" \
       --max-concurrency "$SANDBOX_MAX_CONCURRENCY" \
       --network "$SANDBOX_NETWORK" \
@@ -207,6 +233,12 @@ start_sandbox_broker() {
 
 if [[ "$SANDBOX_ENABLED" == "true" ]]; then
   start_sandbox_broker
+fi
+
+if [[ "$APP_RECREATE" == "true" ]] && \
+  docker container inspect "$CONTAINER_NAME" >/dev/null 2>&1; then
+  echo "Replacing AnythingLLM container '$CONTAINER_NAME'..."
+  docker rm --force "$CONTAINER_NAME" >/dev/null
 fi
 
 if docker container inspect "$CONTAINER_NAME" >/dev/null 2>&1; then

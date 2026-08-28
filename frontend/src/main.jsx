@@ -195,7 +195,7 @@ const router = createBrowserRouter([
           const { default: GeneralSecurity } = await import(
             "@/pages/GeneralSettings/Security"
           );
-          return { element: <ManagerRoute Component={GeneralSecurity} /> };
+          return { element: <AdminRoute Component={GeneralSecurity} /> };
         },
       },
       {

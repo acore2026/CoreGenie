@@ -11,6 +11,7 @@ const { AgentToolContext } = require("../tools/context");
 const { getCheckpointer } = require("./checkpointer");
 const { AgentSkillWhitelist } = require("../models/agentSkillWhitelist");
 const { reasoningOnlyFallbackMiddleware } = require("./modelMiddleware");
+const { skillCatalogPrompt } = require("../agent-skills/registry");
 
 async function buildAgentGraph({
   run,
@@ -58,14 +59,16 @@ async function buildAgentGraph({
         availableAgents,
         excludeToolIds,
       });
-  const systemPrompt =
-    systemPromptOverride ||
-    (await composeAgentPrompt({
-      agent,
-      user,
-      workspace,
-      runtimePrompt: run.configuration?.systemPrompt || null,
-    }));
+  const systemPrompt = systemPromptOverride
+    ? [systemPromptOverride, await skillCatalogPrompt(agent, workspace)]
+        .filter(Boolean)
+        .join("\n\n")
+    : await composeAgentPrompt({
+        agent,
+        user,
+        workspace,
+        runtimePrompt: run.configuration?.systemPrompt || null,
+      });
   const modelOptions = {
     workspace,
     model: run.configuration?.model || null,
@@ -77,7 +80,7 @@ async function buildAgentGraph({
     modelCallLimitMiddleware({
       runLimit: Math.min(
         Number(run.configuration?.maxModelCallsPerTask) || 30,
-        50
+        100
       ),
       exitBehavior: "error",
     }),
@@ -109,6 +112,8 @@ async function buildAgentGraph({
               "memory_recall",
               "rag_search",
               "web_fetch",
+              "activate_skill",
+              "read_skill_resource",
             ].includes(name)
         )
         .map((name) => [

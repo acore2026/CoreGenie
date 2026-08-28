@@ -1,6 +1,7 @@
 const prisma = require("../utils/prisma");
 const { safeJsonParse } = require("../utils/http");
 const { agentRunEventBus } = require("../agent-system/eventBus");
+const { withPrismaRetry } = require("../utils/prismaRetry");
 const appendQueues = new Map();
 
 function normalizeEvent(event) {
@@ -22,22 +23,24 @@ const AgentRunEvent = {
     const pending = previous
       .catch(() => null)
       .then(async () => {
-        const row = await prisma.$transaction(async (tx) => {
-          const run = await tx.agent_runs.update({
-            where: { id },
-            data: { nextEventSequence: { increment: 1 } },
-            select: { nextEventSequence: true },
-          });
-          return tx.agent_run_events.create({
-            data: {
-              run_id: id,
-              sequence: run.nextEventSequence,
-              version: 2,
-              type: String(type),
-              payload: JSON.stringify(payload || {}),
-            },
-          });
-        });
+        const row = await withPrismaRetry(() =>
+          prisma.$transaction(async (tx) => {
+            const run = await tx.agent_runs.update({
+              where: { id },
+              data: { nextEventSequence: { increment: 1 } },
+              select: { nextEventSequence: true },
+            });
+            return tx.agent_run_events.create({
+              data: {
+                run_id: id,
+                sequence: run.nextEventSequence,
+                version: 2,
+                type: String(type),
+                payload: JSON.stringify(payload || {}),
+              },
+            });
+          })
+        );
         const event = normalizeEvent(row);
         agentRunEventBus.publish(event);
         return event;
@@ -64,6 +67,33 @@ const AgentRunEvent = {
       take,
     });
     return rows.map(normalizeEvent);
+  },
+
+  traceSnapshot: async function (runId) {
+    const resourceTypes = [
+      "context.memory.recalled",
+      "context.memory.updated",
+      "context.rag.recalled",
+      "skill.activated",
+      "skill.updated",
+      "skill.resource.used",
+      "skill.script.executed",
+    ];
+    const [activities, resources] = await Promise.all([
+      prisma.agent_run_events.findMany({
+        where: { run_id: String(runId), type: "activity.updated" },
+        orderBy: { sequence: "desc" },
+        take: 24,
+      }),
+      prisma.agent_run_events.findMany({
+        where: { run_id: String(runId), type: { in: resourceTypes } },
+        orderBy: { sequence: "desc" },
+        take: 48,
+      }),
+    ]);
+    return [...activities, ...resources]
+      .sort((left, right) => left.sequence - right.sequence)
+      .map(normalizeEvent);
   },
 
   latestSequence: async function (runId) {

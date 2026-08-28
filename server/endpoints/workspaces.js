@@ -47,6 +47,19 @@ const {
   workspaceDeletionProtection,
 } = require("../utils/middleware/workspaceDeletionProtection");
 
+async function canManageWorkspaceChat({ chat, user, response }) {
+  if (!multiUserMode(response)) return true;
+  if (!chat?.thread_id) return chat?.user_id === user?.id;
+  if ([ROLES.admin, ROLES.manager].includes(user?.role)) return true;
+  return Boolean(
+    await WorkspaceThread.get({
+      id: chat.thread_id,
+      workspace_id: chat.workspaceId,
+      user_id: user?.id,
+    })
+  );
+}
+
 function workspaceEndpoints(app) {
   if (!app) return;
   const responseCache = new Map();
@@ -487,12 +500,17 @@ function workspaceEndpoints(app) {
           return;
         }
 
-        // This works for both workspace and threads.
-        // we simplify this by just looking at workspace<>user overlap
-        // since they are all on the same table.
-        await WorkspaceChats.delete({
+        const requestedChats = await WorkspaceChats.where({
           id: { in: chatIds.map((id) => Number(id)) },
-          user_id: user?.id ?? null,
+          workspaceId: workspace.id,
+        });
+        const manageableChatIds = [];
+        for (const chat of requestedChats) {
+          if (await canManageWorkspaceChat({ chat, user, response }))
+            manageableChatIds.push(chat.id);
+        }
+        await WorkspaceChats.delete({
+          id: { in: manageableChatIds },
           workspaceId: workspace.id,
         });
 
@@ -581,10 +599,17 @@ function workspaceEndpoints(app) {
         const existingChat = await WorkspaceChats.get({
           id: Number(chatId),
           workspaceId: response.locals.workspace.id,
-          user_id: user?.id,
         });
 
-        if (!existingChat) return response.status(404).json({ success: false });
+        if (
+          !existingChat ||
+          !(await canManageWorkspaceChat({
+            chat: existingChat,
+            user,
+            response,
+          }))
+        )
+          return response.status(404).json({ success: false });
         await WorkspaceChats.updateFeedbackScore(chatId, feedback);
         return response.status(200).json({ success: true });
       } catch (error) {
@@ -875,7 +900,7 @@ function workspaceEndpoints(app) {
         const chatsToFork = await WorkspaceChats.where(
           {
             workspaceId: workspace.id,
-            user_id: user?.id,
+            ...(threadId ? {} : { user_id: user?.id }),
             include: true, // only duplicate visible chats
             thread_id: threadId,
             api_session_id: null, // Do not include API session chats.

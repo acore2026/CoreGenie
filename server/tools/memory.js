@@ -41,6 +41,12 @@ const storeMemory = defineTool({
       content,
     });
     if (!result.memory) throw new Error(result.message);
+    await context.emit("context.memory.updated", {
+      action: "stored",
+      count: 1,
+      memoryId: result.memory.id,
+      scope: result.memory.scope,
+    });
     return result.memory;
   },
 });
@@ -55,6 +61,12 @@ const deleteMemory = defineTool({
     const owned = await Memory.get({ id, userId: context.user?.id ?? null });
     if (!owned) throw new Error("Memory not found.");
     if (!(await Memory.delete(id))) throw new Error("Memory deletion failed.");
+    await context.emit("context.memory.updated", {
+      action: "deleted",
+      count: 1,
+      memoryId: id,
+      scope: owned.scope,
+    });
     return { deleted: true, id };
   },
 });

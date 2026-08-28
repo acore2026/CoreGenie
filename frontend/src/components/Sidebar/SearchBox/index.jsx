@@ -148,7 +148,9 @@ function SearchResults({ searchResults, searchTerm, loading }) {
           id: thread.slug,
           to: paths.workspace.thread(thread.workspace.slug, thread.slug),
           name: thread.name,
-          hint: thread.workspace.name,
+          hint: thread.owner?.username
+            ? `${thread.workspace.name} · ${thread.owner.username}`
+            : thread.workspace.name,
         }))}
       />
     </SearchResultWrapper>

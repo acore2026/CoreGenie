@@ -1,6 +1,7 @@
 const prisma = require("../utils/prisma");
 const { v4: uuidv4 } = require("uuid");
 const { safeJsonParse } = require("../utils/http");
+const { withPrismaRetry } = require("../utils/prismaRetry");
 
 const TERMINAL_STATUSES = new Set([
   "completed",
@@ -42,29 +43,31 @@ const AgentRun = {
     policySnapshot = {},
   }) {
     const id = uuidv4();
-    const run = await prisma.agent_runs.create({
-      data: {
-        id,
-        workspace_id: Number(workspaceId),
-        thread_id: threadId ? Number(threadId) : null,
-        user_id: userId ? Number(userId) : null,
-        agent_id: agentId ? Number(agentId) : null,
-        source,
-        mode,
-        prompt: String(prompt),
-        attachments: JSON.stringify(attachments || []),
-        configuration: JSON.stringify(configuration || {}),
-        runtimeKey,
-        runtimeVersion: Number(runtimeVersion) || 1,
-        runtimeSnapshot: JSON.stringify(runtimeSnapshot || {}),
-        parent_run_id: parentRunId ? String(parentRunId) : null,
-        policySnapshot: JSON.stringify(policySnapshot || {}),
-        checkpointThreadId:
-          runtimeKey === "evidence-research"
-            ? `custom:${Number(runtimeVersion) || 1}:${id}`
-            : `agent-run:${id}`,
-      },
-    });
+    const run = await withPrismaRetry(() =>
+      prisma.agent_runs.create({
+        data: {
+          id,
+          workspace_id: Number(workspaceId),
+          thread_id: threadId ? Number(threadId) : null,
+          user_id: userId ? Number(userId) : null,
+          agent_id: agentId ? Number(agentId) : null,
+          source,
+          mode,
+          prompt: String(prompt),
+          attachments: JSON.stringify(attachments || []),
+          configuration: JSON.stringify(configuration || {}),
+          runtimeKey,
+          runtimeVersion: Number(runtimeVersion) || 1,
+          runtimeSnapshot: JSON.stringify(runtimeSnapshot || {}),
+          parent_run_id: parentRunId ? String(parentRunId) : null,
+          policySnapshot: JSON.stringify(policySnapshot || {}),
+          checkpointThreadId:
+            runtimeKey === "evidence-research"
+              ? `custom:${Number(runtimeVersion) || 1}:${id}`
+              : `agent-run:${id}`,
+        },
+      })
+    );
     return normalizeRun(run);
   },
 
@@ -85,10 +88,12 @@ const AgentRun = {
     if (Object.hasOwn(updates, "policySnapshot"))
       updates.policySnapshot = JSON.stringify(updates.policySnapshot || {});
     return normalizeRun(
-      await prisma.agent_runs.update({
-        where: { id: String(id) },
-        data: updates,
-      })
+      await withPrismaRetry(() =>
+        prisma.agent_runs.update({
+          where: { id: String(id) },
+          data: updates,
+        })
+      )
     );
   },
 
@@ -124,46 +129,52 @@ const AgentRun = {
   claim: async function (id, owner, leaseMs = 30_000) {
     const now = new Date();
     const leaseExpiresAt = new Date(now.getTime() + leaseMs);
-    const claimed = await prisma.agent_runs.updateMany({
-      where: {
-        id: String(id),
-        status: { in: ["queued", "running"] },
-        OR: [
-          { leaseOwner: null },
-          { leaseOwner: String(owner) },
-          { leaseExpiresAt: { lt: now } },
-        ],
-      },
-      data: {
-        leaseOwner: String(owner),
-        leaseExpiresAt,
-        heartbeatAt: now,
-      },
-    });
+    const claimed = await withPrismaRetry(() =>
+      prisma.agent_runs.updateMany({
+        where: {
+          id: String(id),
+          status: { in: ["queued", "running"] },
+          OR: [
+            { leaseOwner: null },
+            { leaseOwner: String(owner) },
+            { leaseExpiresAt: { lt: now } },
+          ],
+        },
+        data: {
+          leaseOwner: String(owner),
+          leaseExpiresAt,
+          heartbeatAt: now,
+        },
+      })
+    );
     if (!claimed.count) return null;
     return this.get(id);
   },
 
   heartbeat: async function (id, owner, leaseMs = 30_000) {
     const now = new Date();
-    const updated = await prisma.agent_runs.updateMany({
-      where: { id: String(id), leaseOwner: String(owner) },
-      data: {
-        heartbeatAt: now,
-        leaseExpiresAt: new Date(now.getTime() + leaseMs),
-      },
-    });
+    const updated = await withPrismaRetry(() =>
+      prisma.agent_runs.updateMany({
+        where: { id: String(id), leaseOwner: String(owner) },
+        data: {
+          heartbeatAt: now,
+          leaseExpiresAt: new Date(now.getTime() + leaseMs),
+        },
+      })
+    );
     return updated.count === 1;
   },
 
   releaseLease: async function (id, owner = null) {
-    await prisma.agent_runs.updateMany({
-      where: {
-        id: String(id),
-        ...(owner ? { leaseOwner: String(owner) } : {}),
-      },
-      data: { leaseOwner: null, leaseExpiresAt: null, heartbeatAt: null },
-    });
+    await withPrismaRetry(() =>
+      prisma.agent_runs.updateMany({
+        where: {
+          id: String(id),
+          ...(owner ? { leaseOwner: String(owner) } : {}),
+        },
+        data: { leaseOwner: null, leaseExpiresAt: null, heartbeatAt: null },
+      })
+    );
   },
 
   reclaimable: async function (take = 100) {

@@ -47,6 +47,7 @@ const HistoricalMessage = ({
   subagentRuns = [],
   contextTraces = [],
   agentRunId = null,
+  readOnly = false,
 }) => {
   // Freeze uuid on first render. User messages arrive without a uuid and this value
   // is used as the wrapper div's `key` — a default param fallback would regenerate
@@ -91,7 +92,7 @@ const HistoricalMessage = ({
   }
 
   if (role === "user") {
-    if (isEditing) {
+    if (isEditing && !readOnly) {
       return (
         <div key={uuid} className="flex justify-end w-full py-4 px-4">
           <EditMessageForm
@@ -134,6 +135,7 @@ const HistoricalMessage = ({
             role={role}
             forkThread={forkThread}
             metrics={metrics}
+            readOnly={readOnly}
           />
         </div>
       </div>
@@ -147,7 +149,7 @@ const HistoricalMessage = ({
       className={`${isDeleted ? "animate-remove" : ""} flex justify-start w-full group`}
     >
       <div className="py-4 px-4 md:pl-0 flex flex-col w-full">
-        {isEditing ? (
+        {isEditing && !readOnly ? (
           <EditMessageForm
             role={role}
             chatId={chatId}
@@ -158,8 +160,9 @@ const HistoricalMessage = ({
           />
         ) : (
           <div className="break-words">
-            {agentRunId && <AgentExecutionRail runId={agentRunId} />}
-            {completedAgentTrace.length > 0 && (
+            {agentRunId ? (
+              <AgentExecutionRail runId={agentRunId} />
+            ) : completedAgentTrace.length > 0 ? (
               <div className="mb-3">
                 <AgentStatus
                   summary={t("chat_window.agent_invocation.session_complete")}
@@ -168,9 +171,9 @@ const HistoricalMessage = ({
                   details={completedAgentTrace}
                 />
               </div>
-            )}
+            ) : null}
             <HistoricalClarifyingQuestions surveys={clarifyingQuestions} />
-            {contextTraces.length > 0 && (
+            {!agentRunId && contextTraces.length > 0 && (
               <div className="mb-3 space-y-2">
                 {contextTraces.map((trace) => (
                   <ContextTrace key={trace.id} trace={trace} />
@@ -222,6 +225,7 @@ const HistoricalMessage = ({
             role={role}
             forkThread={forkThread}
             metrics={metrics}
+            readOnly={readOnly}
           />
         </div>
         {role === "assistant" && <Citations sources={sources} />}
@@ -249,7 +253,9 @@ export default memo(
       prevProps.agentTrace === nextProps.agentTrace &&
       prevProps.subagentRuns === nextProps.subagentRuns &&
       prevProps.contextTraces === nextProps.contextTraces &&
-      prevProps.agentRunId === nextProps.agentRunId
+      prevProps.outputs === nextProps.outputs &&
+      prevProps.agentRunId === nextProps.agentRunId &&
+      prevProps.readOnly === nextProps.readOnly
     );
   }
 );

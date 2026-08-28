@@ -1,6 +1,7 @@
 const { PredefinedAgent } = require("../models/predefinedAgent");
 
 async function resolveAgent(agentId = null) {
+  await require("../agent-skills/seed").seedBuiltinSkills();
   if (agentId) {
     const selected = await PredefinedAgent.get(agentId, {
       enabledOnly: true,

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { Trash, DotsThreeVertical, TreeView } from "@phosphor-icons/react";
 import { useTranslation } from "react-i18next";
 
-function ActionMenu({ chatId, forkThread, isEditing, role }) {
+function ActionMenu({ chatId, forkThread, isEditing, role, readOnly = false }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const menuRef = useRef(null);
@@ -60,13 +60,15 @@ function ActionMenu({ chatId, forkThread, isEditing, role }) {
             <TreeView size={18} />
             <span className="text-sm">{t("chat_window.fork")}</span>
           </button>
-          <button
-            onClick={handleDelete}
-            className="border-none flex rounded-b-lg items-center text-white gap-x-2 hover:bg-theme-action-menu-item-hover py-1.5 px-2 transition-colors duration-200 w-full text-left"
-          >
-            <Trash size={18} />
-            <span className="text-sm">{t("chat_window.delete")}</span>
-          </button>
+          {!readOnly && (
+            <button
+              onClick={handleDelete}
+              className="border-none flex rounded-b-lg items-center text-white gap-x-2 hover:bg-theme-action-menu-item-hover py-1.5 px-2 transition-colors duration-200 w-full text-left"
+            >
+              <Trash size={18} />
+              <span className="text-sm">{t("chat_window.delete")}</span>
+            </button>
+          )}
         </div>
       )}
     </div>

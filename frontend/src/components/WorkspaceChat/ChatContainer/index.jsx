@@ -33,6 +33,7 @@ import { PENDING_HOME_MESSAGE } from "@/utils/constants";
 import { clearPromptInputDraft } from "@/hooks/usePromptInputStorage";
 import { safeJsonParse } from "@/utils/request";
 import { useTranslation } from "react-i18next";
+import { LockSimple } from "@phosphor-icons/react";
 import paths from "@/utils/paths";
 import SuggestedMessages from "@/components/lib/SuggestedMessages";
 import ChatSettingsMenu from "./ChatSettingsMenu";
@@ -69,6 +70,7 @@ function useEventCallback(callback) {
 export default function ChatContainer({
   workspace,
   threadSlug = null,
+  thread = null,
   knownHistory = [],
 }) {
   const navigate = useNavigate();
@@ -89,6 +91,7 @@ export default function ChatContainer({
   const { chatHistoryRef } = useChatContainerQuickScroll();
   const pendingMessageChecked = useRef(false);
   const activeThreadSlug = threadSlug;
+  const readOnly = Boolean(threadSlug && thread?.canModify === false);
   const { selectedAgent, selectedAgentId } = usePredefinedAgent();
 
   const setChatHistory = useCallback(
@@ -158,6 +161,7 @@ export default function ChatContainer({
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+    if (readOnly) return false;
     const currentMessage =
       document.getElementById(PROMPT_INPUT_ID)?.value || "";
     if (!currentMessage) return false;
@@ -236,6 +240,7 @@ export default function ChatContainer({
     attachments = [],
     writeMode = "replace",
   } = {}) => {
+    if (readOnly) return false;
     // If we are not auto-submitting, we can just emit the text to the prompt input.
     if (!autoSubmit) {
       setMessageEmit(text, writeMode);
@@ -330,6 +335,7 @@ export default function ChatContainer({
 
   const regenerateAssistantMessage = useCallback(
     (chatId) => {
+      if (readOnly) return;
       const filteredHistory = chatHistoryRef2.current.slice(0, -1);
       const lastUserMessage = filteredHistory.findLast(
         (msg) => msg.role === "user"
@@ -345,11 +351,11 @@ export default function ChatContainer({
         )
         .catch((e) => console.error(e));
     },
-    [workspace.slug]
+    [readOnly, workspace.slug]
   );
 
   useEffect(() => {
-    if (pendingMessageChecked.current || !workspace?.slug) return;
+    if (readOnly || pendingMessageChecked.current || !workspace?.slug) return;
     pendingMessageChecked.current = true;
 
     const pending = safeJsonParse(sessionStorage.getItem(PENDING_HOME_MESSAGE));
@@ -363,7 +369,7 @@ export default function ChatContainer({
         });
       }, 100);
     }
-  }, [workspace?.slug, dispatchCommand]);
+  }, [workspace?.slug, dispatchCommand, readOnly]);
 
   // A server-owned Agent run survives a browser refresh. Discover it for this
   // conversation, restore the submitted prompt, and reconnect to its buffered
@@ -515,24 +521,33 @@ export default function ChatContainer({
               <DnDFileUploaderWrapper>
                 <div className="flex flex-col h-full w-full items-center justify-center">
                   <div className="flex flex-col items-center w-full max-w-[750px]">
-                    <h1 className="text-white light:text-slate-900 text-xl md:text-2xl mb-7 text-center">
-                      {selectedAgent?.welcomeMessage || t("main-page.greeting")}
-                    </h1>
-                    <PromptInput
-                      workspace={workspace}
-                      submit={submitPrompt}
-                      isStreaming={loadingResponse}
-                      sendCommand={dispatchCommand}
-                      attachments={files}
-                      centered={true}
-                      examplePrompts={selectedAgent?.examplePrompts}
-                    />
-                    <AgentShowcase />
+                    {readOnly ? (
+                      <ReadOnlyThreadNotice thread={thread} centered />
+                    ) : (
+                      <>
+                        <h1 className="text-white light:text-slate-900 text-xl md:text-2xl mb-7 text-center">
+                          {selectedAgent?.welcomeMessage ||
+                            t("main-page.greeting")}
+                        </h1>
+                        <PromptInput
+                          workspace={workspace}
+                          submit={submitPrompt}
+                          isStreaming={loadingResponse}
+                          sendCommand={dispatchCommand}
+                          attachments={files}
+                          centered={true}
+                          examplePrompts={selectedAgent?.examplePrompts}
+                        />
+                        <AgentShowcase />
+                      </>
+                    )}
                   </div>
-                  <SuggestedMessages
-                    suggestedMessages={workspace?.suggestedMessages}
-                    sendCommand={dispatchCommand}
-                  />
+                  {!readOnly && (
+                    <SuggestedMessages
+                      suggestedMessages={workspace?.suggestedMessages}
+                      sendCommand={dispatchCommand}
+                    />
+                  )}
                 </div>
               </DnDFileUploaderWrapper>
               <ChatTooltips />
@@ -571,17 +586,22 @@ export default function ChatContainer({
                       updateHistory={setChatHistory}
                       regenerateAssistantMessage={regenerateAssistantMessage}
                       websocket={websocket}
+                      readOnly={readOnly}
                     />
                   </MetricsProvider>
-                  <PromptInput
-                    workspace={workspace}
-                    submit={submitPrompt}
-                    isStreaming={loadingResponse}
-                    sendCommand={dispatchCommand}
-                    attachments={files}
-                    centered={false}
-                    examplePrompts={selectedAgent?.examplePrompts}
-                  />
+                  {readOnly ? (
+                    <ReadOnlyThreadNotice thread={thread} />
+                  ) : (
+                    <PromptInput
+                      workspace={workspace}
+                      submit={submitPrompt}
+                      isStreaming={loadingResponse}
+                      sendCommand={dispatchCommand}
+                      attachments={files}
+                      centered={false}
+                      examplePrompts={selectedAgent?.examplePrompts}
+                    />
+                  )}
                 </div>
               </div>
             </DnDFileUploaderWrapper>
@@ -593,5 +613,34 @@ export default function ChatContainer({
         <WorkspaceFilesSidebar workspace={workspace} />
       </div>
     </ChatSidebarProvider>
+  );
+}
+
+function ReadOnlyThreadNotice({ thread, centered = false }) {
+  const { t } = useTranslation();
+  return (
+    <div
+      id={centered ? undefined : "prompt-input-wrapper"}
+      className={`${centered ? "w-full max-w-[560px]" : "absolute bottom-0 left-0 right-0 z-20 px-4 pb-4 md:px-6 md:pb-6"}`}
+    >
+      <div className="mx-auto flex max-w-[750px] items-center gap-3 rounded-lg border border-white/10 bg-zinc-900/95 px-4 py-3 light:border-slate-200 light:bg-white/95">
+        <LockSimple
+          size={18}
+          weight="bold"
+          className="shrink-0 text-theme-text-secondary"
+        />
+        <div className="min-w-0">
+          <p className="m-0 text-sm font-semibold text-theme-text-primary">
+            {t("chat_window.shared_thread_read_only")}
+          </p>
+          <p className="m-0 truncate text-xs text-theme-text-secondary">
+            {t("chat_window.shared_thread_owner", {
+              username:
+                thread?.owner?.username || t("chat_window.unknown_user"),
+            })}
+          </p>
+        </div>
+      </div>
+    </div>
   );
 }

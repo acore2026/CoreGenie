@@ -9,7 +9,7 @@ function HistoricalOutputs({ outputs = [] }) {
     <div className="flex flex-col gap-2 mt-4">
       {outputs.map((output, index) => {
         const key = `${output.type}-${index}`;
-        const cardProps = { content: output.payload };
+        const cardProps = { content: output.payload, outputType: output.type };
         if (output.type === "scheduledJobCreated")
           return <ScheduledJobCreatedCard key={key} props={cardProps} />;
         return <FileDownloadCard key={key} props={cardProps} />;

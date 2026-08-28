@@ -4,6 +4,11 @@ const os = require("os");
 const { randomBytes } = require("crypto");
 const { createTwoFilesPatch } = require("diff");
 const { humanFileSize } = require("../../../../helpers");
+const {
+  workspaceFilesystemRoot,
+} = require("../../../../workspaceAgentInstructions");
+
+const SANDBOX_WORKSPACE_ALIAS = "/workspace";
 
 /**
  * Manages filesystem operations with security constraints.
@@ -58,15 +63,7 @@ class FilesystemManager {
       throw new Error(
         "Authenticated workspace is required for filesystem access."
       );
-    const storageRoot =
-      process.env.STORAGE_DIR ||
-      path.resolve(__dirname, "../../../../../storage");
-    return path.join(
-      storageRoot,
-      "anythingllm-fs",
-      "workspaces",
-      `workspace-${this.workspaceId}`
-    );
+    return workspaceFilesystemRoot(this.workspaceId);
   }
 
   /**
@@ -207,6 +204,23 @@ class FilesystemManager {
     }
 
     return path.resolve(this.#allowedDirectories[0], relativePath);
+  }
+
+  /**
+   * Maps the path exposed inside Bash/Python sandboxes back to the same
+   * authenticated workspace used by native filesystem tools.
+   * @param {string} requestedPath
+   * @returns {string}
+   */
+  #resolveSandboxWorkspaceAlias(requestedPath) {
+    if (requestedPath === SANDBOX_WORKSPACE_ALIAS)
+      return this.#allowedDirectories[0];
+    if (!requestedPath.startsWith(`${SANDBOX_WORKSPACE_ALIAS}/`))
+      return requestedPath;
+    return path.join(
+      this.#allowedDirectories[0],
+      requestedPath.slice(SANDBOX_WORKSPACE_ALIAS.length + 1)
+    );
   }
 
   /**
@@ -448,7 +462,9 @@ class FilesystemManager {
    */
   async validatePath(requestedPath) {
     await this.ensureInitialized();
-    const expandedPath = this.#expandHome(requestedPath);
+    const expandedPath = this.#resolveSandboxWorkspaceAlias(
+      this.#expandHome(requestedPath)
+    );
     const absolute = path.isAbsolute(expandedPath)
       ? path.resolve(expandedPath)
       : this.#resolveRelativePathAgainstAllowedDirectories(expandedPath);
@@ -584,7 +600,9 @@ class FilesystemManager {
    */
   async deletePath(requestedPath, { recursive = false } = {}) {
     await this.ensureInitialized();
-    const expandedPath = this.#expandHome(requestedPath);
+    const expandedPath = this.#resolveSandboxWorkspaceAlias(
+      this.#expandHome(requestedPath)
+    );
     const lexicalPath = this.#normalizePath(
       path.isAbsolute(expandedPath)
         ? path.resolve(expandedPath)

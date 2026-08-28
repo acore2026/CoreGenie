@@ -81,8 +81,8 @@ async function submitAgentRun({
       maxTasks: 12,
       maxConcurrency: 3,
       maxReviewRounds: 2,
-      maxTaskToolCalls: 40,
-      maxTaskModelCalls: 30,
+      maxTaskToolCalls: 100,
+      maxTaskModelCalls: 100,
     },
     ...snapshot,
   });
