@@ -38,6 +38,11 @@ jest.mock("../../models/predefinedAgent", () => ({
         isBuiltinDefault: true,
         skillIds: [10],
       },
+      {
+        id: 6,
+        name: "3GPP 提案分析助手（Skill）",
+        skillIds: [10],
+      },
     ]),
     create: jest.fn().mockImplementation((value) =>
       Promise.resolve({
@@ -45,7 +50,12 @@ jest.mock("../../models/predefinedAgent", () => ({
         ...value,
       })
     ),
-    update: jest.fn(),
+    update: jest.fn().mockImplementation((id, value) =>
+      Promise.resolve({
+        id,
+        ...value,
+      })
+    ),
     defaultId: jest.fn().mockResolvedValue(null),
     get: jest.fn(),
   },
@@ -71,13 +81,17 @@ describe("3GPP review seed", () => {
         skillMd: expect.stringContaining("name: 3gpp-review"),
       })
     );
-    expect(PredefinedAgent.create).toHaveBeenCalledWith(
+    expect(PredefinedAgent.update).toHaveBeenCalledWith(
+      6,
       expect.objectContaining({
-        name: "3GPP 提案分析助手（Skill）",
+        name: "3GPP 提案分析助手",
         skillIds: [10, 11],
         runtimeConfig: expect.objectContaining({
           publicationRequiresCoverage: true,
         }),
+        systemPrompt: expect.stringContaining(
+          "禁止调用 /workspace/3gpp-review/scripts/3gpp_tdocs.py"
+        ),
       })
     );
     expect(PredefinedAgent.create).toHaveBeenCalledWith(
@@ -100,7 +114,7 @@ describe("3GPP review seed", () => {
     });
     expect(prisma.system_settings.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { label: "agent_skill_seed_3gpp_review_v10" },
+        where: { label: "agent_skill_seed_3gpp_review_v12" },
       })
     );
   });

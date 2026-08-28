@@ -5,8 +5,9 @@ const { PredefinedAgentSkill } = require("../models/predefinedAgentSkill");
 const { PredefinedAgent } = require("../models/predefinedAgent");
 const { seed3gppPositionEvolution } = require("./positionEvolutionSeed");
 
-const SEED_SETTING = "agent_skill_seed_3gpp_review_v10";
-const AGENT_NAME = "3GPP 提案分析助手（Skill）";
+const SEED_SETTING = "agent_skill_seed_3gpp_review_v12";
+const AGENT_NAME = "3GPP 提案分析助手";
+const LEGACY_AGENT_NAMES = ["3GPP 提案分析助手（Skill）"];
 const CONVERTER_AGENT_NAME = "3GPP 提案转 Markdown 助手";
 const SKILL_NAME = "3gpp-review";
 const LOOKUP_SKILL_NAME = "3gpp-lookup";
@@ -38,6 +39,7 @@ const AGENT_PROMPT = `你是一名面向 3GPP/6G 标准研究的提案分析助�
 - 默认输出中文 Markdown 报告；
 - 使用 filter-index 生成并验证 proposals.json，不得手写或改造 manifest；
 - 将工作拆为会议与清单、下载与提取、分析与严格 coverage、报告与发布四个有依赖关系的阶段；
+- 调用 Skill 自带脚本时，bash 的 cwd 必须使用 skill.activate 返回的 skill:// 路径，并通过相对路径 scripts/3gpp_tdocs.py 执行；禁止调用 /workspace/3gpp-review/scripts/3gpp_tdocs.py 或其他工作区脚本副本；
 - 后续工具调用必须复用上一步返回的准确文件路径，路径不确定时先搜索，不得根据文件名猜目录；
 - 最终报告必须通过严格 coverage 并生成 receipt，再将 manifest、receipt 和完整 TDoc 列表一并传给 knowledge.publish；
 - 每次运行只发布一份最终报告，发布成功后不得换路径再次发布；
@@ -153,7 +155,10 @@ async function seed3gppReview() {
   }
 
   const agents = await PredefinedAgent.all();
-  let agent = agents.find((item) => item.name === AGENT_NAME);
+  let agent = agents.find(
+    (item) =>
+      item.name === AGENT_NAME || LEGACY_AGENT_NAMES.includes(item.name)
+  );
   const agentData = {
     name: AGENT_NAME,
     description:

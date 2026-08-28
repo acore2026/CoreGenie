@@ -100,10 +100,140 @@ function resolvedTaskDependencies(taskItem, resultsById) {
   return dependencies.every(Boolean) ? dependencies : null;
 }
 
-function taskRequiredCompletionTools(run, allowedToolIds = []) {
+function normalizedActionToolId(taskItem = {}) {
+  const objective = String(taskItem?.objective || "");
+  const match = objective.match(
+    /^Use ([a-z0-9._-]+) to complete this request:/i
+  );
+  const localizedMatch = objective.match(/^使用 ([a-z0-9._-]+) 完成此请求：/i);
+  const toolId = match?.[1] || localizedMatch?.[1] || null;
+  return toolId && (taskItem?.allowedToolIds || []).includes(toolId)
+    ? toolId
+    : null;
+}
+
+function taskRequiredCompletionTools(
+  run,
+  allowedToolIds = [],
+  taskItem = null
+) {
   const requiredToolIds =
     run.runtimeSnapshot?.runtimeConfig?.requiredCompletionTools || [];
-  return requiredToolIds.filter((toolId) => allowedToolIds.includes(toolId));
+  const normalizedToolId = normalizedActionToolId(taskItem);
+  return [
+    ...new Set([
+      ...requiredToolIds.filter((toolId) => allowedToolIds.includes(toolId)),
+      ...(normalizedToolId ? [normalizedToolId] : []),
+    ]),
+  ];
+}
+
+function toolExecutionEvidence(executions = [], requiredToolIds = []) {
+  const required = new Set(requiredToolIds);
+  return executions
+    .filter(
+      (item) =>
+        required.has(item.tool_id) &&
+        item.status === "completed" &&
+        item.result?.ok !== false
+    )
+    .flatMap((item) => {
+      if (item.tool_id === "rag.search" && Array.isArray(item.result?.data))
+        return item.result.data.slice(0, 12).map((entry, index) => ({
+          kind: "rag",
+          title:
+            entry?.source?.title ||
+            entry?.source?.name ||
+            `Workspace 搜索结果 ${index + 1}`,
+          uri: entry?.source?.url || entry?.source?.chunkSource || null,
+          excerpt: String(entry?.text || entry?.source?.text || "").slice(
+            0,
+            8_000
+          ),
+          metadata: {
+            toolId: item.tool_id,
+            query: item.arguments?.query || null,
+            ...(entry?.source || {}),
+          },
+        }));
+      if (item.tool_id === "web.search" && Array.isArray(item.result?.data))
+        return item.result.data.slice(0, 12).map((entry, index) => ({
+          kind: "web",
+          title: entry?.title || `在线搜索结果 ${index + 1}`,
+          uri: entry?.url || null,
+          excerpt: String(
+            entry?.snippet || entry?.text || entry?.title || ""
+          ).slice(0, 8_000),
+          metadata: {
+            toolId: item.tool_id,
+            query: item.arguments?.query || null,
+          },
+        }));
+      const excerpt = String(
+        item.result?.summary ||
+          item.result_summary ||
+          "Tool completed successfully."
+      ).slice(0, 8_000);
+      return excerpt
+        ? [
+            {
+              kind: "tool",
+              title: `${item.tool_id} 结果`,
+              uri: null,
+              excerpt,
+              metadata: { toolId: item.tool_id },
+            },
+          ]
+        : [];
+    });
+}
+
+function claimSaysToolDidNotRun(value = "") {
+  return /(?:no\s+[^.\n]*tool call|tool\s+(?:was|has)\s+not\s+(?:been\s+)?executed|never\s+(?:actually\s+)?executed|not\s+executed|未[^。\n]{0,20}执行|从未[^。\n]{0,20}(?:发起|执行)|没有[^。\n]{0,20}工具(?:调用|输出))/i.test(
+    String(value)
+  );
+}
+
+function groundWorkerResultInToolExecutions(
+  parsed,
+  taskItem,
+  requiredToolIds,
+  executions = []
+) {
+  if (!parsed || !requiredToolIds.length) return parsed;
+  const completed = executions.filter(
+    (item) =>
+      requiredToolIds.includes(item.tool_id) &&
+      item.status === "completed" &&
+      item.result?.ok !== false
+  );
+  if (!completed.length) return parsed;
+  const durableEvidence = toolExecutionEvidence(executions, requiredToolIds);
+  const evidence = [...(parsed.evidence || [])];
+  const seen = new Set(
+    evidence.map((item) =>
+      [item.kind, item.uri || "", item.title, item.excerpt].join("\u0000")
+    )
+  );
+  for (const item of durableEvidence) {
+    const key = [item.kind, item.uri || "", item.title, item.excerpt].join(
+      "\u0000"
+    );
+    if (!seen.has(key)) evidence.push(item);
+    seen.add(key);
+  }
+  const completedIds = [...new Set(completed.map((item) => item.tool_id))];
+  const resultCount = durableEvidence.length;
+  return {
+    ...parsed,
+    summary: claimSaysToolDidNotRun(parsed.summary)
+      ? `已成功执行 ${completedIds.join(", ")}${resultCount ? `，并获得 ${resultCount} 条可用结果` : ""}。`
+      : parsed.summary,
+    evidence,
+    unresolved: (parsed.unresolved || []).filter(
+      (item) => !claimSaysToolDidNotRun(item)
+    ),
+  };
 }
 
 function isSkillBootstrapTask(taskItem) {
@@ -440,7 +570,17 @@ function normalized3gppLookupPlan(request, allowedToolIds) {
 }
 
 function isQuick3gppLookupTask(taskItem = {}) {
-  return (taskItem.allowedToolIds || []).includes("3gpp.resolve-meeting");
+  const allowedToolIds = taskItem.allowedToolIds || [];
+  const quickLookupTools = new Set([
+    "skill.activate",
+    "3gpp.resolve-meeting",
+    "web.fetch",
+  ]);
+  return (
+    taskItem.writeIntent !== true &&
+    allowedToolIds.includes("3gpp.resolve-meeting") &&
+    allowedToolIds.every((toolId) => quickLookupTools.has(toolId))
+  );
 }
 
 function workerContinuationInstruction({
@@ -555,10 +695,8 @@ function normalizedActionPlan({
   skills = [],
 }) {
   const allowedToolIds = new Set([descriptor.id]);
-  let objective = `Use ${descriptor.id} to complete this request: ${request}\n\nThe controller suggested these arguments:\n${JSON.stringify(args)}`;
-  let successCriteria = [
-    "Capture the tool result and explain any execution failure.",
-  ];
+  let objective = `使用 ${descriptor.id} 完成此请求：${request}\n\n控制器建议参数：\n${JSON.stringify(args)}`;
+  let successCriteria = ["记录工具结果，并说明实际发生的执行错误。"];
 
   if (descriptor.id === "skill.activate") {
     allowedToolIds.add("skill.read_resource");
@@ -591,20 +729,20 @@ function normalizedActionPlan({
         relevantSkills[0]?.name || requestedName,
         allowedToolIds
       );
-    objective = `Activate the relevant Agent Skill, follow its instructions, and complete the user's request with the skill-permitted tools: ${request}\n\nThe controller suggested these arguments:\n${JSON.stringify(args)}`;
+    objective = `激活相关 Agent Skill，按照 Skill 指令和允许的工具完成用户请求：${request}\n\n控制器建议参数：\n${JSON.stringify(args)}`;
     successCriteria = [
-      "Activate and follow the relevant Agent Skill.",
-      "Complete the requested workflow using the skill-permitted tools instead of stopping after activation.",
-      "Capture verified results and explain only genuine execution failures.",
+      "激活并遵循相关 Agent Skill。",
+      "使用 Skill 允许的工具完成请求，不要只停留在激活步骤。",
+      "记录已确认的结果，只说明实际发生的执行错误。",
     ];
   }
 
   return {
-    goal: `Complete the request using ${descriptor.name}`,
+    goal: `使用 ${descriptor.name} 完成请求`,
     tasks: [
       {
         id: `${descriptor.id}-request`,
-        title: `Use ${descriptor.name} for the request`,
+        title: `使用 ${descriptor.name} 完成请求`,
         objective,
         dependsOn: [],
         allowedToolIds: [...allowedToolIds],
@@ -1093,7 +1231,7 @@ function createGovernedGraph(context) {
             parallel_tool_calls: false,
           });
         const messages = modelMessages(
-          `${basePrompt}${currentSkillCatalog ? `\n\n${currentSkillCatalog}` : ""}\n\nYou are the controller for a governed Agent runtime. Answer ordinary questions directly. Call create_plan only when tools, independent work, delegation, or verification are genuinely useful. Call ask_user only when a missing answer materially changes the work. Every ask_user call must contain exactly three concise, mutually exclusive choices with the recommended choice first; the client supplies the fourth custom-answer option and notes field. Never combine normal answer text with a control tool call. Plans must contain concrete evidence or action tasks, not a final-answer task. Give each worker the smallest relevant allowedToolIds set. For a long Skill workflow, split discovery and manifest creation, acquisition and processing, validation, and final publication into dependency tasks; allow knowledge.publish only in the final task. A dedicated activation-only task may contain only skill.activate and skill.read_resource; otherwise include the Skill tools needed by that task. For read-only requests, exclude unrelated state-changing tools, but retain skill-declared execution or file tools required to create the workflow's cache and requested artifacts. Direct answers using context evidence must cite it as [C1], [C2], and so on.\n\nAvailable tools:\n${toolList || "None"}\n\nAvailable specialist Agents:\n${agentList || "None"}`,
+          `${basePrompt}${currentSkillCatalog ? `\n\n${currentSkillCatalog}` : ""}\n\nYou are the controller for a governed Agent runtime. Answer ordinary questions directly. Call create_plan only when tools, independent work, delegation, or verification are genuinely useful. Call ask_user only when a missing answer materially changes the work. Every ask_user call must contain exactly three concise, mutually exclusive choices with the recommended choice first; the client supplies the fourth custom-answer option and notes field. Never combine normal answer text with a control tool call. Plans must contain concrete evidence or action tasks, not a final-answer task. Give each worker the smallest relevant allowedToolIds set. Use web.search for public internet searches and rag.search only for knowledge already stored in the workspace. For a long Skill workflow, split discovery and manifest creation, acquisition and processing, validation, and final publication into dependency tasks; allow knowledge.publish only in the final task. A dedicated activation-only task may contain only skill.activate and skill.read_resource; otherwise include the Skill tools needed by that task. For read-only requests, exclude unrelated state-changing tools, but retain skill-declared execution or file tools required to create the workflow's cache and requested artifacts. Direct answers using context evidence must cite it as [C1], [C2], and so on.\n\nAvailable tools:\n${toolList || "None"}\n\nAvailable specialist Agents:\n${agentList || "None"}`,
           state,
           `${state.request}${state.clarification ? `\n\nUser clarification:\n${state.clarification}` : ""}${contextPrompt(state.contextItems)}`,
           state.controllerAttachments
@@ -1312,7 +1450,11 @@ function createGovernedGraph(context) {
     const allowedToolIds = taskItem.allowedToolIds.length
       ? taskItem.allowedToolIds
       : readOnlyTools;
-    const requiredToolIds = taskRequiredCompletionTools(run, allowedToolIds);
+    const requiredToolIds = taskRequiredCompletionTools(
+      run,
+      allowedToolIds,
+      taskItem
+    );
     const skillBootstrapTask = isSkillBootstrapTask(taskItem);
     const quick3gppLookupTask = isQuick3gppLookupTask(taskItem);
     const workerRun = {
@@ -1409,8 +1551,17 @@ function createGovernedGraph(context) {
             parsed = null;
             parseError = error;
           }
+          const taskExecutions = await AgentToolExecution.listForTask(
+            run.id,
+            taskItem.id
+          );
           const completedToolIds = new Set(
-            await AgentToolExecution.completedToolIds(run.id)
+            taskExecutions
+              .filter(
+                (item) =>
+                  item.status === "completed" && item.result?.ok !== false
+              )
+              .map((item) => item.tool_id)
           );
           missingToolIds = requiredToolIds.filter(
             (toolId) => !completedToolIds.has(toolId)
@@ -1457,11 +1608,17 @@ function createGovernedGraph(context) {
                 : []),
             ],
           };
-        } else if (missingToolIds.length) {
-          parsed.unresolved.push(
-            `Missing completion tools: ${missingToolIds.join(", ")}`
-          );
         }
+        if (missingToolIds.length)
+          throw new Error(
+            `此任务缺少成功的必要工具调用：${missingToolIds.join(", ")}`
+          );
+        parsed = groundWorkerResultInToolExecutions(
+          parsed,
+          taskItem,
+          requiredToolIds,
+          await AgentToolExecution.listForTask(run.id, taskItem.id)
+        );
         const evidence = normalizeEvidence(parsed.evidence, {
           id: taskItem.id,
         });
@@ -1573,7 +1730,7 @@ function createGovernedGraph(context) {
   const review = async (state) => {
     await emit("activity.updated", {
       phase: "review",
-      summary: `Reviewing ${state.taskResults.length} task results for coverage and gaps`,
+      summary: `检查 ${state.taskResults.length} 个任务结果`,
     });
     try {
       const decision = await invokeStructured({
@@ -1650,8 +1807,7 @@ function createGovernedGraph(context) {
       async () => {
         await emit("activity.updated", {
           phase: "writing",
-          summary:
-            "Writing the answer from completed work and verified evidence",
+          summary: "根据已完成的工作和可用资料整理回答",
         });
         const evidence = state.evidence.map((item, index) => ({
           citation: `E${index + 1}`,
@@ -1800,6 +1956,7 @@ module.exports = {
   classify3gppRequest,
   executeQuick3gppLookup,
   executeSegment,
+  groundWorkerResultInToolExecutions,
   isQuick3gppLookupTask,
   mergeById,
   normalizedActionPlan,
@@ -1816,6 +1973,7 @@ module.exports = {
   skillBootstrapCompletion,
   taskRequiredCompletionTools,
   taskSchema,
+  toolExecutionEvidence,
   validatePlan,
   workerContinuationInstruction,
 };

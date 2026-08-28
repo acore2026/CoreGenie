@@ -16,6 +16,7 @@ for (const descriptor of [
   ...Object.values(sandbox),
   ...Object.values(filesystem),
   ...Object.values(memory),
+  web.webSearch,
   web.webFetch,
   rag.ragSearch,
   userInput.askUser,

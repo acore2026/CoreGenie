@@ -5,6 +5,8 @@ const {
   controllerDecisionWithFallback,
   classify3gppRequest,
   createGovernedGraph,
+  groundWorkerResultInToolExecutions,
+  isQuick3gppLookupTask,
   isSkillBootstrapTask,
   mergeById,
   normalized3gppLookupPlan,
@@ -106,6 +108,22 @@ describe("Governed Agent runtime", () => {
     expect(plan.tasks[0].allowedToolIds).not.toEqual(
       expect.arrayContaining(["bash", "python", "filesystem.write"])
     );
+    expect(isQuick3gppLookupTask(plan.tasks[0])).toBe(true);
+  });
+
+  it("does not apply quick lookup limits to a full 3GPP review task", () => {
+    expect(
+      isQuick3gppLookupTask({
+        title: "激活 Skill 并解析会议目录",
+        writeIntent: true,
+        allowedToolIds: [
+          "skill.activate",
+          "3gpp.resolve-meeting",
+          "web.fetch",
+          "filesystem.write",
+        ],
+      })
+    ).toBe(false);
   });
 
   it("does not repeat tools when only the worker result format is invalid", () => {
@@ -136,6 +154,65 @@ describe("Governed Agent runtime", () => {
     expect(
       taskRequiredCompletionTools(run, ["filesystem.read", "knowledge.publish"])
     ).toEqual(["knowledge.publish"]);
+  });
+
+  it("requires a controller-normalized action to execute its selected tool", () => {
+    const plan = normalizedActionPlan({
+      descriptor: toolRegistry.get("rag.search"),
+      args: { query: "Agent Connecting Network ACN" },
+      request: "尝试在线搜索",
+      agent: { id: 1 },
+    });
+
+    expect(
+      taskRequiredCompletionTools(
+        { runtimeSnapshot: { runtimeConfig: {} } },
+        plan.tasks[0].allowedToolIds,
+        plan.tasks[0]
+      )
+    ).toEqual(["rag.search"]);
+  });
+
+  it("grounds a worker result in the durable search execution", () => {
+    const grounded = groundWorkerResultInToolExecutions(
+      {
+        summary:
+          "No rag_search tool call was executed, so no search results were captured.",
+        evidence: [],
+        unresolved: ["The search tool was not executed."],
+      },
+      { id: "task-1" },
+      ["rag.search"],
+      [
+        {
+          tool_id: "rag.search",
+          status: "completed",
+          arguments: { query: "Agent Connecting Network ACN" },
+          result: {
+            ok: true,
+            data: [
+              {
+                text: "ACN is discussed in this workspace document.",
+                source: {
+                  title: "ACN proposal",
+                  url: "workspace://acn.md",
+                },
+              },
+            ],
+          },
+        },
+      ]
+    );
+
+    expect(grounded.summary).toMatch(/已成功执行 rag\.search/);
+    expect(grounded.unresolved).toEqual([]);
+    expect(grounded.evidence).toEqual([
+      expect.objectContaining({
+        kind: "rag",
+        title: "ACN proposal",
+        uri: "workspace://acn.md",
+      }),
+    ]);
   });
 
   it("recognizes a completed Skill bootstrap from durable tool records", () => {
@@ -410,7 +487,7 @@ describe("Governed Agent runtime", () => {
       ])
     );
     expect(plan.tasks[0].successCriteria.join(" ")).toMatch(
-      /instead of stopping after activation/i
+      /不要只停留在激活步骤/
     );
   });
 

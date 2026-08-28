@@ -71,6 +71,12 @@ function snapshottedAgent(run) {
   };
 }
 
+function applicableCompletionTools(requiredToolIds = [], tasks = []) {
+  if (!tasks.length) return requiredToolIds;
+  const allowed = new Set(tasks.flatMap((task) => task.allowedToolIds || []));
+  return requiredToolIds.filter((toolId) => allowed.has(toolId));
+}
+
 async function executeAgentRun(runId, signal) {
   const run = await AgentRun.get(runId);
   if (!run || AgentRun.isTerminal(run.status)) return run;
@@ -193,8 +199,10 @@ async function executeAgentRunSegment(initialRun, signal, runnableConfig = {}) {
 
   let responseText = String(result.text || streamedText || "");
   let partial = Boolean(result.partial);
-  const requiredCompletionTools =
-    run.runtimeSnapshot?.runtimeConfig?.requiredCompletionTools || [];
+  const requiredCompletionTools = applicableCompletionTools(
+    run.runtimeSnapshot?.runtimeConfig?.requiredCompletionTools || [],
+    await AgentRunTask.list(run.id)
+  );
   if (requiredCompletionTools.length) {
     const completed = new Set(
       await AgentToolExecution.completedToolIds(run.id)
@@ -351,6 +359,7 @@ async function persistFailedAgentRun(runId, error) {
 }
 
 module.exports = {
+  applicableCompletionTools,
   consumeGraphStream,
   executeAgentRun,
   executeAgentRunSegment,
