@@ -28,6 +28,8 @@ const MAX_DESCRIPTION = 500;
 const MAX_WELCOME = 300;
 const MAX_EXAMPLE_PROMPTS = 6;
 const MAX_EXAMPLE_PROMPT = 240;
+const MAX_EXAMPLE_PROMPT_LABEL = 120;
+const MAX_EXAMPLE_PROMPT_DETAIL = 1_000;
 const MAX_PROMPT = 40_000;
 
 function cleanText(value, max, { required = false } = {}) {
@@ -57,13 +59,31 @@ function uniqueStrings(values) {
 
 function cleanExamplePrompts(values) {
   if (!Array.isArray(values)) return [];
-  return [
-    ...new Set(
-      values
-        .map((value) => cleanText(value, MAX_EXAMPLE_PROMPT))
-        .filter(Boolean)
-    ),
-  ].slice(0, MAX_EXAMPLE_PROMPTS);
+  const prompts = [];
+  const seen = new Set();
+  for (const value of values) {
+    const cleaned =
+      typeof value === "string"
+        ? cleanText(value, MAX_EXAMPLE_PROMPT)
+        : {
+            label: cleanText(
+              value?.label || value?.prompt,
+              MAX_EXAMPLE_PROMPT_LABEL
+            ),
+            prompt: cleanText(value?.prompt, MAX_EXAMPLE_PROMPT_DETAIL),
+          };
+    if (!cleaned || (typeof cleaned !== "string" && !cleaned.prompt)) continue;
+    const normalized =
+      typeof cleaned === "string"
+        ? cleaned
+        : { label: cleaned.label || cleaned.prompt, prompt: cleaned.prompt };
+    const fingerprint = JSON.stringify(normalized);
+    if (seen.has(fingerprint)) continue;
+    seen.add(fingerprint);
+    prompts.push(normalized);
+    if (prompts.length >= MAX_EXAMPLE_PROMPTS) break;
+  }
+  return prompts;
 }
 
 function validateAgentPayload(body) {
@@ -492,4 +512,4 @@ function predefinedAgentEndpoints(app) {
   );
 }
 
-module.exports = { predefinedAgentEndpoints };
+module.exports = { cleanExamplePrompts, predefinedAgentEndpoints };

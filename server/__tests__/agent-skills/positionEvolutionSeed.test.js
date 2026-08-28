@@ -75,11 +75,17 @@ describe("3GPP position evolution seed", () => {
         runtimeConfig: expect.objectContaining({
           requiredCompletionTools: ["knowledge.publish"],
         }),
+        examplePrompts: expect.arrayContaining([
+          expect.objectContaining({
+            label: expect.stringContaining("Huawei 与 Ericsson"),
+            prompt: expect.stringContaining("KI #18"),
+          }),
+        ]),
       })
     );
     expect(prisma.system_settings.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { label: "agent_skill_seed_3gpp_position_evolution_v5" },
+        where: { label: "agent_skill_seed_3gpp_position_evolution_v7" },
       })
     );
   });

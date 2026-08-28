@@ -43,7 +43,7 @@ const MAX_EDIT_STACK_SIZE = 100;
  * @param {boolean} [props.centered] - renders in centered layout mode (for home page)
  * @param {string} [props.workspaceSlug] - workspace slug for home page context
  * @param {string} [props.threadSlug] - thread slug for home page context
- * @param {string[]} [props.examplePrompts] - selected Agent example inputs
+ * @param {Array<string | {label: string, prompt: string}>} [props.examplePrompts] - selected Agent example inputs
  */
 function PromptInput({
   workspace = {},
@@ -476,8 +476,16 @@ function PromptInput({
 
 function ExamplePromptShelf({ prompts = [], onSelect }) {
   const visiblePrompts = prompts
-    .map((prompt) => String(prompt || "").trim())
-    .filter(Boolean)
+    .map((item) => {
+      if (typeof item === "string") {
+        const prompt = item.trim();
+        return { label: prompt, prompt };
+      }
+      const prompt = String(item?.prompt || "").trim();
+      const label = String(item?.label || prompt).trim();
+      return { label, prompt };
+    })
+    .filter(({ label, prompt }) => label && prompt)
     .slice(0, 6);
   if (!visiblePrompts.length) return null;
 
@@ -486,12 +494,12 @@ function ExamplePromptShelf({ prompts = [], onSelect }) {
       className="flex w-full flex-wrap items-stretch gap-2 px-1 py-2"
       aria-label="Agent example inputs"
     >
-      {visiblePrompts.map((prompt, index) => (
+      {visiblePrompts.map(({ label, prompt }, index) => (
         <button
-          key={`${prompt}-${index}`}
+          key={`${label}-${index}`}
           type="button"
           onClick={() => onSelect(prompt)}
-          title={prompt}
+          title={label}
           className="group inline-flex min-h-8 min-w-0 max-w-full items-start gap-1.5 rounded-2xl border border-cyan-300/15 bg-cyan-300/[0.055] px-3 py-2 text-left text-xs text-zinc-300 shadow-[0_8px_24px_rgba(0,0,0,0.08)] transition hover:-translate-y-0.5 hover:border-cyan-300/35 hover:bg-cyan-300/[0.1] hover:text-white md:max-w-[620px] light:border-cyan-600/15 light:bg-cyan-50 light:text-slate-600 light:hover:border-cyan-500/40 light:hover:bg-cyan-100 light:hover:text-slate-900"
         >
           <ChatCircleText
@@ -500,7 +508,7 @@ function ExamplePromptShelf({ prompts = [], onSelect }) {
             className="mt-px shrink-0 text-cyan-300 light:text-cyan-700"
           />
           <span className="min-w-0 whitespace-normal break-words leading-4">
-            {prompt}
+            {label}
           </span>
         </button>
       ))}

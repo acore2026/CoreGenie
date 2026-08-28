@@ -4,7 +4,7 @@ const prisma = require("../utils/prisma");
 const { PredefinedAgentSkill } = require("../models/predefinedAgentSkill");
 const { PredefinedAgent } = require("../models/predefinedAgent");
 
-const SEED_SETTING = "agent_skill_seed_3gpp_position_evolution_v5";
+const SEED_SETTING = "agent_skill_seed_3gpp_position_evolution_v7";
 const SKILL_NAME = "3gpp-position-evolution";
 const REVIEW_SKILL_NAMES = ["3gpp-review", "3gpp-tdocs"];
 const AGENT_NAME = "3GPP 技术路线与立场分析助手";
@@ -120,7 +120,12 @@ async function seed3gppPositionEvolution() {
       "请告诉我工作组、公司、KI/WI/技术主题，以及希望分析的时间或会议范围。",
     examplePrompts: [
       "分析 Huawei 从 2025 年至今在 SA2 KI#18 Agentic Core 上的技术路线、术语演进、支持者、反对者和标准化结果。",
-      "比较 Huawei 与 Ericsson 在指定 KI 上跨多次会议的架构路线，并区分明确反对、保留意见和替代方案。",
+      {
+        label:
+          "比较 Huawei 与 Ericsson 在指定 KI 上跨多次会议的架构路线，并区分明确反对、保留意见和替代方案。",
+        prompt:
+          "聚焦 SA2 Rel-20 6G 研究中的 KI #18（Agentic Core）提案，比较 Huawei 与 Ericsson 从 2025 年至最近一次已结束会议的架构路线。请按会议梳理双方 TDoc 和版本关系，说明路线如何变化，并分别列出明确反对、保留意见和替代方案。公司提案不等于 3GPP 已采纳结论，请同时说明正式会议结果和所用资料。",
+      },
       "更新上一次公司路线分析，只总结最新会议新增提案、状态变化和未决问题。",
     ],
     tools: AGENT_TOOLS,

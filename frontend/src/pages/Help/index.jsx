@@ -86,7 +86,11 @@ function HelpCenter() {
   );
   const examples = useMemo(() => {
     const configured = arrayValue(activeAgent?.examplePrompts)
-      .map((prompt) => String(prompt || "").trim())
+      .map((prompt) =>
+        typeof prompt === "string"
+          ? prompt.trim()
+          : String(prompt?.prompt || prompt?.label || "").trim()
+      )
       .filter(Boolean);
     return (configured.length ? configured : fallbackExamples).slice(0, 3);
   }, [activeAgent, fallbackExamples]);

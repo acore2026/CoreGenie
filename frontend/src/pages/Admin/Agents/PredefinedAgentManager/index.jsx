@@ -540,7 +540,13 @@ function AgentEditor({
     name: agent?.name || "",
     description: agent?.description || "",
     welcomeMessage: agent?.welcomeMessage || "",
-    examplePrompts: agent?.examplePrompts || [],
+    examplePrompts: (agent?.examplePrompts || []).map((prompt) => {
+      if (typeof prompt === "string") return { label: prompt, prompt };
+      return {
+        label: String(prompt?.label || prompt?.prompt || ""),
+        prompt: String(prompt?.prompt || ""),
+      };
+    }),
     systemPrompt: agent?.systemPrompt || "",
     enabled: agent?.enabled ?? true,
     allTools: agent?.tools === null || !agent,
@@ -611,11 +617,11 @@ function AgentEditor({
     }));
   }
 
-  function updateExamplePrompt(index, value) {
+  function updateExamplePrompt(index, field, value) {
     setForm((current) => ({
       ...current,
       examplePrompts: current.examplePrompts.map((prompt, promptIndex) =>
-        promptIndex === index ? value : prompt
+        promptIndex === index ? { ...prompt, [field]: value } : prompt
       ),
     }));
   }
@@ -626,7 +632,7 @@ function AgentEditor({
       examplePrompts:
         current.examplePrompts.length >= 6
           ? current.examplePrompts
-          : [...current.examplePrompts, ""],
+          : [...current.examplePrompts, { label: "", prompt: "" }],
     }));
   }
 
@@ -646,7 +652,9 @@ function AgentEditor({
       name: form.name,
       description: form.description,
       welcomeMessage: form.welcomeMessage,
-      examplePrompts: form.examplePrompts,
+      examplePrompts: form.examplePrompts.filter((prompt) =>
+        prompt.prompt.trim()
+      ),
       systemPrompt: form.systemPrompt,
       enabled: form.makeDefault ? true : form.enabled,
       tools: form.allTools ? null : form.tools,
@@ -841,19 +849,33 @@ function AgentEditor({
           >
             <div className="space-y-2 rounded-2xl border border-white/[0.08] bg-black/10 p-3 light:border-slate-200 light:bg-slate-50">
               {form.examplePrompts.map((prompt, index) => (
-                <div key={index} className="flex items-center gap-2">
+                <div
+                  key={index}
+                  className="grid items-start gap-2 md:grid-cols-[32px_minmax(0,1fr)_minmax(0,1.5fr)_32px]"
+                >
                   <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-cyan-300/10 text-cyan-300 light:bg-cyan-50 light:text-cyan-700">
                     <ChatCircleText size={15} weight="duotone" />
                   </span>
                   <input
-                    maxLength={240}
-                    value={prompt}
+                    maxLength={120}
+                    value={prompt.label}
                     onChange={(event) =>
-                      updateExamplePrompt(index, event.target.value)
+                      updateExamplePrompt(index, "label", event.target.value)
                     }
                     className={`${inputClass} min-w-0 flex-1`}
-                    placeholder="例如：比较 Release 18 与 Release 19 的关键变化"
-                    aria-label={`示例输入 ${index + 1}`}
+                    placeholder="页面显示的短标题"
+                    aria-label={`示例输入 ${index + 1} 的短标题`}
+                  />
+                  <textarea
+                    maxLength={1000}
+                    rows={2}
+                    value={prompt.prompt}
+                    onChange={(event) =>
+                      updateExamplePrompt(index, "prompt", event.target.value)
+                    }
+                    className={`${inputClass} min-w-0 flex-1 resize-y`}
+                    placeholder="点击后填入输入框的完整任务"
+                    aria-label={`示例输入 ${index + 1} 的完整任务`}
                   />
                   <button
                     type="button"
