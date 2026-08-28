@@ -789,6 +789,69 @@ def normalize_mixed_ordered_lists(markdown: Path) -> None:
     markdown.write_text("\n".join(normalized).rstrip() + "\n", encoding="utf-8")
 
 
+def compact_simple_lists(markdown: Path) -> None:
+    """Make one-line Pandoc lists tight without joining ordinary paragraphs."""
+    lines = markdown.read_text(encoding="utf-8").splitlines()
+    manual_bullet = re.compile(
+        r"^(?P<prefix> {0,12}(?:> ?)?)(?:\\)(?P<marker>[-+*])[ \t]+"
+        r"(?!\\[-+*](?:[ \t]|$))"
+    )
+    list_item = re.compile(
+        r"^(?P<prefix> {0,12}(?:> ?)?)(?P<marker>[-+*]|\d+[.)])[ \t]+"
+    )
+    normalized: list[str] = []
+    in_fence = False
+
+    for line in lines:
+        stripped = line.lstrip()
+        if stripped.startswith("```") or stripped.startswith("~~~"):
+            in_fence = not in_fence
+        if not in_fence:
+            manual = manual_bullet.match(line)
+            if manual:
+                line = manual_bullet.sub(
+                    f"{manual.group('prefix')}{manual.group('marker')} ",
+                    line,
+                    count=1,
+                )
+        normalized.append(line)
+
+    compacted: list[str] = []
+    for index, line in enumerate(normalized):
+        if not line.strip() and compacted and index + 1 < len(normalized):
+            previous = list_item.match(compacted[-1])
+            following = list_item.match(normalized[index + 1])
+            if previous and following:
+                previous_quote = ">" in previous.group("prefix")
+                following_quote = ">" in following.group("prefix")
+                previous_ordered = previous.group("marker")[0].isdigit()
+                following_ordered = following.group("marker")[0].isdigit()
+                if (
+                    previous_quote == following_quote
+                    and previous_ordered == following_ordered
+                ):
+                    continue
+        if (
+            line.strip() == ">"
+            and compacted
+            and index + 1 < len(normalized)
+        ):
+            previous = list_item.match(compacted[-1])
+            following = list_item.match(normalized[index + 1])
+            if (
+                previous
+                and following
+                and ">" in previous.group("prefix")
+                and ">" in following.group("prefix")
+                and previous.group("marker")[0].isdigit()
+                == following.group("marker")[0].isdigit()
+            ):
+                continue
+        compacted.append(line)
+
+    markdown.write_text("\n".join(compacted).rstrip() + "\n", encoding="utf-8")
+
+
 def write_conversion_package(output: Path, summary: dict) -> None:
     summary_path = output / "conversion-summary.json"
     summary_path.write_text(
@@ -837,6 +900,7 @@ def convert_docx_to_markdown(docx: Path, output: Path) -> dict:
     warnings.extend(embedded_warnings)
     markdown_path = output / markdown_name
     normalize_mixed_ordered_lists(markdown_path)
+    compact_simple_lists(markdown_path)
     append_visio_previews(markdown_path, rendered_visio)
     image_files = output_files(output / "assets", output)
     for image in image_files:

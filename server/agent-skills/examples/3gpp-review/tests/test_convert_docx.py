@@ -146,6 +146,41 @@ class ConvertDocxTest(unittest.TestCase):
                 self.assertIn("assets/media/image1.png", archive.namelist())
                 self.assertIn("embedded/object1.bin", archive.namelist())
 
+    def test_compacts_simple_lists_without_joining_paragraphs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            markdown = Path(directory) / "proposal.md"
+            markdown.write_text(
+                "Intro paragraph.\n\n"
+                "Another paragraph.\n\n"
+                "- First item\n\n"
+                "- Second item\n\n"
+                "  - Nested item\n\n"
+                "After the list.\n\n"
+                "\\- Manual first item\n\n"
+                "\\- Manual second item\n\n"
+                "> \\- Quoted first item\n>\n"
+                "> \\- Quoted second item\n\n"
+                "\\* \\* \\* \\* End of changes \\* \\* \\* \\*\n",
+                encoding="utf-8",
+            )
+
+            MODULE.compact_simple_lists(markdown)
+
+            self.assertEqual(
+                markdown.read_text(encoding="utf-8"),
+                "Intro paragraph.\n\n"
+                "Another paragraph.\n\n"
+                "- First item\n"
+                "- Second item\n"
+                "  - Nested item\n\n"
+                "After the list.\n\n"
+                "- Manual first item\n"
+                "- Manual second item\n\n"
+                "> - Quoted first item\n"
+                "> - Quoted second item\n\n"
+                "\\* \\* \\* \\* End of changes \\* \\* \\* \\*\n",
+            )
+
     def test_rejects_non_docx_archive(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
