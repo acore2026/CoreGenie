@@ -3,10 +3,15 @@ const {
   DEFAULTS,
   askUserTool,
   controllerDecisionWithFallback,
+  classify3gppRequest,
   createGovernedGraph,
   isSkillBootstrapTask,
   mergeById,
+  normalized3gppLookupPlan,
   normalizedActionPlan,
+  parse3gppInvitationFacts,
+  parse3gppMeetingRequest,
+  quick3gppResponse,
   requestAllowsWrite,
   resolvedTaskDependencies,
   scopedTaskId,
@@ -14,6 +19,7 @@ const {
   skillBootstrapCompletion,
   taskRequiredCompletionTools,
   validatePlan,
+  workerContinuationInstruction,
 } = require("../../agent-system/runtimes/governed");
 const { taskSelectionAllows, toolRegistry } = require("../../tools");
 
@@ -29,6 +35,89 @@ describe("Governed Agent runtime", () => {
     expect(DEFAULTS.maxTaskModelCalls).toBe(500);
     expect(DEFAULTS.maxTaskMs).toBe(100 * 60 * 1_000);
     expect(DEFAULTS.maxRunMs).toBe(150 * 60 * 1_000);
+    expect(DEFAULTS.maxQuickLookupToolCalls).toBe(12);
+    expect(DEFAULTS.maxQuickLookupModelCalls).toBe(8);
+  });
+
+  it("routes only simple 3GPP meeting facts to the quick lookup", () => {
+    expect(classify3gppRequest("SA2#175 是什么时候的会议？")).toBe(
+      "3gpp_fact_lookup"
+    );
+    expect(classify3gppRequest("SA2#175 在哪里举行？")).toBe(
+      "3gpp_fact_lookup"
+    );
+    expect(
+      classify3gppRequest("下载 SA2#175 KI#22 中 Huawei 的提案")
+    ).toBe("general");
+    expect(classify3gppRequest("分析 SA2#175 的提案并生成报告")).toBe(
+      "general"
+    );
+  });
+
+  it("extracts official meeting dates and formats a direct answer", () => {
+    const invitation =
+      "SA2#175 Meetings from Monday 18 to Friday 22 of May 2026 in Dalian, China";
+    expect(parse3gppMeetingRequest("SA2#175 是什么时候？")).toEqual({
+      group: "SA2",
+      meetingNumber: 175,
+    });
+    expect(parse3gppInvitationFacts(invitation)).toMatchObject({
+      year: 2026,
+      month: 5,
+      startDay: 18,
+      endDay: 22,
+      city: "Dalian",
+      country: "China",
+    });
+    const response = quick3gppResponse({
+        meeting: { group: "SA2", meetingNumber: 175 },
+        data: {
+          candidates: [
+            {
+              folder: "TSGS2_175_Dalian_2026-05",
+              url: "https://www.3gpp.org/meeting",
+            },
+          ],
+          officialDetails: {
+            invitationUrl: "https://www.3gpp.org/invitation.pdf",
+            invitationText: invitation,
+          },
+        },
+      }).text;
+    expect(response).toContain("2026 年 5 月 18 日至 22 日");
+    expect(response).toContain("地点为中国大连");
+  });
+
+  it("builds a single read-only task for quick 3GPP facts", () => {
+    const plan = normalized3gppLookupPlan(
+      "SA2#175 是什么时候？",
+      new Set(["skill.activate", "3gpp.resolve-meeting", "web.fetch"])
+    );
+
+    expect(plan.tasks).toHaveLength(1);
+    expect(plan.tasks[0]).toMatchObject({
+      writeIntent: false,
+      allowedToolIds: [
+        "skill.activate",
+        "3gpp.resolve-meeting",
+        "web.fetch",
+      ],
+    });
+    expect(plan.tasks[0].allowedToolIds).not.toEqual(
+      expect.arrayContaining(["bash", "python", "filesystem.write"])
+    );
+  });
+
+  it("does not repeat tools when only the worker result format is invalid", () => {
+    const instruction = workerContinuationInstruction({
+      reasons: ["The previous response was not valid JSON."],
+      missingToolIds: [],
+      completedToolIds: ["3gpp.resolve-meeting"],
+    });
+
+    expect(instruction).toMatch(/Do not call any tool again/);
+    expect(instruction).toMatch(/Return exactly one JSON object/);
+    expect(instruction).not.toMatch(/begin with the tool calls needed/);
   });
 
   it("requires completion tools only in tasks that are allowed to call them", () => {

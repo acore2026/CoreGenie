@@ -5,10 +5,11 @@ const { PredefinedAgentSkill } = require("../models/predefinedAgentSkill");
 const { PredefinedAgent } = require("../models/predefinedAgent");
 const { seed3gppPositionEvolution } = require("./positionEvolutionSeed");
 
-const SEED_SETTING = "agent_skill_seed_3gpp_review_v7";
+const SEED_SETTING = "agent_skill_seed_3gpp_review_v10";
 const AGENT_NAME = "3GPP 提案分析助手（Skill）";
 const CONVERTER_AGENT_NAME = "3GPP 提案转 Markdown 助手";
 const SKILL_NAME = "3gpp-review";
+const LOOKUP_SKILL_NAME = "3gpp-lookup";
 const LEGACY_SKILL_NAMES = ["3gpp-tdocs"];
 const AGENT_TOOLS = [
   "bash",
@@ -18,6 +19,7 @@ const AGENT_TOOLS = [
   "filesystem.list",
   "filesystem.search",
   "web.fetch",
+  "3gpp.resolve-meeting",
   "rag.search",
   "user.ask",
   "vision.inspect",
@@ -26,7 +28,7 @@ const AGENT_TOOLS = [
 
 const AGENT_PROMPT = `你是一名面向 3GPP/6G 标准研究的提案分析助手。
 
-处理 TDoc、会议、KI、公司立场或 Solution/Variant 分析时，必须先激活 3gpp-review Skill，并完整遵循其证据、覆盖率、图表核验和报告流程。
+查询会议时间、地点或目录等简短事实时，只激活 3gpp-lookup Skill，并在获得足够的官方资料后立即回答。下载、筛选或分析 TDoc，以及处理 KI、公司立场或 Solution/Variant 时，必须激活 3gpp-review Skill，并完整遵循其证据、覆盖率、图表核验和报告流程。
 
 核心要求：
 - 不猜测会议目录、议程映射、TDoc 元数据或提案内容；
@@ -116,6 +118,40 @@ async function seed3gppReview() {
     skill = updated.skill;
   }
 
+  const lookupRoot = path.join(__dirname, "examples", LOOKUP_SKILL_NAME);
+  const lookupSkillMd = await fs.readFile(
+    path.join(lookupRoot, "SKILL.md"),
+    "utf8"
+  );
+  const lookupRecord = await prisma.predefined_agent_skills.findFirst({
+    where: { name: LOOKUP_SKILL_NAME, archived: false },
+  });
+  let lookupSkill = lookupRecord
+    ? await PredefinedAgentSkill.get(lookupRecord.id)
+    : null;
+  const lookupPackageInput = {
+    skillMd: lookupSkillMd,
+    provenance: {
+      derivedFrom: "3gpp-review",
+      adaptedFor: "AnythingLLM fast 3GPP fact lookup",
+    },
+  };
+  if (!lookupSkill) {
+    const created =
+      await PredefinedAgentSkill.createPackage(lookupPackageInput);
+    if (!created.skill)
+      throw new Error(created.error || "Unable to seed 3GPP lookup skill.");
+    lookupSkill = created.skill;
+  } else {
+    const updated = await PredefinedAgentSkill.updatePackage(
+      lookupSkill.id,
+      lookupPackageInput
+    );
+    if (!updated.skill)
+      throw new Error(updated.error || "Unable to update 3GPP lookup skill.");
+    lookupSkill = updated.skill;
+  }
+
   const agents = await PredefinedAgent.all();
   let agent = agents.find((item) => item.name === AGENT_NAME);
   const agentData = {
@@ -130,7 +166,7 @@ async function seed3gppReview() {
       "比较指定 3GPP 提案中的网络功能、接口、信息元素和信令流程，并输出中文报告。",
     ],
     tools: AGENT_TOOLS,
-    skillIds: [skill.id],
+    skillIds: [skill.id, lookupSkill.id],
     systemPrompt: AGENT_PROMPT,
     runtimeKey: "governed-agent",
     runtimeConfig: {
@@ -177,14 +213,17 @@ async function seed3gppReview() {
   // v1 briefly attached the skill to the installation-wide default Agent.
   // Keep the specialized workflow isolated while preserving the chosen default.
   const defaultId = await PredefinedAgent.defaultId();
-  const defaultAgent = defaultId ? await PredefinedAgent.get(defaultId) : null;
-  if (
-    defaultAgent &&
-    defaultAgent.id !== agent.id &&
-    defaultAgent.skillIds.includes(skill.id)
-  ) {
+  const defaultAgent = defaultId
+    ? await PredefinedAgent.get(defaultId)
+    : agents.find(
+        (item) => item.isBuiltinDefault || item.name === "通用助手"
+      ) || null;
+  if (defaultAgent && defaultAgent.id !== agent.id) {
+    const defaultSkillIds = new Set(defaultAgent.skillIds);
+    defaultSkillIds.delete(skill.id);
+    defaultSkillIds.add(lookupSkill.id);
     await PredefinedAgent.update(defaultAgent.id, {
-      skillIds: defaultAgent.skillIds.filter((id) => id !== skill.id),
+      skillIds: [...defaultSkillIds],
     });
   }
 

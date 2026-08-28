@@ -9,19 +9,21 @@ const userInput = require("./userInput");
 const skills = require("./skills");
 const vision = require("./vision");
 const knowledge = require("./knowledge");
+const threeGpp = require("./threeGpp");
 
 const toolRegistry = new ResourceRegistry("tool");
 for (const descriptor of [
   ...Object.values(sandbox),
   ...Object.values(filesystem),
   ...Object.values(memory),
-  ...Object.values(web),
+  web.webFetch,
   rag.ragSearch,
   userInput.askUser,
   skills.activateSkill,
   skills.readSkillResource,
   vision.inspectImage,
   knowledge.publishReport,
+  threeGpp.resolveMeeting,
 ]) {
   toolRegistry.register(descriptor);
 }

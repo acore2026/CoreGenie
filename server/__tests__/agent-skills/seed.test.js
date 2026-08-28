@@ -18,7 +18,10 @@ jest.mock("../../utils/prisma", () => ({
 jest.mock("../../models/predefinedAgentSkill", () => ({
   PredefinedAgentSkill: {
     get: jest.fn().mockResolvedValue({ id: 10, name: "3gpp-tdocs" }),
-    createPackage: jest.fn(),
+    createPackage: jest.fn().mockResolvedValue({
+      skill: { id: 11, name: "3gpp-lookup" },
+      error: null,
+    }),
     updatePackage: jest.fn().mockResolvedValue({
       skill: { id: 10, name: "3gpp-review" },
       error: null,
@@ -28,7 +31,14 @@ jest.mock("../../models/predefinedAgentSkill", () => ({
 
 jest.mock("../../models/predefinedAgent", () => ({
   PredefinedAgent: {
-    all: jest.fn().mockResolvedValue([]),
+    all: jest.fn().mockResolvedValue([
+      {
+        id: 2,
+        name: "通用助手",
+        isBuiltinDefault: true,
+        skillIds: [10],
+      },
+    ]),
     create: jest.fn().mockImplementation((value) =>
       Promise.resolve({
         id: 30,
@@ -54,7 +64,7 @@ describe("3GPP review seed", () => {
   it("migrates the legacy skill name in place and preserves its bindings", async () => {
     await seed3gppReview();
 
-    expect(PredefinedAgentSkill.createPackage).not.toHaveBeenCalled();
+    expect(PredefinedAgentSkill.createPackage).toHaveBeenCalledTimes(1);
     expect(PredefinedAgentSkill.updatePackage).toHaveBeenCalledWith(
       10,
       expect.objectContaining({
@@ -64,7 +74,7 @@ describe("3GPP review seed", () => {
     expect(PredefinedAgent.create).toHaveBeenCalledWith(
       expect.objectContaining({
         name: "3GPP 提案分析助手（Skill）",
-        skillIds: [10],
+        skillIds: [10, 11],
         runtimeConfig: expect.objectContaining({
           publicationRequiresCoverage: true,
         }),
@@ -80,9 +90,17 @@ describe("3GPP review seed", () => {
         tools: expect.not.arrayContaining(["knowledge.publish"]),
       })
     );
+    expect(PredefinedAgentSkill.createPackage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        skillMd: expect.stringContaining("name: 3gpp-lookup"),
+      })
+    );
+    expect(PredefinedAgent.update).toHaveBeenCalledWith(2, {
+      skillIds: [11],
+    });
     expect(prisma.system_settings.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { label: "agent_skill_seed_3gpp_review_v7" },
+        where: { label: "agent_skill_seed_3gpp_review_v10" },
       })
     );
   });

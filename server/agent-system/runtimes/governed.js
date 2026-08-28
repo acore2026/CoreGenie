@@ -18,6 +18,8 @@ const { ModelCapability } = require("../../models/modelCapability");
 const { resolveAgent, agentListForPrompt } = require("../../resources/agents");
 const { createChatModel, selectedProvider } = require("../../resources/models");
 const { legacySelectionAllows, toolRegistry } = require("../../tools");
+const { AgentToolContext } = require("../../tools/context");
+const { toLangChainTool } = require("../../tools/descriptor");
 const { retrieveWorkspaceContext } = require("../../tools/rag");
 const { buildAgentGraph } = require("../graph");
 const {
@@ -53,6 +55,8 @@ const DEFAULTS = Object.freeze({
   maxTaskModelCalls: 500,
   maxTaskMs: 100 * 60 * 1_000,
   maxRunMs: 150 * 60 * 1_000,
+  maxQuickLookupToolCalls: 12,
+  maxQuickLookupModelCalls: 8,
 });
 
 const taskSchema = z.object({
@@ -249,6 +253,204 @@ function requestAllowsWrite(request = "") {
   return /\b(?:write|edit|delete|remove|create|save|store|upload|download|generate|send|execute|run|modify)\b|(?:写入|编辑|删除|创建|保存|存储|上传|下载|生成|发送|执行|修改)/i.test(
     String(request)
   );
+}
+
+function classify3gppRequest(request = "") {
+  const value = String(request).trim();
+  const mentionsMeeting =
+    /\b(?:SA[1235]|CT[14])\s*#?\s*\d+\b/i.test(value) ||
+    /3GPP[^\n]{0,40}(?:会议|meeting)/i.test(value);
+  const asksMeetingFact =
+    /(?:什么时候|何时|日期|时间|哪天|地点|在哪里|在哪[开举]行|会议目录|meeting\s+(?:date|time|location|venue|directory)|when|where)/i.test(
+      value
+    );
+  const requestsDeepWork =
+    /(?:下载|筛选|提案|TDoc|KI\s*#?\s*\d+|Solution|Variant|公司|华为|Huawei|分析|比较|总结|报告|转换|解析|批量|立场|路线|download|proposal|analy[sz]e|compare|report|convert|extract)/i.test(
+      value
+    );
+  return mentionsMeeting && asksMeetingFact && !requestsDeepWork
+    ? "3gpp_fact_lookup"
+    : "general";
+}
+
+function parse3gppMeetingRequest(request = "") {
+  const match = String(request).match(/\b(SA[1235]|CT[14])\s*#?\s*(\d+)\b/i);
+  if (!match) return null;
+  return { group: match[1].toUpperCase(), meetingNumber: Number(match[2]) };
+}
+
+function parse3gppInvitationFacts(text = "") {
+  const value = String(text);
+  const date = value.match(
+    /from\s+\w+\s+(\d{1,2})\s+to\s+\w+\s+(\d{1,2})\s+of\s+([A-Za-z]+)\s+(\d{4})/i
+  );
+  const place = value.match(/\bin\s+([A-Za-z]+),\s*([A-Za-z]+)\b/i);
+  if (!date && !place) return null;
+  const months = {
+    january: 1,
+    february: 2,
+    march: 3,
+    april: 4,
+    may: 5,
+    june: 6,
+    july: 7,
+    august: 8,
+    september: 9,
+    october: 10,
+    november: 11,
+    december: 12,
+  };
+  return {
+    startDay: date ? Number(date[1]) : null,
+    endDay: date ? Number(date[2]) : null,
+    month: date ? months[date[3].toLowerCase()] || null : null,
+    year: date ? Number(date[4]) : null,
+    city: place?.[1] || null,
+    country: place?.[2] || null,
+  };
+}
+
+function quick3gppResponse({ meeting, data }) {
+  const candidate = data?.candidates?.[0] || null;
+  const details = data?.officialDetails || null;
+  const facts = parse3gppInvitationFacts(details?.invitationText);
+  const label = `${meeting.group}#${meeting.meetingNumber}`;
+  if (facts?.year && facts?.month && facts?.startDay && facts?.endDay) {
+    const countryNames = { china: "中国" };
+    const cityNames = {
+      athens: "雅典",
+      dalian: "大连",
+      gothenburg: "哥德堡",
+      paris: "巴黎",
+    };
+    const country = facts.country
+      ? countryNames[facts.country.toLowerCase()] || facts.country
+      : "";
+    const city = cityNames[facts.city?.toLowerCase()] || facts.city || "";
+    const location = city ? `，地点为${country}${city}` : "";
+    return {
+      text: `${label} 于 **${facts.year} 年 ${facts.month} 月 ${facts.startDay} 日至 ${facts.endDay} 日**举行${location}。\n\n依据：[3GPP 官方会议邀请函](${details.invitationUrl})。`,
+      sources: [
+        {
+          id: `3gpp-invitation:${meeting.group}:${meeting.meetingNumber}`,
+          url: details.invitationUrl,
+          title: `${label} 官方会议邀请函`,
+          text: details.invitationText.slice(0, 1_000),
+          docSource: "3gpp-official",
+        },
+      ],
+    };
+  }
+  if (candidate) {
+    return {
+      text: `${label} 的官方会议目录为 [${candidate.folder}](${candidate.url})。目录名称只能确认月份或地点；当前未能从邀请函提取精确日期，因此不继续猜测。`,
+      sources: [
+        {
+          id: `3gpp-meeting:${meeting.group}:${meeting.meetingNumber}`,
+          url: candidate.url,
+          title: `${label} 官方会议目录`,
+          text: candidate.folder,
+          docSource: "3gpp-official",
+        },
+      ],
+    };
+  }
+  return null;
+}
+
+async function executeQuick3gppLookup({
+  request,
+  run,
+  workspace,
+  user,
+  agent,
+  emit,
+  signal,
+  budget,
+}) {
+  const meeting = parse3gppMeetingRequest(request);
+  if (!meeting) return null;
+  const context = new AgentToolContext({
+    run,
+    workspace,
+    user,
+    agent,
+    emit,
+    signal,
+    approvalMode: "always_allow",
+    budget,
+    maxLocalToolCalls: 2,
+    taskId: null,
+    taskTitle: "查询 3GPP 会议事实",
+  });
+  const invoke = async (toolId, args, suffix) => {
+    const descriptor = toolRegistry.get(toolId);
+    if (!descriptor) return null;
+    return JSON.parse(
+      await toLangChainTool(descriptor, context).func(args, undefined, {
+        toolCall: { id: `${run.id}:quick-3gpp:${suffix}` },
+      })
+    );
+  };
+  const activation = await invoke(
+    "skill.activate",
+    { name: "3gpp-lookup" },
+    "activate"
+  );
+  if (!activation?.ok) return null;
+  const resolved = await invoke(
+    "3gpp.resolve-meeting",
+    {
+      group: meeting.group,
+      meeting_number: meeting.meetingNumber,
+      include_invitation: true,
+    },
+    "resolve"
+  );
+  if (!resolved?.ok) return null;
+  return quick3gppResponse({ meeting, data: resolved.data });
+}
+
+function normalized3gppLookupPlan(request, allowedToolIds) {
+  const tools = (ids) => ids.filter((id) => allowedToolIds.has(id));
+  return {
+    goal: "Answer the 3GPP meeting fact with the smallest sufficient official evidence",
+    tasks: [
+      {
+        id: "lookup-3gpp-meeting",
+        title: "查询 3GPP 会议事实",
+        objective: `Activate 3gpp-lookup, resolve the canonical meeting directory without guessing paths, and answer only the requested meeting fact. Stop as soon as one sufficient official source is available; use a second source only when an exact date or ambiguous fact requires it. Do not run Bash or Python, install dependencies, download proposals, create files, or publish knowledge. User request: ${request}`,
+        dependsOn: [],
+        allowedToolIds: tools([
+          "skill.activate",
+          "3gpp.resolve-meeting",
+          "web.fetch",
+        ]),
+        requiredCapabilities: [],
+        successCriteria: [
+          "The canonical meeting directory is resolved without guessed aliases.",
+          "The requested fact is supported by the minimum sufficient official evidence.",
+          "No proposal download, file creation, package installation, or report workflow is started.",
+        ],
+        acceptsPartialDependencies: false,
+        writeIntent: false,
+      },
+    ],
+  };
+}
+
+function isQuick3gppLookupTask(taskItem = {}) {
+  return (taskItem.allowedToolIds || []).includes("3gpp.resolve-meeting");
+}
+
+function workerContinuationInstruction({
+  reasons = [],
+  missingToolIds = [],
+  completedToolIds = [],
+}) {
+  if (!missingToolIds.length)
+    return `${reasons.join(" ")} The task evidence and tool work are already complete. Do not call any tool again and do not repeat discovery. Return exactly one JSON object with summary, evidence, and unresolved, using only the results already present in this conversation.`;
+  return `${reasons.join(" ")} Continue the same task now. Your next response must begin with the tool calls needed to finish, not prose. Reuse the already downloaded, extracted, and analyzed workspace artifacts; do not restart meeting discovery or document analysis unless a specific required artifact is missing. Locate an existing report draft or write the final report now in filesystem.write chunks no larger than 3,000 characters, using append=true after the first chunk. Read the completed file back to verify it, execute every missing completion tool, and only then return exactly one JSON object with summary, evidence, and unresolved. Completed tool IDs so far: ${completedToolIds.join(", ") || "none"}.`;
 }
 
 function normalized3gppReviewPlan(request, requestedName, allowedToolIds) {
@@ -810,6 +1012,67 @@ function createGovernedGraph(context) {
           workspace,
           skills
         );
+        const lookupSkill = skills.find(
+          (skill) => skill.name === "3gpp-lookup"
+        );
+        if (
+          lookupSkill &&
+          classify3gppRequest(state.request) === "3gpp_fact_lookup"
+        ) {
+          await emit("request.classified", {
+            kind: "3gpp_fact_lookup",
+            skill: lookupSkill.name,
+            execution: "deterministic",
+          });
+          const quickResult = await executeQuick3gppLookup({
+            request: state.request,
+            run,
+            workspace,
+            user,
+            agent,
+            emit,
+            signal,
+            budget: sharedBudget,
+          });
+          if (quickResult) {
+            await onToken(quickResult.text);
+            return {
+              control: { kind: "direct", streamed: true },
+              finalResponse: quickResult.text,
+              sources: quickResult.sources,
+            };
+          }
+          const configuredTools = Array.isArray(agent?.tools)
+            ? new Set(agent.tools)
+            : null;
+          const lookupToolIds = new Set(["skill.activate"]);
+          for (const toolId of skillAllowedToolIds(lookupSkill)) {
+            const descriptor = toolRegistry.get(toolId);
+            if (
+              descriptor &&
+              (descriptor.id.startsWith("skill.") ||
+                legacySelectionAllows(configuredTools, descriptor))
+            )
+              lookupToolIds.add(descriptor.id);
+          }
+          const plan = validatePlan(
+            normalized3gppLookupPlan(state.request, lookupToolIds),
+            { run, agent, availableAgents: agents }
+          );
+          await AgentRunTask.upsertPlan(run.id, plan.tasks);
+          await emit("request.classified", {
+            kind: "3gpp_fact_lookup",
+            skill: lookupSkill.name,
+          });
+          await emit("plan.created", {
+            goal: plan.goal,
+            tasks: plan.tasks,
+            reviewRound: state.reviewRound,
+          });
+          for (const taskItem of plan.tasks)
+            await emit("task.created", { task: taskItem });
+          return { control: { kind: "plan" }, plan };
+        }
         const toolList = toolRegistry
           .list()
           .map(
@@ -1051,6 +1314,7 @@ function createGovernedGraph(context) {
       : readOnlyTools;
     const requiredToolIds = taskRequiredCompletionTools(run, allowedToolIds);
     const skillBootstrapTask = isSkillBootstrapTask(taskItem);
+    const quick3gppLookupTask = isQuick3gppLookupTask(taskItem);
     const workerRun = {
       ...run,
       configuration: {
@@ -1058,11 +1322,15 @@ function createGovernedGraph(context) {
         model: roleModel(run, "worker"),
         toolOverrides: allowedToolIds,
         maxModelCallsPerTask:
-          run.configuration?.maxModelCallsPerTask || DEFAULTS.maxTaskModelCalls,
+          run.configuration?.maxModelCallsPerTask ||
+          (quick3gppLookupTask
+            ? DEFAULTS.maxQuickLookupModelCalls
+            : DEFAULTS.maxTaskModelCalls),
       },
     };
     let lastError = null;
-    for (let attempt = 1; attempt <= 2; attempt += 1) {
+    const maxWorkerAttempts = quick3gppLookupTask ? 1 : 2;
+    for (let attempt = 1; attempt <= maxWorkerAttempts; attempt += 1) {
       try {
         const durableTask = await AgentRunTask.get(taskItem.id);
         if (["cancelled", "skipped"].includes(durableTask?.status)) {
@@ -1089,7 +1357,9 @@ function createGovernedGraph(context) {
           depth: context.depth || 0,
           maxLocalToolCalls: skillBootstrapTask
             ? 120
-            : DEFAULTS.maxTaskToolCalls,
+            : quick3gppLookupTask
+              ? DEFAULTS.maxQuickLookupToolCalls
+              : DEFAULTS.maxTaskToolCalls,
           systemPromptOverride: `${basePrompt}\n\nYou are a bounded worker in a governed task graph. Complete only the assigned task. Use only allowed tools. The required completion tools for this task are: ${requiredToolIds.join(", ") || "none"}. When that list is none, do not publish, search for a publication tool, or try to satisfy the Agent's run-level publication rule; publication belongs only to a task that explicitly allows knowledge.publish. Do not write the final user response. Stop only after the success criteria and every required completion tool are satisfied, or progress is genuinely blocked. Never end a turn with future intent such as “I will create/publish the report”; execute that action with a tool in the same turn. When a report is required, write it incrementally: create the file with a first filesystem.write call of at most 3,000 characters, append each remaining section with append=true in chunks of at most 3,000 characters, read the completed file back to verify it, then publish it before returning. Do not attempt to place a complete long report in one tool argument. Reuse existing workspace artifacts and activated Skills instead of repeating discovery, downloads, extraction, or visual analysis. Reuse the exact workspace paths returned in dependency results and tool outputs. Never reconstruct a directory from only a filename; when an exact path is unavailable, resolve it with filesystem.search or filesystem.list before reading. For skill resources, use only exact paths from the files list returned by activate_skill; never probe guessed directory or extension variants. Return one JSON object with summary, evidence, and unresolved. Evidence entries require kind, title, uri, excerpt, and metadata. Never invent sources.\n\nTask: ${taskItem.title}\nObjective: ${taskItem.objective}\nSuccess criteria: ${taskItem.successCriteria.join("; ") || "Satisfy the objective"}\nDependency results: ${JSON.stringify(dependencyResults)}`,
           checkpointerOverride: getCheckpointer(),
           taskId: taskItem.id,
@@ -1161,11 +1431,16 @@ function createGovernedGraph(context) {
             phase: "continuing",
             summary: "Continuing unfinished worker actions before review",
           });
+          const continuationInstruction = workerContinuationInstruction({
+            reasons,
+            missingToolIds,
+            completedToolIds: [...completedToolIds],
+          });
           invocationInput = {
             messages: [
               {
                 role: "user",
-                content: `${reasons.join(" ")} Continue the same task now. Your next response must begin with the tool calls needed to finish, not prose. Reuse the already downloaded, extracted, and analyzed workspace artifacts; do not restart meeting discovery or document analysis unless a specific required artifact is missing. Locate an existing report draft or write the final report now in filesystem.write chunks no larger than 3,000 characters, using append=true after the first chunk. Read the completed file back to verify it, execute every missing completion tool, and only then return exactly one JSON object with summary, evidence, and unresolved. Completed tool IDs so far: ${[...completedToolIds].join(", ") || "none"}.`,
+                content: continuationInstruction,
               },
             ],
           };
@@ -1260,7 +1535,7 @@ function createGovernedGraph(context) {
             return { taskResults: [result] };
           }
         }
-        if (attempt < 2) {
+        if (attempt < maxWorkerAttempts) {
           await AgentRunTask.update(taskItem.id, {
             status: "retrying",
             attempt: attempt + 1,
@@ -1522,9 +1797,16 @@ module.exports = {
   askUserTool,
   controllerDecisionWithFallback,
   createGovernedGraph,
+  classify3gppRequest,
+  executeQuick3gppLookup,
   executeSegment,
+  isQuick3gppLookupTask,
   mergeById,
   normalizedActionPlan,
+  normalized3gppLookupPlan,
+  parse3gppInvitationFacts,
+  parse3gppMeetingRequest,
+  quick3gppResponse,
   normalized3gppReviewPlan,
   requestAllowsWrite,
   resolvedTaskDependencies,
@@ -1535,4 +1817,5 @@ module.exports = {
   taskRequiredCompletionTools,
   taskSchema,
   validatePlan,
+  workerContinuationInstruction,
 };

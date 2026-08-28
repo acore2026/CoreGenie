@@ -36,6 +36,8 @@ class AgentToolContext {
     };
     if (!this.budget.actionTail) this.budget.actionTail = Promise.resolve();
     if (!this.budget.operationCounts) this.budget.operationCounts = new Map();
+    if (!this.budget.failureFamilyCounts)
+      this.budget.failureFamilyCounts = new Map();
     if (!this.budget.capabilityBlocks) this.budget.capabilityBlocks = new Map();
     if (!this.budget.activatedSkills) this.budget.activatedSkills = new Map();
   }
@@ -63,6 +65,21 @@ class AgentToolContext {
     const count = this.operationCount(operationKey) + 1;
     this.budget.operationCounts.set(operationKey, count);
     return count;
+  }
+
+  failureFamilyCount(familyKey) {
+    return Number(this.budget.failureFamilyCounts.get(familyKey) || 0);
+  }
+
+  recordFailureFamily(familyKey) {
+    if (!familyKey) return 0;
+    const count = this.failureFamilyCount(familyKey) + 1;
+    this.budget.failureFamilyCounts.set(familyKey, count);
+    return count;
+  }
+
+  clearFailureFamily(familyKey) {
+    if (familyKey) this.budget.failureFamilyCounts.delete(familyKey);
   }
 
   capabilityBlock(scope) {

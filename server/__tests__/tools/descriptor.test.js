@@ -107,4 +107,56 @@ describe("governed tool execution policy", () => {
       expect.objectContaining({ code: "CAPABILITY_UNAVAILABLE" })
     );
   });
+
+  it("blocks related failed operations until their recovery request succeeds", async () => {
+    const emit = jest.fn().mockResolvedValue(undefined);
+    const execute = jest.fn().mockImplementation(async ({ value }) =>
+      value === "parent"
+        ? "official directory listing"
+        : {
+            ok: false,
+            code: "HTTP_403",
+            summary: "HTTP 403 Forbidden",
+            retryable: false,
+            countsTowardFailureFamily: true,
+          }
+    );
+    const wrapped = toLangChainTool(
+      defineTool({
+        id: "read.family",
+        description: "Read related test values",
+        schema: z.object({ value: z.string() }),
+        execute,
+        action: false,
+        failureFamily: ({ value }) => ({
+          key: "example-family",
+          recovery: value === "parent",
+          blockedSummary: "Open the parent first.",
+        }),
+      }),
+      context(emit)
+    );
+
+    await wrapped.func({ value: "wrong-a" }, undefined, {
+      toolCall: { id: "call-1" },
+    });
+    await wrapped.func({ value: "wrong-b" }, undefined, {
+      toolCall: { id: "call-2" },
+    });
+    const blocked = JSON.parse(
+      await wrapped.func({ value: "wrong-c" }, undefined, {
+        toolCall: { id: "call-3" },
+      })
+    );
+    await wrapped.func({ value: "parent" }, undefined, {
+      toolCall: { id: "call-4" },
+    });
+    await wrapped.func({ value: "correct-child" }, undefined, {
+      toolCall: { id: "call-5" },
+    });
+
+    expect(blocked).toMatchObject({ ok: false, code: "NO_PROGRESS" });
+    expect(execute).toHaveBeenCalledTimes(4);
+    expect(execute.mock.calls.at(-1)[0]).toEqual({ value: "correct-child" });
+  });
 });

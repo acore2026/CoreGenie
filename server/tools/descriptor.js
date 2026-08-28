@@ -72,6 +72,8 @@ function defineTool({
   capabilities = [],
   activity = null,
   failureScope = null,
+  failureFamily = null,
+  maxFailureFamilyAttempts = 2,
 }) {
   if (!id || !description || !schema || typeof execute !== "function")
     throw new Error(
@@ -96,6 +98,11 @@ function defineTool({
     capabilities,
     activity,
     failureScope,
+    failureFamily,
+    maxFailureFamilyAttempts: Math.max(
+      1,
+      Number(maxFailureFamilyAttempts) || 2
+    ),
   });
 }
 
@@ -149,6 +156,10 @@ function toLangChainTool(descriptor, context) {
           : JSON.stringify(existing.result);
       context.consumeToolCall();
       const attempt = context.recordOperation(opKey);
+      const family =
+        typeof descriptor.failureFamily === "function"
+          ? descriptor.failureFamily(args)
+          : null;
       const capabilityBlock = context.capabilityBlock?.(
         descriptor.failureScope
       );
@@ -157,6 +168,30 @@ function toLangChainTool(descriptor, context) {
           ok: false,
           code: "CAPABILITY_UNAVAILABLE",
           summary: `${descriptor.failureScope} is unavailable for this run: ${capabilityBlock.summary}`,
+          retryable: false,
+        };
+        return recordSkippedExecution({
+          descriptor,
+          context,
+          callId,
+          opKey,
+          args,
+          attempt,
+          result: blocked,
+        });
+      }
+      if (
+        family?.key &&
+        !family.recovery &&
+        context.failureFamilyCount(family.key) >=
+          descriptor.maxFailureFamilyAttempts
+      ) {
+        const blocked = {
+          ok: false,
+          code: "NO_PROGRESS",
+          summary:
+            family.blockedSummary ||
+            "Related operations have already failed repeatedly. Use the documented recovery operation or finish with the available evidence.",
           retryable: false,
         };
         return recordSkippedExecution({
@@ -254,6 +289,12 @@ function toLangChainTool(descriptor, context) {
         }
         if (executionError) throw executionError;
         const result = normalizeToolResult(rawResult);
+        if (family?.key) {
+          if (result.ok && family.recovery)
+            context.clearFailureFamily(family.key);
+          else if (!result.ok && result.countsTowardFailureFamily)
+            context.recordFailureFamily(family.key);
+        }
         const serialized = JSON.stringify(result);
         if (Buffer.byteLength(serialized, "utf8") > descriptor.maxResultBytes) {
           result.data = String(serialized).slice(0, descriptor.maxResultBytes);
