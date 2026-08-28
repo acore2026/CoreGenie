@@ -77,6 +77,14 @@ export default function SurveyBody({ questions = [], result = {} }) {
     );
   }
 
+  if (result.resolved && !Array.isArray(result.answers)) {
+    return (
+      <StatusMessage
+        message={t("chat_window.agent_invocation.clarifying_answer_submitted")}
+      />
+    );
+  }
+
   const answers = Array.isArray(result.answers) ? result.answers : [];
   return <AnswersList questions={questions} answers={answers} />;
 }

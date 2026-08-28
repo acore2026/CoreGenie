@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import useTimeoutProgress from "@/hooks/useTimeoutProgress";
 import Header from "./Header";
 import InputForm from "./InputForm";
@@ -105,7 +105,10 @@ function ActiveFooter({
 
 function CompletedSurvey({ questions, drafts, submittedResult }) {
   const result =
-    submittedResult?.timedOut || submittedResult?.skipped
+    submittedResult?.timedOut ||
+    submittedResult?.skipped ||
+    submittedResult?.resolved ||
+    Array.isArray(submittedResult?.answers)
       ? submittedResult
       : { answers: questions.map((q, i) => answerForDraft(q, drafts[i])) };
 
@@ -124,11 +127,15 @@ export default function ClarifyingQuestionCard({
   questions = [],
   allowSkip = true,
   timeoutMs = null,
+  resolved = false,
+  resolution = null,
   websocket,
 }) {
   const [index, setIndex] = useState(0);
-  const [responded, setResponded] = useState(false);
-  const [submittedResult, setSubmittedResult] = useState(null);
+  const [responded, setResponded] = useState(resolved);
+  const [submittedResult, setSubmittedResult] = useState(
+    resolution || (resolved ? { resolved: true } : null)
+  );
   const [drafts, setDrafts] = useState(() =>
     questions.map((q) => emptyDraftFor(q))
   );
@@ -156,6 +163,12 @@ export default function ClarifyingQuestionCard({
       }, 0),
     [questions, drafts]
   );
+
+  useEffect(() => {
+    if (!resolved) return;
+    setResponded(true);
+    setSubmittedResult(resolution || { resolved: true });
+  }, [resolved, resolution]);
 
   if (!total) return null;
 

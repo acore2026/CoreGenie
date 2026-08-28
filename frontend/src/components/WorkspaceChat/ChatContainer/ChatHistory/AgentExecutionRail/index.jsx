@@ -424,7 +424,12 @@ export default function AgentExecutionRail({
   const meta = metaFor(state?.status || "running");
   const MetaIcon = meta.Icon;
   const duration = elapsed(state?.startedAt, state?.completedAt, now);
-  const recentActivities = (state?.activities || []).slice(-3);
+  const recentActivities = (state?.activities || [])
+    .filter(
+      (activity) =>
+        state?.status === "waiting_for_input" || activity.phase !== "input"
+    )
+    .slice(-3);
   const localizedSummary = localizedActivity(
     {
       summary: state?.summary,

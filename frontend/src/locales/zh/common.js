@@ -1704,6 +1704,8 @@ const TRANSLATIONS = {
       },
       activity: {
         preparing: "正在准备请求",
+        waiting_for_input: "等待您的回复",
+        waiting_for_approval: "等待工具批准",
         restoring: "正在恢复 Agent 工作",
         agent_started: "Agent 已开始工作",
         understanding: "正在理解：{{request}}",
@@ -1745,6 +1747,7 @@ const TRANSLATIONS = {
       clarifying_submit: "提交",
       clarifying_skipped: "您可以让Agent自行决定。",
       clarifying_timeout: "未在规定时间内提交回复。",
+      clarifying_answer_submitted: "回答已提交。",
       clarifying_pagination: "{{current}} 来自 {{total}}",
       clarifying_prev_aria: "上一问题",
       clarifying_next_aria: "下一个问题",

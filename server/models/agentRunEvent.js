@@ -70,6 +70,12 @@ const AgentRunEvent = {
   },
 
   traceSnapshot: async function (runId) {
+    const activityTypes = [
+      "activity.updated",
+      "input.requested",
+      "input.resolved",
+      "run.started",
+    ];
     const resourceTypes = [
       "context.memory.recalled",
       "context.memory.updated",
@@ -81,7 +87,7 @@ const AgentRunEvent = {
     ];
     const [activities, resources] = await Promise.all([
       prisma.agent_run_events.findMany({
-        where: { run_id: String(runId), type: "activity.updated" },
+        where: { run_id: String(runId), type: { in: activityTypes } },
         orderBy: { sequence: "desc" },
         take: 24,
       }),

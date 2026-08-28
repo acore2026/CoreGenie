@@ -190,9 +190,10 @@ async function executeAgentRunSegment(initialRun, signal, runnableConfig = {}) {
     );
     await emit("activity.updated", {
       phase: inputRequest ? "input" : "approval",
-      summary: inputRequest
-        ? "Waiting for your input"
-        : "Waiting for tool approval",
+      requestId: inputRequest ? pendingInterrupt.requestId : undefined,
+      summaryKey: inputRequest
+        ? "waiting_for_input"
+        : "waiting_for_approval",
     });
     return AgentRun.get(run.id);
   }

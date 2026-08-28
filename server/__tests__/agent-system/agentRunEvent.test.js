@@ -16,9 +16,17 @@ const { AgentRunEvent } = require("../../models/agentRunEvent");
 describe("AgentRunEvent trace snapshots", () => {
   beforeEach(() => jest.clearAllMocks());
 
-  it("returns recent activity and resource events in sequence order", async () => {
+  it("returns recent activity, input lifecycle, and resource events in sequence order", async () => {
     mockFindMany
       .mockResolvedValueOnce([
+        {
+          sequence: 10,
+          run_id: "run-1",
+          version: 2,
+          type: "input.resolved",
+          payload: '{"requestId":"question-1"}',
+          createdAt: new Date("2026-08-28T00:00:10Z"),
+        },
         {
           sequence: 8,
           run_id: "run-1",
@@ -53,7 +61,24 @@ describe("AgentRunEvent trace snapshots", () => {
       "context.rag.recalled",
       "skill.activated",
       "activity.updated",
+      "input.resolved",
     ]);
+    expect(mockFindMany).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        where: expect.objectContaining({
+          run_id: "run-1",
+          type: expect.objectContaining({
+            in: expect.arrayContaining([
+              "activity.updated",
+              "input.requested",
+              "input.resolved",
+              "run.started",
+            ]),
+          }),
+        }),
+      })
+    );
     expect(mockFindMany).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({

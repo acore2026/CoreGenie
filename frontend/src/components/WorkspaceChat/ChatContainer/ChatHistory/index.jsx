@@ -376,6 +376,8 @@ function buildMessages({
           questions={props.questions}
           allowSkip={props.allowSkip}
           timeoutMs={props.timeoutMs}
+          resolved={props.resolved}
+          resolution={props.resolution}
           websocket={websocket}
         />
       );

@@ -123,6 +123,7 @@ function legacyEventFromAgentRun(event) {
   const { runId, type, payload } = event;
   if (
     type === "activity.updated" ||
+    type.startsWith("input.") ||
     type.startsWith("plan.") ||
     type.startsWith("task.") ||
     type.startsWith("tool.") ||
@@ -169,12 +170,6 @@ function legacyEventFromAgentRun(event) {
       allowRemember: actions.length === 1,
     };
   }
-  if (type === "input.requested")
-    return {
-      type: "clarificationRequest",
-      requestId: payload.requestId,
-      questions: payload.questions,
-    };
   if (type === "thread.renamed")
     return { type: "rename_thread", content: payload };
   return null;
@@ -265,8 +260,10 @@ function activityFromEvent(event) {
     id: event.id ?? `${type}:${event.createdAt || Date.now()}`,
     createdAt: event.createdAt,
     phase: payload.phase,
+    requestId: payload.requestId,
   };
   if (type === "run.started") return { ...base, summaryKey: "agent_started" };
+  if (type === "input.resolved") return { ...base, summaryKey: "restoring" };
   if (type === "activity.updated")
     return {
       ...base,
@@ -383,6 +380,22 @@ export function reduceAgentRunState(state, event) {
     next.phase = "running";
     next.agent = payload.agent || next.agent;
     next.startedAt = event.createdAt;
+  }
+  if (type === "input.requested") {
+    next.status = "waiting_for_input";
+    next.phase = "input";
+  }
+  if (type === "input.resolved") {
+    next.status = "queued";
+    next.phase = "resuming";
+    next.summary = "正在恢复 Agent 工作";
+    next.summaryKey = "restoring";
+    next.summaryArgs = null;
+    next.activities = next.activities.filter(
+      (activity) =>
+        activity.phase !== "input" ||
+        (activity.requestId && activity.requestId !== payload.requestId)
+    );
   }
   if (
     ["run.completed", "run.partial", "run.failed", "run.cancelled"].includes(
@@ -558,6 +571,54 @@ export default function handleSocketResponse(socket, event, setChatHistory) {
               entryIndex === index ? message : entry
             )
           : [...prev.filter((entry) => !!entry.content), message];
+      if (runEvent.type === "input.requested") {
+        if (
+          next.some(
+            (entry) =>
+              entry.type === "clarifyingQuestion" &&
+              entry.requestId === runEvent.payload?.requestId
+          )
+        )
+          return next;
+        return [
+          ...next,
+          {
+            uuid: `${runId}:clarification:${runEvent.payload?.requestId}`,
+            type: "clarifyingQuestion",
+            requestId: runEvent.payload?.requestId,
+            questions: runEvent.payload?.questions || [],
+            allowSkip: runEvent.payload?.allowSkip !== false,
+            timeoutMs: runEvent.payload?.timeoutMs,
+            content: "需要补充信息",
+            role: "assistant",
+            sources: [],
+            closed: false,
+            error: null,
+            animate: false,
+            pending: true,
+            metrics: {},
+          },
+        ];
+      }
+      if (runEvent.type === "input.resolved") {
+        return next.map((entry) =>
+          entry.type === "clarifyingQuestion" &&
+          entry.requestId === runEvent.payload?.requestId
+            ? {
+                ...entry,
+                resolved: true,
+                resolution: {
+                  skipped: Boolean(runEvent.payload?.skipped),
+                  ...(Array.isArray(runEvent.payload?.answers)
+                    ? { answers: runEvent.payload.answers }
+                    : { resolved: true }),
+                },
+                closed: true,
+                pending: false,
+              }
+            : entry
+        );
+      }
       if (["run.completed", "run.partial"].includes(runEvent.type)) {
         return next.map((entry) =>
           entry.uuid === `${runId}:assistant`
