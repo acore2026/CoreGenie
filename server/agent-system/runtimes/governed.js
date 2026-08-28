@@ -225,7 +225,7 @@ function toolExecutionEvidence(executions = [], requiredToolIds = []) {
 }
 
 function claimSaysToolDidNotRun(value = "") {
-  return /(?:no\s+[^.\n]*tool call|tool\s+(?:was|has)\s+not\s+(?:been\s+)?executed|never\s+(?:actually\s+)?executed|not\s+executed|未[^。\n]{0,20}执行|从未[^。\n]{0,20}(?:发起|执行)|没有[^。\n]{0,20}工具(?:调用|输出))/i.test(
+  return /(?:no\s+[^.\n]*tool call|tool\s+(?:was|has)\s+not\s+(?:been\s+)?executed|never\s+(?:actually\s+)?executed|not\s+executed|未[^。\n]{0,20}(?:执行|调用)|从未[^。\n]{0,20}(?:发起|执行|调用)|没有[^。\n]{0,20}工具(?:调用|输出)|工具调用[^。\n]{0,12}(?:被)?跳过)/i.test(
     String(value)
   );
 }
