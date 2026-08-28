@@ -14,9 +14,7 @@ function runtimeInstructions(skill) {
 }
 
 function readableResourcePaths(skill) {
-  return (skill.files || [])
-    .map((file) => file.path)
-    .filter((filePath) => filePath && filePath !== "SKILL.md");
+  return (skill.files || []).map((file) => file.path).filter(Boolean);
 }
 
 function normalizedRequestedPath(requestedPath) {
@@ -33,7 +31,6 @@ function normalizedRequestedPath(requestedPath) {
   const normalized = path.posix.normalize(raw);
   if (
     normalized === "." ||
-    normalized === "SKILL.md" ||
     normalized.startsWith("../") ||
     normalized.includes("/../")
   )

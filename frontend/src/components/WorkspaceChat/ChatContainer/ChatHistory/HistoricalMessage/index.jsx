@@ -1,5 +1,5 @@
 import React, { memo, useLayoutEffect, useRef, useState } from "react";
-import { Info, Warning } from "@phosphor-icons/react";
+import { FileDoc, Info, Warning } from "@phosphor-icons/react";
 import Actions from "./Actions";
 import renderMarkdown from "@/utils/chat/markdown";
 import Citations from "../Citation";
@@ -265,14 +265,23 @@ export default memo(
  * Other attachment types may be supported here in the future.
  */
 function ChatAttachments({ attachments = [] }) {
-  if (!attachments.length) return null;
+  const { t } = useTranslation();
+  const images = attachments.filter(
+    (item) =>
+      String(item?.mime || "").startsWith("image/") ||
+      String(item?.contentString || "").startsWith("data:image/")
+  );
+  const workspaceFiles = attachments.filter(
+    (item) => item?.mime === "application/anythingllm-workspace-file"
+  );
+  if (!images.length && !workspaceFiles.length) return null;
   return (
-    <div className="flex flex-wrap gap-4 mt-4">
-      {attachments.map((item, index) => (
+    <div className="mt-4 flex flex-wrap gap-3">
+      {images.map((item, index) => (
         <button
           type="button"
           key={item.name}
-          onClick={() => openImageLightbox(attachments, index)}
+          onClick={() => openImageLightbox(images, index)}
           className="p-0 border-none bg-transparent cursor-pointer hover:opacity-80 transition-opacity"
         >
           <img
@@ -281,6 +290,22 @@ function ChatAttachments({ attachments = [] }) {
             className="w-[120px] h-[120px] object-cover rounded-lg"
           />
         </button>
+      ))}
+      {workspaceFiles.map((item) => (
+        <div
+          key={`${item.name}-${item.contentString}`}
+          className="flex min-h-10 max-w-full items-center gap-2 rounded-lg border border-theme-chat-input-border bg-theme-attachment-bg px-3 py-2"
+        >
+          <FileDoc size={18} className="shrink-0 text-blue-400" />
+          <span className="min-w-0">
+            <span className="block truncate text-xs font-semibold text-theme-text-primary">
+              {item.name}
+            </span>
+            <span className="block text-[10px] text-theme-text-secondary">
+              {t("chat_window.original_docx")}
+            </span>
+          </span>
+        </div>
       ))}
     </div>
   );

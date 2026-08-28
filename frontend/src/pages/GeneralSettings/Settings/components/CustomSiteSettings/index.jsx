@@ -63,17 +63,14 @@ export default function CustomSiteSettings() {
             name="meta_page_title"
             type="text"
             className="border-none bg-theme-settings-input-bg mt-2 text-white placeholder:text-theme-settings-input-placeholder text-sm rounded-lg focus:outline-primary-button active:outline-primary-button outline-none block w-fit py-2 px-4"
-            placeholder="AnythingLLM | Your personal LLM trained on anything"
+            placeholder="CoreGenie | 智能 Agent 工作台"
             autoComplete="off"
             onChange={(e) => {
               setSettings((prev) => {
                 return { ...prev, title: e.target.value };
               });
             }}
-            value={
-              settings.title ??
-              "AnythingLLM | Your personal LLM trained on anything"
-            }
+            value={settings.title ?? "CoreGenie | 智能 Agent 工作台"}
           />
         </div>
       </div>
@@ -87,8 +84,8 @@ export default function CustomSiteSettings() {
         </p>
         <div className="flex items-center gap-x-2">
           <img
-            src={settings.faviconUrl ?? "/favicon.png"}
-            onError={(e) => (e.target.src = "/favicon.png")}
+            src={settings.faviconUrl ?? "/coregenie-mark.svg"}
+            onError={(e) => (e.target.src = "/coregenie-mark.svg")}
             className="h-10 w-10 rounded-lg mt-2"
             alt="Site favicon"
           />

@@ -29,6 +29,7 @@ describe("Agent runtime registry", () => {
         unknown: "ignored",
       })
     ).toEqual({
+      attachmentMode: "parsed",
       plannerModel: "planner-v1",
       workerModel: null,
       requiredCompletionTools: ["knowledge.publish"],

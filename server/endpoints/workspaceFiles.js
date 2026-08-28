@@ -1,6 +1,8 @@
 const fs = require("fs/promises");
 const path = require("path");
 const archiver = require("archiver");
+const AdmZip = require("adm-zip");
+const { v4: uuidv4 } = require("uuid");
 const { validatedRequest } = require("../utils/middleware/validatedRequest");
 const {
   flexUserRoleValid,
@@ -8,6 +10,7 @@ const {
 } = require("../utils/middleware/multiUserProtected");
 const { validWorkspaceSlug } = require("../utils/middleware/validWorkspace");
 const filesystem = require("../utils/agents/aibitat/plugins/filesystem/lib");
+const { handleWorkspaceDocxUpload } = require("../utils/files/multer");
 
 const MAX_TEXT_PREVIEW_BYTES = 1024 * 1024;
 const MAX_IMAGE_PREVIEW_BYTES = 10 * 1024 * 1024;
@@ -20,6 +23,51 @@ const IMAGE_MIME_TYPES = {
   ".svg": "image/svg+xml",
   ".bmp": "image/bmp",
 };
+const WORKSPACE_DOCX_MIME = "application/anythingllm-workspace-file";
+const DOCX_MAX_ENTRIES = 10_000;
+const DOCX_MAX_UNCOMPRESSED_BYTES = 500 * 1024 * 1024;
+
+function safeDocxName(value) {
+  const decoded = Buffer.from(String(value || "proposal.docx"), "latin1")
+    .toString("utf8")
+    .replace(/[<>:"/\\|?*]/g, "_")
+    .split("")
+    .map((character) => (character.charCodeAt(0) < 32 ? "_" : character))
+    .join("")
+    .trim();
+  const filename = path.basename(decoded).slice(0, 180) || "proposal.docx";
+  return filename.toLowerCase().endsWith(".docx") ? filename : null;
+}
+
+function validateDocxBuffer(buffer) {
+  if (!Buffer.isBuffer(buffer) || buffer.length < 4) return false;
+  try {
+    const archive = new AdmZip(buffer);
+    const entries = archive.getEntries();
+    if (!entries.length || entries.length > DOCX_MAX_ENTRIES) return false;
+    const total = entries.reduce(
+      (sum, entry) => sum + Number(entry.header?.size || 0),
+      0
+    );
+    if (total > DOCX_MAX_UNCOMPRESSED_BYTES) return false;
+    return Boolean(
+      archive.getEntry("[Content_Types].xml") &&
+        archive.getEntry("word/document.xml")
+    );
+  } catch {
+    return false;
+  }
+}
+
+function isInboxFilePath(value) {
+  const normalized = String(value || "")
+    .replace(/^\/workspace\/?/, "")
+    .split(path.sep)
+    .join("/");
+  return /^3gpp-markdown\/inbox\/[^/]+\/[^/]+\.docx$/i.test(normalized)
+    ? normalized
+    : null;
+}
 
 function relativeWorkspacePath(root, absolutePath) {
   const relative = path.relative(root, absolutePath);
@@ -59,6 +107,75 @@ function workspaceFileEndpoints(app) {
     flexUserRoleValid([ROLES.all]),
     validWorkspaceSlug,
   ];
+
+  app.post(
+    "/workspace/:slug/files/upload",
+    [...middleware, handleWorkspaceDocxUpload],
+    async (request, response) => {
+      try {
+        if (!request.file)
+          return response
+            .status(400)
+            .json({ success: false, error: "请选择 DOCX 文件。" });
+        const filename = safeDocxName(request.file.originalname);
+        if (!filename || !validateDocxBuffer(request.file.buffer))
+          return response.status(400).json({
+            success: false,
+            error: "文件不是有效的 DOCX。",
+          });
+        const { manager, root } = await workspaceFilesystem(response);
+        const relative = `3gpp-markdown/inbox/${uuidv4()}/${filename}`;
+        const destination = await manager.validatePath(relative);
+        await fs.mkdir(path.dirname(destination), { recursive: true });
+        await fs.writeFile(destination, request.file.buffer, { flag: "wx" });
+        const stats = await fs.stat(destination);
+        return response.status(200).json({
+          success: true,
+          file: {
+            name: filename,
+            path: relativeWorkspacePath(root, destination),
+            mime: WORKSPACE_DOCX_MIME,
+            size: stats.size,
+          },
+        });
+      } catch (error) {
+        console.error("Workspace DOCX upload failed:", error.message);
+        return response
+          .status(500)
+          .json({ success: false, error: "DOCX 保存失败，请重试。" });
+      }
+    }
+  );
+
+  app.delete(
+    "/workspace/:slug/files/upload",
+    middleware,
+    async (request, response) => {
+      try {
+        const relative = isInboxFilePath(request.query.path);
+        if (!relative)
+          return response.status(400).json({
+            success: false,
+            error: "只能移除本次上传的 DOCX。",
+          });
+        const { manager } = await workspaceFilesystem(response);
+        const target = await manager.validatePath(relative);
+        const stats = await fs.stat(target);
+        if (!stats.isFile())
+          return response
+            .status(400)
+            .json({ success: false, error: "目标不是文件。" });
+        await fs.unlink(target);
+        await fs.rmdir(path.dirname(target)).catch(() => {});
+        return response.status(200).json({ success: true });
+      } catch (error) {
+        const status = error.code === "ENOENT" ? 404 : 400;
+        return response
+          .status(status)
+          .json({ success: false, error: "文件不存在或已经移除。" });
+      }
+    }
+  );
 
   app.get("/workspace/:slug/files", middleware, async (request, response) => {
     try {
@@ -247,4 +364,9 @@ function workspaceFileEndpoints(app) {
   );
 }
 
-module.exports = { workspaceFileEndpoints };
+module.exports = {
+  workspaceFileEndpoints,
+  safeDocxName,
+  validateDocxBuffer,
+  isInboxFilePath,
+};

@@ -8,7 +8,7 @@ const TRANSLATIONS = {
     llm: {
       title: "LLM 偏好",
       description:
-        "AnythingLLM 可以与多家 LLM 提供商合作。这将是处理聊天的服务。",
+        "CoreGenie 可以与多家 LLM 提供商合作。这将是处理聊天的服务。",
     },
     userSetup: {
       title: "用户设置",
@@ -32,14 +32,14 @@ const TRANSLATIONS = {
       settingsHint: "这些设置可以随时在设置中重新配置。",
     },
     survey: {
-      title: "欢迎使用 AnythingLLM",
-      description: "帮助我们为你的需求打造 AnythingLLM。可选。",
+      title: "欢迎使用 CoreGenie",
+      description: "帮助我们为你的需求打造 CoreGenie。可选。",
       email: "你的电子邮件是什么？",
-      useCase: "你将如何使用 AnythingLLM？",
+      useCase: "你将如何使用 CoreGenie？",
       useCaseWork: "用于工作",
       useCasePersonal: "用于个人使用",
       useCaseOther: "其他",
-      comment: "你是如何听说 AnythingLLM 的？",
+      comment: "你是如何听说 CoreGenie 的？",
       commentPlaceholder:
         "Reddit，Twitter，GitHub，YouTube 等 - 让我们知道你是如何找到我们的！",
       skip: "跳过调查",
@@ -99,7 +99,7 @@ const TRANSLATIONS = {
     contact: "联系支持",
     "browser-extension": "浏览器扩展",
     "system-prompt-variables": "系统提示变量",
-    "mobile-app": "AnythingLLM 移动版",
+    "mobile-app": "CoreGenie 移动版",
     "community-hub": {
       title: "社区中心",
       trending: "探索热门",
@@ -142,7 +142,7 @@ const TRANSLATIONS = {
     "sign-in": "登录你的 {{appName}} 账户",
     registration: {
       title: "创建账户",
-      description: "注册以访问此 AnythingLLM 实例。",
+      description: "注册以访问此 CoreGenie 实例。",
       "create-account": "创建账户",
       creating: "正在创建账户...",
       "confirm-password": "确认密码",
@@ -170,10 +170,6 @@ const TRANSLATIONS = {
   },
   help: {
     navigation: "帮助与示例",
-    eyebrow: "CoreGenie 使用指南",
-    title: "从一个真实任务开始",
-    subtitle:
-      "先选一个适合的助手，看看需要准备哪些信息，再用示例开始。示例只会填入输入框，不会自动发送。",
     intro: {
       title: "不知道从哪里开始？先看一个示例",
       description: "选一个助手，填写任务范围，确认后再发送。",
@@ -181,37 +177,12 @@ const TRANSLATIONS = {
       dismiss: "关闭首次使用提示",
     },
     actions: {
-      back: "返回工作台",
       copy: "复制提示词",
       copied: "提示词已复制",
       copy_failed: "无法复制提示词。",
       use_agent: "使用此助手",
       try_example: "试用示例",
       workspace_required: "需要工作区",
-    },
-    flow: {
-      eyebrow: "使用方法",
-      title: "四步开始分析",
-      note: "内容填好后再发送。",
-      steps: [
-        {
-          title: "说明任务",
-          description: "写清工作组、会议、KI、公司、技术主题和时间范围。",
-        },
-        {
-          title: "选择助手",
-          description: "根据任务选择通用助手、提案分析助手或技术路线分析助手。",
-        },
-        {
-          title: "检查资料",
-          description:
-            "助手会查看 TDoc、流程图和会议材料，并指出缺少哪些信息。",
-        },
-        {
-          title: "生成报告",
-          description: "得到中文 Markdown 报告，结果也可以保存到工作区。",
-        },
-      ],
     },
     launcher: {
       eyebrow: "选择助手",
@@ -249,6 +220,17 @@ const TRANSLATIONS = {
           "比较这些提案中的消息流程，并逐一检查流程图。",
         ],
       },
+      converter: {
+        label: "DOCX 格式转换",
+        description: "把 3GPP 提案转成 Markdown，并保留原图和嵌入对象。",
+        input: "上传 DOCX，或提供 TDoc 编号、工作组和会议信息。",
+        output: "包含 Markdown、图片、嵌入对象和转换说明的 ZIP。",
+        examples: [
+          "请把我上传的提案转换成 Markdown 和图片压缩包。",
+          "请下载 S2-2606085，并转换成 Markdown 和图片压缩包。",
+          "把这个 DOCX 的表格、图片和 Visio 图按原文顺序整理成 Markdown。",
+        ],
+      },
       evolution: {
         label: "公司技术路线分析",
         description: "查看一家公司在多次会议中的立场和技术路线变化。",
@@ -260,6 +242,167 @@ const TRANSLATIONS = {
           "更新已有立场分析，只总结最新提案、状态变化和尚未解决的问题。",
         ],
       },
+    },
+    saved_examples: {
+      eyebrow: "真实运行示例",
+      title: "直接查看一次真实分析结果",
+      description:
+        "下面的内容保存自一次已完成的 KI #18 分析。展开后直接查看，不会再次调用模型，也不会创建新任务。",
+      completed: "真实运行",
+      view: "查看完整结果",
+      view_short: "查看",
+      table_hint: "左右滑动查看完整表格",
+      prompt_label: "原始任务",
+      result_label: "助手结果",
+      items: [
+        {
+          id: "huawei-ericsson-ki18",
+          title: "Huawei 与 Ericsson 在 KI #18 上的架构分歧",
+          description:
+            "查看双方的核心路线、Ericsson 的保留意见、关键 TDoc 和会议状态。",
+          agent: "3GPP 技术路线与立场分析助手 · 2026-08-28",
+          reading_time: "约 5 分钟",
+          disclaimer:
+            "内容来自 2026 年 8 月 28 日已完成并发布的 KI #18 Huawei 纵向分析，本页保留其中与 Ericsson 相关的完整专题结果。结论以当次运行能够取得的 3GPP 材料为准，限制项也一并保留。",
+          prompt:
+            "分析 Huawei 从 2025 年至最近一次 SA2 FS_6G_ARC KI #18 关于 Agentic Core / NW-Agent 的全部相关提案，说明公司立场、技术路线、术语演进、主要反对者及证据等级，并生成可复核报告。",
+          result: {
+            title: "Huawei 与 Ericsson：NW-Agent 和 AI Domain 两条路线",
+            summary:
+              "Huawei 主张在 6G 核心网中引入专用 Network AI Agent（NW-Agent）网络功能；Ericsson 主要推动独立的 AI Domain，并配合 AI-capable NF 完成推理、训练和传输。Ericsson 对 NW-Agent 的术语定义提出关切，但现有材料不支持把 Ericsson 写成明确反对 Huawei 整体路线。更准确的判断是：条件性保留意见，加上直接竞争的架构路线。",
+            sections: [
+              {
+                title: "运行信息",
+                table: {
+                  headers: ["项目", "内容"],
+                  rows: [
+                    ["任务状态", "已完成，报告已发布到 3GPP 工作区知识库。"],
+                    [
+                      "分析范围",
+                      "SA2#173 至 SA2#176，FS_6G_ARC，KI #18，目标规范 TR 23.801-01。",
+                    ],
+                    [
+                      "资料快照",
+                      "2026-08-28；来自 3GPP 官方 FTP 的会议 TDoc 和工作区中已解析的讨论资料。",
+                    ],
+                    [
+                      "Huawei 覆盖",
+                      "Huawei/HiSilicon 相关 TDoc 共 88 份，已全部下载并提取文本。",
+                    ],
+                  ],
+                },
+              },
+              {
+                title: "核心架构分歧",
+                table: {
+                  headers: ["对比项", "Huawei", "Ericsson"],
+                  rows: [
+                    [
+                      "核心实体",
+                      "专用 Network AI Agent（NW-Agent）网络功能。",
+                      "独立于 PS 域的 AI Domain，并结合 AI-capable NF。",
+                    ],
+                    [
+                      "主要职责",
+                      "解释请求和意图，发现并调用工具，协调闭环操作。",
+                      "承载 AI 相关能力、模型推理与训练，并处理到 AI Domain 的传输。",
+                    ],
+                    [
+                      "主要 SV",
+                      "SV#18.0、18.1、18.6、18.16、18.19。",
+                      "SV#3，并覆盖 SV#18.3、18.6、18.7、18.8、18.13、18.21、18.22。",
+                    ],
+                    [
+                      "路线关系",
+                      "以 NW-Agent 为中心组织意图处理和工具调用。",
+                      "以 AI Domain 为架构基础，是与 NW-Agent 并行的主要竞争路线。",
+                    ],
+                  ],
+                },
+              },
+              {
+                title: "Ericsson 的反对和保留意见",
+                paragraphs: [
+                  "在 SA2#175-AH-e 的 SV#18.0 术语讨论中，Ericsson 对 Huawei/HiSilicon 牵头的 S2-2606200 提出“对 NW AI Agent 定义的关切”。原运行据此将 Ericsson 归为条件性保留意见，而不是明确反对者。",
+                  "这轮讨论后，S2-2606573 获批，但只保留原则性内容，具体术语定义被推迟。后续 S2-2608467 中仍有术语内容标为 FFS。现有资料能证明 Ericsson 对定义有保留，但不能证明其反对 NW-Agent 或 Agentic Core 的全部内容。",
+                ],
+                bullets: [
+                  "明确反对：没有找到 Ericsson 明确表示“不支持”或“反对”Huawei 整体路线的证据。",
+                  "保留意见：对 NW-Agent 术语定义的具体内容提出关切。",
+                  "竞争路线：持续推动 AI Domain，并形成独立获批的 SV#3 baseline。",
+                ],
+              },
+              {
+                title: "关键 TDoc 和会议状态",
+                table: {
+                  headers: ["TDoc", "公司 / 会议", "内容", "状态"],
+                  rows: [
+                    [
+                      "S2-2600182",
+                      "Huawei · SA2#173",
+                      "首次提出 Agentic Core 和 NW-Agent。",
+                      "Not Handled",
+                    ],
+                    [
+                      "S2-2602109",
+                      "Huawei · SA2#174",
+                      "扩展工具注册、Agent 间通信、漫游和闭环操作。",
+                      "Not Handled",
+                    ],
+                    [
+                      "S2-2606200 → S2-2606573",
+                      "Huawei · SA2#175-AH-e",
+                      "NW-Agent 术语 baseline；讨论后仅保留原则，定义推迟。",
+                      "Approved",
+                    ],
+                    [
+                      "S2-2601907",
+                      "Ericsson · SA2#174",
+                      "提出 6G CN AI Domain。",
+                      "Revised",
+                    ],
+                    [
+                      "S2-2605619",
+                      "Ericsson 等 · SA2#175",
+                      "SV#3：在 6G CN 中建立独立于 PS 域的新域。",
+                      "Approved",
+                    ],
+                    [
+                      "S2-2606610",
+                      "Ericsson 等 · SA2#175-AH-e",
+                      "更新 SV#3 AI Domain baseline。",
+                      "Approved",
+                    ],
+                    [
+                      "S2-2608454",
+                      "Ericsson 等 · SA2#176",
+                      "继续更新 SV#3 AI Domain baseline。",
+                      "Approved，临时状态",
+                    ],
+                  ],
+                },
+              },
+              {
+                title: "结果判断",
+                paragraphs: [
+                  "Ericsson 是 Huawei NW-Agent 路线的主要架构竞争者，但不是现有证据下的明确反对者。双方最实质的分歧是：由专用 NW-Agent 作为核心实体，还是建立独立 AI Domain 并把 AI 能力分布到域和现有 NF 中。",
+                  "两条路线都形成了获批 baseline，不能写成一方已经击败另一方。到 SA2#176，Huawei 的 baseline 中明显增加了 AI Domain 概念，说明讨论正在从路线竞争走向并行和融合。",
+                ],
+              },
+              {
+                title: "资料范围和限制",
+                bullets: [
+                  "本次运行完成时，SA2#176 的正式会议报告尚未发布，因此相关会议结果按临时状态处理。",
+                  "Ericsson 的关切来自 SA2#175-AH-e baseline comments 的讨论摘要；原始逐字讨论记录没有作为独立文件保存在工作区，因此该项置信度为中。",
+                  "Huawei/HiSilicon 的 88 份相关 TDoc 已完成全文提取；竞争方材料的全文覆盖不完整，深层技术细节仍需继续核对原文。",
+                  "本次运行没有逐张检查 TDoc 中的架构图。流程图或架构图看不清时，不能据此补充推断。",
+                  "公司提案不等于 3GPP 已采纳的结论；是否通过仍以会议结果和正式材料为准。",
+                ],
+              },
+            ],
+          },
+        },
+      ],
     },
     capabilities: {
       eyebrow: "工作台能做什么",
@@ -279,9 +422,41 @@ const TRANSLATIONS = {
           description: "可以分别处理 TDoc、表格、流程图、文档版本和会议结果。",
         },
         {
+          title: "把提案转成 Markdown",
+          description:
+            "上传 DOCX 或提供 TDoc 信息，生成 Markdown 和原图压缩包。",
+        },
+        {
           title: "整理并保存报告",
           description:
             "分析完成后可以生成 Markdown 报告，并保存到工作区知识库。",
+        },
+      ],
+    },
+    faq: {
+      eyebrow: "FAQ",
+      title: "常见问题",
+      description: "先了解模型、执行时间和结果保存方式，再决定是否开始任务。",
+      items: [
+        {
+          question: "助手背后的大模型是什么？",
+          answer:
+            "当前部署主要使用 GLM-5.2 处理文字和分析任务；查看流程图、架构图等图片时使用 Qwen3.7-plus。不同工作区可以配置不同模型，后续也可能调整。",
+        },
+        {
+          question: "为什么试用示例需要较长时间？",
+          answer:
+            "3GPP 分析通常需要查找和下载 TDoc、解析文档、检查流程图，再整理报告。复杂任务可能需要几分钟。只想了解结果形式时，可以直接查看上面的真实运行示例。",
+        },
+        {
+          question: "试用示例会自动发送吗？",
+          answer:
+            "不会。点击“试用示例”后，内容只会填入工作台输入框，你可以修改并确认后再发送。",
+        },
+        {
+          question: "分析结果会保存在哪里？",
+          answer:
+            "对话会保存在当前工作区。需要长期使用的正式报告可以加入工作区知识库，之后继续搜索和引用。",
         },
       ],
     },
@@ -309,11 +484,7 @@ const TRANSLATIONS = {
     },
     boundaries: {
       title: "使用时请注意",
-      items: [
-        "公司提交的提案不等于 3GPP 已经采纳；是否通过要看会议结果。",
-        "涉及最新会议、文档版本和当前状态时，助手会重新查看官方资料。",
-        "流程图看不清、文档缺失或资料不完整时，助手会直接说明，不会猜。",
-      ],
+      items: ["本项目在外网部署。注意信息安全，不要上传非公开信息。"],
     },
     states: {
       no_workspace:
@@ -390,7 +561,7 @@ const TRANSLATIONS = {
       add: "添加新消息",
       save: "保存消息",
       heading: "向我解释",
-      body: "AnythingLLM 的好处",
+      body: "CoreGenie 的好处",
     },
     delete: {
       title: "删除工作区",
@@ -942,7 +1113,7 @@ const TRANSLATIONS = {
       "intelligent-skill-selection": {
         title: "智能技能选择",
         description:
-          "实现无限工具和按查询减少高达 80% 的 Token 使用量——AnythingLLM 能够自动选择最合适的技能，以应对每个提示。",
+          "实现无限工具和按查询减少高达 80% 的 Token 使用量——CoreGenie 能够自动选择最合适的技能，以应对每个提示。",
         "max-tools": {
           title: "麦克斯工具",
           description:
@@ -977,15 +1148,15 @@ const TRANSLATIONS = {
   customization: {
     interface: {
       title: "界面偏好设置",
-      description: "设置您的 AnythingLLM 界面偏好。",
+      description: "设置您的 CoreGenie 界面偏好。",
     },
     branding: {
       title: "品牌与白标设置",
-      description: "使用自定义品牌对白标您的 AnythingLLM 实例。",
+      description: "使用自定义品牌对白标您的 CoreGenie 实例。",
     },
     chat: {
       title: "聊天",
-      description: "设置您的 AnythingLLM 聊天偏好。",
+      description: "设置您的 CoreGenie 聊天偏好。",
       auto_submit: {
         title: "自动提交语音输入",
         description: "在静音一段时间后自动提交语音输入",
@@ -1018,7 +1189,7 @@ const TRANSLATIONS = {
       },
       "display-language": {
         title: "显示语言",
-        description: "选择显示 AnythingLLM 界面所用的语言（若有翻译可用）。",
+        description: "选择显示 CoreGenie 界面所用的语言（若有翻译可用）。",
       },
       logo: {
         title: "品牌标志",
@@ -1055,7 +1226,7 @@ const TRANSLATIONS = {
   },
   api: {
     title: "API 密钥",
-    description: "API 密钥允许持有者以编程方式访问和管理此 AnythingLLM 实例。",
+    description: "API 密钥允许持有者以编程方式访问和管理此 CoreGenie 实例。",
     link: "阅读 API 文档",
     generate: "生成新的 API 密钥",
     empty: "未找到 API 密钥",
@@ -1068,7 +1239,7 @@ const TRANSLATIONS = {
       cancel: "取消",
       close: "关闭",
       create: "创建 API 密钥",
-      helper: "创建后，API 密钥可用于以编程方式访问并配置此 AnythingLLM 实例。",
+      helper: "创建后，API 密钥可用于以编程方式访问并配置此 CoreGenie 实例。",
       name: {
         label: "名称",
         placeholder: "生产环境集成",
@@ -1092,7 +1263,7 @@ const TRANSLATIONS = {
   llm: {
     title: "LLM 首选项",
     description:
-      "这些是你首选的 LLM 聊天和嵌入提供商的凭据和设置。重要的是，确保这些密钥是最新的和正确的，否则 AnythingLLM 将无法正常运行。",
+      "这些是你首选的 LLM 聊天和嵌入提供商的凭据和设置。重要的是，确保这些密钥是最新的和正确的，否则 CoreGenie 将无法正常运行。",
     provider: "LLM 提供商",
     providers: {
       azure_openai: {
@@ -1114,7 +1285,7 @@ const TRANSLATIONS = {
       "这些是你的首选转录模型提供商的凭据和设置。重要的是这些密钥是最新且正确的，否则媒体文件和音频将无法转录。",
     provider: "转录提供商",
     "warn-start":
-      "在 RAM 或 CPU 有限的计算机上使用本地耳语模型可能会在处理媒体文件时停止 AnythingLLM。",
+      "在 RAM 或 CPU 有限的计算机上使用本地耳语模型可能会在处理媒体文件时停止 CoreGenie。",
     "warn-recommend": "我们建议至少 2GB RAM 并上传 <10Mb 的文件。",
     "warn-end": "内置模型将在首次使用时自动下载。",
   },
@@ -1123,7 +1294,7 @@ const TRANSLATIONS = {
     "desc-start":
       "当使用本身不支持嵌入引擎的 LLM 时，你可能需要额外指定用于嵌入文本的凭据。",
     "desc-end":
-      "嵌入是将文本转换为矢量的过程。需要这些凭据才能将你的文件和提示转换为 AnythingLLM 可以用来处理的格式。",
+      "嵌入是将文本转换为矢量的过程。需要这些凭据才能将你的文件和提示转换为 CoreGenie 可以用来处理的格式。",
     provider: {
       title: "嵌入引擎提供商",
     },
@@ -1146,7 +1317,7 @@ const TRANSLATIONS = {
   vector: {
     title: "向量数据库",
     description:
-      "这些是 AnythingLLM 实例如何运行的凭据和设置。重要的是，这些密钥是最新的和正确的。",
+      "这些是 CoreGenie 实例如何运行的凭据和设置。重要的是，这些密钥是最新的和正确的。",
     provider: {
       title: "向量数据库提供商",
       description: "LanceDB 不需要任何配置。",
@@ -1188,8 +1359,7 @@ const TRANSLATIONS = {
   },
   privacy: {
     title: "隐私和数据处理",
-    description:
-      "这是你对如何处理连接的第三方提供商和AnythingLLM的数据的配置。",
+    description: "这是你对如何处理连接的第三方提供商和CoreGenie的数据的配置。",
     anonymous: "启用匿名遥测",
   },
   connectors: {
@@ -1335,22 +1505,22 @@ const TRANSLATIONS = {
       fetching: "正在获取...",
       "fetch-website": "获取网站",
       "privacy-notice":
-        "这些文件将被上传到此 AnythingLLM 实例上的文档处理器。这些文件不会发送或共享给第三方。",
+        "这些文件将被上传到此 CoreGenie 实例上的文档处理器。这些文件不会发送或共享给第三方。",
     },
     pinning: {
       what_pinning: "什么是文档固定？",
       pin_explained_block1:
-        "当您在 AnythingLLM 中<b>固定</b>一个文档时，我们会将整个文档内容注入到您的提示窗口中，让 LLM 能够完全理解它。",
+        "当您在 CoreGenie 中<b>固定</b>一个文档时，我们会将整个文档内容注入到您的提示窗口中，让 LLM 能够完全理解它。",
       pin_explained_block2:
         "这在 <b>大上下文模型</b> 或关键的小文件中效果最佳。",
       pin_explained_block3:
-        "如果默认情况下无法从 AnythingLLM 获取满意的答案，固定文档是提高答案质量的好方法。",
+        "如果默认情况下无法从 CoreGenie 获取满意的答案，固定文档是提高答案质量的好方法。",
       accept: "好的，知道了",
     },
     watching: {
       what_watching: "什么是监控文档？",
       watch_explained_block1:
-        "当您在 AnythingLLM 中<b>监控</b>一个文档时，我们会<i>自动</i>按定期间隔从其原始来源同步文档内容。系统会自动更新在所有使用该文档的工作区中的内容。",
+        "当您在 CoreGenie 中<b>监控</b>一个文档时，我们会<i>自动</i>按定期间隔从其原始来源同步文档内容。系统会自动更新在所有使用该文档的工作区中的内容。",
       watch_explained_block2:
         "此功能当前仅支持在线内容，不适用于手动上传的文档。",
       watch_explained_block3_start: "您可以在 ",
@@ -1376,6 +1546,15 @@ const TRANSLATIONS = {
     unknown_user: "未知用户",
     send_message: "发送消息",
     attach_file: "向此对话附加文件",
+    remove_attachment: "移除附件",
+    docx_ready: "原始 DOCX 已就绪",
+    original_docx: "原始 DOCX",
+    docx_only: "这个助手只接受 DOCX 文件。",
+    docx_upload_failed: "DOCX 上传失败。",
+    drop_docx: "拖放 DOCX 到这里",
+    drop_file: "拖放文件或图片到这里",
+    drop_docx_description: "文件会保留原始格式，供转换助手读取图片和嵌入对象。",
+    drop_file_description: "文件会附加到当前对话。",
     text_size: "更改文字大小。",
     microphone: "语音输入你的提示。",
     send: "将提示消息发送到工作区",
@@ -1617,8 +1796,7 @@ const TRANSLATIONS = {
           "记忆应该用简洁明了的语句表达。例如：“用户更喜欢使用 Python 而不是 JavaScript”。",
         edit_description: "更新此存储内容的资料。",
         label: "记忆",
-        placeholder:
-          "例如，用户的姓名是 Joe，用户在 AnythingLLM 上工作，等等。",
+        placeholder: "例如，用户的姓名是 Joe，用户在 CoreGenie 上工作，等等。",
         create: "创造",
         save: "保存",
         cancel: "取消",
@@ -1721,7 +1899,7 @@ const TRANSLATIONS = {
         unauthenticated: {
           title: "需要验证",
           description:
-            "在发布项目之前，您需要通过 AnythingLLM 社区中心进行验证。",
+            "在发布项目之前，您需要通过 CoreGenie 社区中心进行验证。",
           button: "连接到社区中心",
         },
       },
@@ -1777,7 +1955,7 @@ const TRANSLATIONS = {
     password: {
       title: "密码保护",
       description:
-        "用密码保护你的AnythingLLM实例。如果你忘记了密码，那么没有恢复方法，所以请确保保存这个密码。",
+        "用密码保护你的CoreGenie实例。如果你忘记了密码，那么没有恢复方法，所以请确保保存这个密码。",
       "password-label": "实例密码",
     },
   },
@@ -1791,7 +1969,7 @@ const TRANSLATIONS = {
   telegram: {
     title: "Telegram 机器人",
     description:
-      "将您的 AnythingLLM 实例与 Telegram 连接起来，这样您就可以从任何设备与您的工作空间进行聊天。",
+      "将您的 CoreGenie 实例与 Telegram 连接起来，这样您就可以从任何设备与您的工作空间进行聊天。",
     setup: {
       step1: {
         title: "第一步：创建您的 Telegram 机器人",

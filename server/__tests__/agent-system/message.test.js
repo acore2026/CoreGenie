@@ -1,5 +1,5 @@
 /* eslint-env jest, node */
-const { contentText } = require("../../agent-system/message");
+const { contentText, userContent } = require("../../agent-system/message");
 
 describe("Agent message text extraction", () => {
   it("extracts visible text from provider content shapes", () => {
@@ -27,5 +27,20 @@ describe("Agent message text extraction", () => {
         reasoning_content: "private reasoning",
       })
     ).toBe("");
+  });
+
+  it("adds workspace DOCX paths as text instead of image input", () => {
+    expect(
+      userContent("转换文件", [
+        {
+          name: "S2-2600001.docx",
+          mime: "application/anythingllm-workspace-file",
+          contentString:
+            "/workspace/3gpp-markdown/inbox/123/S2-2600001.docx",
+        },
+      ])
+    ).toContain(
+      "S2-2600001.docx: /workspace/3gpp-markdown/inbox/123/S2-2600001.docx"
+    );
   });
 });

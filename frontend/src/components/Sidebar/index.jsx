@@ -45,15 +45,15 @@ export default function Sidebar() {
               <Link to={paths.home()} aria-label="Home">
                 <img
                   src={logo}
-                  alt="Logo"
-                  className={`rounded max-h-[24px] object-contain transition-opacity duration-500 ${showSidebar ? "opacity-100" : "opacity-0"}`}
+                  alt="品牌标志"
+                  className={`rounded max-h-[32px] object-contain transition-opacity duration-500 ${showSidebar ? "opacity-100" : "opacity-0"}`}
                 />
               </Link>
             </div>
           </div>
           <div
             ref={sidebarRef}
-            className="relative m-[16px] rounded-[16px] bg-theme-bg-sidebar light:bg-slate-200 border-[2px] border-theme-sidebar-border light:border-none min-w-[250px] p-[10px] h-[calc(100%-76px)]"
+            className="relative m-[16px] rounded-[16px] bg-theme-bg-sidebar light:bg-slate-200 border-[2px] border-theme-sidebar-border light:border-none min-w-[250px] p-[10px] h-[calc(100%-84px)]"
           >
             <div className="flex flex-col h-full overflow-hidden">
               <div className="flex-grow flex flex-col min-w-[235px] min-h-0">
@@ -122,8 +122,8 @@ export function SidebarMobileHeader() {
         <div className="pointer-events-none absolute left-1/2 flex -translate-x-1/2 items-center justify-center">
           <img
             src={logo}
-            alt="Logo"
-            className="block mx-auto h-6 w-auto"
+            alt="品牌标志"
+            className="block mx-auto h-8 w-auto"
             style={{ maxHeight: "40px", objectFit: "contain" }}
           />
         </div>
@@ -153,8 +153,8 @@ export function SidebarMobileHeader() {
               <div className="flex shrink-1 w-fit items-center justify-start">
                 <img
                   src={logo}
-                  alt="Logo"
-                  className="rounded w-full max-h-[40px]"
+                  alt="品牌标志"
+                  className="rounded w-full max-h-[48px]"
                   style={{ objectFit: "contain" }}
                 />
               </div>

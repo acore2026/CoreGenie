@@ -336,6 +336,24 @@ const Workspace = {
       return response.blob();
     });
   },
+  uploadWorkspaceFile: async function (slug, formData) {
+    const response = await fetch(`${API_BASE}/workspace/${slug}/files/upload`, {
+      method: "POST",
+      body: formData,
+      headers: baseHeaders(),
+    });
+    const data = await response.json();
+    return { response, data };
+  },
+  deleteWorkspaceFile: async function (slug, path) {
+    const query = new URLSearchParams({ path });
+    const response = await fetch(
+      `${API_BASE}/workspace/${slug}/files/upload?${query}`,
+      { method: "DELETE", headers: baseHeaders() }
+    );
+    const data = await response.json();
+    return { response, data };
+  },
   uploadFile: async function (slug, formData) {
     const response = await fetch(`${API_BASE}/workspace/${slug}/upload`, {
       method: "POST",

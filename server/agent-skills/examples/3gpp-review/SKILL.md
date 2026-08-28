@@ -1,14 +1,35 @@
 ---
 name: 3gpp-review
-description: Download, extract, summarize, and compare 3GPP contribution documents (TDocs) for a meeting or Key Issue (KI). Use for requests such as reading TDocs, summarizing KI proposals, comparing company positions, analyzing 3GPP contributions, or “总结提案/分析KI”.
+description: Download, convert, summarize, and compare 3GPP contribution documents (TDocs). Use for requests such as converting a DOCX proposal to Markdown with images, reading TDocs, summarizing KI proposals, comparing company positions, analyzing 3GPP contributions, or “提案转Markdown/总结提案/分析KI”.
 allowed-tools: skill.activate skill.read_resource bash python filesystem.read filesystem.write filesystem.list filesystem.search web.fetch rag.search user.ask vision.inspect knowledge.publish
 ---
 
 # 3GPP TDoc review
 
-Use this workflow on Linux to turn a 3GPP meeting index and its contribution documents into a traceable Chinese Markdown analysis. The helper script is [scripts/3gpp_tdocs.py](scripts/3gpp_tdocs.py); resolve that path relative to this file.
+Use this workflow on Linux to convert or analyze 3GPP contribution documents. The helper script is [scripts/3gpp_tdocs.py](scripts/3gpp_tdocs.py); resolve that path relative to this file.
 
 Do not guess meeting directory names, agenda mappings, document metadata, or proposal content. Keep the source TDoc number attached to every substantive claim.
+
+## Conversion mode: DOCX to Markdown package
+
+Use conversion mode when the active Agent or user asks to convert a proposal rather than analyze its technical position. Conversion mode is a faithful format conversion: do not add a proposal summary, infer missing diagram content, or publish the result to the knowledge base.
+
+The input is either an uploaded DOCX path under `/workspace/3gpp-markdown/inbox/` or a DOCX downloaded from an official 3GPP meeting directory. Only accept DOCX in this mode. If a TDoc number does not identify one official file, ask for the working group or meeting instead of guessing.
+
+Create a new run directory and invoke the bundled converter:
+
+```bash
+run_id="$(date -u +%Y%m%dT%H%M%SZ)"
+result="/workspace/3gpp-markdown/results/$run_id"
+mkdir -p "$result"
+python3 scripts/3gpp_tdocs.py convert-docx \
+  --input "/workspace/3gpp-markdown/inbox/<upload-id>/<proposal>.docx" \
+  --output "$result"
+```
+
+The command creates Markdown, `assets/`, `embedded/`, `conversion-summary.json`, and a sibling ZIP. It preserves headings, paragraphs, common inline formatting, links, tables, images, and embedded objects where the DOCX contains them. VSD/VSDX objects are kept in `embedded/`; when LibreOffice and `pdftoppm` can render them, PNG previews are also added. EMF/WMF files and unreadable objects are kept as files and listed in the conversion warnings. Never replace a diagram with Mermaid.
+
+After conversion, read `conversion-summary.json`, confirm the Markdown and ZIP exist, and report the ZIP path plus any warnings. Do not run the proposal-analysis coverage or `knowledge.publish` steps in conversion mode.
 
 ## Environment
 

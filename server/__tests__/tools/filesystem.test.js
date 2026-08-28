@@ -16,7 +16,11 @@ jest.mock("../../utils/agents/aibitat/plugins/filesystem/lib", () => ({
 }));
 
 const fs = require("fs/promises");
-const { readFile, writeFile } = require("../../tools/filesystem");
+const {
+  readFile,
+  writeFile,
+  listDirectory,
+} = require("../../tools/filesystem");
 
 describe("filesystem.read", () => {
   beforeEach(() => {
@@ -46,6 +50,44 @@ describe("filesystem.read", () => {
         suggestions: ["work/SA2176_KI18_tdocs.txt"],
       },
     });
+  });
+
+  it("routes Skill resource URIs away from the workspace filesystem", async () => {
+    const result = await readFile.execute(
+      { path: "skill://3gpp-review/SKILL.md" },
+      { workspace: { id: 2 } }
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      code: "SKILL_URI_NOT_WORKSPACE_PATH",
+      data: {
+        skillName: "3gpp-review",
+        resourcePath: "SKILL.md",
+      },
+    });
+    expect(result.summary).toContain(
+      'read_skill_resource with name="3gpp-review" and path="SKILL.md"'
+    );
+    expect(mockManager.validatePath).not.toHaveBeenCalled();
+  });
+
+  it("does not turn a Skill root into a workspace directory", async () => {
+    const result = await listDirectory.execute(
+      { path: "skill://3gpp-review" },
+      { workspace: { id: 2 } }
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      code: "SKILL_URI_NOT_WORKSPACE_PATH",
+      data: {
+        skillName: "3gpp-review",
+        resourcePath: null,
+      },
+    });
+    expect(fs.readdir).not.toHaveBeenCalled();
+    expect(mockManager.validatePath).not.toHaveBeenCalled();
   });
 });
 

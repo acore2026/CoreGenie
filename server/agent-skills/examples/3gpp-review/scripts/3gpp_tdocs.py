@@ -7,8 +7,11 @@ import argparse
 import concurrent.futures
 import hashlib
 import json
+import posixpath
 import re
 import shutil
+import subprocess
+import tempfile
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -18,17 +21,28 @@ from io import BytesIO
 from pathlib import Path
 
 from lxml import etree
-from openpyxl import load_workbook
+
+try:
+    from openpyxl import load_workbook
+except ImportError:  # Conversion mode does not need the Excel dependency.
+    load_workbook = None
 
 
 DOC_RE = re.compile(r"\b([A-Z]\d-\d{6,8})\b", re.I)
-NS = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
+NS = {
+    "w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main",
+    "r": "http://schemas.openxmlformats.org/officeDocument/2006/relationships",
+    "a": "http://schemas.openxmlformats.org/drawingml/2006/main",
+    "v": "urn:schemas-microsoft-com:vml",
+    "o": "urn:schemas-microsoft-com:office:office",
+}
 ALLOWED_3GPP_HOSTS = {"www.3gpp.org", "ftp.3gpp.org"}
 MAX_DOWNLOAD_BYTES = 100 * 1024 * 1024
 MAX_ARCHIVE_ENTRY_BYTES = 100 * 1024 * 1024
 MAX_ARCHIVE_TOTAL_BYTES = 250 * 1024 * 1024
 MANIFEST_SCHEMA = "3gpp-review-manifest/v1"
 COVERAGE_SCHEMA = "3gpp-review-coverage/v1"
+CONVERSION_SCHEMA = "3gpp-markdown-conversion/v1"
 
 
 def cell_value(cell) -> str:
@@ -46,6 +60,8 @@ def choose_sheet(workbook, requested: str | None):
 
 
 def cmd_inspect(args) -> None:
+    if load_workbook is None:
+        raise SystemExit("openpyxl is required for meeting Index commands")
     workbook = load_workbook(args.excel, read_only=True, data_only=True)
     print("Sheets:")
     for sheet in workbook:
@@ -91,6 +107,8 @@ def find_doc_column(rows: list[list[str]]) -> int | None:
 
 
 def cmd_filter(args) -> None:
+    if load_workbook is None:
+        raise SystemExit("openpyxl is required for meeting Index commands")
     workbook = load_workbook(args.excel, read_only=True, data_only=True)
     sheet = choose_sheet(workbook, args.sheet)
     rows = [[cell_value(cell) for cell in row] for row in sheet.iter_rows()]
@@ -328,6 +346,295 @@ def safe_name(name: str) -> str:
     return re.sub(r"[^A-Za-z0-9._-]+", "_", Path(name).name)
 
 
+def relationship_map(package: zipfile.ZipFile) -> dict[str, dict[str, str]]:
+    try:
+        root = etree.fromstring(package.read("word/_rels/document.xml.rels"))
+    except KeyError:
+        return {}
+    relationships = {}
+    for node in root:
+        rid = node.get("Id")
+        if rid:
+            relationships[rid] = {
+                "target": node.get("Target", ""),
+                "type": node.get("Type", ""),
+                "mode": node.get("TargetMode", ""),
+            }
+    return relationships
+
+
+def package_target(target: str) -> str:
+    return posixpath.normpath(posixpath.join("word", target)).lstrip("/")
+
+
+def markdown_escape(text: str) -> str:
+    return text.replace("\\", "\\\\").replace("`", "\\`")
+
+
+def table_escape(text: str) -> str:
+    return markdown_escape(re.sub(r"\s*\n\s*", "<br>", text.strip())).replace("|", "\\|")
+
+
+def style_names(package: zipfile.ZipFile) -> dict[str, str]:
+    try:
+        root = etree.fromstring(package.read("word/styles.xml"))
+    except KeyError:
+        return {}
+    names = {}
+    for style in root.xpath("./w:style", namespaces=NS):
+        style_id = style.get(f"{{{NS['w']}}}styleId", "")
+        name = style.find("w:name", NS)
+        if style_id:
+            names[style_id] = name.get(f"{{{NS['w']}}}val", style_id) if name is not None else style_id
+    return names
+
+
+def unique_asset_name(target: str, used: set[str]) -> str:
+    original = safe_name(target) or "image.bin"
+    stem, suffix = Path(original).stem, Path(original).suffix
+    candidate = original
+    index = 2
+    while candidate.casefold() in used:
+        candidate = f"{stem}-{index}{suffix}"
+        index += 1
+    used.add(candidate.casefold())
+    return candidate
+
+
+def render_visio(source: Path, assets: Path, stem: str) -> tuple[list[Path], str | None]:
+    libreoffice = shutil.which("libreoffice")
+    pdftoppm = shutil.which("pdftoppm")
+    if not libreoffice or not pdftoppm:
+        return [], "缺少 LibreOffice 或 pdftoppm，已保留原始 Visio 文件。"
+    try:
+        with tempfile.TemporaryDirectory(prefix="3gpp-visio-") as temporary:
+            temporary_path = Path(temporary)
+            profile = temporary_path / "profile"
+            subprocess.run(
+                [
+                    libreoffice,
+                    "--headless",
+                    f"-env:UserInstallation={profile.resolve().as_uri()}",
+                    "--convert-to",
+                    "pdf",
+                    "--outdir",
+                    str(temporary_path),
+                    str(source),
+                ],
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=90,
+            )
+            pdf = temporary_path / f"{source.stem}.pdf"
+            if not pdf.exists():
+                return [], "LibreOffice 没有生成 Visio 预览，已保留原始文件。"
+            prefix = temporary_path / "page"
+            subprocess.run(
+                [pdftoppm, "-png", "-r", "180", str(pdf), str(prefix)],
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=90,
+            )
+            rendered = []
+            for index, image in enumerate(sorted(temporary_path.glob("page-*.png")), 1):
+                destination = assets / f"{stem}-{index}.png"
+                shutil.copyfile(image, destination)
+                rendered.append(destination)
+            if rendered:
+                return rendered, None
+            return [], "Visio 预览为空，已保留原始文件。"
+    except (OSError, subprocess.SubprocessError) as exc:
+        return [], f"Visio 预览生成失败：{exc}"
+
+
+def convert_docx_to_markdown(docx: Path, output: Path) -> dict:
+    if docx.suffix.lower() != ".docx":
+        raise ValueError("Input must be a DOCX file")
+    output.mkdir(parents=True, exist_ok=True)
+    assets = output / "assets"
+    embedded = output / "embedded"
+    assets.mkdir(exist_ok=True)
+    embedded.mkdir(exist_ok=True)
+    warnings: list[str] = []
+    image_files: list[str] = []
+    embedded_files: list[str] = []
+    rendered_visio: list[str] = []
+    used_assets: set[str] = set()
+
+    with zipfile.ZipFile(docx) as package:
+        validate_archive(package)
+        if "word/document.xml" not in package.namelist():
+            raise ValueError("DOCX does not contain word/document.xml")
+        document = etree.fromstring(package.read("word/document.xml"))
+        relationships = relationship_map(package)
+        styles = style_names(package)
+        extracted_by_rid: dict[str, str] = {}
+
+        def extract_image(rid: str) -> str | None:
+            if rid in extracted_by_rid:
+                return extracted_by_rid[rid]
+            relation = relationships.get(rid)
+            if not relation or relation["mode"].lower() == "external":
+                return None
+            target = package_target(relation["target"])
+            if target not in package.namelist():
+                warnings.append(f"图片引用 {rid} 指向的文件不存在。")
+                return None
+            name = unique_asset_name(target, used_assets)
+            destination = assets / name
+            destination.write_bytes(package.read(target))
+            relative = f"assets/{name}"
+            extracted_by_rid[rid] = relative
+            image_files.append(relative)
+            if destination.suffix.lower() in {".emf", ".wmf"}:
+                warnings.append(f"{name} 是 {destination.suffix.upper()[1:]} 图片，部分 Markdown 阅读器可能无法显示。")
+            return relative
+
+        def inline_content(node) -> str:
+            kind = etree.QName(node).localname
+            if kind in {"del", "commentRangeStart", "commentRangeEnd"}:
+                return ""
+            if kind == "t":
+                return markdown_escape(node.text or "")
+            if kind == "tab":
+                return "    "
+            if kind in {"br", "cr"}:
+                return "  \n"
+            if kind == "r":
+                content = "".join(inline_content(child) for child in node if etree.QName(child).localname != "rPr")
+                properties = node.find("w:rPr", NS)
+                if not content:
+                    return ""
+                if properties is not None and properties.find("w:b", NS) is not None:
+                    content = f"**{content}**"
+                if properties is not None and properties.find("w:i", NS) is not None:
+                    content = f"*{content}*"
+                return content
+            if kind == "hyperlink":
+                content = "".join(inline_content(child) for child in node)
+                rid = node.get(f"{{{NS['r']}}}id")
+                relation = relationships.get(rid or "")
+                if content and relation and relation["mode"].lower() == "external":
+                    return f"[{content}]({relation['target']})"
+                return content
+            if kind in {"drawing", "pict"}:
+                references = node.xpath(".//a:blip/@r:embed | .//v:imagedata/@r:id", namespaces=NS)
+                values = []
+                for rid in references:
+                    relative = extract_image(rid)
+                    if relative:
+                        values.append(f"![文档图片]({relative})")
+                return "\n\n".join(values)
+            return "".join(inline_content(child) for child in node)
+
+        def paragraph_markdown(paragraph) -> str:
+            content = "".join(inline_content(child) for child in paragraph).strip()
+            if not content:
+                return ""
+            properties = paragraph.find("w:pPr", NS)
+            style_id = ""
+            if properties is not None:
+                style = properties.find("w:pStyle", NS)
+                if style is not None:
+                    style_id = style.get(f"{{{NS['w']}}}val", "")
+            style_name = styles.get(style_id, style_id).casefold().replace(" ", "")
+            heading = re.search(r"(?:heading|标题)([1-6])", style_name)
+            if heading:
+                return f"{'#' * int(heading.group(1))} {content}"
+            if properties is not None and properties.find("w:numPr", NS) is not None:
+                level_node = properties.find("w:numPr/w:ilvl", NS)
+                level = int(level_node.get(f"{{{NS['w']}}}val", "0")) if level_node is not None else 0
+                return f"{'  ' * level}- {content}"
+            return content
+
+        blocks: list[str] = []
+        body = document.find("w:body", NS)
+        if body is not None:
+            for child in body:
+                kind = etree.QName(child).localname
+                if kind == "p":
+                    rendered = paragraph_markdown(child)
+                    if rendered:
+                        blocks.append(rendered)
+                elif kind == "tbl":
+                    rows = []
+                    for row in child.xpath("./w:tr", namespaces=NS):
+                        cells = []
+                        for cell in row.xpath("./w:tc", namespaces=NS):
+                            cell_parts = [paragraph_markdown(p) for p in cell.xpath("./w:p", namespaces=NS)]
+                            cells.append(table_escape("\n".join(part for part in cell_parts if part)))
+                        rows.append(cells)
+                    if rows:
+                        width = max(len(row) for row in rows)
+                        normalized = [row + [""] * (width - len(row)) for row in rows]
+                        blocks.append("\n".join([
+                            "| " + " | ".join(normalized[0]) + " |",
+                            "| " + " | ".join(["---"] * width) + " |",
+                            *("| " + " | ".join(row) + " |" for row in normalized[1:]),
+                        ]))
+
+        used_embedded: set[str] = set()
+        for rid, relation in relationships.items():
+            relation_type = relation["type"].lower()
+            target = package_target(relation["target"])
+            if "oleobject" not in relation_type and not target.startswith("word/embeddings/"):
+                continue
+            if target not in package.namelist():
+                warnings.append(f"嵌入对象 {rid} 指向的文件不存在。")
+                continue
+            name = unique_asset_name(target, used_embedded)
+            destination = embedded / name
+            destination.write_bytes(package.read(target))
+            relative = f"embedded/{name}"
+            embedded_files.append(relative)
+            if destination.suffix.lower() in {".vsd", ".vsdx"}:
+                images, warning = render_visio(destination, assets, f"{destination.stem}-visio")
+                for image in images:
+                    path_value = f"assets/{image.name}"
+                    image_files.append(path_value)
+                    rendered_visio.append(path_value)
+                if warning:
+                    warnings.append(f"{name}：{warning}")
+            else:
+                warnings.append(f"{name} 无法直接转换，已保留原始嵌入对象。")
+
+    if rendered_visio:
+        blocks.append("## 单独导出的 Visio 图\n\n" + "\n\n".join(
+            f"![Visio 图 {index}]({path_value})" for index, path_value in enumerate(rendered_visio, 1)
+        ))
+    markdown_name = f"{safe_name(docx.stem) or 'proposal'}.md"
+    markdown_path = output / markdown_name
+    markdown_path.write_text("\n\n".join(blocks).strip() + "\n", encoding="utf-8")
+    archive_path = output.with_suffix(".zip")
+    summary = {
+        "schema": CONVERSION_SCHEMA,
+        "input": str(docx.resolve()),
+        "markdown": markdown_name,
+        "images": image_files,
+        "embedded": embedded_files,
+        "warnings": warnings,
+        "archive": str(archive_path.resolve()),
+        "convertedAt": datetime.now(timezone.utc).isoformat(),
+    }
+    summary_path = output / "conversion-summary.json"
+    summary_path.write_text(json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    with zipfile.ZipFile(archive_path, "w", zipfile.ZIP_DEFLATED) as archive:
+        for item in sorted(output.rglob("*")):
+            if item.is_file():
+                archive.write(item, item.relative_to(output))
+    return summary
+
+
+def cmd_convert_docx(args) -> None:
+    try:
+        summary = convert_docx_to_markdown(Path(args.input), Path(args.output))
+    except (OSError, ValueError, KeyError, zipfile.BadZipFile, etree.XMLSyntaxError) as exc:
+        raise SystemExit(f"DOCX conversion failed: {exc}") from exc
+    print(json.dumps(summary, ensure_ascii=False, indent=2))
+
+
 def extract_docx(docx: Path, texts: Path, figures: Path) -> tuple[str, str]:
     doc_id = docx.stem
     doc_figures = figures / doc_id
@@ -475,6 +782,11 @@ def make_parser() -> argparse.ArgumentParser:
     extract.add_argument("--texts", required=True)
     extract.add_argument("--figures", required=True)
     extract.set_defaults(func=cmd_extract)
+
+    converting = commands.add_parser("convert-docx")
+    converting.add_argument("--input", required=True)
+    converting.add_argument("--output", required=True)
+    converting.set_defaults(func=cmd_convert_docx)
 
     coverage = commands.add_parser("coverage")
     coverage.add_argument("--manifest", required=True)

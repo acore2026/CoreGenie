@@ -4,6 +4,7 @@ const { PredefinedAgent } = require("../../models/predefinedAgent");
 
 const { submitAgentRun } = require("../../agent-system/service");
 const { AgentSkillWhitelist } = require("../../models/agentSkillWhitelist");
+const { normalizeAgentAttachments } = require("../../agent-system/attachments");
 
 async function grepAgents({
   uuid,
@@ -38,6 +39,11 @@ async function grepAgents({
       ? await PredefinedAgent.get(defaultAgentId, { enabledOnly: true })
       : null);
   if (explicitlyInvoked || nativeToolingEnabled || predefinedAgent) {
+    const normalizedAttachments = await normalizeAgentAttachments({
+      attachments,
+      workspace,
+      agent: predefinedAgent,
+    });
     const approvalMode = await AgentSkillWhitelist.getApprovalMode();
     const run = await submitAgentRun({
       prompt: message,
@@ -47,7 +53,7 @@ async function grepAgents({
       agentId: predefinedAgent?.id || null,
       mode: workspace.chatMode || "automatic",
       source: "workspace",
-      attachments,
+      attachments: normalizedAttachments,
       configuration: { approvalMode, maxToolCalls: 2_500 },
     });
 

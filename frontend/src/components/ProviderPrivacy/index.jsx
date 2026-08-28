@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import System from "@/models/system";
 import { PROVIDER_PRIVACY_MAP } from "./constants";
 import { ArrowSquareOut } from "@phosphor-icons/react";
-import AnythingLLMIcon from "@/media/logo/anything-llm-icon.png";
+import AnythingLLMIcon from "@/media/logo/coregenie-mark.svg";
 import { Link } from "react-router-dom";
 import { titleCase, sentenceCase } from "text-case";
 

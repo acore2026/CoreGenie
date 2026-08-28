@@ -4,8 +4,13 @@ const { getType } = require("mime");
 const { v4 } = require("uuid");
 const { SystemSettings } = require("../../models/systemSettings");
 const { normalizePath, isWithin } = require(".");
-const LOGO_FILENAME = "anything-llm.png";
-const LOGO_FILENAME_DARK = "anything-llm-dark.png";
+const LOGO_FILENAME = "coregenie.svg";
+const LOGO_FILENAME_DARK = "coregenie-dark.svg";
+const LEGACY_DEFAULT_FILENAMES = [
+  "anything-llm.png",
+  "anything-llm-dark.png",
+  "anything-llm-invert.png",
+];
 
 /**
  * Checks if the filename is the default logo filename for dark or light mode.
@@ -13,7 +18,11 @@ const LOGO_FILENAME_DARK = "anything-llm-dark.png";
  * @returns {boolean} Whether the filename is the default logo filename.
  */
 function isDefaultFilename(filename) {
-  return [LOGO_FILENAME, LOGO_FILENAME_DARK].includes(filename);
+  return [
+    LOGO_FILENAME,
+    LOGO_FILENAME_DARK,
+    ...LEGACY_DEFAULT_FILENAMES,
+  ].includes(filename);
 }
 
 function validFilename(newFilename = "") {
@@ -36,6 +45,14 @@ async function determineLogoFilepath(defaultFilename = LOGO_FILENAME) {
     ? path.join(process.env.STORAGE_DIR, "assets")
     : path.join(__dirname, "../../storage/assets");
   const defaultFilepath = path.join(basePath, defaultFilename);
+  const packagedDefaultFilepath = path.join(
+    __dirname,
+    "../../public",
+    defaultFilename
+  );
+  const resolvedDefaultFilepath = fs.existsSync(defaultFilepath)
+    ? defaultFilepath
+    : packagedDefaultFilepath;
 
   if (currentLogoFilename && validFilename(currentLogoFilename)) {
     const customLogoPath = path.join(
@@ -43,11 +60,13 @@ async function determineLogoFilepath(defaultFilename = LOGO_FILENAME) {
       normalizePath(currentLogoFilename)
     );
     if (!isWithin(path.resolve(basePath), path.resolve(customLogoPath)))
-      return defaultFilepath;
-    return fs.existsSync(customLogoPath) ? customLogoPath : defaultFilepath;
+      return resolvedDefaultFilepath;
+    return fs.existsSync(customLogoPath)
+      ? customLogoPath
+      : resolvedDefaultFilepath;
   }
 
-  return defaultFilepath;
+  return resolvedDefaultFilepath;
 }
 
 function fetchLogo(logoPath) {

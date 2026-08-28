@@ -26,7 +26,12 @@ const {
   skillCatalogPrompt,
 } = require("../../agent-skills/registry");
 const { getCheckpointer } = require("../checkpointer");
-const { contentText, finalText, userContent } = require("../message");
+const {
+  contentText,
+  finalText,
+  userContent,
+  isImageAttachment,
+} = require("../message");
 const {
   childRunnableConfig,
   withAgentStepTrace,
@@ -684,7 +689,7 @@ function createGovernedGraph(context) {
     }
     let controllerAttachments = [];
     const imageAttachments = (state.attachments || []).filter(
-      (attachment) => attachment?.contentString
+      isImageAttachment
     );
     if (imageAttachments.length) {
       await ModelCapability.seedBuiltins();

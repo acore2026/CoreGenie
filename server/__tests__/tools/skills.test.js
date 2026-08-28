@@ -56,6 +56,46 @@ describe("governed Agent Skill activation", () => {
     ).toMatch(/skill:\/\/example[\s\S]*Do the work\.$/);
   });
 
+  it("reads SKILL.md when it is advertised in the activated package", async () => {
+    const skill = {
+      name: "3gpp-review",
+      scope: "global",
+      revision: "sha256:current",
+      root: "/private/package/root",
+      files: [{ path: "SKILL.md" }, { path: "scripts/3gpp_tdocs.py" }],
+    };
+    resolveAvailableSkill.mockResolvedValue(skill);
+    readPackageResource.mockResolvedValue({
+      path: "SKILL.md",
+      binary: false,
+      content: "# 3GPP review",
+    });
+    const context = {
+      agent: { id: 6 },
+      workspace: { id: 1 },
+      activatedSkill: jest.fn().mockReturnValue({
+        revision: "sha256:current",
+      }),
+      emit: jest.fn().mockResolvedValue(undefined),
+    };
+
+    const result = await readSkillResource.execute(
+      { name: "3gpp-review", path: "SKILL.md", offset: 0 },
+      context
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      code: "SKILL_RESOURCE_READ",
+      summary: "Read SKILL.md.",
+    });
+    expect(readPackageResource).toHaveBeenCalledWith(
+      skill.root,
+      "SKILL.md",
+      0
+    );
+  });
+
   it("resolves a unique resource basename instead of probing guessed paths", async () => {
     const skill = {
       name: "3gpp-position-evolution",
@@ -144,6 +184,7 @@ describe("governed Agent Skill activation", () => {
       data: {
         requestedPath: "missing-resource",
         availablePaths: [
+          "SKILL.md",
           "references/status-semantics.md",
           "references/evidence-taxonomy.md",
           "scripts/3gpp_evolution.py",

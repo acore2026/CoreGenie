@@ -46,8 +46,8 @@ export default function Register() {
     <div className="fixed inset-0 bg-zinc-950 light:bg-slate-50 flex flex-col items-center justify-center overflow-y-auto p-6">
       <img
         src={loginLogo}
-        alt="Logo"
-        className={`max-h-[80px] mb-7 ${isCustomLogo ? "rounded-lg" : ""}`}
+        alt="品牌标志"
+        className={`max-h-[104px] mb-8 ${isCustomLogo ? "rounded-lg" : ""}`}
         style={{ objectFit: "contain" }}
       />
       <div className="w-full max-w-[396px] rounded-2xl border border-zinc-800 light:border-slate-200 bg-zinc-900 light:bg-white p-8 shadow-2xl">

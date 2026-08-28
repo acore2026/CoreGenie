@@ -8,6 +8,29 @@ function manager(context) {
   return filesystem.forWorkspace(context.workspace.id);
 }
 
+function skillUriResult(requestedPath) {
+  const raw = String(requestedPath || "")
+    .trim()
+    .replace(/\\/g, "/");
+  const match = raw.match(/^skill:\/{1,2}([^/]+)(?:\/(.*))?$/i);
+  if (!match) return null;
+  const [, name, resourcePath] = match;
+  const instruction = resourcePath
+    ? `Use read_skill_resource with name="${name}" and path="${resourcePath}".`
+    : `Use the files list returned by activate_skill for "${name}", then call read_skill_resource with one of those exact paths.`;
+  return {
+    ok: false,
+    code: "SKILL_URI_NOT_WORKSPACE_PATH",
+    summary: `${raw} is a Skill package URI, not a workspace filesystem path. ${instruction}`,
+    data: {
+      requestedPath: raw,
+      skillName: name,
+      resourcePath: resourcePath || null,
+    },
+    retryable: false,
+  };
+}
+
 async function missingFileResult(workspaceFs, requestedPath, error) {
   const message = String(error?.message || error || "");
   if (error?.code !== "ENOENT" && !message.includes("ENOENT")) throw error;
@@ -49,6 +72,8 @@ const readFile = defineTool({
   action: false,
   execute: async ({ path: filePath, head, tail }, context) => {
     if (head && tail) throw new Error("Use either head or tail, not both.");
+    const skillUri = skillUriResult(filePath);
+    if (skillUri) return skillUri;
     const workspaceFs = manager(context);
     const target = await workspaceFs.validatePath(filePath);
     try {
@@ -72,6 +97,8 @@ const writeFile = defineTool({
     append: z.boolean().default(false),
   }),
   execute: async ({ path: filePath, content, append }, context) => {
+    const skillUri = skillUriResult(filePath);
+    if (skillUri) return skillUri;
     const workspaceFs = manager(context);
     const target = await workspaceFs.validatePath(filePath);
     if (append) await fs.appendFile(target, content, "utf8");
@@ -88,6 +115,8 @@ const listDirectory = defineTool({
   schema: z.object({ path: z.string().default(".") }),
   action: false,
   execute: async ({ path: directory }, context) => {
+    const skillUri = skillUriResult(directory);
+    if (skillUri) return skillUri;
     const workspaceFs = manager(context);
     const target = await workspaceFs.validatePath(directory);
     const entries = await fs.readdir(target, { withFileTypes: true });
@@ -107,6 +136,8 @@ const deletePath = defineTool({
     recursive: z.boolean().default(false),
   }),
   execute: async ({ path: requestedPath, recursive }, context) => {
+    const skillUri = skillUriResult(requestedPath);
+    if (skillUri) return skillUri;
     const workspaceFs = manager(context);
     await workspaceFs.deletePath(requestedPath, { recursive });
     return `Deleted ${path.normalize(requestedPath)}.`;
@@ -125,6 +156,8 @@ const searchFiles = defineTool({
   }),
   action: false,
   execute: async ({ root, pattern, max_results }, context) => {
+    const skillUri = skillUriResult(root);
+    if (skillUri) return skillUri;
     const workspaceFs = manager(context);
     const target = await workspaceFs.validatePath(root);
     const results = await workspaceFs.searchFilesWithGlob(target, pattern, {

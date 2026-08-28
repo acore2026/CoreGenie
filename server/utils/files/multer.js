@@ -238,6 +238,24 @@ function handleSkillAssetUpload(request, response, next) {
   });
 }
 
+function handleWorkspaceDocxUpload(request, response, next) {
+  const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 50 * 1024 * 1024, files: 1 },
+  }).single("file");
+  upload(request, response, function (err) {
+    if (err)
+      return response.status(400).json({
+        success: false,
+        error:
+          err.code === "LIMIT_FILE_SIZE"
+            ? "DOCX 不能超过 50 MiB。"
+            : `无法上传文件：${err.message}`,
+      });
+    next();
+  });
+}
+
 module.exports = {
   handleFileUpload,
   handleAPIFileUpload,
@@ -246,4 +264,5 @@ module.exports = {
   handleAudioUpload,
   handleAgentIconUpload,
   handleSkillAssetUpload,
+  handleWorkspaceDocxUpload,
 };

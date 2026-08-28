@@ -62,8 +62,8 @@ export default function SettingsSidebar() {
           <div className="flex items-center justify-center flex-grow">
             <img
               src={logo}
-              alt="Logo"
-              className="block mx-auto h-6 w-auto"
+              alt="品牌标志"
+              className="block mx-auto h-8 w-auto"
               style={{ maxHeight: "40px", objectFit: "contain" }}
             />
           </div>
@@ -100,8 +100,8 @@ export default function SettingsSidebar() {
                 <div className="flex shrink-1 w-fit items-center justify-start">
                   <img
                     src={logo}
-                    alt="Logo"
-                    className="rounded w-full max-h-[40px]"
+                    alt="品牌标志"
+                    className="rounded w-full max-h-[48px]"
                     style={{ objectFit: "contain" }}
                   />
                 </div>
@@ -162,14 +162,14 @@ export default function SettingsSidebar() {
         >
           <img
             src={logo}
-            alt="Logo"
-            className="rounded max-h-[24px]"
+            alt="品牌标志"
+            className="rounded max-h-[32px]"
             style={{ objectFit: "contain" }}
           />
         </Link>
         <div
           ref={sidebarRef}
-          className="transition-all duration-500 relative m-[16px] rounded-[16px] bg-theme-bg-sidebar border-[2px] border-theme-sidebar-border light:border-none min-w-[250px] p-[10px] h-[calc(100%-76px)]"
+          className="transition-all duration-500 relative m-[16px] rounded-[16px] bg-theme-bg-sidebar border-[2px] border-theme-sidebar-border light:border-none min-w-[250px] p-[10px] h-[calc(100%-84px)]"
         >
           <div className="w-full h-full flex flex-col overflow-x-hidden items-between min-w-[235px]">
             <Link

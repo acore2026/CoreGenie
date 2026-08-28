@@ -10,7 +10,7 @@ import OpenAiOptions from "@/components/LLMSelection/OpenAiOptions";
 import GenericOpenAiOptions from "@/components/LLMSelection/GenericOpenAiOptions";
 import OpenAiLogo from "@/media/llmprovider/openai.png";
 import GenericOpenAiLogo from "@/media/llmprovider/generic-openai.png";
-import AnythingLLMIcon from "@/media/logo/anything-llm-icon.png";
+import AnythingLLMIcon from "@/media/logo/coregenie-mark.svg";
 import System from "@/models/system";
 import showToast from "@/utils/toast";
 

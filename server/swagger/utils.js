@@ -4,8 +4,8 @@ const swaggerUi = require("swagger-ui-express");
 
 function faviconUrl() {
   return process.env.NODE_ENV === "production"
-    ? "/public/favicon.png"
-    : "http://localhost:3000/public/favicon.png";
+    ? "/coregenie-mark.svg"
+    : "http://localhost:3000/coregenie-mark.svg";
 }
 
 function useSwagger(app) {

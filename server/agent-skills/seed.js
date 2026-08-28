@@ -5,8 +5,9 @@ const { PredefinedAgentSkill } = require("../models/predefinedAgentSkill");
 const { PredefinedAgent } = require("../models/predefinedAgent");
 const { seed3gppPositionEvolution } = require("./positionEvolutionSeed");
 
-const SEED_SETTING = "agent_skill_seed_3gpp_review_v6";
+const SEED_SETTING = "agent_skill_seed_3gpp_review_v7";
 const AGENT_NAME = "3GPP 提案分析助手（Skill）";
+const CONVERTER_AGENT_NAME = "3GPP 提案转 Markdown 助手";
 const SKILL_NAME = "3gpp-review";
 const LEGACY_SKILL_NAMES = ["3gpp-tdocs"];
 const AGENT_TOOLS = [
@@ -39,6 +40,29 @@ const AGENT_PROMPT = `你是一名面向 3GPP/6G 标准研究的提案分析助�
 - 最终报告必须通过严格 coverage 并生成 receipt，再将 manifest、receipt 和完整 TDoc 列表一并传给 knowledge.publish；
 - 每次运行只发布一份最终报告，发布成功后不得换路径再次发布；
 - knowledge.publish 成功后，在最终回复中说明报告路径、覆盖率和入库结果。`;
+const CONVERTER_TOOLS = [
+  "bash",
+  "python",
+  "filesystem.read",
+  "filesystem.write",
+  "filesystem.list",
+  "filesystem.search",
+  "web.fetch",
+  "user.ask",
+];
+const CONVERTER_PROMPT = `你负责把 3GPP 提案 DOCX 转成 Markdown 和图片压缩包。
+
+开始处理前必须激活 3gpp-review Skill，并使用其中的 conversion mode 和 convert-docx 命令。
+
+核心要求：
+- 输入可以是用户上传的 DOCX 工作区路径，也可以是 TDoc 编号、工作组和会议信息；
+- 用户提供 TDoc 信息时，只从 3GPP 官方网站查找和下载；结果不唯一时先询问，不要猜文件；
+- 只做格式转换，不总结、比较或分析提案观点；
+- 保留标题、段落、列表、表格、链接、图片和可导出的嵌入对象；
+- 不把图片改写成 Mermaid，也不根据模糊图片补画内容；
+- 每次转换使用 /workspace/3gpp-markdown/results/ 下的新目录；
+- 完成后检查 Markdown、conversion-summary.json 和 ZIP 是否存在；
+- 最终回复说明 ZIP 路径和转换警告，不调用 knowledge.publish。`;
 let seedPromise = null;
 
 async function seed3gppReview() {
@@ -92,9 +116,8 @@ async function seed3gppReview() {
     skill = updated.skill;
   }
 
-  let agent = (await PredefinedAgent.all()).find(
-    (item) => item.name === AGENT_NAME
-  );
+  const agents = await PredefinedAgent.all();
+  let agent = agents.find((item) => item.name === AGENT_NAME);
   const agentData = {
     name: AGENT_NAME,
     description:
@@ -121,6 +144,35 @@ async function seed3gppReview() {
     ? await PredefinedAgent.update(agent.id, agentData)
     : await PredefinedAgent.create(agentData);
   if (!agent) throw new Error("Unable to seed the 3GPP review Agent.");
+
+  let converterAgent = agents.find(
+    (item) => item.name === CONVERTER_AGENT_NAME
+  );
+  const converterData = {
+    name: CONVERTER_AGENT_NAME,
+    description:
+      "把 3GPP 提案 DOCX 转成 Markdown，并将原图和无法直接转换的嵌入对象一起打包。",
+    welcomeMessage:
+      "上传 DOCX 提案，或告诉我 TDoc 编号、工作组和会议，我会生成 Markdown 和图片压缩包。",
+    examplePrompts: [
+      "请把我上传的提案转换成 Markdown 和图片压缩包。",
+      "请下载 S2-2606085，并转换成 Markdown 和图片压缩包。",
+      "把这个 DOCX 的表格、图片和 Visio 图按原文顺序整理成 Markdown。",
+    ],
+    tools: CONVERTER_TOOLS,
+    skillIds: [skill.id],
+    systemPrompt: CONVERTER_PROMPT,
+    runtimeKey: "governed-agent",
+    runtimeConfig: {
+      attachmentMode: "workspace_file",
+    },
+    enabled: true,
+  };
+  converterAgent = converterAgent
+    ? await PredefinedAgent.update(converterAgent.id, converterData)
+    : await PredefinedAgent.create(converterData);
+  if (!converterAgent)
+    throw new Error("Unable to seed the 3GPP Markdown converter Agent.");
 
   // v1 briefly attached the skill to the installation-wide default Agent.
   // Keep the specialized workflow isolated while preserving the chosen default.

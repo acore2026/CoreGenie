@@ -155,7 +155,7 @@ function parseSkillMarkdown(source, { directoryName = null } = {}) {
   };
 }
 
-function normalizePackagePath(value) {
+function normalizePackagePath(value, { allowSkillManifest = false } = {}) {
   const raw = String(value || "")
     .replace(/\\/g, "/")
     .trim();
@@ -169,7 +169,7 @@ function normalizePackagePath(value) {
   const normalized = path.posix.normalize(raw);
   if (
     normalized === "." ||
-    normalized === "SKILL.md" ||
+    (!allowSkillManifest && normalized === "SKILL.md") ||
     normalized.startsWith("../") ||
     normalized.includes("/../")
   )
@@ -452,7 +452,9 @@ async function resolveWorkspacePackage(workspaceId, name) {
 }
 
 async function readPackageResource(root, resourcePath, offset = 0) {
-  const relative = normalizePackagePath(resourcePath);
+  const relative = normalizePackagePath(resourcePath, {
+    allowSkillManifest: true,
+  });
   const absolute = path.resolve(root, relative);
   if (!absolute.startsWith(`${path.resolve(root)}${path.sep}`))
     throw new Error("Resource path escapes the skill package.");

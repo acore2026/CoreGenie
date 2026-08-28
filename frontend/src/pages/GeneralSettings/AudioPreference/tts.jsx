@@ -5,7 +5,7 @@ import LLMItem from "@/components/LLMSelection/LLMItem";
 import { CaretUpDown, MagnifyingGlass, X } from "@phosphor-icons/react";
 import CTAButton from "@/components/lib/CTAButton";
 import OpenAiLogo from "@/media/llmprovider/openai.png";
-import AnythingLLMIcon from "@/media/logo/anything-llm-icon.png";
+import AnythingLLMIcon from "@/media/logo/coregenie-mark.svg";
 import ElevenLabsIcon from "@/media/ttsproviders/elevenlabs.png";
 import PiperTTSIcon from "@/media/ttsproviders/piper.png";
 import GenericOpenAiLogo from "@/media/ttsproviders/generic-openai.png";

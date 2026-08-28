@@ -7,6 +7,7 @@ const EVIDENCE_RESEARCH_RUNTIME_KEY = "evidence-research";
 
 const roleModelSchema = z
   .object({
+    attachmentMode: z.enum(["parsed", "workspace_file"]).default("parsed"),
     plannerModel: z.string().trim().min(1).nullable().optional(),
     controllerModel: z.string().trim().min(1).nullable().optional(),
     workerModel: z.string().trim().min(1).nullable().optional(),

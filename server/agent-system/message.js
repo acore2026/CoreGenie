@@ -1,4 +1,5 @@
 const { safeJsonParse } = require("../utils/http");
+const { WORKSPACE_FILE_MIME } = require("./attachments");
 
 function contentText(content) {
   if (typeof content === "string") return content;
@@ -45,16 +46,36 @@ function normalizedHistory(entries = []) {
   });
 }
 
+function isImageAttachment(attachment) {
+  return Boolean(
+    attachment?.contentString &&
+      (String(attachment.mime || "").startsWith("image/") ||
+        String(attachment.contentString).startsWith("data:image/"))
+  );
+}
+
 function userContent(prompt, attachments = []) {
   if (!Array.isArray(attachments) || attachments.length === 0) return prompt;
+  const workspaceFiles = attachments.filter(
+    (attachment) => attachment?.mime === WORKSPACE_FILE_MIME
+  );
+  const fileContext = workspaceFiles.length
+    ? `\n\n<workspace_files>\n${workspaceFiles
+        .map(
+          (attachment) =>
+            `- ${attachment.name || "proposal.docx"}: ${attachment.contentString}`
+        )
+        .join("\n")}\n</workspace_files>`
+    : "";
+  const text = `${prompt}${fileContext}`;
+  const images = attachments.filter(isImageAttachment);
+  if (!images.length) return text;
   return [
-    { type: "text", text: prompt },
-    ...attachments
-      .filter((attachment) => attachment?.contentString)
-      .map((attachment) => ({
-        type: "image_url",
-        image_url: { url: attachment.contentString, detail: "high" },
-      })),
+    { type: "text", text },
+    ...images.map((attachment) => ({
+      type: "image_url",
+      image_url: { url: attachment.contentString, detail: "high" },
+    })),
   ];
 }
 
@@ -77,5 +98,6 @@ module.exports = {
   persistedHistory,
   normalizedHistory,
   userContent,
+  isImageAttachment,
   finalText,
 };

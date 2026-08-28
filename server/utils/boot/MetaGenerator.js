@@ -17,6 +17,10 @@
  * static property and will not be reloaded until the page is loaded AND #customConfig is explicitly null. So anytime a setting
  * for meta-props is updated you should get this singleton class and call `.clearConfig` so the next page load will show the new props.
  */
+const DEFAULT_PRODUCT_NAME = "CoreGenie";
+const DEFAULT_META_TITLE = "CoreGenie | 智能 Agent 工作台";
+const DEFAULT_FAVICON = "/coregenie-mark.svg";
+
 class MetaGenerator {
   name = "MetaGenerator";
 
@@ -27,14 +31,15 @@ class MetaGenerator {
   #customConfig = null;
 
   #defaultManifest = {
-    name: "AnythingLLM",
-    short_name: "AnythingLLM",
+    name: DEFAULT_PRODUCT_NAME,
+    short_name: DEFAULT_PRODUCT_NAME,
     display: "standalone",
     orientation: "portrait",
     start_url: "/",
     icons: [
       {
-        src: "/favicon.png",
+        src: DEFAULT_FAVICON,
+        type: "image/svg+xml",
         sizes: "any",
       },
     ],
@@ -53,27 +58,27 @@ class MetaGenerator {
     return [
       {
         tag: "link",
-        props: { type: "image/svg+xml", href: "/favicon.png" },
+        props: { type: "image/svg+xml", href: DEFAULT_FAVICON },
         content: null,
       },
       {
         tag: "title",
         props: null,
-        content: "AnythingLLM | Your personal LLM trained on anything",
+        content: DEFAULT_META_TITLE,
       },
 
       {
         tag: "meta",
         props: {
           name: "title",
-          content: "AnythingLLM | Your personal LLM trained on anything",
+          content: DEFAULT_META_TITLE,
         },
       },
       {
         tag: "meta",
         props: {
           description: "title",
-          content: "AnythingLLM | Your personal LLM trained on anything",
+          content: DEFAULT_META_TITLE,
         },
       },
 
@@ -81,28 +86,16 @@ class MetaGenerator {
       { tag: "meta", props: { property: "og:type", content: "website" } },
       {
         tag: "meta",
-        props: { property: "og:url", content: "https://anythingllm.com" },
-      },
-      {
-        tag: "meta",
         props: {
           property: "og:title",
-          content: "AnythingLLM | Your personal LLM trained on anything",
+          content: DEFAULT_META_TITLE,
         },
       },
       {
         tag: "meta",
         props: {
           property: "og:description",
-          content: "AnythingLLM | Your personal LLM trained on anything",
-        },
-      },
-      {
-        tag: "meta",
-        props: {
-          property: "og:image",
-          content:
-            "https://raw.githubusercontent.com/Mintplex-Labs/anything-llm/master/images/promo.png",
+          content: DEFAULT_META_TITLE,
         },
       },
 
@@ -113,33 +106,24 @@ class MetaGenerator {
       },
       {
         tag: "meta",
-        props: { property: "twitter:url", content: "https://anythingllm.com" },
-      },
-      {
-        tag: "meta",
         props: {
           property: "twitter:title",
-          content: "AnythingLLM | Your personal LLM trained on anything",
+          content: DEFAULT_META_TITLE,
         },
       },
       {
         tag: "meta",
         props: {
           property: "twitter:description",
-          content: "AnythingLLM | Your personal LLM trained on anything",
-        },
-      },
-      {
-        tag: "meta",
-        props: {
-          property: "twitter:image",
-          content:
-            "https://raw.githubusercontent.com/Mintplex-Labs/anything-llm/master/images/promo.png",
+          content: DEFAULT_META_TITLE,
         },
       },
 
-      { tag: "link", props: { rel: "icon", href: "/favicon.png" } },
-      { tag: "link", props: { rel: "apple-touch-icon", href: "/favicon.png" } },
+      { tag: "link", props: { rel: "icon", href: DEFAULT_FAVICON } },
+      {
+        tag: "link",
+        props: { rel: "apple-touch-icon", href: DEFAULT_FAVICON },
+      },
 
       // PWA specific tags
       {
@@ -188,12 +172,12 @@ class MetaGenerator {
   }
 
   #validUrl(faviconUrl = null) {
-    if (faviconUrl === null) return "/favicon.png";
+    if (faviconUrl === null) return DEFAULT_FAVICON;
     try {
       const url = new URL(faviconUrl);
       return url.toString();
     } catch {
-      return "/favicon.png";
+      return DEFAULT_FAVICON;
     }
   }
 
@@ -227,9 +211,7 @@ class MetaGenerator {
           return {
             tag: "title",
             props: null,
-            content:
-              customTitle ??
-              "AnythingLLM | Your personal LLM trained on anything",
+            content: customTitle ?? DEFAULT_META_TITLE,
           };
         }
         // Override meta title
@@ -238,9 +220,7 @@ class MetaGenerator {
             tag: "meta",
             props: {
               name: "title",
-              content:
-                customTitle ??
-                "AnythingLLM | Your personal LLM trained on anything",
+              content: customTitle ?? DEFAULT_META_TITLE,
             },
           };
         }
@@ -250,9 +230,7 @@ class MetaGenerator {
             tag: "meta",
             props: {
               property: "og:title",
-              content:
-                customTitle ??
-                "AnythingLLM | Your personal LLM trained on anything",
+              content: customTitle ?? DEFAULT_META_TITLE,
             },
           };
         }
@@ -262,9 +240,7 @@ class MetaGenerator {
             tag: "meta",
             props: {
               property: "twitter:title",
-              content:
-                customTitle ??
-                "AnythingLLM | Your personal LLM trained on anything",
+              content: customTitle ?? DEFAULT_META_TITLE,
             },
           };
         }
@@ -330,20 +306,20 @@ class MetaGenerator {
       const { SystemSettings } = require("../../models/systemSettings");
       const manifestName = await SystemSettings.getValueOrFallback(
         { label: "meta_page_title" },
-        "AnythingLLM"
+        DEFAULT_PRODUCT_NAME
       );
       const faviconURL = await SystemSettings.getValueOrFallback(
         { label: "meta_page_favicon" },
         null
       );
 
-      let iconUrl = "/favicon.png";
+      let iconUrl = DEFAULT_FAVICON;
       if (faviconURL) {
         try {
           new URL(faviconURL);
           iconUrl = faviconURL;
         } catch {
-          iconUrl = "/favicon.png";
+          iconUrl = DEFAULT_FAVICON;
         }
       }
 
@@ -357,6 +333,7 @@ class MetaGenerator {
           {
             src: iconUrl,
             sizes: "any",
+            ...(iconUrl === DEFAULT_FAVICON ? { type: "image/svg+xml" } : {}),
           },
         ],
       };

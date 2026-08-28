@@ -176,6 +176,7 @@ function predefinedAgentEndpoints(app) {
     "/predefined-agents",
     [validatedRequest, flexUserRoleValid(ROLES.all)],
     async (_request, response) => {
+      await require("../agent-skills/seed").seedBuiltinSkills();
       const [agents, defaultAgentId] = await Promise.all([
         PredefinedAgent.all({ enabledOnly: true }),
         PredefinedAgent.defaultId(),
@@ -192,6 +193,7 @@ function predefinedAgentEndpoints(app) {
             enabled,
             isBuiltinDefault,
             runtimeKey,
+            runtimeConfig,
           }) => ({
             id,
             name,
@@ -202,6 +204,7 @@ function predefinedAgentEndpoints(app) {
             enabled,
             isBuiltinDefault,
             runtimeKey,
+            attachmentMode: runtimeConfig?.attachmentMode || "parsed",
           })
         ),
         defaultAgentId,

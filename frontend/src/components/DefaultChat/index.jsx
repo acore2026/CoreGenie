@@ -76,8 +76,8 @@ export default function DefaultChatContainer() {
       <div className="w-full h-full flex flex-col items-center justify-center overflow-y-auto no-scroll">
         <img
           src={logo}
-          alt="Custom Logo"
-          className=" w-[200px] h-fit mb-5 rounded-lg"
+          alt="品牌标志"
+          className="w-[240px] h-fit mb-6 rounded-lg"
         />
         <h1 className="text-white text-2xl font-semibold">
           {t("home.welcome")}, {user.username}!

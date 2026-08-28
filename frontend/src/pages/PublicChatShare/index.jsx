@@ -306,8 +306,8 @@ export default function PublicChatSharePage() {
             {logo ? (
               <img
                 src={logo}
-                alt="AnythingLLM"
-                className="h-7 max-w-[150px] object-contain object-left"
+                alt="CoreGenie"
+                className="h-9 max-w-[192px] object-contain object-left"
               />
             ) : (
               <ChatCircleDots size={25} className="text-amber-400" />

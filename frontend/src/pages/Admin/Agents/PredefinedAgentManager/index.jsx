@@ -587,7 +587,8 @@ function AgentEditor({
           name: typeof model === "string" ? model : model.name || id,
         });
     }
-    for (const value of Object.values(form.runtimeConfig || {})) {
+    for (const [key, value] of Object.entries(form.runtimeConfig || {})) {
+      if (!key.endsWith("Model")) continue;
       if (value && !unique.has(value))
         unique.set(value, { id: value, name: value });
     }

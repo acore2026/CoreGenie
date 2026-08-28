@@ -70,9 +70,19 @@ describe("3GPP review seed", () => {
         }),
       })
     );
+    expect(PredefinedAgent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "3GPP 提案转 Markdown 助手",
+        skillIds: [10],
+        runtimeConfig: expect.objectContaining({
+          attachmentMode: "workspace_file",
+        }),
+        tools: expect.not.arrayContaining(["knowledge.publish"]),
+      })
+    );
     expect(prisma.system_settings.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { label: "agent_skill_seed_3gpp_review_v6" },
+        where: { label: "agent_skill_seed_3gpp_review_v7" },
       })
     );
   });

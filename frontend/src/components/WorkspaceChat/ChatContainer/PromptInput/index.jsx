@@ -483,7 +483,7 @@ function ExamplePromptShelf({ prompts = [], onSelect }) {
 
   return (
     <div
-      className="flex w-full items-center gap-2 overflow-x-auto px-1 py-2 no-scroll"
+      className="flex w-full flex-wrap items-stretch gap-2 px-1 py-2"
       aria-label="Agent example inputs"
     >
       {visiblePrompts.map((prompt, index) => (
@@ -492,14 +492,14 @@ function ExamplePromptShelf({ prompts = [], onSelect }) {
           type="button"
           onClick={() => onSelect(prompt)}
           title={prompt}
-          className="group inline-flex min-h-8 w-fit max-w-[calc(100%_-_8px)] shrink-0 items-start gap-1.5 rounded-2xl border border-cyan-300/15 bg-cyan-300/[0.055] px-3 py-2 text-left text-xs text-zinc-300 shadow-[0_8px_24px_rgba(0,0,0,0.08)] transition hover:-translate-y-0.5 hover:border-cyan-300/35 hover:bg-cyan-300/[0.1] hover:text-white md:max-w-[620px] light:border-cyan-600/15 light:bg-cyan-50 light:text-slate-600 light:hover:border-cyan-500/40 light:hover:bg-cyan-100 light:hover:text-slate-900"
+          className="group inline-flex min-h-8 min-w-0 max-w-full items-start gap-1.5 rounded-2xl border border-cyan-300/15 bg-cyan-300/[0.055] px-3 py-2 text-left text-xs text-zinc-300 shadow-[0_8px_24px_rgba(0,0,0,0.08)] transition hover:-translate-y-0.5 hover:border-cyan-300/35 hover:bg-cyan-300/[0.1] hover:text-white md:max-w-[620px] light:border-cyan-600/15 light:bg-cyan-50 light:text-slate-600 light:hover:border-cyan-500/40 light:hover:bg-cyan-100 light:hover:text-slate-900"
         >
           <ChatCircleText
             size={13}
             weight="duotone"
             className="mt-px shrink-0 text-cyan-300 light:text-cyan-700"
           />
-          <span className="whitespace-normal break-words leading-4">
+          <span className="min-w-0 whitespace-normal break-words leading-4">
             {prompt}
           </span>
         </button>

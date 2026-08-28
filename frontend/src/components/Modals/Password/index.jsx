@@ -19,8 +19,8 @@ export default function PasswordModal({
     <div className="fixed inset-0 bg-zinc-950 light:bg-slate-50 flex flex-col items-center justify-center overflow-hidden">
       <img
         src={loginLogo}
-        alt="Logo"
-        className={`max-h-[80px] ${isCustomLogo ? "rounded-lg" : ""}`}
+        alt="品牌标志"
+        className={`max-h-[104px] ${isCustomLogo ? "rounded-lg" : ""}`}
         style={{ objectFit: "contain" }}
       />
       {mode === "single" ? (

@@ -12,6 +12,7 @@ import {
 } from "@phosphor-icons/react";
 import { REMOVE_ATTACHMENT_EVENT } from "../../DnDWrapper";
 import { openImageLightbox } from "@/components/ImageLightbox";
+import { useTranslation } from "react-i18next";
 
 /**
  * @param {{attachments: import("../../DnDWrapper").Attachment[]}}
@@ -47,13 +48,16 @@ export default function AttachmentManager({ attachments }) {
  * @param {{attachment: import("../../DnDWrapper").Attachment}}
  */
 function AttachmentItem({ attachment, onImageClick }) {
+  const { t } = useTranslation();
   const { uid, file, status, error, document, type, contentString } =
     attachment;
   const { iconBgColor, Icon } = displayFromFile(file);
 
   function removeFileFromQueue() {
     window.dispatchEvent(
-      new CustomEvent(REMOVE_ATTACHMENT_EVENT, { detail: { uid, document } })
+      new CustomEvent(REMOVE_ATTACHMENT_EVENT, {
+        detail: { uid, document, type },
+      })
     );
   }
 
@@ -173,6 +177,40 @@ function AttachmentItem({ attachment, onImageClick }) {
           </p>
           <p className="text-theme-attachment-text-secondary text-[10px] leading-[14px] font-medium">
             Image attached!
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (type === "workspace_file") {
+    return (
+      <div className="relative flex w-[180px] items-center gap-x-1 rounded-lg border border-theme-chat-input-border bg-theme-attachment-bg group">
+        <div className="invisible absolute -right-[5px] -top-[5px] z-[10] h-fit w-fit group-hover:visible group-focus-within:visible">
+          <button
+            onClick={removeFileFromQueue}
+            type="button"
+            aria-label={t("chat_window.remove_attachment")}
+            className="flex items-center justify-center rounded-full border border-theme-attachment-bg bg-white p-1 hover:border-transparent hover:bg-error hover:text-theme-attachment-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70"
+          >
+            <X size={10} className="flex-shrink-0" />
+          </button>
+        </div>
+        <div
+          className={`${iconBgColor} m-1 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md`}
+        >
+          <Icon
+            size={24}
+            weight="light"
+            className="text-theme-attachment-icon"
+          />
+        </div>
+        <div className="flex w-[125px] flex-col">
+          <p className="truncate text-xs font-semibold text-theme-attachment-text">
+            {file.name}
+          </p>
+          <p className="text-[10px] font-medium leading-[14px] text-theme-attachment-text-secondary">
+            {t("chat_window.docx_ready")}
           </p>
         </div>
       </div>

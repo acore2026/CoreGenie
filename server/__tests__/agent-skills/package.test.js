@@ -69,6 +69,9 @@ describe("Agent Skills packages", () => {
     await expect(
       readPackageResource(packages[0].root, "scripts/demo.py")
     ).resolves.toMatchObject({ content: "print('ok')\n", binary: false });
+    await expect(
+      readPackageResource(packages[0].root, "SKILL.md")
+    ).resolves.toMatchObject({ content: skillMd, binary: false });
   });
 
   it("rejects package traversal", async () => {
@@ -76,6 +79,15 @@ describe("Agent Skills packages", () => {
       saveWorkspacePackage(3, {
         skillMd: "---\nname: demo-skill\ndescription: A test skill.\n---\n",
         files: [{ path: "../escape.py", content: "bad" }],
+      })
+    ).rejects.toThrow("Invalid package path");
+  });
+
+  it("does not let supplemental files overwrite SKILL.md", async () => {
+    await expect(
+      saveWorkspacePackage(3, {
+        skillMd: "---\nname: demo-skill\ndescription: A test skill.\n---\n",
+        files: [{ path: "SKILL.md", content: "replacement" }],
       })
     ).rejects.toThrow("Invalid package path");
   });
