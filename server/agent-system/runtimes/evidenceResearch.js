@@ -305,7 +305,7 @@ function createResearchGraph(context) {
           signal,
           budget: sharedBudget,
           depth: context.depth || 0,
-          maxLocalToolCalls: context.maxLocalToolCalls || 100,
+          maxLocalToolCalls: context.maxLocalToolCalls || 500,
           systemPromptOverride: workerPrompt(basePrompt, state, toolsDisabled),
           checkpointerOverride: getCustomCheckpointer(),
           excludeToolIds: ["user.ask"],
@@ -334,7 +334,7 @@ function createResearchGraph(context) {
             configurable: {
               thread_id: `${run.checkpointThreadId}:worker:${state.round}:${state.workItem.id}`,
             },
-            recursionLimit: 220,
+            recursionLimit: 1_100,
             signal,
           }
         );
@@ -597,8 +597,8 @@ async function executeSegment(context) {
     streamMode: ["values"],
     configurable: { thread_id: run.checkpointThreadId },
     recursionLimit: Math.min(
-      (run.configuration?.maxToolCalls || 500) * 2 + 20,
-      1_100
+      (run.configuration?.maxToolCalls || 2_500) * 2 + 100,
+      5_500
     ),
     signal,
   });

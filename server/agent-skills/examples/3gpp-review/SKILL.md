@@ -34,14 +34,14 @@ If network access is unavailable, continue from user-provided local Index/TDoc f
 
 Parse the working group, meeting identifier, and KI from the request. Default to SA2 only when the user gives a bare meeting number in an SA2 context.
 
-| WG | 3GPP directory | TDoc prefix |
-|---|---|---|
-| SA1 | `tsg_sa/WG1_Serv` | `S1` |
-| SA2 | `tsg_sa/WG2_Arch` | `S2` |
-| SA3 | `tsg_sa/WG3_Security` | `S3` |
-| SA5 | `tsg_sa/WG5_OAM` | `S5` |
-| CT1 | `tsg_ct/WG1_NAS` | `C1` |
-| CT4 | `tsg_ct/WG4_MAP` | `C4` |
+| WG  | 3GPP directory        | TDoc prefix |
+| --- | --------------------- | ----------- |
+| SA1 | `tsg_sa/WG1_Serv`     | `S1`        |
+| SA2 | `tsg_sa/WG2_Arch`     | `S2`        |
+| SA3 | `tsg_sa/WG3_Security` | `S3`        |
+| SA5 | `tsg_sa/WG5_OAM`      | `S5`        |
+| CT1 | `tsg_ct/WG1_NAS`      | `C1`        |
+| CT4 | `tsg_ct/WG4_MAP`      | `C4`        |
 
 Browse `https://www.3gpp.org/ftp/<directory>/` and search the returned directory listing for the exact meeting number. Folder names contain location, date, and sometimes `AH-e`; they are not safely predictable. Prefer the available web browsing tool. A shell fallback is:
 
@@ -101,7 +101,27 @@ When the user names specific TDocs, preserve the KI filter and add them explicit
   --output "$meeting_cache/proposals.json"
 ```
 
+When the user names a contributor, filter the Index `Source` field in the same canonical command. `--source` uses case-insensitive substring matching, so joint-source rows containing the company name remain included:
+
+```bash
+"$PY" scripts/3gpp_tdocs.py filter-index \
+  --excel "$meeting_cache/index/extracted/<index.xlsx>" \
+  --sheet '<sheet name>' \
+  --agenda '20.6.18' \
+  --source 'Huawei' \
+  --output "$meeting_cache/proposals.json"
+```
+
 Review the resulting JSON. Confirm that document numbers, titles, sources, and statuses are plausible. Exclude withdrawn/unavailable documents unless the user asks to include them. If filtering returns zero or an implausible count, stop and re-inspect the workbook rather than widening the filter silently.
+
+`filter-index` is the only supported way to create a proposal manifest. Do not hand-write, rename fields in, or replace `proposals.json` with an ad-hoc JSON list. Validate the generated contract before using it:
+
+```bash
+"$PY" scripts/3gpp_tdocs.py validate-manifest \
+  --manifest "$meeting_cache/proposals.json"
+```
+
+After any tool returns a workspace path, keep and reuse that exact path in later calls. Do not reconstruct it from a filename or move it to a guessed directory. If a path is no longer known, use `filesystem.search` or `filesystem.list` to resolve it before calling `filesystem.read`.
 
 ## 4. Download and extract TDocs
 
@@ -145,8 +165,11 @@ List expected and extracted documents and reconcile them before analysis:
 ```bash
 "$PY" scripts/3gpp_tdocs.py coverage \
   --manifest "$meeting_cache/proposals.json" \
-  --texts "$meeting_cache/texts"
+  --texts "$meeting_cache/texts" \
+  --receipt "$meeting_cache/coverage.json"
 ```
+
+The command succeeds only when the extracted TDoc set exactly matches the manifest and writes `coverage.json` only after that exact check passes. Preserve this receipt; the final publication call verifies its manifest hash and document set.
 
 For a large set, analyze batches of roughly 10–15 documents. Parallel agents may be used only when the host environment and current instructions permit delegation. Each proposal analysis must capture:
 
@@ -160,9 +183,9 @@ For a large set, analyze batches of roughly 10–15 documents. Parallel agents m
 
 For a signaling flow, normalize it as:
 
-| Step | Sender → receiver | Message | Purpose |
-|---|---|---|---|
-| 1 | UE → AMF | Registration request | Describe only what the TDoc supports |
+| Step | Sender → receiver | Message              | Purpose                              |
+| ---- | ----------------- | -------------------- | ------------------------------------ |
+| 1    | UE → AMF          | Registration request | Describe only what the TDoc supports |
 
 Mark uncertain reconstruction as uncertain. Distinguish a contributor's proposal from agreed 3GPP text.
 
@@ -181,7 +204,7 @@ Recommended structure:
 
 Every proposal in the manifest must be either analyzed or listed under failures with a reason. Do not silently omit a TDoc, collapse distinct variants, invent consensus, or present a draft contribution as an adopted specification.
 
-Before delivery, rerun `coverage`, check all figure markers have been considered, and verify that counts in the prose match the manifest. Then call `knowledge.publish` exactly once with the report path, meeting, KI, and complete TDoc list. The task is not complete until the tool confirms that the report is embedded in the current Workspace knowledge base.
+Before delivery, rerun `coverage`, check all figure markers have been considered, and verify that counts in the prose match the manifest. Then call `knowledge.publish` exactly once with the report path, meeting, KI, complete TDoc list, exact manifest path, and exact coverage receipt path. The TDoc list must be the complete manifest set; publication rejects a partial or different list. The task is not complete until the tool confirms that the report is embedded in the current Workspace knowledge base. A run has one canonical final report: if publication succeeds or reports `ALREADY_PUBLISHED`, do not publish another path in the same run.
 
 ## Troubleshooting
 

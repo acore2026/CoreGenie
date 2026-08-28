@@ -79,7 +79,7 @@ describe("3GPP position evolution seed", () => {
     );
     expect(prisma.system_settings.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { label: "agent_skill_seed_3gpp_position_evolution_v4" },
+        where: { label: "agent_skill_seed_3gpp_position_evolution_v5" },
       })
     );
   });

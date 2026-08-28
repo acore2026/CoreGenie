@@ -4,16 +4,18 @@ const {
   askUserTool,
   controllerDecisionWithFallback,
   createGovernedGraph,
+  isSkillBootstrapTask,
   mergeById,
   normalizedActionPlan,
   requestAllowsWrite,
   resolvedTaskDependencies,
   scopedTaskId,
   streamControllerDecision,
+  skillBootstrapCompletion,
   taskRequiredCompletionTools,
   validatePlan,
 } = require("../../agent-system/runtimes/governed");
-const { toolRegistry } = require("../../tools");
+const { taskSelectionAllows, toolRegistry } = require("../../tools");
 
 const context = {
   run: { id: "run-1", prompt: "Research the latest meeting agenda" },
@@ -23,9 +25,10 @@ const context = {
 
 describe("Governed Agent runtime", () => {
   it("provides enough bounded budget for multi-document Skills", () => {
-    expect(DEFAULTS.maxTaskToolCalls).toBe(100);
-    expect(DEFAULTS.maxTaskModelCalls).toBe(100);
-    expect(DEFAULTS.maxTaskMs).toBe(20 * 60 * 1_000);
+    expect(DEFAULTS.maxTaskToolCalls).toBe(500);
+    expect(DEFAULTS.maxTaskModelCalls).toBe(500);
+    expect(DEFAULTS.maxTaskMs).toBe(100 * 60 * 1_000);
+    expect(DEFAULTS.maxRunMs).toBe(150 * 60 * 1_000);
   });
 
   it("requires completion tools only in tasks that are allowed to call them", () => {
@@ -44,6 +47,67 @@ describe("Governed Agent runtime", () => {
     expect(
       taskRequiredCompletionTools(run, ["filesystem.read", "knowledge.publish"])
     ).toEqual(["knowledge.publish"]);
+  });
+
+  it("recognizes a completed Skill bootstrap from durable tool records", () => {
+    const task = {
+      title: "Skill bootstrap",
+      objective:
+        "Activate demo-skill and read status-semantics and company-aliases.",
+      allowedToolIds: ["skill.activate", "skill.read_resource"],
+    };
+    const skills = [
+      {
+        name: "demo-skill",
+        files: [
+          { path: "SKILL.md", text: true },
+          { path: "references/status-semantics.md", text: true },
+          { path: "references/company-aliases.json", text: true },
+        ],
+      },
+    ];
+    const executions = [
+      {
+        status: "completed",
+        tool_id: "skill.activate",
+        arguments: { name: "demo-skill" },
+      },
+      {
+        status: "completed",
+        tool_id: "skill.read_resource",
+        arguments: {
+          name: "demo-skill",
+          path: "references/status-semantics.md",
+        },
+        result: {
+          data: {
+            path: "references/status-semantics.md",
+            nextOffset: null,
+          },
+        },
+      },
+      {
+        status: "completed",
+        tool_id: "skill.read_resource",
+        arguments: {
+          name: "demo-skill",
+          path: "references/company-aliases.json",
+        },
+        result: {
+          data: {
+            path: "references/company-aliases.json",
+            nextOffset: null,
+          },
+        },
+      },
+    ];
+
+    expect(isSkillBootstrapTask(task)).toBe(true);
+    expect(skillBootstrapCompletion(task, skills, executions)).toMatchObject({
+      complete: true,
+      missingSkills: [],
+      missingResources: [],
+    });
   });
 
   it("compiles without state-channel and node-name collisions", () => {
@@ -175,6 +239,63 @@ describe("Governed Agent runtime", () => {
     ]);
   });
 
+  it("keeps Skill tools implicit normally but honors strict task overrides", () => {
+    const allowed = new Set(["filesystem.read"]);
+    const skillTool = { id: "skill.activate", name: "activate_skill" };
+
+    expect(taskSelectionAllows(allowed, skillTool, false)).toBe(true);
+    expect(taskSelectionAllows(allowed, skillTool, true)).toBe(false);
+    expect(
+      taskSelectionAllows(new Set(["skill.activate"]), skillTool, true)
+    ).toBe(true);
+  });
+
+  it("splits direct 3GPP Skill activation into dependent workflow phases", () => {
+    const plan = normalizedActionPlan({
+      descriptor: toolRegistry.get("skill.activate"),
+      args: { name: "3gpp-review" },
+      request: "帮助我下载 KI #18 最近一次会议的 Huawei 提案",
+      agent: {
+        id: 1,
+        tools: [
+          "bash",
+          "python",
+          "filesystem.read",
+          "filesystem.write",
+          "filesystem.list",
+          "filesystem.search",
+          "web.fetch",
+          "vision.inspect",
+          "knowledge.publish",
+        ],
+      },
+      skills: [
+        {
+          name: "3gpp-review",
+          allowedTools:
+            "skill.activate skill.read_resource bash python filesystem.read filesystem.write filesystem.list filesystem.search web.fetch vision.inspect knowledge.publish",
+        },
+      ],
+    });
+
+    expect(plan.tasks).toHaveLength(4);
+    expect(plan.tasks[0].allowedToolIds).toEqual([
+      "skill.activate",
+      "skill.read_resource",
+    ]);
+    expect(plan.tasks[1].dependsOn).toEqual(["activate-3gpp-review"]);
+    expect(plan.tasks[2].dependsOn).toEqual(["resolve-and-filter"]);
+    expect(plan.tasks[3].dependsOn).toEqual(["download-extract-cover"]);
+    expect(plan.tasks[3].allowedToolIds).toContain("knowledge.publish");
+    expect(
+      plan.tasks
+        .slice(0, 3)
+        .every((task) =>
+          task.allowedToolIds.every((toolId) => toolId !== "knowledge.publish")
+        )
+    ).toBe(true);
+  });
+
   it("keeps skill-permitted tools available after normalized activation", () => {
     const plan = normalizedActionPlan({
       descriptor: toolRegistry.get("skill.activate"),
@@ -218,9 +339,10 @@ describe("Governed Agent runtime", () => {
       ],
     });
 
-    expect(plan.tasks[0].allowedToolIds).toContain("web.fetch");
-    expect(plan.tasks[0].allowedToolIds).not.toContain("bash");
-    expect(plan.tasks[0].allowedToolIds).not.toContain("python");
+    const selectedTools = plan.tasks.flatMap((task) => task.allowedToolIds);
+    expect(selectedTools).toContain("web.fetch");
+    expect(selectedTools).not.toContain("bash");
+    expect(selectedTools).not.toContain("python");
   });
 
   it("removes undeclared write intent and merges task updates by ID", () => {
@@ -240,6 +362,7 @@ describe("Governed Agent runtime", () => {
     );
     expect(plan.tasks[0].writeIntent).toBe(false);
     expect(requestAllowsWrite("Please edit the workspace file")).toBe(true);
+    expect(requestAllowsWrite("请帮我下载提案并生成报告")).toBe(true);
     expect(
       mergeById(
         [{ id: "a", status: "running" }],

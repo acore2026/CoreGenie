@@ -1,4 +1,5 @@
 const { z } = require("zod");
+const path = require("path");
 const { defineTool } = require("./descriptor");
 const { resolveAvailableSkill } = require("../agent-skills/registry");
 const { readPackageResource } = require("../agent-skills/package");
@@ -9,7 +10,74 @@ async function currentSkill(name, context) {
 
 function runtimeInstructions(skill) {
   const skillRoot = `skill://${skill.name}`;
-  return `Runtime environment note: this activated package's exact skill root is \`${skillRoot}\`. Always pass \`cwd=${skillRoot}\` when running its bundled scripts. If the package instructions contain a different hard-coded \`skill://...\` example from an earlier package name, ignore that example and use \`${skillRoot}\` instead.\n\n${skill.instructions}`;
+  return `Runtime environment note: this activated package's exact skill root is \`${skillRoot}\`. Always pass \`cwd=${skillRoot}\` when running its bundled scripts. If the package instructions contain a different hard-coded \`skill://...\` example from an earlier package name, ignore that example and use \`${skillRoot}\` instead. When calling \`read_skill_resource\`, copy the exact resource path (including its directory and extension) from the activated package's \`files\` list; do not guess alternate paths.\n\n${skill.instructions}`;
+}
+
+function readableResourcePaths(skill) {
+  return (skill.files || [])
+    .map((file) => file.path)
+    .filter((filePath) => filePath && filePath !== "SKILL.md");
+}
+
+function normalizedRequestedPath(requestedPath) {
+  const raw = String(requestedPath || "")
+    .replace(/\\/g, "/")
+    .trim();
+  if (
+    !raw ||
+    raw.includes("\0") ||
+    raw.startsWith("/") ||
+    /^[A-Za-z]:/.test(raw)
+  )
+    return null;
+  const normalized = path.posix.normalize(raw);
+  if (
+    normalized === "." ||
+    normalized === "SKILL.md" ||
+    normalized.startsWith("../") ||
+    normalized.includes("/../")
+  )
+    return null;
+  return normalized;
+}
+
+function basenameStem(filePath) {
+  const basename = path.posix.basename(filePath).toLocaleLowerCase("en-US");
+  const extension = path.posix.extname(basename);
+  return extension ? basename.slice(0, -extension.length) : basename;
+}
+
+function resolveResourcePath(skill, requestedPath) {
+  const availablePaths = readableResourcePaths(skill);
+  const normalized = normalizedRequestedPath(requestedPath);
+  if (!normalized) return { path: null, availablePaths, suggestions: [] };
+
+  const exact = availablePaths.find((filePath) => filePath === normalized);
+  if (exact)
+    return {
+      path: exact,
+      availablePaths,
+      suggestions: [exact],
+      aliased: false,
+    };
+
+  const requestedLower = normalized.toLocaleLowerCase("en-US");
+  const requestedBasename = path.posix.basename(requestedLower);
+  const requestedStem = basenameStem(requestedLower);
+  const matches = availablePaths.filter((filePath) => {
+    const candidateLower = filePath.toLocaleLowerCase("en-US");
+    return (
+      candidateLower === requestedLower ||
+      path.posix.basename(candidateLower) === requestedBasename ||
+      basenameStem(candidateLower) === requestedStem
+    );
+  });
+  return {
+    path: matches.length === 1 ? matches[0] : null,
+    availablePaths,
+    suggestions: matches,
+    aliased: matches.length === 1,
+  };
 }
 
 const activateSkill = defineTool({
@@ -66,7 +134,7 @@ const readSkillResource = defineTool({
   id: "skill.read_resource",
   name: "read_skill_resource",
   description:
-    "Read a text resource from an activated Agent Skill. Large resources are returned in chunks.",
+    "Read a resource from an activated Agent Skill. Use the exact packaged path, including its directory and extension, from the files list returned by activate_skill. Never guess path variants. Large resources are returned in chunks.",
   action: false,
   effect: "read",
   idempotency: "safe",
@@ -113,7 +181,24 @@ const readSkillResource = defineTool({
         retryable: true,
       };
     }
-    const resource = await readPackageResource(skill.root, path, offset);
+    const resolved = resolveResourcePath(skill, path);
+    if (!resolved.path)
+      return {
+        ok: false,
+        code: "SKILL_RESOURCE_NOT_FOUND",
+        summary: `"${path}" is not a packaged resource in ${name}. Do not guess another path; use one of the exact available paths.`,
+        data: {
+          requestedPath: path,
+          suggestions: resolved.suggestions,
+          availablePaths: resolved.availablePaths,
+        },
+        retryable: false,
+      };
+    const resource = await readPackageResource(
+      skill.root,
+      resolved.path,
+      offset
+    );
     await context.emit("skill.resource.used", {
       name: skill.name,
       scope: skill.scope,
@@ -125,7 +210,9 @@ const readSkillResource = defineTool({
       code: "SKILL_RESOURCE_READ",
       summary: resource.binary
         ? `${resource.path} is a binary skill resource available to scripts.`
-        : `Read ${resource.path}.`,
+        : resolved.aliased
+          ? `Read ${resource.path} (resolved from ${path}).`
+          : `Read ${resource.path}.`,
       data: resource,
       evidenceIds: [],
       artifactIds: [],
@@ -134,4 +221,9 @@ const readSkillResource = defineTool({
   },
 });
 
-module.exports = { activateSkill, readSkillResource, runtimeInstructions };
+module.exports = {
+  activateSkill,
+  readSkillResource,
+  runtimeInstructions,
+  resolveResourcePath,
+};

@@ -13,6 +13,136 @@ const {
 } = require("../utils/helpers/chat/LLMPerformanceMonitor");
 
 const MAX_REPORT_BYTES = 5 * 1024 * 1024;
+const MANIFEST_SCHEMA = "3gpp-review-manifest/v1";
+const COVERAGE_SCHEMA = "3gpp-review-coverage/v1";
+
+function documentIds(items) {
+  return [...new Set(items.map((item) => String(item).toUpperCase()))].sort();
+}
+
+function coverageFailure(code, summary, data = {}) {
+  return {
+    ok: false,
+    code,
+    summary,
+    data,
+    evidenceIds: [],
+    artifactIds: [],
+    retryable: false,
+  };
+}
+
+async function validateCoverageBinding(args, context, manager) {
+  const required = Boolean(
+    context.run?.runtimeSnapshot?.runtimeConfig?.publicationRequiresCoverage
+  );
+  if (!required && !args.manifestPath && !args.coverageReceiptPath)
+    return { ok: true, metadata: null };
+  if (!args.manifestPath || !args.coverageReceiptPath)
+    return coverageFailure(
+      "COVERAGE_BINDING_REQUIRED",
+      "Publication requires both the exact filter-index manifest path and the successful coverage receipt path."
+    );
+
+  let manifestTarget;
+  let receiptTarget;
+  try {
+    [manifestTarget, receiptTarget] = await Promise.all([
+      manager.validatePath(args.manifestPath),
+      manager.validatePath(args.coverageReceiptPath),
+    ]);
+    const [manifestRaw, receiptRaw] = await Promise.all([
+      fs.readFile(manifestTarget, "utf8"),
+      fs.readFile(receiptTarget, "utf8"),
+    ]);
+    const manifest = JSON.parse(manifestRaw);
+    const receipt = JSON.parse(receiptRaw);
+    if (
+      manifest?.schema !== MANIFEST_SCHEMA ||
+      !Array.isArray(manifest?.proposals) ||
+      manifest.count !== manifest.proposals.length
+    )
+      return coverageFailure(
+        "INVALID_PROPOSAL_MANIFEST",
+        "The proposal manifest is not a valid filter-index manifest. Regenerate it with the Skill helper."
+      );
+    const manifestIds = documentIds(
+      manifest.proposals.map((item) => item?.document || "")
+    );
+    if (
+      manifestIds.length !== manifest.proposals.length ||
+      manifestIds.some((item) => !/^[A-Z]\d-\d{6,8}$/.test(item))
+    )
+      return coverageFailure(
+        "INVALID_PROPOSAL_MANIFEST",
+        "The proposal manifest contains an invalid or duplicate TDoc number."
+      );
+    const suppliedIds = documentIds(args.tdocIds || []);
+    if (JSON.stringify(suppliedIds) !== JSON.stringify(manifestIds))
+      return coverageFailure(
+        "TDOC_SET_MISMATCH",
+        "The publication TDoc list must exactly match the validated proposal manifest.",
+        { expected: manifestIds, supplied: suppliedIds }
+      );
+    const manifestHash = crypto
+      .createHash("sha256")
+      .update(manifestRaw)
+      .digest("hex");
+    const expected = documentIds(receipt?.expectedDocuments || []);
+    const extracted = documentIds(receipt?.extractedDocuments || []);
+    if (
+      receipt?.schema !== COVERAGE_SCHEMA ||
+      receipt?.status !== "passed" ||
+      receipt?.manifestSha256 !== manifestHash ||
+      !Array.isArray(receipt?.missing) ||
+      receipt.missing.length ||
+      !Array.isArray(receipt?.extra) ||
+      receipt.extra.length ||
+      JSON.stringify(expected) !== JSON.stringify(manifestIds) ||
+      JSON.stringify(extracted) !== JSON.stringify(manifestIds)
+    )
+      return coverageFailure(
+        "INVALID_COVERAGE_RECEIPT",
+        "The coverage receipt does not prove exact coverage for the current proposal manifest. Rerun coverage and use the new receipt."
+      );
+    return {
+      ok: true,
+      metadata: {
+        manifestPath: args.manifestPath,
+        coverageReceiptPath: args.coverageReceiptPath,
+        manifestSha256: manifestHash,
+        validatedAt: receipt.validatedAt || null,
+      },
+    };
+  } catch (error) {
+    return coverageFailure(
+      "COVERAGE_BINDING_UNREADABLE",
+      "The manifest or coverage receipt could not be read and validated.",
+      { cause: String(error?.message || error) }
+    );
+  }
+}
+
+function embeddingUnavailableResult(error) {
+  const message = String(error?.message || error || "");
+  if (
+    message !== "fetch failed" &&
+    !message.includes("local_files_only=true") &&
+    !message.includes("allowRemoteModels=false")
+  )
+    return null;
+  return {
+    ok: false,
+    code: "EMBEDDING_MODEL_UNAVAILABLE",
+    summary:
+      "The report was preserved, but publication could not embed it because the configured embedding model is unavailable. Retry in a new run after the model cache or network is repaired.",
+    data: { cause: message },
+    evidenceIds: [],
+    artifactIds: [],
+    retryable: false,
+    blocksCapability: true,
+  };
+}
 
 function safeSegment(value, fallback = "report") {
   const clean = String(value || "")
@@ -45,6 +175,7 @@ const publishReport = defineTool({
   effect: "write",
   idempotency: "keyed",
   concurrencyKey: "knowledge-publish",
+  failureScope: "Knowledge publication",
   schema: z.object({
     path: z.string().trim().min(1).max(2_000),
     title: z.string().trim().min(1).max(500),
@@ -60,6 +191,8 @@ const publishReport = defineTool({
       )
       .max(500)
       .default([]),
+    manifestPath: z.string().trim().min(1).max(2_000).optional(),
+    coverageReceiptPath: z.string().trim().min(1).max(2_000).optional(),
   }),
   activity: ({ path: reportPath }) => `Publishing ${reportPath}`,
   execute: async (args, context) => {
@@ -74,6 +207,9 @@ const publishReport = defineTool({
       throw new Error("The report exceeds the 5 MiB publication limit.");
     const content = await fs.readFile(target, "utf8");
     if (!content.trim()) throw new Error("The report is empty.");
+
+    const coverage = await validateCoverageBinding(args, context, manager);
+    if (!coverage.ok) return coverage;
 
     const root = manager.getAllowedDirectories()[0];
     const sourcePath = path.relative(root, target).split(path.sep).join("/");
@@ -116,6 +252,32 @@ const publishReport = defineTool({
         retryable: false,
       };
 
+    const runPublications = await AgentReportPublication.forRun(
+      context.run.id,
+      { publishedOnly: false }
+    );
+    const competing = runPublications.find(
+      (item) =>
+        item.sourcePath !== sourcePath &&
+        ["publishing", "published"].includes(item.status)
+    );
+    if (competing)
+      return {
+        ok: false,
+        code:
+          competing.status === "published"
+            ? "RUN_REPORT_ALREADY_PUBLISHED"
+            : "RUN_REPORT_PUBLICATION_IN_PROGRESS",
+        summary:
+          competing.status === "published"
+            ? `This run already published its canonical final report at ${competing.sourcePath}. Do not publish another report path.`
+            : `This run is already publishing its canonical final report at ${competing.sourcePath}.`,
+        data: { publication: competing },
+        evidenceIds: [],
+        artifactIds: [],
+        retryable: false,
+      };
+
     const publicationId = existing?.id || uuidv4();
     const metadata = {
       meeting: args.meeting || null,
@@ -124,6 +286,7 @@ const publishReport = defineTool({
       runId: context.run.id,
       agentId: context.agent?.id || null,
       contentHash,
+      coverage: coverage.metadata,
     };
     let publication = await AgentReportPublication.begin({
       id: publicationId,
@@ -220,6 +383,8 @@ const publishReport = defineTool({
       await AgentReportPublication.fail(publicationId, error.message).catch(
         () => null
       );
+      const unavailable = embeddingUnavailableResult(error);
+      if (unavailable) return unavailable;
       throw error;
     }
   },
@@ -228,5 +393,7 @@ const publishReport = defineTool({
 module.exports = {
   publishReport,
   publicationOutput,
+  embeddingUnavailableResult,
+  validateCoverageBinding,
   MAX_REPORT_BYTES,
 };

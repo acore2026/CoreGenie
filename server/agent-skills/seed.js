@@ -5,7 +5,7 @@ const { PredefinedAgentSkill } = require("../models/predefinedAgentSkill");
 const { PredefinedAgent } = require("../models/predefinedAgent");
 const { seed3gppPositionEvolution } = require("./positionEvolutionSeed");
 
-const SEED_SETTING = "agent_skill_seed_3gpp_review_v4";
+const SEED_SETTING = "agent_skill_seed_3gpp_review_v6";
 const AGENT_NAME = "3GPP 提案分析助手（Skill）";
 const SKILL_NAME = "3gpp-review";
 const LEGACY_SKILL_NAMES = ["3gpp-tdocs"];
@@ -33,7 +33,11 @@ const AGENT_PROMPT = `你是一名面向 3GPP/6G 标准研究的提案分析助�
 - 区分提案方主张、编辑说明和已达成的 3GPP 共识；
 - 对流程图使用视觉工具核验实体、箭头和消息顺序，无法辨认时明确标注不确定；
 - 默认输出中文 Markdown 报告；
-- 最终报告必须先通过 coverage 检查，再调用 knowledge.publish 自动发布到当前 Workspace 知识库；
+- 使用 filter-index 生成并验证 proposals.json，不得手写或改造 manifest；
+- 将工作拆为会议与清单、下载与提取、分析与严格 coverage、报告与发布四个有依赖关系的阶段；
+- 后续工具调用必须复用上一步返回的准确文件路径，路径不确定时先搜索，不得根据文件名猜目录；
+- 最终报告必须通过严格 coverage 并生成 receipt，再将 manifest、receipt 和完整 TDoc 列表一并传给 knowledge.publish；
+- 每次运行只发布一份最终报告，发布成功后不得换路径再次发布；
 - knowledge.publish 成功后，在最终回复中说明报告路径、覆盖率和入库结果。`;
 let seedPromise = null;
 
@@ -94,7 +98,7 @@ async function seed3gppReview() {
   const agentData = {
     name: AGENT_NAME,
     description:
-      "按 3GPP 会议和 KI 自动定位、下载、解析、比较 TDoc，并生成可追踪中文报告。",
+      "按 3GPP 会议和 KI 查找、下载、解析和比较 TDoc，生成中文分析报告，并列出所用 TDoc。",
     welcomeMessage:
       "请告诉我工作组、会议号、KI/议程项，或直接给出需要比较的 TDoc 编号。",
     examplePrompts: [
@@ -109,6 +113,7 @@ async function seed3gppReview() {
     runtimeConfig: {
       visionModel: "qwen3.7-plus",
       requiredCompletionTools: ["knowledge.publish"],
+      publicationRequiresCoverage: true,
     },
     enabled: true,
   };

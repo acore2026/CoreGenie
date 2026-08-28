@@ -48,7 +48,7 @@ async function grepAgents({
       mode: workspace.chatMode || "automatic",
       source: "workspace",
       attachments,
-      configuration: { approvalMode, maxToolCalls: 500 },
+      configuration: { approvalMode, maxToolCalls: 2_500 },
     });
 
     writeResponseChunk(response, {

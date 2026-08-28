@@ -58,6 +58,7 @@ async function buildAgentGraph({
         allowActions,
         availableAgents,
         excludeToolIds,
+        strictSelection: Array.isArray(run.configuration?.toolOverrides),
       });
   const systemPrompt = systemPromptOverride
     ? [systemPromptOverride, await skillCatalogPrompt(agent, workspace)]
@@ -79,8 +80,8 @@ async function buildAgentGraph({
   const middleware = [
     modelCallLimitMiddleware({
       runLimit: Math.min(
-        Number(run.configuration?.maxModelCallsPerTask) || 30,
-        100
+        Number(run.configuration?.maxModelCallsPerTask) || 150,
+        500
       ),
       exitBehavior: "error",
     }),

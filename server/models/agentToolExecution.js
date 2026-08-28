@@ -122,6 +122,17 @@ const AgentToolExecution = {
     return rows.map(normalizeExecution);
   },
 
+  listForTask: async function (runId, taskId) {
+    const rows = await prisma.agent_tool_executions.findMany({
+      where: {
+        run_id: String(runId),
+        task_id: String(taskId),
+      },
+      orderBy: { createdAt: "asc" },
+    });
+    return rows.map(normalizeExecution);
+  },
+
   completedToolIds: async function (runId) {
     const rows = await prisma.agent_tool_executions.findMany({
       where: { run_id: String(runId), status: "completed" },

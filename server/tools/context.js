@@ -25,8 +25,8 @@ class AgentToolContext {
     this.taskTitle = taskTitle;
     this.toolCalls = 0;
     this.maxToolCalls = Math.min(
-      Number(run.configuration?.maxToolCalls) || 500,
-      500
+      Number(run.configuration?.maxToolCalls) || 2_500,
+      2_500
     );
     this.maxLocalToolCalls = maxLocalToolCalls || this.maxToolCalls;
     this.budget = budget || {

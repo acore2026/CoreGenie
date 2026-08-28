@@ -8,6 +8,34 @@ function manager(context) {
   return filesystem.forWorkspace(context.workspace.id);
 }
 
+async function missingFileResult(workspaceFs, requestedPath, error) {
+  const message = String(error?.message || error || "");
+  if (error?.code !== "ENOENT" && !message.includes("ENOENT")) throw error;
+  const root = workspaceFs.getAllowedDirectories()[0];
+  let suggestions = [];
+  if (root) {
+    suggestions = await workspaceFs
+      .searchFilesWithGlob(root, path.basename(requestedPath), {
+        maxResults: 5,
+      })
+      .then((matches) =>
+        matches
+          .slice(0, 5)
+          .map((match) => path.relative(root, match).split(path.sep).join("/"))
+      )
+      .catch(() => []);
+  }
+  return {
+    ok: false,
+    code: "WORKSPACE_FILE_NOT_FOUND",
+    summary: suggestions.length
+      ? `The exact path ${requestedPath} does not exist. Reuse one of the resolved workspace paths instead of guessing another directory.`
+      : `The exact path ${requestedPath} does not exist. Use filesystem.search or filesystem.list before retrying.`,
+    data: { requestedPath, suggestions },
+    retryable: false,
+  };
+}
+
 const readFile = defineTool({
   id: "filesystem.read",
   name: "filesystem_read",
@@ -23,9 +51,13 @@ const readFile = defineTool({
     if (head && tail) throw new Error("Use either head or tail, not both.");
     const workspaceFs = manager(context);
     const target = await workspaceFs.validatePath(filePath);
-    if (head) return workspaceFs.headFile(target, head);
-    if (tail) return workspaceFs.tailFile(target, tail);
-    return workspaceFs.readFileContent(target);
+    try {
+      if (head) return await workspaceFs.headFile(target, head);
+      if (tail) return await workspaceFs.tailFile(target, tail);
+      return await workspaceFs.readFileContent(target);
+    } catch (error) {
+      return missingFileResult(workspaceFs, filePath, error);
+    }
   },
 });
 

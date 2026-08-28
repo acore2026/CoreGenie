@@ -65,11 +65,14 @@ describe("3GPP review seed", () => {
       expect.objectContaining({
         name: "3GPP 提案分析助手（Skill）",
         skillIds: [10],
+        runtimeConfig: expect.objectContaining({
+          publicationRequiresCoverage: true,
+        }),
       })
     );
     expect(prisma.system_settings.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { label: "agent_skill_seed_3gpp_review_v4" },
+        where: { label: "agent_skill_seed_3gpp_review_v6" },
       })
     );
   });

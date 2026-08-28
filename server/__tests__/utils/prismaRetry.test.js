@@ -36,4 +36,32 @@ describe("withPrismaRetry", () => {
     await expect(withPrismaRetry(operation)).resolves.toBe("ok");
     expect(operation).toHaveBeenCalledTimes(2);
   });
+
+  it("serializes retried Agent persistence operations", async () => {
+    const order = [];
+    let releaseFirst;
+    const firstGate = new Promise((resolve) => {
+      releaseFirst = resolve;
+    });
+    const first = withPrismaRetry(async () => {
+      order.push("first:start");
+      await firstGate;
+      order.push("first:end");
+    });
+    const second = withPrismaRetry(async () => {
+      order.push("second:start");
+      order.push("second:end");
+    });
+
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(order).toEqual(["first:start"]);
+    releaseFirst();
+    await Promise.all([first, second]);
+    expect(order).toEqual([
+      "first:start",
+      "first:end",
+      "second:start",
+      "second:end",
+    ]);
+  });
 });

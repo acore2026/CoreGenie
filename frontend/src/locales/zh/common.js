@@ -173,10 +173,10 @@ const TRANSLATIONS = {
     eyebrow: "CoreGenie 使用指南",
     title: "从一个真实任务开始",
     subtitle:
-      "先选择与目标匹配的助手，了解它需要什么，再把经过设计的示例带入工作台；系统不会替你自动发送。",
+      "先选一个适合的助手，看看需要准备哪些信息，再用示例开始。示例只会填入输入框，不会自动发送。",
     intro: {
-      title: "第一次使用？从引导示例开始",
-      description: "选择助手、限定范围，然后检查有证据支撑的结果。",
+      title: "不知道从哪里开始？先看一个示例",
+      description: "选一个助手，填写任务范围，确认后再发送。",
       action: "查看指南",
       dismiss: "关闭首次使用提示",
     },
@@ -190,32 +190,33 @@ const TRANSLATIONS = {
       workspace_required: "需要工作区",
     },
     flow: {
-      eyebrow: "任务如何流转",
-      title: "从问题到可追踪的结果",
-      note: "发送前始终由你确认。",
+      eyebrow: "使用方法",
+      title: "四步开始分析",
+      note: "内容填好后再发送。",
       steps: [
         {
-          title: "限定目标",
-          description: "说明工作组、会议、KI、公司、技术主题或时间范围。",
+          title: "说明任务",
+          description: "写清工作组、会议、KI、公司、技术主题和时间范围。",
         },
         {
           title: "选择助手",
-          description: "根据任务使用通用、提案分析或立场演进工作流。",
+          description: "根据任务选择通用助手、提案分析助手或技术路线分析助手。",
         },
         {
-          title: "核验证据",
-          description: "Agent 检查来源、TDoc、流程图以及尚未覆盖的内容。",
+          title: "检查资料",
+          description:
+            "助手会查看 TDoc、流程图和会议材料，并指出缺少哪些信息。",
         },
         {
-          title: "交付报告",
-          description: "获得中文 Markdown 报告，并沉淀为可复用的工作区知识。",
+          title: "生成报告",
+          description: "得到中文 Markdown 报告，结果也可以保存到工作区。",
         },
       ],
     },
     launcher: {
-      eyebrow: "任务启动器",
-      title: "输入之前，先选对助手",
-      description: "这里展示的是当前实例中实际启用的助手。",
+      eyebrow: "选择助手",
+      title: "先选助手，再开始提问",
+      description: "这里列出当前可以使用的助手。",
       agent_list: "可用助手",
       ready: "可以开始工作",
       empty_title: "当前没有启用的助手",
@@ -227,32 +228,32 @@ const TRANSLATIONS = {
     },
     agent_profiles: {
       general: {
-        label: "通用工作",
+        label: "日常任务",
         description: "处理日常问答、写作、文件和一般分析。",
-        input: "清晰的问题、一个文件，或希望最终产出的结果。",
-        output: "直接回答、摘要、对比、草稿或基于文件的分析。",
+        input: "直接写问题、上传文件，或说明希望得到什么结果。",
+        output: "回答、摘要、对比、草稿或文件分析。",
         examples: [
-          "总结我上传的文档，列出关键结论，并标出仍需核验的信息。",
-          "从目标、方法、差异、风险和开放问题五个方面比较这两份文档。",
+          "总结我上传的文档，列出主要结论，并标出还需要确认的信息。",
+          "从目标、方法、差异、风险和待解决问题五个方面比较这两份文档。",
           "把我的零散笔记整理成一份简洁的技术简报，并附上行动清单。",
         ],
       },
       review: {
         label: "会议 / TDoc 分析",
-        description: "围绕一次会议、一个 KI 或一组提案开展证据驱动的分析。",
+        description: "分析一次会议、一个 KI 或一组提案。",
         input: "工作组、会议号、KI/议程项，以及相关 TDoc 编号或公司范围。",
-        output: "可追踪的方案矩阵、流程分析、覆盖率检查和已发布报告。",
+        output: "提案对比表、流程分析、资料完整性检查和中文报告。",
         examples: [
-          "分析指定 SA2 会议和 KI 的主要提案，比较架构路线、关键流程与开放问题。",
+          "分析指定 SA2 会议和 KI 的主要提案，比较架构路线、关键流程与待解决问题。",
           "分析我提供的 TDoc，区分提案方主张与会议结果，并输出中文报告。",
-          "比较这些提案中的消息流程，在得出结论前逐一核验流程图。",
+          "比较这些提案中的消息流程，并逐一检查流程图。",
         ],
       },
       evolution: {
-        label: "跨会议立场研究",
-        description: "跨会议、跨时间追踪公司立场或技术路线。",
-        input: "公司、工作组、KI/WI 或主题、会议范围和证据快照日期。",
-        output: "TDoc 谱系账本、术语与路线演进、立场分类和标准化结果报告。",
+        label: "公司技术路线分析",
+        description: "查看一家公司在多次会议中的立场和技术路线变化。",
+        input: "公司、工作组、KI/WI 或技术主题、会议范围，以及资料截至日期。",
+        output: "按会议整理的 TDoc 清单、技术路线变化、各公司立场和最终结果。",
         examples: [
           "追踪某公司从 2025 年至最近一次已结束会议在指定 KI 上的技术路线。",
           "跨会议比较两家公司，并区分明确反对、保留意见和竞争方案。",
@@ -262,58 +263,56 @@ const TRANSLATIONS = {
     },
     capabilities: {
       eyebrow: "工作台能做什么",
-      title: "为必须保持可检查的研究任务而设计",
+      title: "适合需要查资料、做对比的研究任务",
       items: [
         {
-          title: "处理文档与工作区知识",
-          description:
-            "上传来源文件、检索 RAG，并把可复用成果保存在当前工作区。",
+          title: "使用文档和工作区资料",
+          description: "上传文件、搜索工作区资料，并把有用结果保存下来。",
         },
         {
-          title: "运行受治理的 Agent 工作流",
+          title: "让助手分步完成任务",
           description:
-            "助手可以规划任务、调用工具与 Skill、提出澄清问题并保存部分成果。",
+            "助手可以拆分任务、调用工具和 Skill，遇到信息不足时会向你提问。",
         },
         {
-          title: "检查证据与视觉材料",
-          description:
-            "TDoc、表格、流程图、revision 和会议结果会作为不同证据类型处理。",
+          title: "查看 TDoc 和流程图",
+          description: "可以分别处理 TDoc、表格、流程图、文档版本和会议结果。",
         },
         {
-          title: "发布可持续复用的报告",
+          title: "整理并保存报告",
           description:
-            "正式分析可以经过校验、写成 Markdown，并加入工作区知识库。",
+            "分析完成后可以生成 Markdown 报告，并保存到工作区知识库。",
         },
       ],
     },
     concepts: {
       eyebrow: "关键概念",
-      title: "理解每一层负责什么",
+      title: "几个常用概念",
       items: [
         {
           term: "工作区",
-          description: "隔离保存对话、来源文档、文件和可复用知识的空间。",
+          description: "集中保存对话、参考文档、文件和分析结果的地方。",
         },
         {
           term: "助手",
-          description: "当前任务采用的角色、工作方法和交付要求。",
+          description: "针对不同任务准备的专用助手。",
         },
         {
           term: "Skill",
-          description: "包含指令、脚本、参考资料和完成检查的可版本化能力包。",
+          description: "为特定任务准备的一组说明、脚本和参考资料。",
         },
         {
-          term: "证据",
-          description: "支撑实质性结论的来源记录和任务产物。",
+          term: "参考资料",
+          description: "分析时使用的 TDoc、会议记录和相关文件。",
         },
       ],
     },
     boundaries: {
-      title: "重要的证据边界",
+      title: "使用时请注意",
       items: [
-        "提案方主张不自动等于 3GPP 决定；会议结论必须有结果材料支撑。",
-        "最新会议、revision 和当前状态应在任务执行时通过官方来源核验。",
-        "无法辨认的流程图、缺失文档和覆盖不足会标记为不确定，而不会猜测。",
+        "公司提交的提案不等于 3GPP 已经采纳；是否通过要看会议结果。",
+        "涉及最新会议、文档版本和当前状态时，助手会重新查看官方资料。",
+        "流程图看不清、文档缺失或资料不完整时，助手会直接说明，不会猜。",
       ],
     },
     states: {
@@ -1444,12 +1443,15 @@ const TRANSLATIONS = {
       empty: "此对话还没有消息。",
       user: "你",
       assistant: "助手",
-      agent_activity: "{{count}} 条Agent执行记录",
-      sources: "{{count}} 个来源",
+      agent_activity_one: "{{count}} 条 Agent 执行记录",
+      agent_activity_other: "{{count}} 条 Agent 执行记录",
+      sources_one: "{{count}} 个来源",
+      sources_other: "{{count}} 个来源",
       source: "来源 {{index}}",
       expand_sources: "查看引用",
       document: "工作区文档",
-      references: "引用 {{count}} 次",
+      references_one: "{{count}} 条引用",
+      references_other: "{{count}} 条引用",
       show_excerpt: "查看摘录",
     },
     workspace_files: {
@@ -1498,6 +1500,7 @@ const TRANSLATIONS = {
       tasks: "任务",
       tool_calls: "工具调用",
       needs_attention: "需要处理",
+      error: "Error",
       tools_count: "{{count}} 个工具",
       sources_count: "{{count}} 个来源",
       attempt: "第 {{count}} 次尝试",

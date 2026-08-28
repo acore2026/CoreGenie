@@ -2,9 +2,9 @@ import { REFETCH_LOGO_EVENT } from "@/LogoContext";
 import { useState, useEffect } from "react";
 
 const availableThemes = {
-  system: "System",
-  light: "Light",
-  dark: "Dark",
+  system: "跟随系统",
+  light: "浅色",
+  dark: "深色",
 };
 
 /**
@@ -15,7 +15,7 @@ const availableThemes = {
  * @typedef {Object} UseThemeResult
  * @property {ThemeOption} theme - The current theme preference stored in localStorage.
  * @property {(newTheme: ThemeOption) => void} setTheme - Sets the theme preference.
- * @property {{system: string, light: string, dark: string}} availableThemes - Map of theme keys to display names.
+ * @property {{system: string, light: string, dark: string}} availableThemes - 主题键到简体中文显示名称的映射。
  * @property {boolean} isLight - Whether the resolved theme is light (explicitly or via system preference).
  */
 

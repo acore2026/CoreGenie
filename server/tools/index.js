@@ -45,20 +45,28 @@ function legacySelectionAllows(allowed, descriptor) {
   return false;
 }
 
+function taskSelectionAllows(allowed, descriptor, strictSelection = false) {
+  if (!strictSelection && descriptor.id.startsWith("skill.")) return true;
+  return legacySelectionAllows(allowed, descriptor);
+}
+
 async function toolsForAgent(
   agent,
   context,
-  { allowActions = true, availableAgents = [], excludeToolIds = [] } = {}
+  {
+    allowActions = true,
+    availableAgents = [],
+    excludeToolIds = [],
+    strictSelection = false,
+  } = {}
 ) {
   const allowed = Array.isArray(agent?.tools) ? new Set(agent.tools) : null;
   const excluded = new Set(excludeToolIds);
   const tools = toolRegistry
     .list()
     .filter((descriptor) => !excluded.has(descriptor.id))
-    .filter(
-      (descriptor) =>
-        descriptor.id.startsWith("skill.") ||
-        legacySelectionAllows(allowed, descriptor)
+    .filter((descriptor) =>
+      taskSelectionAllows(allowed, descriptor, strictSelection)
     )
     .filter((descriptor) => allowActions || descriptor.action === false)
     .map((descriptor) => toLangChainTool(descriptor, context));
@@ -79,6 +87,7 @@ async function toolsForAgent(
 
 module.exports = {
   legacySelectionAllows,
+  taskSelectionAllows,
   toolRegistry,
   toolsForAgent,
   ...require("./descriptor"),

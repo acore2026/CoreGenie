@@ -91,8 +91,8 @@ async function executeSegment({
     streamMode: ["messages", "values"],
     configurable: { thread_id: run.checkpointThreadId },
     recursionLimit: Math.min(
-      (run.configuration?.maxToolCalls || 500) * 2 + 20,
-      1_100
+      (run.configuration?.maxToolCalls || 2_500) * 2 + 100,
+      5_500
     ),
     signal,
   });

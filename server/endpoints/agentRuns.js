@@ -88,7 +88,7 @@ async function createRun(request, response) {
       attachments: Array.isArray(body?.attachments) ? body.attachments : [],
       configuration: {
         approvalMode,
-        maxToolCalls: Math.min(Number(body?.maxToolCalls) || 500, 500),
+        maxToolCalls: Math.min(Number(body?.maxToolCalls) || 2_500, 2_500),
       },
     });
     return response.status(202).json({ run });

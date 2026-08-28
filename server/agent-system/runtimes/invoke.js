@@ -13,7 +13,7 @@ async function invokeAgentRuntime({
   runnableConfig = {},
   budget = null,
   depth = 0,
-  maxLocalToolCalls = 50,
+  maxLocalToolCalls = 250,
   resume = null,
 }) {
   const snapshot = await createRuntimeSnapshot({

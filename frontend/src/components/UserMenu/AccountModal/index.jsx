@@ -1,4 +1,3 @@
-import { useLanguageOptions } from "@/hooks/useLanguageOptions";
 import usePfp from "@/hooks/usePfp";
 import System from "@/models/system";
 import Appearance from "@/models/appearance";
@@ -111,7 +110,7 @@ export default function AccountModal({ user, hideModal }) {
                   {pfp ? (
                     <img
                       src={pfp}
-                      alt="User profile picture"
+                      alt="用户头像"
                       className="w-48 h-48 rounded-full object-cover bg-white"
                     />
                   ) : (
@@ -172,7 +171,7 @@ export default function AccountModal({ user, hideModal }) {
                   name="password"
                   type="text"
                   className="border-none bg-theme-settings-input-bg placeholder:text-theme-settings-input-placeholder border-gray-500 text-white text-sm rounded-lg focus:outline-primary-button active:outline-primary-button outline-none block w-full p-2.5"
-                  placeholder={`${user.username}'s new password`}
+                  placeholder={`${user.username} 的新密码`}
                   minLength={8}
                 />
                 <p className="mt-2 text-xs text-white/60">
@@ -184,12 +183,12 @@ export default function AccountModal({ user, hideModal }) {
                   htmlFor="bio"
                   className="block mb-2 text-sm font-medium text-white"
                 >
-                  Bio
+                  个人简介
                 </label>
                 <textarea
                   name="bio"
                   className="border-none bg-theme-settings-input-bg placeholder:text-theme-settings-input-placeholder border-gray-500 text-white text-sm rounded-lg focus:outline-primary-button active:outline-primary-button outline-none block w-full p-2.5 min-h-[100px] resize-y"
-                  placeholder="Tell us about yourself..."
+                  placeholder="介绍一下自己…"
                   defaultValue={user.bio}
                 />
               </div>
@@ -215,7 +214,6 @@ export default function AccountModal({ user, hideModal }) {
               <div className="flex gap-x-16">
                 <div className="flex flex-col gap-y-6">
                   <ThemePreference />
-                  <LanguagePreference />
                 </div>
                 <div className="flex flex-col gap-y-6">
                   <AutoSubmitPreference />
@@ -242,40 +240,6 @@ export default function AccountModal({ user, hideModal }) {
         </div>
       </div>
     </ModalWrapper>
-  );
-}
-
-function LanguagePreference() {
-  const {
-    currentLanguage,
-    supportedLanguages,
-    getLanguageName,
-    changeLanguage,
-  } = useLanguageOptions();
-  const { t } = useTranslation();
-  return (
-    <div>
-      <label
-        htmlFor="userLang"
-        className="block mb-2 text-sm font-medium text-white"
-      >
-        {t("profile_settings.language")}
-      </label>
-      <select
-        name="userLang"
-        className="border-none bg-theme-settings-input-bg w-fit mt-2 px-4 focus:outline-primary-button active:outline-primary-button outline-none text-white text-sm rounded-lg block py-2"
-        defaultValue={currentLanguage || "en"}
-        onChange={(e) => changeLanguage(e.target.value)}
-      >
-        {supportedLanguages.map((lang) => {
-          return (
-            <option key={lang} value={lang}>
-              {getLanguageName(lang)}
-            </option>
-          );
-        })}
-      </select>
-    </div>
   );
 }
 

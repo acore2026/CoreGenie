@@ -44,10 +44,10 @@ const DEFAULTS = Object.freeze({
   maxTasks: 12,
   maxConcurrency: 3,
   maxReviewRounds: 2,
-  maxTaskToolCalls: 100,
-  maxTaskModelCalls: 100,
-  maxTaskMs: 20 * 60 * 1_000,
-  maxRunMs: 30 * 60 * 1_000,
+  maxTaskToolCalls: 500,
+  maxTaskModelCalls: 500,
+  maxTaskMs: 100 * 60 * 1_000,
+  maxRunMs: 150 * 60 * 1_000,
 });
 
 const taskSchema = z.object({
@@ -95,6 +95,64 @@ function taskRequiredCompletionTools(run, allowedToolIds = []) {
   const requiredToolIds =
     run.runtimeSnapshot?.runtimeConfig?.requiredCompletionTools || [];
   return requiredToolIds.filter((toolId) => allowedToolIds.includes(toolId));
+}
+
+function isSkillBootstrapTask(taskItem) {
+  const allowed = taskItem.allowedToolIds || [];
+  return (
+    allowed.includes("skill.activate") &&
+    allowed.length > 0 &&
+    allowed.every((toolId) =>
+      ["skill.activate", "skill.read_resource"].includes(toolId)
+    )
+  );
+}
+
+function skillBootstrapCompletion(taskItem, skills = [], executions = []) {
+  if (!isSkillBootstrapTask(taskItem)) return null;
+  const objective =
+    `${taskItem.title || ""}\n${taskItem.objective || ""}`.toLowerCase();
+  const requestedSkills = skills.filter((skill) =>
+    objective.includes(skill.name.toLowerCase())
+  );
+  const expectedSkills = requestedSkills.length ? requestedSkills : skills;
+  const completed = executions.filter((item) => item.status === "completed");
+  const missingSkills = expectedSkills.filter(
+    (skill) =>
+      !completed.some(
+        (item) =>
+          item.tool_id === "skill.activate" &&
+          item.arguments?.name === skill.name
+      )
+  );
+  const expectedResources = expectedSkills.flatMap((skill) =>
+    (skill.files || [])
+      .filter((file) => file.path !== "SKILL.md" && file.text !== false)
+      .filter((file) => {
+        const relative = file.path.toLowerCase();
+        const filename = relative.split("/").at(-1);
+        const stem = filename.replace(/\.[^.]+$/, "");
+        return objective.includes(relative) || objective.includes(stem);
+      })
+      .map((file) => ({ skill: skill.name, path: file.path }))
+  );
+  const missingResources = expectedResources.filter(
+    (resource) =>
+      !completed.some(
+        (item) =>
+          item.tool_id === "skill.read_resource" &&
+          item.arguments?.name === resource.skill &&
+          item.result?.data?.path === resource.path &&
+          item.result?.data?.nextOffset === null
+      )
+  );
+  return {
+    complete: !missingSkills.length && !missingResources.length,
+    expectedSkills,
+    expectedResources,
+    missingSkills,
+    missingResources,
+  };
 }
 
 async function streamControllerDecision(
@@ -183,9 +241,103 @@ function scopedTaskId(runId, value) {
 }
 
 function requestAllowsWrite(request = "") {
-  return /\b(?:write|edit|delete|remove|create|save|store|upload|send|execute|run|modify)\b|(?:写入|编辑|删除|创建|保存|存储|上传|发送|执行|修改)/i.test(
+  return /\b(?:write|edit|delete|remove|create|save|store|upload|download|generate|send|execute|run|modify)\b|(?:写入|编辑|删除|创建|保存|存储|上传|下载|生成|发送|执行|修改)/i.test(
     String(request)
   );
+}
+
+function normalized3gppReviewPlan(request, requestedName, allowedToolIds) {
+  const tools = (ids) => ids.filter((id) => allowedToolIds.has(id));
+  return {
+    goal: "Complete the 3GPP TDoc workflow with a validated manifest and one canonical report",
+    tasks: [
+      {
+        id: "activate-3gpp-review",
+        title: "Activate the 3GPP review Skill",
+        objective: `Activate ${requestedName}, retain its exact skillRoot and complete instructions, and do not start discovery or downloads in this task. User request: ${request}`,
+        dependsOn: [],
+        allowedToolIds: tools(["skill.activate", "skill.read_resource"]),
+        requiredCapabilities: [],
+        successCriteria: [
+          "The requested Skill is activated exactly once.",
+          "Its exact skillRoot and packaged file paths are available to dependent tasks.",
+        ],
+        acceptsPartialDependencies: false,
+        writeIntent: false,
+      },
+      {
+        id: "resolve-and-filter",
+        title: "Resolve the meeting and create the proposal manifest",
+        objective: `Resolve the exact meeting folder and Index from official data, determine the requested agenda/KI scope, and use filter-index to generate and validate the canonical proposals.json. Never hand-write a manifest. Reuse exact paths returned by tools. User request: ${request}`,
+        dependsOn: ["activate-3gpp-review"],
+        allowedToolIds: tools([
+          "bash",
+          "web.fetch",
+          "filesystem.read",
+          "filesystem.write",
+          "filesystem.list",
+          "filesystem.search",
+        ]),
+        requiredCapabilities: [],
+        successCriteria: [
+          "The exact meeting and agenda mapping are supported by the meeting Index.",
+          "filter-index generated proposals.json and validate-manifest succeeded.",
+          "The exact manifest path and complete TDoc set are recorded for later tasks.",
+        ],
+        acceptsPartialDependencies: false,
+        writeIntent: true,
+      },
+      {
+        id: "download-extract-cover",
+        title: "Download, extract, and verify exact coverage",
+        objective:
+          "Use the exact manifest and meeting URL from dependencies to download and extract every selected TDoc. Inspect material figures when needed. Run strict coverage with --receipt and preserve the exact manifest, texts, figures, and receipt paths. Do not change the selected TDoc set.",
+        dependsOn: ["resolve-and-filter"],
+        allowedToolIds: tools([
+          "bash",
+          "python",
+          "filesystem.read",
+          "filesystem.write",
+          "filesystem.list",
+          "filesystem.search",
+          "vision.inspect",
+        ]),
+        requiredCapabilities: [],
+        successCriteria: [
+          "All selected TDocs are downloaded or a specific blocking failure is recorded.",
+          "Text and material diagrams are extracted and reviewed as required.",
+          "Strict coverage succeeds with no missing or extra TDocs and writes coverage.json.",
+        ],
+        acceptsPartialDependencies: false,
+        writeIntent: true,
+      },
+      {
+        id: "analyze-and-publish",
+        title: "Analyze all proposals and publish one final report",
+        objective:
+          "Analyze the complete validated TDoc set, write and read back one versioned Chinese Markdown report, then call knowledge.publish exactly once with the report path, complete manifest TDoc list, exact manifestPath, and exact coverageReceiptPath. Reuse dependency paths and do not publish an alternate report.",
+        dependsOn: ["download-extract-cover"],
+        allowedToolIds: tools([
+          "bash",
+          "python",
+          "filesystem.read",
+          "filesystem.write",
+          "filesystem.list",
+          "filesystem.search",
+          "vision.inspect",
+          "knowledge.publish",
+        ]),
+        requiredCapabilities: [],
+        successCriteria: [
+          "Every manifest TDoc is analyzed or listed with a specific failure.",
+          "Report counts and TDoc IDs exactly match the manifest and coverage receipt.",
+          "knowledge.publish confirms the single canonical report publication.",
+        ],
+        acceptsPartialDependencies: false,
+        writeIntent: true,
+      },
+    ],
+  };
 }
 
 function normalizedActionPlan({
@@ -221,6 +373,17 @@ function normalizedActionPlan({
           allowedToolIds.add(toolDescriptor.id);
       }
     }
+    if (
+      requestedName &&
+      relevantSkills.some((skill) =>
+        ["3gpp-review", "3gpp-tdocs"].includes(skill.name)
+      )
+    )
+      return normalized3gppReviewPlan(
+        request,
+        relevantSkills[0]?.name || requestedName,
+        allowedToolIds
+      );
     objective = `Activate the relevant Agent Skill, follow its instructions, and complete the user's request with the skill-permitted tools: ${request}\n\nThe controller suggested these arguments:\n${JSON.stringify(args)}`;
     successCriteria = [
       "Activate and follow the relevant Agent Skill.",
@@ -662,7 +825,7 @@ function createGovernedGraph(context) {
             parallel_tool_calls: false,
           });
         const messages = modelMessages(
-          `${basePrompt}${currentSkillCatalog ? `\n\n${currentSkillCatalog}` : ""}\n\nYou are the controller for a governed Agent runtime. Answer ordinary questions directly. Call create_plan only when tools, independent work, delegation, or verification are genuinely useful. Call ask_user only when a missing answer materially changes the work. Every ask_user call must contain exactly three concise, mutually exclusive choices with the recommended choice first; the client supplies the fourth custom-answer option and notes field. Never combine normal answer text with a control tool call. Plans must contain concrete evidence or action tasks, not a final-answer task. Give each worker the smallest relevant allowedToolIds set. When a task activates a skill, include the skill's declared allowed-tools needed to carry out the workflow in that same task; activation alone is not completion. For read-only requests, exclude unrelated state-changing tools, but retain skill-declared execution or file tools required to create the workflow's cache and requested artifacts. Direct answers using context evidence must cite it as [C1], [C2], and so on.\n\nAvailable tools:\n${toolList || "None"}\n\nAvailable specialist Agents:\n${agentList || "None"}`,
+          `${basePrompt}${currentSkillCatalog ? `\n\n${currentSkillCatalog}` : ""}\n\nYou are the controller for a governed Agent runtime. Answer ordinary questions directly. Call create_plan only when tools, independent work, delegation, or verification are genuinely useful. Call ask_user only when a missing answer materially changes the work. Every ask_user call must contain exactly three concise, mutually exclusive choices with the recommended choice first; the client supplies the fourth custom-answer option and notes field. Never combine normal answer text with a control tool call. Plans must contain concrete evidence or action tasks, not a final-answer task. Give each worker the smallest relevant allowedToolIds set. For a long Skill workflow, split discovery and manifest creation, acquisition and processing, validation, and final publication into dependency tasks; allow knowledge.publish only in the final task. A dedicated activation-only task may contain only skill.activate and skill.read_resource; otherwise include the Skill tools needed by that task. For read-only requests, exclude unrelated state-changing tools, but retain skill-declared execution or file tools required to create the workflow's cache and requested artifacts. Direct answers using context evidence must cite it as [C1], [C2], and so on.\n\nAvailable tools:\n${toolList || "None"}\n\nAvailable specialist Agents:\n${agentList || "None"}`,
           state,
           `${state.request}${state.clarification ? `\n\nUser clarification:\n${state.clarification}` : ""}${contextPrompt(state.contextItems)}`,
           state.controllerAttachments
@@ -881,6 +1044,8 @@ function createGovernedGraph(context) {
     const allowedToolIds = taskItem.allowedToolIds.length
       ? taskItem.allowedToolIds
       : readOnlyTools;
+    const requiredToolIds = taskRequiredCompletionTools(run, allowedToolIds);
+    const skillBootstrapTask = isSkillBootstrapTask(taskItem);
     const workerRun = {
       ...run,
       configuration: {
@@ -917,8 +1082,10 @@ function createGovernedGraph(context) {
           signal,
           budget: sharedBudget,
           depth: context.depth || 0,
-          maxLocalToolCalls: DEFAULTS.maxTaskToolCalls,
-          systemPromptOverride: `${basePrompt}\n\nYou are a bounded worker in a governed task graph. Complete only the assigned task. Use only allowed tools. Do not write the final user response. Stop only after the success criteria and every required completion tool are satisfied, or progress is genuinely blocked. Never end a turn with future intent such as “I will create/publish the report”; execute that action with a tool in the same turn. When a report is required, write it incrementally: create the file with a first filesystem.write call of at most 3,000 characters, append each remaining section with append=true in chunks of at most 3,000 characters, read the completed file back to verify it, then publish it before returning. Do not attempt to place a complete long report in one tool argument. Reuse existing workspace artifacts and activated Skills instead of repeating discovery, downloads, extraction, or visual analysis. Return one JSON object with summary, evidence, and unresolved. Evidence entries require kind, title, uri, excerpt, and metadata. Never invent sources.\n\nTask: ${taskItem.title}\nObjective: ${taskItem.objective}\nSuccess criteria: ${taskItem.successCriteria.join("; ") || "Satisfy the objective"}\nDependency results: ${JSON.stringify(dependencyResults)}`,
+          maxLocalToolCalls: skillBootstrapTask
+            ? 120
+            : DEFAULTS.maxTaskToolCalls,
+          systemPromptOverride: `${basePrompt}\n\nYou are a bounded worker in a governed task graph. Complete only the assigned task. Use only allowed tools. The required completion tools for this task are: ${requiredToolIds.join(", ") || "none"}. When that list is none, do not publish, search for a publication tool, or try to satisfy the Agent's run-level publication rule; publication belongs only to a task that explicitly allows knowledge.publish. Do not write the final user response. Stop only after the success criteria and every required completion tool are satisfied, or progress is genuinely blocked. Never end a turn with future intent such as “I will create/publish the report”; execute that action with a tool in the same turn. When a report is required, write it incrementally: create the file with a first filesystem.write call of at most 3,000 characters, append each remaining section with append=true in chunks of at most 3,000 characters, read the completed file back to verify it, then publish it before returning. Do not attempt to place a complete long report in one tool argument. Reuse existing workspace artifacts and activated Skills instead of repeating discovery, downloads, extraction, or visual analysis. Reuse the exact workspace paths returned in dependency results and tool outputs. Never reconstruct a directory from only a filename; when an exact path is unavailable, resolve it with filesystem.search or filesystem.list before reading. For skill resources, use only exact paths from the files list returned by activate_skill; never probe guessed directory or extension variants. Return one JSON object with summary, evidence, and unresolved. Evidence entries require kind, title, uri, excerpt, and metadata. Never invent sources.\n\nTask: ${taskItem.title}\nObjective: ${taskItem.objective}\nSuccess criteria: ${taskItem.successCriteria.join("; ") || "Satisfy the objective"}\nDependency results: ${JSON.stringify(dependencyResults)}`,
           checkpointerOverride: getCheckpointer(),
           taskId: taskItem.id,
           taskTitle: taskItem.title,
@@ -938,13 +1105,9 @@ function createGovernedGraph(context) {
           // A tool round consumes several LangGraph steps. Complex Skills
           // (for example, document extraction plus visual verification)
           // legitimately need more than the framework's small default.
-          recursionLimit: DEFAULTS.maxTaskToolCalls * 4 + 40,
+          recursionLimit: DEFAULTS.maxTaskToolCalls * 4 + 200,
           signal,
         };
-        const requiredToolIds = taskRequiredCompletionTools(
-          run,
-          allowedToolIds
-        );
         let invocationInput = {
           messages: [
             {
@@ -1061,6 +1224,37 @@ function createGovernedGraph(context) {
       } catch (error) {
         lastError = error;
         if (signal.aborted) throw error;
+        if (skillBootstrapTask) {
+          const bootstrap = skillBootstrapCompletion(
+            taskItem,
+            await availableSkills(workerAgent, workspace),
+            await AgentToolExecution.listForTask(run.id, taskItem.id)
+          );
+          if (bootstrap?.complete) {
+            const result = {
+              id: taskItem.id,
+              status: "completed",
+              summary: `Activated ${bootstrap.expectedSkills.map((skill) => skill.name).join(", ")} and completely read ${bootstrap.expectedResources.map((resource) => resource.path).join(", ") || "the requested Skill resources"}.`,
+              unresolved: [],
+              evidence: [],
+              durationMs: Date.now() - startedAt,
+              agent: { id: workerAgent.id, name: workerAgent.name },
+            };
+            await AgentRunTask.update(taskItem.id, {
+              status: "completed",
+              resultSummary: result.summary,
+              progress: null,
+              completedAt: new Date(),
+              attempt,
+            });
+            await emit("task.completed", {
+              taskId: taskItem.id,
+              result,
+              deterministic: true,
+            });
+            return { taskResults: [result] };
+          }
+        }
         if (attempt < 2) {
           await AgentRunTask.update(taskItem.id, {
             status: "retrying",
@@ -1301,7 +1495,7 @@ async function executeSegment(context) {
     ...runnableConfig,
     streamMode: ["values"],
     configurable: { thread_id: run.checkpointThreadId },
-    recursionLimit: 160,
+    recursionLimit: 800,
     maxConcurrency: DEFAULTS.maxConcurrency,
     signal,
   });
@@ -1326,10 +1520,13 @@ module.exports = {
   executeSegment,
   mergeById,
   normalizedActionPlan,
+  normalized3gppReviewPlan,
   requestAllowsWrite,
   resolvedTaskDependencies,
   scopedTaskId,
   streamControllerDecision,
+  isSkillBootstrapTask,
+  skillBootstrapCompletion,
   taskRequiredCompletionTools,
   taskSchema,
   validatePlan,

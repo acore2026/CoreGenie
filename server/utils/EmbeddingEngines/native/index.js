@@ -4,6 +4,24 @@ const { toChunks, reportEmbeddingProgress } = require("../../helpers");
 const { v4 } = require("uuid");
 const { SUPPORTED_NATIVE_EMBEDDING_MODELS } = require("./constants");
 
+const REQUIRED_MODEL_FILES = [
+  ["config.json", 2],
+  ["tokenizer.json", 100],
+  ["tokenizer_config.json", 2],
+  [path.join("onnx", "model_quantized.onnx"), 1024 * 1024],
+];
+
+function modelFilesPresent(modelPath) {
+  return REQUIRED_MODEL_FILES.every(([relativePath, minimumBytes]) => {
+    try {
+      const stats = fs.statSync(path.join(modelPath, relativePath));
+      return stats.isFile() && stats.size >= minimumBytes;
+    } catch {
+      return false;
+    }
+  });
+}
+
 class NativeEmbedder {
   static defaultModel = "Xenova/all-MiniLM-L6-v2";
 
@@ -46,7 +64,11 @@ class NativeEmbedder {
         : path.resolve(__dirname, `../../../storage/models`)
     );
     this.modelPath = path.resolve(this.cacheDir, ...this.model.split("/"));
-    this.modelDownloaded = fs.existsSync(this.modelPath);
+    // Transformers creates the model directory before every artifact has
+    // finished downloading. Treating that directory as a complete cache makes
+    // concurrent processes switch to local-only mode while the ONNX file is
+    // still absent or partial.
+    this.modelDownloaded = modelFilesPresent(this.modelPath);
 
     // Limit of how many strings we can process in a single pass to stay with resource or network limits
     this.maxConcurrentChunks = this.modelInfo.maxConcurrentChunks;
@@ -311,4 +333,5 @@ class NativeEmbedder {
 
 module.exports = {
   NativeEmbedder,
+  modelFilesPresent,
 };

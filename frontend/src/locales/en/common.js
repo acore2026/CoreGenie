@@ -1890,6 +1890,7 @@ const TRANSLATIONS = {
       tasks: "Tasks",
       tool_calls: "Tool calls",
       needs_attention: "Needs attention",
+      error: "Error",
       tools_count: "{{count}} tools",
       sources_count: "{{count}} sources",
       attempt: "attempt {{count}}",

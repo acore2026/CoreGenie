@@ -1,4 +1,5 @@
 const TRANSIENT_PRISMA_CODES = new Set(["P1008", "P2024", "P2034"]);
+let operationTail = Promise.resolve();
 
 function isTransientPrismaError(error) {
   if (!error) return false;
@@ -8,7 +9,7 @@ function isTransientPrismaError(error) {
   );
 }
 
-async function withPrismaRetry(operation, { attempts = 3 } = {}) {
+async function retryPrismaOperation(operation, attempts) {
   let lastError;
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
@@ -22,6 +23,14 @@ async function withPrismaRetry(operation, { attempts = 3 } = {}) {
     }
   }
   throw lastError;
+}
+
+function withPrismaRetry(operation, { attempts = 3 } = {}) {
+  const pending = operationTail
+    .catch(() => null)
+    .then(() => retryPrismaOperation(operation, attempts));
+  operationTail = pending;
+  return pending;
 }
 
 module.exports = {

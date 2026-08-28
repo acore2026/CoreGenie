@@ -52,7 +52,7 @@ function createSubagentTool(context, availableAgents = []) {
           signal: context.signal,
           budget: context.budget,
           depth: context.depth + 1,
-          maxLocalToolCalls: 50,
+          maxLocalToolCalls: 250,
           runnableConfig: childRunnableConfig(runnableConfig, {
             tags: ["subagent"],
             metadata: {

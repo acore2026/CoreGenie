@@ -373,6 +373,7 @@ export default function AgentExecutionRail({
     () => !!runState && !TERMINAL.has(runState.status)
   );
   const [expansionWasChosen, setExpansionWasChosen] = useState(false);
+  const [failedToolsExpanded, setFailedToolsExpanded] = useState(false);
   const [completedToolsExpanded, setCompletedToolsExpanded] = useState(false);
   const [snapshotState, setSnapshotState] = useState(null);
   const [now, setNow] = useState(() => Date.now());
@@ -619,23 +620,35 @@ export default function AgentExecutionRail({
               )}
               {failedTools.length > 0 && (
                 <div className={runningTools.length > 0 ? "mt-1" : ""}>
-                  <p className="m-0 flex items-center justify-between px-1 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-red-400 light:text-red-700">
-                    <span>
-                      {t("chat_window.agent_invocation.needs_attention")}
+                  <button
+                    type="button"
+                    onClick={() => setFailedToolsExpanded((value) => !value)}
+                    className="flex min-h-9 w-full items-center justify-between rounded-md px-1 text-left text-[10px] font-semibold uppercase tracking-[0.1em] text-red-400 outline-none hover:bg-red-400/[0.06] focus-visible:ring-2 focus-visible:ring-red-400/60 light:text-red-700 light:hover:bg-red-50"
+                    aria-expanded={failedToolsExpanded}
+                  >
+                    <span className="flex items-center gap-2">
+                      <XCircle size={14} weight="fill" />
+                      {t("chat_window.agent_invocation.error")}
                     </span>
-                    <span className="font-mono tabular-nums">
+                    <span className="flex items-center gap-2 font-mono tabular-nums">
                       {failedTools.length}
-                    </span>
-                  </p>
-                  <ol className="m-0 space-y-0.5 p-0">
-                    {failedTools.map((tool) => (
-                      <ToolExecutionRow
-                        key={tool.call_id || tool.id}
-                        tool={tool}
-                        t={t}
+                      <CaretDown
+                        size={12}
+                        className={`transition-transform duration-150 ${failedToolsExpanded ? "rotate-180" : ""}`}
                       />
-                    ))}
-                  </ol>
+                    </span>
+                  </button>
+                  {failedToolsExpanded && (
+                    <ol className="m-0 space-y-0.5 p-0">
+                      {failedTools.map((tool) => (
+                        <ToolExecutionRow
+                          key={tool.call_id || tool.id}
+                          tool={tool}
+                          t={t}
+                        />
+                      ))}
+                    </ol>
+                  )}
                 </div>
               )}
               {completedTools.length > 0 && (

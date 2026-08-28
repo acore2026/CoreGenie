@@ -1172,6 +1172,7 @@ const TRANSLATIONS = {
       tasks: "任務",
       tool_calls: "工具呼叫",
       needs_attention: "需要處理",
+      error: "Error",
       tools_count: "{{count}} 個工具",
       sources_count: "{{count}} 個來源",
       attempt: "第 {{count}} 次嘗試",

@@ -4,7 +4,7 @@ const prisma = require("../utils/prisma");
 const { PredefinedAgentSkill } = require("../models/predefinedAgentSkill");
 const { PredefinedAgent } = require("../models/predefinedAgent");
 
-const SEED_SETTING = "agent_skill_seed_3gpp_position_evolution_v4";
+const SEED_SETTING = "agent_skill_seed_3gpp_position_evolution_v5";
 const SKILL_NAME = "3gpp-position-evolution";
 const REVIEW_SKILL_NAMES = ["3gpp-review", "3gpp-tdocs"];
 const AGENT_NAME = "3GPP 技术路线与立场分析助手";
@@ -32,7 +32,7 @@ const AGENT_PROMPT = `你是一名面向 3GPP/6G 标准研究的公司技术路�
 - 将“Skill 激活与规则读取”限制为独立的启动任务：只激活两个 Skill，并读取 status-semantics、evidence-taxonomy、report-contract 和 company-aliases；该任务不得执行 RAG 检索、Workspace 目录遍历或会议范围研究；
 - 启动任务完成后立即进入独立的会议范围任务。不要在同一任务中重复激活 Skill、重复读取同一资源，或把后续会议/TDoc 工作提前塞入启动任务；
 - 先冻结公司、主题/KI/WI、工作组、会议范围和数据快照时间，再开始分析；
-- 先构建可审计的 TDoc 谱系账本，再综合公司立场，不凭印象补齐会议或提案；
+- 先按会议整理 TDoc 清单和版本关系，再分析公司立场，不凭印象补齐会议或提案；
 - 每项实质结论关联到 TDoc 或官方会议材料，并区分公司原始提案、共同署名文本、会议结果和分析推断；
 - 只有明确反对证据才能将公司列为“主要反对者”，竞争方案和保留意见必须单独分类；
 - 不把 Not Handled、Postponed、Merged、Withdrawn 或 Baseline 自动解释为“被拒绝”或“已批准”；

@@ -241,7 +241,9 @@ function HelpCenter() {
                             {agent.name}
                           </span>
                           <span className="mt-0.5 block line-clamp-1 text-xs font-normal opacity-60">
-                            {agent.description || t("help.launcher.ready")}
+                            {t(
+                              `help.agent_profiles.${agentKind(agent)}.description`
+                            ) || t("help.launcher.ready")}
                           </span>
                         </span>
                         {active && (
@@ -280,8 +282,7 @@ function HelpCenter() {
                         {activeAgent.name}
                       </h3>
                       <p className="mt-2 text-sm leading-6 text-zinc-400 light:text-slate-600">
-                        {activeAgent.description ||
-                          t(`help.agent_profiles.${kind}.description`)}
+                        {t(`help.agent_profiles.${kind}.description`)}
                       </p>
                     </div>
                     <button
