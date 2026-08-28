@@ -153,6 +153,10 @@ class NativeEmbedder {
       return {
         pipeline: await pipeline("feature-extraction", this.model, {
           cache_dir: this.cacheDir,
+          // Once the complete model directory exists in persistent storage,
+          // avoid remote metadata probes. Restricted/proxied deployments can
+          // otherwise fail a perfectly valid local model with `fetch failed`.
+          local_files_only: this.modelDownloaded,
           ...(!this.modelDownloaded
             ? {
                 // Show download progress if we need to download any files

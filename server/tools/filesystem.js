@@ -33,13 +33,18 @@ const writeFile = defineTool({
   id: "filesystem.write",
   name: "filesystem_write",
   description:
-    "Create or replace a UTF-8 text file in the persistent workspace.",
-  schema: z.object({ path: z.string().min(1), content: z.string() }),
-  execute: async ({ path: filePath, content }, context) => {
+    "Create, replace, or append to a UTF-8 text file in the persistent workspace. For long reports, write the header first and append sections in bounded chunks.",
+  schema: z.object({
+    path: z.string().min(1),
+    content: z.string(),
+    append: z.boolean().default(false),
+  }),
+  execute: async ({ path: filePath, content, append }, context) => {
     const workspaceFs = manager(context);
     const target = await workspaceFs.validatePath(filePath);
-    await workspaceFs.writeFileContent(target, content);
-    return `Wrote ${Buffer.byteLength(content, "utf8")} bytes to ${filePath}.`;
+    if (append) await fs.appendFile(target, content, "utf8");
+    else await workspaceFs.writeFileContent(target, content);
+    return `${append ? "Appended" : "Wrote"} ${Buffer.byteLength(content, "utf8")} bytes to ${filePath}.`;
   },
 });
 

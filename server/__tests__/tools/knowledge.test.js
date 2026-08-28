@@ -115,6 +115,15 @@ describe("knowledge.publish", () => {
       ["agent-reports/3gpp/run-publish/report.json"],
       1
     );
+    const writtenDocument = JSON.parse(fs.writeFile.mock.calls[0][1]);
+    expect(typeof writtenDocument.agentPublication).toBe("string");
+    expect(JSON.parse(writtenDocument.agentPublication)).toMatchObject({
+      meeting: "SA2#175",
+      ki: "KI#22",
+      tdocIds: ["S2-2606085"],
+      runId: "run-publish",
+      agentId: 7,
+    });
     expect(ctx.emit).toHaveBeenCalledWith(
       "knowledge.published",
       expect.objectContaining({ documentId: 42, tdocCount: 1 })

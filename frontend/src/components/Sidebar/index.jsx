@@ -12,6 +12,7 @@ import { useSidebarToggle, ToggleSidebarButton } from "./SidebarToggle";
 import SearchBox from "./SearchBox";
 import { Tooltip } from "react-tooltip";
 import { createPortal } from "react-dom";
+import HelpShortcut from "./HelpShortcut";
 
 export default function Sidebar() {
   const { logo } = useLogo();
@@ -63,6 +64,7 @@ export default function Sidebar() {
                   </div>
                 </div>
                 <div className="absolute bottom-0 left-0 right-0 pb-3 rounded-b-[16px] bg-theme-bg-sidebar light:bg-slate-200 bg-opacity-80 backdrop-filter backdrop-blur-md z-10">
+                  <HelpShortcut />
                   <Footer />
                 </div>
               </div>
@@ -106,15 +108,18 @@ export function SidebarMobileHeader() {
     <>
       <div
         aria-label="Show sidebar"
-        className="fixed top-0 left-0 right-0 z-10 flex justify-between items-center px-4 py-2 bg-theme-bg-sidebar light:bg-white text-slate-200 shadow-lg h-16"
+        className="fixed top-0 left-0 right-0 z-10 flex items-center justify-between px-4 py-2 bg-theme-bg-sidebar light:bg-white text-slate-200 shadow-lg h-16"
       >
-        <button
-          onClick={() => setShowSidebar(true)}
-          className="rounded-md p-2 flex items-center justify-center text-theme-text-secondary"
-        >
-          <List className="h-6 w-6" />
-        </button>
-        <div className="flex items-center justify-center flex-grow">
+        <div className="flex items-center">
+          <button
+            onClick={() => setShowSidebar(true)}
+            className="rounded-md p-2 flex items-center justify-center text-theme-text-secondary"
+          >
+            <List className="h-6 w-6" />
+          </button>
+          <HelpShortcut iconOnly />
+        </div>
+        <div className="pointer-events-none absolute left-1/2 flex -translate-x-1/2 items-center justify-center">
           <img
             src={logo}
             alt="Logo"
@@ -122,7 +127,7 @@ export function SidebarMobileHeader() {
             style={{ maxHeight: "40px", objectFit: "contain" }}
           />
         </div>
-        <div className="w-12" />
+        <span className="h-10 w-10" aria-hidden="true" />
       </div>
       <div
         style={{
@@ -164,6 +169,7 @@ export function SidebarMobileHeader() {
                 </div>
               </div>
               <div className="z-99 absolute bottom-0 left-0 right-0 pt-2 pb-6 rounded-br-[26px] bg-theme-bg-sidebar bg-opacity-80 backdrop-filter backdrop-blur-md">
+                <HelpShortcut />
                 <Footer />
               </div>
             </div>

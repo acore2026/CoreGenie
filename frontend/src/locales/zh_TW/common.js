@@ -1407,6 +1407,159 @@ const TRANSLATIONS = {
     },
     greeting: "今天想做什麼？",
   },
+  help: {
+    navigation: "幫助與範例",
+    eyebrow: "CoreGenie 使用指南",
+    title: "從一個真實任務開始",
+    subtitle:
+      "先選擇與目標相符的助理，了解它需要什麼，再把經過設計的範例帶入工作台；系統不會替你自動送出。",
+    intro: {
+      title: "第一次使用？從引導範例開始",
+      description: "選擇助理、限定範圍，然後檢查有證據支撐的結果。",
+      action: "查看指南",
+      dismiss: "關閉首次使用提示",
+    },
+    actions: {
+      back: "返回工作台",
+      copy: "複製提示詞",
+      copied: "提示詞已複製",
+      copy_failed: "無法複製提示詞。",
+      use_agent: "使用此助理",
+      try_example: "試用範例",
+      workspace_required: "需要工作區",
+    },
+    flow: {
+      eyebrow: "任務如何流轉",
+      title: "從問題到可追蹤的結果",
+      note: "送出前始終由你確認。",
+      steps: [
+        {
+          title: "限定目標",
+          description: "說明工作組、會議、KI、公司、技術主題或時間範圍。",
+        },
+        {
+          title: "選擇助理",
+          description: "依任務使用通用、提案分析或立場演進工作流程。",
+        },
+        {
+          title: "核驗證據",
+          description: "Agent 檢查來源、TDoc、流程圖以及尚未涵蓋的內容。",
+        },
+        {
+          title: "交付報告",
+          description: "取得中文 Markdown 報告，並沉澱為可重用的工作區知識。",
+        },
+      ],
+    },
+    launcher: {
+      eyebrow: "任務啟動器",
+      title: "輸入之前，先選對助理",
+      description: "這裡顯示目前實例中實際啟用的助理。",
+      agent_list: "可用助理",
+      ready: "可以開始工作",
+      empty_title: "目前沒有啟用的助理",
+      empty_description: "請聯絡管理員啟用至少一個助理。",
+      input_label: "你需要提供",
+      output_label: "你將取得",
+      examples_label: "可以直接使用的範例",
+      select_agent: "選擇一個助理以查看它的工作方式。",
+    },
+    agent_profiles: {
+      general: {
+        label: "通用工作",
+        description: "處理日常問答、寫作、檔案和一般分析。",
+        input: "清楚的問題、一個檔案，或希望最終產出的結果。",
+        output: "直接回答、摘要、比較、草稿或以檔案為基礎的分析。",
+        examples: [
+          "總結我上傳的文件，列出關鍵結論，並標示仍需核驗的資訊。",
+          "從目標、方法、差異、風險和開放問題五個面向比較這兩份文件。",
+          "把我的零散筆記整理成一份簡潔的技術簡報，並附上行動清單。",
+        ],
+      },
+      review: {
+        label: "會議 / TDoc 分析",
+        description: "針對一次會議、一個 KI 或一組提案進行證據導向分析。",
+        input: "工作組、會議號、KI/議程項目，以及相關 TDoc 編號或公司範圍。",
+        output: "可追蹤的方案矩陣、流程分析、涵蓋率檢查和已發布報告。",
+        examples: [
+          "分析指定 SA2 會議和 KI 的主要提案，比較架構路線、關鍵流程與開放問題。",
+          "分析我提供的 TDoc，區分提案方主張與會議結果，並輸出中文報告。",
+          "比較這些提案中的訊息流程，在得出結論前逐一核驗流程圖。",
+        ],
+      },
+      evolution: {
+        label: "跨會議立場研究",
+        description: "跨會議、跨時間追蹤公司立場或技術路線。",
+        input: "公司、工作組、KI/WI 或主題、會議範圍和證據快照日期。",
+        output: "TDoc 譜系帳本、術語與路線演進、立場分類和標準化結果報告。",
+        examples: [
+          "追蹤某公司從 2025 年至最近一次已結束會議在指定 KI 上的技術路線。",
+          "跨會議比較兩家公司，並區分明確反對、保留意見和競爭方案。",
+          "更新既有立場分析，只總結最新提案、狀態變化和尚未解決的問題。",
+        ],
+      },
+    },
+    capabilities: {
+      eyebrow: "工作台能做什麼",
+      title: "為必須保持可檢查的研究任務而設計",
+      items: [
+        {
+          title: "處理文件與工作區知識",
+          description:
+            "上傳來源檔案、搜尋 RAG，並把可重用成果保存在目前工作區。",
+        },
+        {
+          title: "執行受治理的 Agent 工作流程",
+          description:
+            "助理可以規劃任務、呼叫工具與 Skill、提出澄清問題並保存部分成果。",
+        },
+        {
+          title: "檢查證據與視覺材料",
+          description:
+            "TDoc、表格、流程圖、revision 和會議結果會作為不同證據類型處理。",
+        },
+        {
+          title: "發布可持續重用的報告",
+          description:
+            "正式分析可以經過校驗、寫成 Markdown，並加入工作區知識庫。",
+        },
+      ],
+    },
+    concepts: {
+      eyebrow: "關鍵概念",
+      title: "理解每一層負責什麼",
+      items: [
+        {
+          term: "工作區",
+          description: "隔離保存對話、來源文件、檔案和可重用知識的空間。",
+        },
+        {
+          term: "助理",
+          description: "目前任務採用的角色、工作方法和交付要求。",
+        },
+        {
+          term: "Skill",
+          description: "包含指令、腳本、參考資料和完成檢查的可版本化能力包。",
+        },
+        {
+          term: "證據",
+          description: "支撐實質性結論的來源記錄和任務產物。",
+        },
+      ],
+    },
+    boundaries: {
+      title: "重要的證據邊界",
+      items: [
+        "提案方主張不自動等於 3GPP 決定；會議結論必須有結果材料支撐。",
+        "最新會議、revision 和目前狀態應在任務執行時透過官方來源核驗。",
+        "無法辨識的流程圖、缺失文件和涵蓋不足會標示為不確定，而不會猜測。",
+      ],
+    },
+    states: {
+      no_workspace:
+        "你目前尚未獲分配工作區。請聯絡管理員開通存取權後再啟動範例。",
+    },
+  },
   "keyboard-shortcuts": {
     title: "鍵盤快速鍵",
     shortcuts: {

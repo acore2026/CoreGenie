@@ -12,6 +12,8 @@ Activate the bound 3GPP review Skill as well as this Skill when official meeting
 
 The helper is [scripts/3gpp_evolution.py](scripts/3gpp_evolution.py). Before classifying opposition, read [references/evidence-taxonomy.md](references/evidence-taxonomy.md). Before interpreting meeting outcomes, read [references/status-semantics.md](references/status-semantics.md). Before writing the report, read [references/report-contract.md](references/report-contract.md).
 
+When the governed runtime creates a task plan, keep Skill activation as a bounded bootstrap task. It may only activate the two 3GPP Skills and read `status-semantics.md`, `evidence-taxonomy.md`, `report-contract.md`, and `company-aliases.json`. Do not perform RAG searches, list Workspace directories, establish the meeting timeline, or discover TDocs in that task. Complete it immediately after the four resources are read; meeting scoping belongs to the next task. Do not activate the same Skill or read the same resource twice in one run.
+
 ## Workspace
 
 The Skill package is read-only. Run its script with `cwd=skill://3gpp-position-evolution` and keep research artifacts under:

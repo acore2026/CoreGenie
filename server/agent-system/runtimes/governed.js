@@ -91,6 +91,12 @@ function resolvedTaskDependencies(taskItem, resultsById) {
   return dependencies.every(Boolean) ? dependencies : null;
 }
 
+function taskRequiredCompletionTools(run, allowedToolIds = []) {
+  const requiredToolIds =
+    run.runtimeSnapshot?.runtimeConfig?.requiredCompletionTools || [];
+  return requiredToolIds.filter((toolId) => allowedToolIds.includes(toolId));
+}
+
 async function streamControllerDecision(
   model,
   messages,
@@ -912,7 +918,7 @@ function createGovernedGraph(context) {
           budget: sharedBudget,
           depth: context.depth || 0,
           maxLocalToolCalls: DEFAULTS.maxTaskToolCalls,
-          systemPromptOverride: `${basePrompt}\n\nYou are a bounded worker in a governed task graph. Complete only the assigned task. Use only allowed tools. Do not write the final user response. Stop only after the success criteria and every required completion tool are satisfied, or progress is genuinely blocked. Never end a turn with future intent such as “I will create/publish the report”; execute that action with a tool in the same turn. When a report is required, write the complete report to the persistent workspace, read it back to verify it, then publish it before returning. Reuse existing workspace artifacts and activated Skills instead of repeating discovery, downloads, extraction, or visual analysis. Return one JSON object with summary, evidence, and unresolved. Evidence entries require kind, title, uri, excerpt, and metadata. Never invent sources.\n\nTask: ${taskItem.title}\nObjective: ${taskItem.objective}\nSuccess criteria: ${taskItem.successCriteria.join("; ") || "Satisfy the objective"}\nDependency results: ${JSON.stringify(dependencyResults)}`,
+          systemPromptOverride: `${basePrompt}\n\nYou are a bounded worker in a governed task graph. Complete only the assigned task. Use only allowed tools. Do not write the final user response. Stop only after the success criteria and every required completion tool are satisfied, or progress is genuinely blocked. Never end a turn with future intent such as “I will create/publish the report”; execute that action with a tool in the same turn. When a report is required, write it incrementally: create the file with a first filesystem.write call of at most 3,000 characters, append each remaining section with append=true in chunks of at most 3,000 characters, read the completed file back to verify it, then publish it before returning. Do not attempt to place a complete long report in one tool argument. Reuse existing workspace artifacts and activated Skills instead of repeating discovery, downloads, extraction, or visual analysis. Return one JSON object with summary, evidence, and unresolved. Evidence entries require kind, title, uri, excerpt, and metadata. Never invent sources.\n\nTask: ${taskItem.title}\nObjective: ${taskItem.objective}\nSuccess criteria: ${taskItem.successCriteria.join("; ") || "Satisfy the objective"}\nDependency results: ${JSON.stringify(dependencyResults)}`,
           checkpointerOverride: getCheckpointer(),
           taskId: taskItem.id,
           taskTitle: taskItem.title,
@@ -935,8 +941,10 @@ function createGovernedGraph(context) {
           recursionLimit: DEFAULTS.maxTaskToolCalls * 4 + 40,
           signal,
         };
-        const requiredToolIds =
-          run.runtimeSnapshot?.runtimeConfig?.requiredCompletionTools || [];
+        const requiredToolIds = taskRequiredCompletionTools(
+          run,
+          allowedToolIds
+        );
         let invocationInput = {
           messages: [
             {
@@ -989,7 +997,7 @@ function createGovernedGraph(context) {
             messages: [
               {
                 role: "user",
-                content: `${reasons.join(" ")} Continue the same task now. Your next response must begin with the tool calls needed to finish, not prose. Reuse the already downloaded, extracted, and analyzed workspace artifacts; do not restart meeting discovery or document analysis unless a specific required artifact is missing. Locate an existing report draft or write the final report now, read it back to verify it, execute every missing completion tool, and only then return exactly one JSON object with summary, evidence, and unresolved. Completed tool IDs so far: ${[...completedToolIds].join(", ") || "none"}.`,
+                content: `${reasons.join(" ")} Continue the same task now. Your next response must begin with the tool calls needed to finish, not prose. Reuse the already downloaded, extracted, and analyzed workspace artifacts; do not restart meeting discovery or document analysis unless a specific required artifact is missing. Locate an existing report draft or write the final report now in filesystem.write chunks no larger than 3,000 characters, using append=true after the first chunk. Read the completed file back to verify it, execute every missing completion tool, and only then return exactly one JSON object with summary, evidence, and unresolved. Completed tool IDs so far: ${[...completedToolIds].join(", ") || "none"}.`,
               },
             ],
           };
@@ -1322,6 +1330,7 @@ module.exports = {
   resolvedTaskDependencies,
   scopedTaskId,
   streamControllerDecision,
+  taskRequiredCompletionTools,
   taskSchema,
   validatePlan,
 };

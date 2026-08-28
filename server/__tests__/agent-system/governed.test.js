@@ -10,6 +10,7 @@ const {
   resolvedTaskDependencies,
   scopedTaskId,
   streamControllerDecision,
+  taskRequiredCompletionTools,
   validatePlan,
 } = require("../../agent-system/runtimes/governed");
 const { toolRegistry } = require("../../tools");
@@ -25,6 +26,24 @@ describe("Governed Agent runtime", () => {
     expect(DEFAULTS.maxTaskToolCalls).toBe(100);
     expect(DEFAULTS.maxTaskModelCalls).toBe(100);
     expect(DEFAULTS.maxTaskMs).toBe(20 * 60 * 1_000);
+  });
+
+  it("requires completion tools only in tasks that are allowed to call them", () => {
+    const run = {
+      runtimeSnapshot: {
+        runtimeConfig: { requiredCompletionTools: ["knowledge.publish"] },
+      },
+    };
+
+    expect(
+      taskRequiredCompletionTools(run, [
+        "skill.activate",
+        "skill.read_resource",
+      ])
+    ).toEqual([]);
+    expect(
+      taskRequiredCompletionTools(run, ["filesystem.read", "knowledge.publish"])
+    ).toEqual(["knowledge.publish"]);
   });
 
   it("compiles without state-channel and node-name collisions", () => {

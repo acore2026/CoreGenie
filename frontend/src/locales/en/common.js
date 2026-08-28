@@ -182,6 +182,177 @@ const TRANSLATIONS = {
       uploadDocument: "Upload a Document",
     },
   },
+  help: {
+    navigation: "Help & examples",
+    eyebrow: "CoreGenie field guide",
+    title: "Start with a real task",
+    subtitle:
+      "Choose the assistant that matches your goal, review what it needs, and bring a proven example into the workbench without sending it automatically.",
+    intro: {
+      title: "New here? Start with a guided example",
+      description:
+        "Choose an assistant, define the scope, and review the evidence-backed result.",
+      action: "View guide",
+      dismiss: "Dismiss introduction",
+    },
+    actions: {
+      back: "Back to workbench",
+      copy: "Copy prompt",
+      copied: "Prompt copied",
+      copy_failed: "Unable to copy the prompt.",
+      use_agent: "Use this assistant",
+      try_example: "Try example",
+      workspace_required: "Workspace required",
+    },
+    flow: {
+      eyebrow: "How work moves",
+      title: "From question to a traceable result",
+      note: "You stay in control before anything is sent.",
+      steps: [
+        {
+          title: "Define the target",
+          description:
+            "State the WG, meeting, KI, company, topic, or time range.",
+        },
+        {
+          title: "Choose an assistant",
+          description:
+            "Use the general, proposal-review, or position-evolution workflow.",
+        },
+        {
+          title: "Verify the evidence",
+          description:
+            "The Agent checks sources, TDocs, diagrams, and coverage gaps.",
+        },
+        {
+          title: "Deliver the report",
+          description:
+            "Receive a Chinese Markdown report and reusable workspace knowledge.",
+        },
+      ],
+    },
+    launcher: {
+      eyebrow: "Task launcher",
+      title: "Pick the right assistant before you type",
+      description:
+        "This list reflects the assistants currently enabled on this instance.",
+      agent_list: "Available assistants",
+      ready: "Ready to help",
+      empty_title: "No assistants are enabled",
+      empty_description: "Ask an administrator to enable an assistant.",
+      input_label: "What to provide",
+      output_label: "What you will receive",
+      examples_label: "Ready-to-use examples",
+      select_agent: "Select an assistant to review its workflow.",
+    },
+    agent_profiles: {
+      general: {
+        label: "General work",
+        description:
+          "Flexible help for questions, writing, files, and everyday analysis.",
+        input: "A clear question, a file, or the result you want to produce.",
+        output:
+          "A direct answer, summary, comparison, draft, or file-based analysis.",
+        examples: [
+          "Summarize the uploaded document, list its key conclusions, and flag information that needs verification.",
+          "Compare these two documents by objective, approach, differences, risks, and open questions.",
+          "Turn my notes into a concise technical briefing with an action list.",
+        ],
+      },
+      review: {
+        label: "Meeting / TDoc review",
+        description:
+          "Evidence-led analysis for one meeting, KI, or set of contribution documents.",
+        input:
+          "WG, meeting number, KI or agenda item, and relevant TDoc numbers or company scope.",
+        output:
+          "A traceable proposal matrix, flow analysis, coverage check, and published report.",
+        examples: [
+          "Analyze the key proposals for a specified SA2 meeting and KI, then compare their architecture and open issues.",
+          "Review the provided TDocs, distinguish contributor claims from meeting outcomes, and produce a Chinese report.",
+          "Compare the message flows in these proposals and verify every diagram before drawing conclusions.",
+        ],
+      },
+      evolution: {
+        label: "Longitudinal position study",
+        description:
+          "Trace a company or technical route across meetings and time.",
+        input:
+          "Company, WG, KI/WI or topic, meeting range, and the evidence snapshot date.",
+        output:
+          "A TDoc lineage ledger, terminology and route evolution, position classification, and outcome report.",
+        examples: [
+          "Trace one company's technical route on a specified KI from 2025 to the latest completed meeting.",
+          "Compare two companies across meetings and separate explicit opposition, reservations, and alternatives.",
+          "Update an earlier position study with only the newest proposals, status changes, and unresolved issues.",
+        ],
+      },
+    },
+    capabilities: {
+      eyebrow: "What the workbench can do",
+      title: "Built for research that must remain inspectable",
+      items: [
+        {
+          title: "Work with documents and workspace knowledge",
+          description:
+            "Upload source files, search RAG knowledge, and keep reusable results in the current workspace.",
+        },
+        {
+          title: "Run governed Agent workflows",
+          description:
+            "Assistants can plan tasks, use tools and Skills, ask clarifying questions, and preserve partial results.",
+        },
+        {
+          title: "Inspect evidence and visual material",
+          description:
+            "TDocs, tables, diagrams, revisions, and official outcomes are handled as distinct evidence types.",
+        },
+        {
+          title: "Publish durable reports",
+          description:
+            "Formal analyses can be validated, written as Markdown, and added back to workspace knowledge.",
+        },
+      ],
+    },
+    concepts: {
+      eyebrow: "Key concepts",
+      title: "Know what each layer is for",
+      items: [
+        {
+          term: "Workspace",
+          description:
+            "An isolated area for conversations, source documents, files, and reusable knowledge.",
+        },
+        {
+          term: "Assistant",
+          description:
+            "The role and workflow selected for the task you are about to run.",
+        },
+        {
+          term: "Skill",
+          description:
+            "A versioned package of instructions, scripts, references, and completion checks.",
+        },
+        {
+          term: "Evidence",
+          description:
+            "The source records and artifacts that support a material conclusion.",
+        },
+      ],
+    },
+    boundaries: {
+      title: "Important evidence boundaries",
+      items: [
+        "A contributor's proposal is not automatically a 3GPP decision; meeting outcomes require outcome evidence.",
+        "Latest meetings, revisions, and current status should be verified against official sources at task time.",
+        "Unreadable diagrams, missing documents, and incomplete coverage are reported as uncertainty, not guessed.",
+      ],
+    },
+    states: {
+      no_workspace:
+        "You do not currently have an assigned workspace. Ask an administrator for access before starting an example.",
+    },
+  },
   "new-workspace": {
     title: "New Workspace",
     placeholder: "My Workspace",

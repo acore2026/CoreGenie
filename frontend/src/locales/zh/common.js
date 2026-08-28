@@ -168,6 +168,159 @@ const TRANSLATIONS = {
     },
     greeting: "今天我能帮您什么？",
   },
+  help: {
+    navigation: "帮助与示例",
+    eyebrow: "CoreGenie 使用指南",
+    title: "从一个真实任务开始",
+    subtitle:
+      "先选择与目标匹配的助手，了解它需要什么，再把经过设计的示例带入工作台；系统不会替你自动发送。",
+    intro: {
+      title: "第一次使用？从引导示例开始",
+      description: "选择助手、限定范围，然后检查有证据支撑的结果。",
+      action: "查看指南",
+      dismiss: "关闭首次使用提示",
+    },
+    actions: {
+      back: "返回工作台",
+      copy: "复制提示词",
+      copied: "提示词已复制",
+      copy_failed: "无法复制提示词。",
+      use_agent: "使用此助手",
+      try_example: "试用示例",
+      workspace_required: "需要工作区",
+    },
+    flow: {
+      eyebrow: "任务如何流转",
+      title: "从问题到可追踪的结果",
+      note: "发送前始终由你确认。",
+      steps: [
+        {
+          title: "限定目标",
+          description: "说明工作组、会议、KI、公司、技术主题或时间范围。",
+        },
+        {
+          title: "选择助手",
+          description: "根据任务使用通用、提案分析或立场演进工作流。",
+        },
+        {
+          title: "核验证据",
+          description: "Agent 检查来源、TDoc、流程图以及尚未覆盖的内容。",
+        },
+        {
+          title: "交付报告",
+          description: "获得中文 Markdown 报告，并沉淀为可复用的工作区知识。",
+        },
+      ],
+    },
+    launcher: {
+      eyebrow: "任务启动器",
+      title: "输入之前，先选对助手",
+      description: "这里展示的是当前实例中实际启用的助手。",
+      agent_list: "可用助手",
+      ready: "可以开始工作",
+      empty_title: "当前没有启用的助手",
+      empty_description: "请联系管理员启用至少一个助手。",
+      input_label: "你需要提供",
+      output_label: "你将获得",
+      examples_label: "可以直接使用的示例",
+      select_agent: "选择一个助手以查看它的工作方式。",
+    },
+    agent_profiles: {
+      general: {
+        label: "通用工作",
+        description: "处理日常问答、写作、文件和一般分析。",
+        input: "清晰的问题、一个文件，或希望最终产出的结果。",
+        output: "直接回答、摘要、对比、草稿或基于文件的分析。",
+        examples: [
+          "总结我上传的文档，列出关键结论，并标出仍需核验的信息。",
+          "从目标、方法、差异、风险和开放问题五个方面比较这两份文档。",
+          "把我的零散笔记整理成一份简洁的技术简报，并附上行动清单。",
+        ],
+      },
+      review: {
+        label: "会议 / TDoc 分析",
+        description: "围绕一次会议、一个 KI 或一组提案开展证据驱动的分析。",
+        input: "工作组、会议号、KI/议程项，以及相关 TDoc 编号或公司范围。",
+        output: "可追踪的方案矩阵、流程分析、覆盖率检查和已发布报告。",
+        examples: [
+          "分析指定 SA2 会议和 KI 的主要提案，比较架构路线、关键流程与开放问题。",
+          "分析我提供的 TDoc，区分提案方主张与会议结果，并输出中文报告。",
+          "比较这些提案中的消息流程，在得出结论前逐一核验流程图。",
+        ],
+      },
+      evolution: {
+        label: "跨会议立场研究",
+        description: "跨会议、跨时间追踪公司立场或技术路线。",
+        input: "公司、工作组、KI/WI 或主题、会议范围和证据快照日期。",
+        output: "TDoc 谱系账本、术语与路线演进、立场分类和标准化结果报告。",
+        examples: [
+          "追踪某公司从 2025 年至最近一次已结束会议在指定 KI 上的技术路线。",
+          "跨会议比较两家公司，并区分明确反对、保留意见和竞争方案。",
+          "更新已有立场分析，只总结最新提案、状态变化和尚未解决的问题。",
+        ],
+      },
+    },
+    capabilities: {
+      eyebrow: "工作台能做什么",
+      title: "为必须保持可检查的研究任务而设计",
+      items: [
+        {
+          title: "处理文档与工作区知识",
+          description:
+            "上传来源文件、检索 RAG，并把可复用成果保存在当前工作区。",
+        },
+        {
+          title: "运行受治理的 Agent 工作流",
+          description:
+            "助手可以规划任务、调用工具与 Skill、提出澄清问题并保存部分成果。",
+        },
+        {
+          title: "检查证据与视觉材料",
+          description:
+            "TDoc、表格、流程图、revision 和会议结果会作为不同证据类型处理。",
+        },
+        {
+          title: "发布可持续复用的报告",
+          description:
+            "正式分析可以经过校验、写成 Markdown，并加入工作区知识库。",
+        },
+      ],
+    },
+    concepts: {
+      eyebrow: "关键概念",
+      title: "理解每一层负责什么",
+      items: [
+        {
+          term: "工作区",
+          description: "隔离保存对话、来源文档、文件和可复用知识的空间。",
+        },
+        {
+          term: "助手",
+          description: "当前任务采用的角色、工作方法和交付要求。",
+        },
+        {
+          term: "Skill",
+          description: "包含指令、脚本、参考资料和完成检查的可版本化能力包。",
+        },
+        {
+          term: "证据",
+          description: "支撑实质性结论的来源记录和任务产物。",
+        },
+      ],
+    },
+    boundaries: {
+      title: "重要的证据边界",
+      items: [
+        "提案方主张不自动等于 3GPP 决定；会议结论必须有结果材料支撑。",
+        "最新会议、revision 和当前状态应在任务执行时通过官方来源核验。",
+        "无法辨认的流程图、缺失文档和覆盖不足会标记为不确定，而不会猜测。",
+      ],
+    },
+    states: {
+      no_workspace:
+        "你当前还没有获分配工作区。请联系管理员开通访问权限后再启动示例。",
+    },
+  },
   "new-workspace": {
     title: "新工作区",
     placeholder: "我的工作区",

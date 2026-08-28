@@ -28,6 +28,7 @@ public/
 __tests__/**/models
 __tests__/utils/agents/comkey/*.pem
 __tests__/utils/agents/push-notifications/vapid-keys.json
+__tests__/utils/agents/agent-skills/
 
 # For legacy copies of repo
 documents

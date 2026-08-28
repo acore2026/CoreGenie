@@ -10,3 +10,9 @@ aws_cf_deploy_anything_llm.json
 yarn.lock
 *.bak
 .idea
+
+# Local agent/browser verification artifacts
+/.codex-tmp/
+/.playwright-cli/
+/test-results/
+/anythingllm.db

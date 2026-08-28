@@ -23,6 +23,7 @@ export default {
   home: () => {
     return "/";
   },
+  help: () => "/help",
   login: (noTry = false) => {
     return `/login${noTry ? "?nt=1" : ""}`;
   },

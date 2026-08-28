@@ -28,6 +28,13 @@ const router = createBrowserRouter([
         },
       },
       {
+        path: "/help",
+        lazy: async () => {
+          const { default: Help } = await import("@/pages/Help");
+          return { element: <PrivateRoute Component={Help} /> };
+        },
+      },
+      {
         path: "/login",
         element: <Login />,
       },

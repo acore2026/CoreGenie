@@ -159,7 +159,11 @@ const publishReport = defineTool({
       wordCount: content.trim().split(/\s+/u).length,
       token_count_estimate: LLMPerformanceMonitor.countTokens([{ content }]),
       pageContent: content,
-      agentPublication: metadata,
+      // Vector stores such as LanceDB flatten every top-level document field
+      // into an Arrow column. Keep structured publication metadata as JSON so
+      // it remains portable across vector backends instead of creating an
+      // unsupported nested-object column.
+      agentPublication: JSON.stringify(metadata),
     };
 
     try {

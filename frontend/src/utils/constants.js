@@ -11,6 +11,8 @@ export const LAST_VISITED_WORKSPACE = "anythingllm_last_visited_workspace";
 export const SETTINGS_RETURN_PATH = "anythingllm_settings_return_path";
 export const USER_PROMPT_INPUT_MAP = "anythingllm_user_prompt_input_map";
 export const PENDING_HOME_MESSAGE = "anythingllm_pending_home_message";
+export const PENDING_HELP_DRAFT = "anythingllm_pending_help_draft";
+export const SEEN_HELP_INTRO = "anythingllm_seen_help_intro";
 
 export const APPEARANCE_SETTINGS = "anythingllm_appearance_settings";
 
