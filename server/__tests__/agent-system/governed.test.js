@@ -19,9 +19,13 @@ const {
   scopedTaskId,
   streamControllerDecision,
   skillBootstrapCompletion,
+  taskHasWriteTool,
+  taskRequestsArtifactWrite,
   taskRequiredCompletionTools,
   validatePlan,
   workerContinuationInstruction,
+  workerResultFromPlainText,
+  workerSystemPrompt,
 } = require("../../agent-system/runtimes/governed");
 const { taskSelectionAllows, toolRegistry } = require("../../tools");
 
@@ -32,11 +36,12 @@ const context = {
 };
 
 describe("Governed Agent runtime", () => {
-  it("provides enough bounded budget for multi-document Skills", () => {
-    expect(DEFAULTS.maxTaskToolCalls).toBe(500);
-    expect(DEFAULTS.maxTaskModelCalls).toBe(500);
-    expect(DEFAULTS.maxTaskMs).toBe(100 * 60 * 1_000);
-    expect(DEFAULTS.maxRunMs).toBe(150 * 60 * 1_000);
+  it("bounds long tasks before they can run unattended for hours", () => {
+    expect(DEFAULTS.maxTaskToolCalls).toBe(100);
+    expect(DEFAULTS.maxTaskModelCalls).toBe(60);
+    expect(DEFAULTS.maxTaskMs).toBe(25 * 60 * 1_000);
+    expect(DEFAULTS.maxRunMs).toBe(60 * 60 * 1_000);
+    expect(DEFAULTS.maxConsecutiveNoProgress).toBe(5);
     expect(DEFAULTS.maxQuickLookupToolCalls).toBe(12);
     expect(DEFAULTS.maxQuickLookupModelCalls).toBe(8);
   });
@@ -136,6 +141,88 @@ describe("Governed Agent runtime", () => {
     expect(instruction).toMatch(/Do not call any tool again/);
     expect(instruction).toMatch(/Return exactly one JSON object/);
     expect(instruction).not.toMatch(/begin with the tool calls needed/);
+  });
+
+  it("keeps report-writing instructions out of a read-only worker", () => {
+    const taskItem = {
+      title: "比较公司立场",
+      objective: "完成 ledger 和 coverage 检查",
+      successCriteria: ["返回比较结果"],
+      writeIntent: false,
+    };
+    const prompt = workerSystemPrompt({
+      basePrompt: "Base prompt",
+      taskItem,
+      allowedToolIds: ["filesystem.read"],
+      requiredToolIds: [],
+      dependencyResults: [],
+    });
+    const continuation = workerContinuationInstruction({
+      reasons: ["More analysis is required."],
+      missingToolIds: ["filesystem.read"],
+      completedToolIds: [],
+      writeEnabled: false,
+    });
+
+    expect(prompt).toMatch(/read-only task/i);
+    expect(prompt).toMatch(/Do not create, update, save, or publish/);
+    expect(prompt).not.toMatch(/create the file with a first filesystem\.write/);
+    expect(continuation).toMatch(/read-only task/i);
+    expect(continuation).not.toMatch(/filesystem\.write chunks/);
+  });
+
+  it("validates artifact-writing requirements against task tools", () => {
+    const readOnlyTask = {
+      title: "跨会议比较",
+      objective: "完成 ledger",
+      successCriteria: ["ledger 已完成"],
+    };
+
+    expect(taskRequestsArtifactWrite(readOnlyTask)).toBe(true);
+    expect(taskHasWriteTool(["filesystem.read"])).toBe(false);
+    expect(taskHasWriteTool(["filesystem.write"])).toBe(true);
+    expect(() =>
+      validatePlan(
+        {
+          goal: "比较路线",
+          tasks: [
+            {
+              id: "compare",
+              ...readOnlyTask,
+              allowedToolIds: ["filesystem.read"],
+              writeIntent: false,
+            },
+          ],
+        },
+        {
+          ...context,
+          run: { id: "run-1", prompt: "比较路线并生成 ledger" },
+          agent: {
+            id: 1,
+            tools: ["filesystem.read", "filesystem.write"],
+          },
+        }
+      )
+    ).toThrow(/requires an artifact write/);
+  });
+
+  it("accepts a plain worker summary after all required tools succeeded", () => {
+    expect(
+      workerResultFromPlainText(
+        { messages: [{ role: "assistant", content: "ZIP 已生成并检查。" }] },
+        []
+      )
+    ).toEqual({
+      summary: "ZIP 已生成并检查。",
+      evidence: [],
+      unresolved: [],
+    });
+    expect(
+      workerResultFromPlainText(
+        { messages: [{ role: "assistant", content: "ZIP 已生成。" }] },
+        ["3gpp.convert-markdown"]
+      )
+    ).toBeNull();
   });
 
   it("requires completion tools only in tasks that are allowed to call them", () => {

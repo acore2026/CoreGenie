@@ -63,7 +63,7 @@ class AgentRunSupervisor {
       let timedOut = false;
       const maxRuntimeMs = Math.min(
         Math.max(
-          Number(claimed.configuration?.maxRuntimeMs) || 150 * 60 * 1_000,
+          Number(claimed.configuration?.maxRuntimeMs) || 60 * 60 * 1_000,
           60_000
         ),
         300 * 60 * 1_000

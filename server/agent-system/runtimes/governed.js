@@ -9,6 +9,7 @@ const {
   START,
   StateGraph,
   interrupt,
+  isGraphInterrupt,
 } = require("@langchain/langgraph");
 const { Memory } = require("../../models/memory");
 const { AgentRunTask } = require("../../models/agentRunTask");
@@ -51,10 +52,11 @@ const DEFAULTS = Object.freeze({
   maxTasks: 12,
   maxConcurrency: 3,
   maxReviewRounds: 2,
-  maxTaskToolCalls: 500,
-  maxTaskModelCalls: 500,
-  maxTaskMs: 100 * 60 * 1_000,
-  maxRunMs: 150 * 60 * 1_000,
+  maxTaskToolCalls: 100,
+  maxTaskModelCalls: 60,
+  maxTaskMs: 25 * 60 * 1_000,
+  maxRunMs: 60 * 60 * 1_000,
+  maxConsecutiveNoProgress: 5,
   maxQuickLookupToolCalls: 12,
   maxQuickLookupModelCalls: 8,
 });
@@ -76,6 +78,40 @@ const planSchema = z.object({
   goal: z.string().trim().min(1).max(1_000),
   tasks: z.array(taskSchema).min(1).max(DEFAULTS.maxTasks),
 });
+
+function rethrowWorkerInterrupt(error) {
+  if (isGraphInterrupt(error)) throw error;
+}
+
+function taskHasWriteTool(allowedToolIds = []) {
+  return allowedToolIds.some((toolId) => {
+    if (toolId === "agent.call") return true;
+    const descriptor = toolRegistry.get(toolId);
+    return descriptor && descriptor.effect !== "read";
+  });
+}
+
+function taskRequestsArtifactWrite(task = {}) {
+  const text = [task.title, task.objective, ...(task.successCriteria || [])]
+    .filter(Boolean)
+    .join("\n");
+  return /\b(?:write|create|edit|update|append|save|publish|generate|produce|complete)\b.{0,50}\b(?:report|file|ledger|manifest|markdown|zip|artifact)\b|(?:撰写|创建|写入|更新|编辑|追加|保存|发布|生成).{0,24}(?:报告|文件|台账|清单|Markdown|ZIP|ledger)|(?<!已)完成\s*(?:报告|文件|台账|清单|ledger)/i.test(
+    text
+  );
+}
+
+function taskTerminalError(code, message) {
+  const error = new Error(message);
+  error.code = code;
+  error.retryable = false;
+  return error;
+}
+
+function isTerminalTaskError(error) {
+  return ["TASK_NO_PROGRESS", "TASK_TIME_BUDGET_EXHAUSTED"].includes(
+    error?.code
+  );
+}
 
 const workerResultSchema = z.object({
   summary: z.string().trim().min(1).max(12_000),
@@ -587,10 +623,36 @@ function workerContinuationInstruction({
   reasons = [],
   missingToolIds = [],
   completedToolIds = [],
+  writeEnabled = false,
 }) {
   if (!missingToolIds.length)
     return `${reasons.join(" ")} The task evidence and tool work are already complete. Do not call any tool again and do not repeat discovery. Return exactly one JSON object with summary, evidence, and unresolved, using only the results already present in this conversation.`;
-  return `${reasons.join(" ")} Continue the same task now. Your next response must begin with the tool calls needed to finish, not prose. Reuse the already downloaded, extracted, and analyzed workspace artifacts; do not restart meeting discovery or document analysis unless a specific required artifact is missing. Locate an existing report draft or write the final report now in filesystem.write chunks no larger than 3,000 characters, using append=true after the first chunk. Read the completed file back to verify it, execute every missing completion tool, and only then return exactly one JSON object with summary, evidence, and unresolved. Completed tool IDs so far: ${completedToolIds.join(", ") || "none"}.`;
+  const completionGuidance = writeEnabled
+    ? "Locate the existing draft or write the requested artifact now in filesystem.write chunks no larger than 3,000 characters, using append=true after the first chunk. Read it back to verify it, then execute every missing completion tool."
+    : "This is a read-only task. Do not create, update, or publish a report, ledger, manifest, Markdown file, or any other artifact. Use the available results and read tools only, then return the analysis in the worker JSON result.";
+  return `${reasons.join(" ")} Continue the same task now. Reuse the already downloaded, extracted, and analyzed workspace artifacts; do not restart meeting discovery or document analysis unless a specific required artifact is missing. ${completionGuidance} Return exactly one JSON object with summary, evidence, and unresolved. Completed tool IDs so far: ${completedToolIds.join(", ") || "none"}.`;
+}
+
+function workerSystemPrompt({
+  basePrompt,
+  taskItem,
+  allowedToolIds,
+  requiredToolIds,
+  dependencyResults,
+}) {
+  const writeEnabled =
+    taskItem.writeIntent === true && taskHasWriteTool(allowedToolIds);
+  const artifactGuidance = writeEnabled
+    ? "This task may write the requested artifact. Write long files incrementally: create the file with a first filesystem.write call of at most 3,000 characters, append each remaining section with append=true in chunks of at most 3,000 characters, and read the completed file back before publishing it. Do not place a complete long report in one tool argument."
+    : "This is a read-only task. Return the completed analysis in the final worker JSON object. Do not create, update, save, or publish a report, ledger, manifest, Markdown file, or any other artifact. If the objective uses words such as complete a ledger or report, interpret that as completing the analysis fields in your JSON result, not modifying a file.";
+  return `${basePrompt}\n\nYou are a bounded worker in a governed task graph. Complete only the assigned task. Use only allowed tools. The required completion tools for this task are: ${requiredToolIds.join(", ") || "none"}. When that list is none, do not publish, search for a publication tool, or try to satisfy the Agent's run-level publication rule; publication belongs only to a task whose allowed tool list explicitly includes that publication tool. Do not write the final user response. Stop after the success criteria and every required completion tool are satisfied, or when progress is genuinely blocked. Never end with future intent such as “I will create or publish the report.” ${artifactGuidance} Reuse existing workspace artifacts and activated Skills instead of repeating discovery, downloads, extraction, or visual analysis. Reuse the exact workspace paths returned in dependency results and tool outputs. Never reconstruct a directory from only a filename; when an exact path is unavailable, resolve it with filesystem.search or filesystem.list before reading. For skill resources, use only exact paths from the files list returned by activate_skill; never probe guessed directory or extension variants. Return one JSON object with summary, evidence, and unresolved. Evidence entries require kind, title, uri, excerpt, and metadata. Never invent sources.\n\nTask: ${taskItem.title}\nObjective: ${taskItem.objective}\nSuccess criteria: ${taskItem.successCriteria.join("; ") || "Satisfy the objective"}\nDependency results: ${JSON.stringify(dependencyResults)}`;
+}
+
+function workerResultFromPlainText(resultState, missingToolIds = []) {
+  if (missingToolIds.length) return null;
+  const summary = finalText(resultState).trim();
+  if (!summary) return null;
+  return { summary, evidence: [], unresolved: [] };
 }
 
 function normalized3gppReviewPlan(request, requestedName, allowedToolIds) {
@@ -792,6 +854,20 @@ function validatePlan(rawPlan, { run, agent, availableAgents = [] }) {
       )
         throw new Error(`Task ${task.id} selected disallowed tool ${toolId}.`);
     }
+    const hasWriteTool = taskHasWriteTool(task.allowedToolIds);
+    const effectiveWriteIntent = Boolean(task.writeIntent && allowWrites);
+    if (effectiveWriteIntent && !hasWriteTool)
+      throw new Error(
+        `Task ${task.id} declares writeIntent but has no write-capable tool.`
+      );
+    if (
+      allowWrites &&
+      taskRequestsArtifactWrite(task) &&
+      (!effectiveWriteIntent || !hasWriteTool)
+    )
+      throw new Error(
+        `Task ${task.id} requires an artifact write but its writeIntent or allowed tools are read-only.`
+      );
     if (
       /\b(?:final answer|synthesi[sz]e|respond to (?:the )?user)\b/i.test(
         task.objective
@@ -803,7 +879,7 @@ function validatePlan(rawPlan, { run, agent, availableAgents = [] }) {
       id: localToScoped.get(task.id),
       dependsOn: task.dependsOn.map((id) => localToScoped.get(id)),
       assignedAgentId: task.assignedAgentId || null,
-      writeIntent: Boolean(task.writeIntent && allowWrites),
+      writeIntent: effectiveWriteIntent,
       budget: {
         maxToolCalls: DEFAULTS.maxTaskToolCalls,
         maxModelCalls: DEFAULTS.maxTaskModelCalls,
@@ -1473,6 +1549,29 @@ function createGovernedGraph(context) {
     let lastError = null;
     const maxWorkerAttempts = quick3gppLookupTask ? 1 : 2;
     for (let attempt = 1; attempt <= maxWorkerAttempts; attempt += 1) {
+      const taskController = new AbortController();
+      const taskSignal = AbortSignal.any([
+        signal || new AbortController().signal,
+        taskController.signal,
+      ]);
+      const maxTaskMs = Math.min(
+        Math.max(
+          Number(taskItem.budget?.maxElapsedMs) || DEFAULTS.maxTaskMs,
+          60_000
+        ),
+        DEFAULTS.maxTaskMs
+      );
+      const taskTimeout = setTimeout(
+        () =>
+          taskController.abort(
+            taskTerminalError(
+              "TASK_TIME_BUDGET_EXHAUSTED",
+              `任务“${taskItem.title}”运行超过 ${Math.round(maxTaskMs / 60_000)} 分钟，已停止当前步骤。`
+            )
+          ),
+        maxTaskMs
+      );
+      taskTimeout.unref?.();
       try {
         const durableTask = await AgentRunTask.get(taskItem.id);
         if (["cancelled", "skipped"].includes(durableTask?.status)) {
@@ -1494,7 +1593,9 @@ function createGovernedGraph(context) {
           user,
           agent: workerAgent,
           emit,
-          signal,
+          signal: taskSignal,
+          maxConsecutiveNoProgress: DEFAULTS.maxConsecutiveNoProgress,
+          onNoProgress: (error) => taskController.abort(error),
           budget: sharedBudget,
           depth: context.depth || 0,
           maxLocalToolCalls: skillBootstrapTask
@@ -1502,7 +1603,13 @@ function createGovernedGraph(context) {
             : quick3gppLookupTask
               ? DEFAULTS.maxQuickLookupToolCalls
               : DEFAULTS.maxTaskToolCalls,
-          systemPromptOverride: `${basePrompt}\n\nYou are a bounded worker in a governed task graph. Complete only the assigned task. Use only allowed tools. The required completion tools for this task are: ${requiredToolIds.join(", ") || "none"}. When that list is none, do not publish, search for a publication tool, or try to satisfy the Agent's run-level publication rule; publication belongs only to a task that explicitly allows knowledge.publish. Do not write the final user response. Stop only after the success criteria and every required completion tool are satisfied, or progress is genuinely blocked. Never end a turn with future intent such as “I will create/publish the report”; execute that action with a tool in the same turn. When a report is required, write it incrementally: create the file with a first filesystem.write call of at most 3,000 characters, append each remaining section with append=true in chunks of at most 3,000 characters, read the completed file back to verify it, then publish it before returning. Do not attempt to place a complete long report in one tool argument. Reuse existing workspace artifacts and activated Skills instead of repeating discovery, downloads, extraction, or visual analysis. Reuse the exact workspace paths returned in dependency results and tool outputs. Never reconstruct a directory from only a filename; when an exact path is unavailable, resolve it with filesystem.search or filesystem.list before reading. For skill resources, use only exact paths from the files list returned by activate_skill; never probe guessed directory or extension variants. Return one JSON object with summary, evidence, and unresolved. Evidence entries require kind, title, uri, excerpt, and metadata. Never invent sources.\n\nTask: ${taskItem.title}\nObjective: ${taskItem.objective}\nSuccess criteria: ${taskItem.successCriteria.join("; ") || "Satisfy the objective"}\nDependency results: ${JSON.stringify(dependencyResults)}`,
+          systemPromptOverride: workerSystemPrompt({
+            basePrompt,
+            taskItem,
+            allowedToolIds,
+            requiredToolIds,
+            dependencyResults,
+          }),
           checkpointerOverride: getCheckpointer(),
           taskId: taskItem.id,
           taskTitle: taskItem.title,
@@ -1523,7 +1630,7 @@ function createGovernedGraph(context) {
           // (for example, document extraction plus visual verification)
           // legitimately need more than the framework's small default.
           recursionLimit: DEFAULTS.maxTaskToolCalls * 4 + 200,
-          signal,
+          signal: taskSignal,
         };
         let invocationInput = {
           messages: [
@@ -1586,6 +1693,8 @@ function createGovernedGraph(context) {
             reasons,
             missingToolIds,
             completedToolIds: [...completedToolIds],
+            writeEnabled:
+              taskItem.writeIntent === true && taskHasWriteTool(allowedToolIds),
           });
           invocationInput = {
             messages: [
@@ -1659,8 +1768,13 @@ function createGovernedGraph(context) {
         await emit("task.completed", { taskId: taskItem.id, result });
         return { taskResults: [result], evidence };
       } catch (error) {
-        lastError = error;
-        if (signal.aborted) throw error;
+        rethrowWorkerInterrupt(error);
+        const taskError = isTerminalTaskError(taskController.signal.reason)
+          ? taskController.signal.reason
+          : error;
+        lastError = taskError;
+        if (signal?.aborted) throw taskError;
+        if (isTerminalTaskError(taskError)) break;
         if (skillBootstrapTask) {
           const bootstrap = skillBootstrapCompletion(
             taskItem,
@@ -1701,9 +1815,11 @@ function createGovernedGraph(context) {
           await emit("task.retrying", {
             taskId: taskItem.id,
             attempt: attempt + 1,
-            error: error.message,
+            error: taskError.message,
           });
         }
+      } finally {
+        clearTimeout(taskTimeout);
       }
     }
     const failed = {
@@ -1964,6 +2080,7 @@ module.exports = {
   parse3gppInvitationFacts,
   parse3gppMeetingRequest,
   quick3gppResponse,
+  rethrowWorkerInterrupt,
   normalized3gppReviewPlan,
   requestAllowsWrite,
   resolvedTaskDependencies,
@@ -1971,9 +2088,13 @@ module.exports = {
   streamControllerDecision,
   isSkillBootstrapTask,
   skillBootstrapCompletion,
+  taskHasWriteTool,
+  taskRequestsArtifactWrite,
   taskRequiredCompletionTools,
   taskSchema,
   toolExecutionEvidence,
   validatePlan,
   workerContinuationInstruction,
+  workerResultFromPlainText,
+  workerSystemPrompt,
 };

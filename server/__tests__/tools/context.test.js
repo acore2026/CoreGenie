@@ -1,7 +1,7 @@
 /* eslint-env jest, node */
 const { AgentToolContext } = require("../../tools/context");
 
-function createContext(maxToolCalls) {
+function createContext(maxToolCalls, { taskId = null, budget = null } = {}) {
   return new AgentToolContext({
     run: {
       configuration: maxToolCalls === undefined ? {} : { maxToolCalls },
@@ -11,6 +11,8 @@ function createContext(maxToolCalls) {
     agent: { id: 1 },
     emit: jest.fn(),
     signal: new AbortController().signal,
+    taskId,
+    budget,
   });
 }
 
@@ -25,5 +27,15 @@ describe("AgentToolContext budgets", () => {
 
   it("keeps a smaller requested run tool-call budget", () => {
     expect(createContext(400).maxToolCalls).toBe(400);
+  });
+
+  it("keeps identical operation counts separate between tasks", () => {
+    const budget = { calls: 0, subagentCalls: 0, actionTail: Promise.resolve() };
+    const firstTask = createContext(undefined, { taskId: "task-1", budget });
+    const secondTask = createContext(undefined, { taskId: "task-2", budget });
+
+    expect(firstTask.recordOperation("same-operation")).toBe(1);
+    expect(firstTask.recordOperation("same-operation")).toBe(2);
+    expect(secondTask.recordOperation("same-operation")).toBe(1);
   });
 });

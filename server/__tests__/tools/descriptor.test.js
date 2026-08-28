@@ -2,6 +2,7 @@
 jest.mock("../../models/agentToolExecution", () => ({
   AgentToolExecution: {
     get: jest.fn().mockResolvedValue(null),
+    findOperation: jest.fn().mockResolvedValue([]),
     begin: jest.fn().mockResolvedValue({}),
     finish: jest.fn().mockResolvedValue({}),
   },
@@ -25,7 +26,7 @@ function context(emit = jest.fn().mockResolvedValue(undefined)) {
 describe("governed tool execution policy", () => {
   beforeEach(() => jest.clearAllMocks());
 
-  it("records a third identical operation as skipped, not failed", async () => {
+  it("reuses a successful read and stops after repeated calls add no new result", async () => {
     const emit = jest.fn().mockResolvedValue(undefined);
     const execute = jest.fn().mockResolvedValue("usable result");
     const wrapped = toLangChainTool(
@@ -42,26 +43,143 @@ describe("governed tool execution policy", () => {
     await wrapped.func({ value: "same" }, undefined, {
       toolCall: { id: "call-1" },
     });
-    await wrapped.func({ value: "same" }, undefined, {
-      toolCall: { id: "call-2" },
-    });
-    const third = JSON.parse(
+    const second = JSON.parse(
       await wrapped.func({ value: "same" }, undefined, {
-        toolCall: { id: "call-3" },
+        toolCall: { id: "call-2" },
+      })
+    );
+    for (const callId of ["call-3", "call-4", "call-5"])
+      await wrapped.func({ value: "same" }, undefined, {
+        toolCall: { id: callId },
+      });
+
+    await expect(
+      wrapped.func({ value: "same" }, undefined, {
+        toolCall: { id: "call-6" },
+      })
+    ).rejects.toMatchObject({ code: "TASK_NO_PROGRESS", retryable: false });
+
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(second).toMatchObject({
+      ok: true,
+      code: "RESULT_REUSED",
+      reused: true,
+    });
+    expect(AgentToolExecution.finish).toHaveBeenLastCalledWith(
+      "run-1",
+      "call-6",
+      expect.objectContaining({
+        status: "skipped",
+        outcomeCode: "RESULT_REUSED",
+      })
+    );
+    expect(emit).toHaveBeenCalledWith(
+      "tool.skipped",
+      expect.objectContaining({ callId: "call-6", code: "RESULT_REUSED" })
+    );
+  });
+
+  it("retries an identical read only after a retryable failure", async () => {
+    const execute = jest
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        code: "HTTP_503",
+        summary: "Temporary failure",
+        retryable: true,
+      })
+      .mockResolvedValueOnce("usable result");
+    const wrapped = toLangChainTool(
+      defineTool({
+        id: "read.retryable",
+        description: "Read a retryable value",
+        schema: z.object({ value: z.string() }),
+        execute,
+        action: false,
+      }),
+      context()
+    );
+
+    await wrapped.func({ value: "same" }, undefined, {
+      toolCall: { id: "call-1" },
+    });
+    const second = JSON.parse(
+      await wrapped.func({ value: "same" }, undefined, {
+        toolCall: { id: "call-2" },
       })
     );
 
     expect(execute).toHaveBeenCalledTimes(2);
-    expect(third).toMatchObject({ ok: false, code: "NO_PROGRESS" });
-    expect(AgentToolExecution.finish).toHaveBeenLastCalledWith(
-      "run-1",
-      "call-3",
-      expect.objectContaining({ status: "skipped", outcomeCode: "NO_PROGRESS" })
+    expect(second).toMatchObject({ ok: true, code: "OK" });
+  });
+
+  it("executes concurrent identical reads only once", async () => {
+    let finishRead;
+    const execute = jest.fn(
+      () =>
+        new Promise((resolve) => {
+          finishRead = () => resolve("usable result");
+        })
     );
-    expect(emit).toHaveBeenCalledWith(
-      "tool.skipped",
-      expect.objectContaining({ callId: "call-3", code: "NO_PROGRESS" })
+    const wrapped = toLangChainTool(
+      defineTool({
+        id: "read.concurrent",
+        description: "Read a value once",
+        schema: z.object({ value: z.string() }),
+        execute,
+        action: false,
+      }),
+      context()
     );
+
+    const first = wrapped.func({ value: "same" }, undefined, {
+      toolCall: { id: "call-1" },
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+    const second = wrapped.func({ value: "same" }, undefined, {
+      toolCall: { id: "call-2" },
+    });
+    finishRead();
+
+    const [firstResult, secondResult] = await Promise.all([first, second]);
+    expect(JSON.parse(firstResult)).toMatchObject({ ok: true, code: "OK" });
+    expect(JSON.parse(secondResult)).toMatchObject({
+      ok: true,
+      code: "RESULT_REUSED",
+      reused: true,
+    });
+    expect(execute).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not retry an identical read after a non-retryable failure", async () => {
+    const execute = jest.fn().mockResolvedValue({
+      ok: false,
+      code: "NOT_FOUND",
+      summary: "Missing",
+      retryable: false,
+    });
+    const wrapped = toLangChainTool(
+      defineTool({
+        id: "read.missing",
+        description: "Read a missing value",
+        schema: z.object({ value: z.string() }),
+        execute,
+        action: false,
+      }),
+      context()
+    );
+
+    await wrapped.func({ value: "same" }, undefined, {
+      toolCall: { id: "call-1" },
+    });
+    const second = JSON.parse(
+      await wrapped.func({ value: "same" }, undefined, {
+        toolCall: { id: "call-2" },
+      })
+    );
+
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(second).toMatchObject({ ok: false, code: "NO_PROGRESS" });
   });
 
   it("blocks a failed capability without executing more variants", async () => {

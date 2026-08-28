@@ -29,6 +29,8 @@ async function buildAgentGraph({
   disableTools = false,
   taskId = null,
   taskTitle = null,
+  maxConsecutiveNoProgress = 5,
+  onNoProgress = null,
 }) {
   const context = new AgentToolContext({
     run,
@@ -43,6 +45,8 @@ async function buildAgentGraph({
     maxLocalToolCalls,
     taskId,
     taskTitle,
+    maxConsecutiveNoProgress,
+    onNoProgress,
   });
   const allowActions =
     !["query", "chat"].includes(run.mode) && run.source !== "embed";

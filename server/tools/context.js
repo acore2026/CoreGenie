@@ -12,6 +12,8 @@ class AgentToolContext {
     maxLocalToolCalls = null,
     taskId = null,
     taskTitle = null,
+    maxConsecutiveNoProgress = 5,
+    onNoProgress = null,
   }) {
     this.run = run;
     this.workspace = workspace;
@@ -23,6 +25,12 @@ class AgentToolContext {
     this.depth = depth;
     this.taskId = taskId;
     this.taskTitle = taskTitle;
+    this.maxConsecutiveNoProgress = Math.max(
+      1,
+      Number(maxConsecutiveNoProgress) || 5
+    );
+    this.onNoProgress = onNoProgress;
+    this.consecutiveNoProgress = 0;
     this.toolCalls = 0;
     this.maxToolCalls = Math.min(
       Number(run.configuration?.maxToolCalls) || 2_500,
@@ -36,6 +44,8 @@ class AgentToolContext {
     };
     if (!this.budget.actionTail) this.budget.actionTail = Promise.resolve();
     if (!this.budget.operationCounts) this.budget.operationCounts = new Map();
+    if (!this.budget.operationResults) this.budget.operationResults = new Map();
+    if (!this.budget.operationTails) this.budget.operationTails = new Map();
     if (!this.budget.failureFamilyCounts)
       this.budget.failureFamilyCounts = new Map();
     if (!this.budget.capabilityBlocks) this.budget.capabilityBlocks = new Map();
@@ -58,13 +68,75 @@ class AgentToolContext {
   }
 
   operationCount(operationKey) {
-    return Number(this.budget.operationCounts.get(operationKey) || 0);
+    return Number(
+      this.budget.operationCounts.get(this.operationBudgetKey(operationKey)) ||
+        0
+    );
   }
 
   recordOperation(operationKey) {
     const count = this.operationCount(operationKey) + 1;
-    this.budget.operationCounts.set(operationKey, count);
+    this.budget.operationCounts.set(
+      this.operationBudgetKey(operationKey),
+      count
+    );
     return count;
+  }
+
+  operationBudgetKey(operationKey) {
+    return `${this.taskId || "run"}:${operationKey}`;
+  }
+
+  operationResult(operationKey) {
+    return (
+      this.budget.operationResults.get(this.operationBudgetKey(operationKey)) ||
+      null
+    );
+  }
+
+  rememberOperationResult(operationKey, execution) {
+    this.budget.operationResults.set(
+      this.operationBudgetKey(operationKey),
+      execution
+    );
+  }
+
+  async runOperation(operationKey, operation) {
+    const budgetKey = this.operationBudgetKey(operationKey);
+    const previous =
+      this.budget.operationTails.get(budgetKey) || Promise.resolve();
+    let release;
+    const current = new Promise((resolve) => {
+      release = resolve;
+    });
+    this.budget.operationTails.set(budgetKey, current);
+    await previous;
+    try {
+      return await operation();
+    } finally {
+      release();
+      if (this.budget.operationTails.get(budgetKey) === current)
+        this.budget.operationTails.delete(budgetKey);
+    }
+  }
+
+  recordProgress() {
+    this.consecutiveNoProgress = 0;
+  }
+
+  recordNoProgress(result = {}) {
+    this.consecutiveNoProgress += 1;
+    if (this.consecutiveNoProgress < this.maxConsecutiveNoProgress)
+      return this.consecutiveNoProgress;
+    const error = new Error(
+      `任务连续 ${this.consecutiveNoProgress} 次没有获得新结果，已停止当前步骤。`
+    );
+    error.name = "TaskNoProgressError";
+    error.code = "TASK_NO_PROGRESS";
+    error.retryable = false;
+    error.lastResult = result;
+    if (typeof this.onNoProgress === "function") this.onNoProgress(error);
+    throw error;
   }
 
   failureFamilyCount(familyKey) {
