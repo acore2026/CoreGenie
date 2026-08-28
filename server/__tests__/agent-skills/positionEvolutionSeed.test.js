@@ -69,6 +69,7 @@ describe("3GPP position evolution seed", () => {
           "skill.activate",
           "skill.read_resource",
           "3gpp.resolve-meeting",
+          "web.search",
         ]),
         systemPrompt: expect.stringContaining(
           "该任务不得执行 RAG 检索、Workspace 目录遍历或会议范围研究"
@@ -86,7 +87,7 @@ describe("3GPP position evolution seed", () => {
     );
     expect(prisma.system_settings.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { label: "agent_skill_seed_3gpp_position_evolution_v8" },
+        where: { label: "agent_skill_seed_3gpp_position_evolution_v9" },
       })
     );
   });

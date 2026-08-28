@@ -4,7 +4,7 @@ const prisma = require("../utils/prisma");
 const { PredefinedAgentSkill } = require("../models/predefinedAgentSkill");
 const { PredefinedAgent } = require("../models/predefinedAgent");
 
-const SEED_SETTING = "agent_skill_seed_3gpp_position_evolution_v8";
+const SEED_SETTING = "agent_skill_seed_3gpp_position_evolution_v9";
 const SKILL_NAME = "3gpp-position-evolution";
 const REVIEW_SKILL_NAMES = ["3gpp-review", "3gpp-tdocs"];
 const AGENT_NAME = "3GPP 技术路线与立场分析助手";
@@ -18,6 +18,7 @@ const AGENT_TOOLS = [
   "filesystem.list",
   "filesystem.search",
   "web.fetch",
+  "web.search",
   "3gpp.resolve-meeting",
   "rag.search",
   "user.ask",
