@@ -680,7 +680,36 @@ describe("Governed Agent runtime", () => {
 
     expect(decision.response).toBe("download complete");
     expect(decision.streamedDirect).toBe(true);
-    expect(onToken.mock.calls.flat()).toEqual(["download ", "complete"]);
+    expect(onToken).toHaveBeenCalledTimes(1);
+    expect(onToken).toHaveBeenCalledWith("download complete");
+  });
+
+  it("does not stream controller preamble text before a control call", async () => {
+    const controlCall = {
+      name: "create_plan",
+      args: { goal: "download", tasks: [] },
+    };
+    async function* chunks() {
+      yield {
+        content: "让我先制定",
+        tool_calls: [],
+        concat: () => ({
+          content: "让我先制定",
+          tool_calls: [controlCall],
+        }),
+      };
+      yield { content: "", tool_calls: [controlCall] };
+    }
+    const onToken = jest.fn();
+    const decision = await streamControllerDecision(
+      { stream: jest.fn().mockResolvedValue(chunks()) },
+      [{ role: "user", content: "download" }],
+      { onToken, streamOptions: {} }
+    );
+
+    expect(decision.calls).toEqual([controlCall]);
+    expect(decision.streamedDirect).toBe(false);
+    expect(onToken).not.toHaveBeenCalled();
   });
 
   it("retries an empty controller response with the fallback model", async () => {

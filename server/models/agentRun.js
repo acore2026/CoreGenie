@@ -102,7 +102,10 @@ const AgentRun = {
       where: {
         workspace_id: Number(workspaceId),
         thread_id: threadId ? Number(threadId) : null,
-        user_id: userId ? Number(userId) : null,
+        // A thread already identifies the conversation. Keeping the viewer's
+        // user_id in this query prevents another workspace member (including
+        // an admin) from reconnecting to the thread owner's active run.
+        ...(threadId ? {} : { user_id: userId ? Number(userId) : null }),
         status: {
           in: [
             "queued",

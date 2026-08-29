@@ -459,22 +459,21 @@ async function streamControllerDecision(
 ) {
   let combined = null;
   let directText = "";
-  let streamedDirect = false;
   const stream = await model.stream(messages, streamOptions);
   for await (const chunk of stream) {
     combined = combined ? combined.concat(chunk) : chunk;
-    const hasControl =
-      (combined.tool_call_chunks?.length || combined.tool_calls?.length) > 0;
     const token = contentText(chunk.content);
-    if (token && !hasControl) {
-      directText += token;
-      streamedDirect = true;
-      await onToken(token);
-    }
+    if (token) directText += token;
   }
+  const calls = combined?.tool_calls || [];
+  // Providers may emit a natural-language preamble before the first tool-call
+  // chunk. Do not expose that unfinished controller text when the completed
+  // response is a control action such as create_plan or activate_skill.
+  const streamedDirect = calls.length === 0 && directText.length > 0;
+  if (streamedDirect) await onToken(directText);
   return {
     message: combined,
-    calls: combined?.tool_calls || [],
+    calls,
     response: contentText(combined?.content) || directText,
     streamedDirect,
   };
