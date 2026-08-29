@@ -8,6 +8,7 @@ const {
   activatedSkillsPrompt,
   restoreActivatedSkills,
 } = require("../activatedSkills");
+const { recursionLimitFor } = require("../executionLimits");
 
 async function executeSegment({
   run,
@@ -111,9 +112,9 @@ async function executeSegment({
     ...runnableConfig,
     streamMode: ["messages", "values"],
     configurable: { thread_id: run.checkpointThreadId },
-    recursionLimit: Math.min(
-      (run.configuration?.maxToolCalls || 2_500) * 2 + 100,
-      5_500
+    recursionLimit: recursionLimitFor(
+      run,
+      Math.min((run.configuration?.maxToolCalls || 2_500) * 2 + 100, 5_500)
     ),
     signal,
   });

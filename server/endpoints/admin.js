@@ -454,6 +454,9 @@ function adminEndpoints(app) {
             case "global_system_prompt":
               requestedSettings[label] = setting?.value ?? "";
               break;
+            case "agent_execution_limits_disabled":
+              requestedSettings[label] = setting?.value ?? "false";
+              break;
             default:
               break;
           }

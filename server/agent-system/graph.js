@@ -12,6 +12,7 @@ const { getCheckpointer } = require("./checkpointer");
 const { AgentSkillWhitelist } = require("../models/agentSkillWhitelist");
 const { reasoningOnlyFallbackMiddleware } = require("./modelMiddleware");
 const { skillCatalogPrompt } = require("../agent-skills/registry");
+const { executionLimitsDisabled } = require("./executionLimits");
 
 async function buildAgentGraph({
   run,
@@ -104,15 +105,17 @@ async function buildAgentGraph({
     thinking: run.configuration?.thinking !== false,
   };
   const model = createChatModel(modelOptions);
-  const middleware = [
-    modelCallLimitMiddleware({
-      runLimit: Math.min(
-        Number(run.configuration?.maxModelCallsPerTask) || 150,
-        500
-      ),
-      exitBehavior: "error",
-    }),
-  ];
+  const middleware = [];
+  if (!executionLimitsDisabled(run))
+    middleware.push(
+      modelCallLimitMiddleware({
+        runLimit: Math.min(
+          Number(run.configuration?.maxModelCallsPerTask) || 150,
+          500
+        ),
+        exitBehavior: "error",
+      })
+    );
   if (
     selectedProvider(workspace) === "generic-openai" &&
     modelOptions.thinking !== false

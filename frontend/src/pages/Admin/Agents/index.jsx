@@ -364,6 +364,7 @@ export default function AdminAgents() {
                 <Robot size={24} />
                 <p className="text-lg font-medium">Agent Tools</p>
               </div>
+              <AgentSkillSettings />
             </div>
             {/* Default skills */}
             <SkillList

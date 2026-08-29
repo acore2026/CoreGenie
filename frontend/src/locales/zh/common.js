@@ -1105,6 +1105,16 @@ const TRANSLATIONS = {
     },
     settings: {
       title: "Agent技能设置",
+      close: "关闭",
+      "execution-limits": {
+        title: "关闭 Agent 执行限制",
+        temporary: "临时",
+        description:
+          "开启后，新启动的 Agent 不再检查模型调用次数、工具调用次数、单任务时长和整次运行时长。审批、手动取消、并发控制和重复操作检测仍然有效。",
+        "enabled-toast": "已关闭 Agent 执行限制。新任务将使用无限制模式。",
+        "disabled-toast": "已恢复 Agent 执行限制。新任务将使用默认限制。",
+        "error-toast": "没有保存 Agent 执行限制设置。",
+      },
       "max-tool-calls": {
         title: "每个回复的最大请求次数",
         description:

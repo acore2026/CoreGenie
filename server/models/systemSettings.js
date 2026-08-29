@@ -62,6 +62,7 @@ const SystemSettings = {
     "imported_agent_skills",
     "agent_clarifying_questions_enabled",
     "agent_clarifying_questions_max_per_turn",
+    "agent_execution_limits_disabled",
     "custom_app_name",
     "feature_flags",
     "meta_page_title",
@@ -94,6 +95,7 @@ const SystemSettings = {
     "agent_sql_connections",
     "agent_clarifying_questions_enabled",
     "agent_clarifying_questions_max_per_turn",
+    "agent_execution_limits_disabled",
     "custom_app_name",
     "default_predefined_agent_id",
     "global_system_prompt",
@@ -114,6 +116,8 @@ const SystemSettings = {
     "public_registration_enabled",
   ],
   validations: {
+    agent_execution_limits_disabled: (update) =>
+      String(update) === "true" ? "true" : "false",
     footer_data: (updates) => {
       try {
         const array = JSON.parse(updates)
@@ -634,6 +638,7 @@ const SystemSettings = {
           "3"
         )) || 3
       ),
+      AgentExecutionLimitsDisabled: await this.agentExecutionLimitsDisabled(),
     };
   },
 
@@ -752,6 +757,20 @@ const SystemSettings = {
       if (!(await this.isMultiUserMode())) return false;
       const setting = await this.get({ label: "public_registration_enabled" });
       return setting?.value === "true";
+    } catch (error) {
+      console.error(error.message);
+      return false;
+    }
+  },
+
+  agentExecutionLimitsDisabled: async function () {
+    try {
+      return (
+        (await this.getValueOrFallback(
+          { label: "agent_execution_limits_disabled" },
+          "false"
+        )) === "true"
+      );
     } catch (error) {
       console.error(error.message);
       return false;

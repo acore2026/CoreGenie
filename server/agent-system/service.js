@@ -5,6 +5,7 @@ const { agentRunSupervisor } = require("./supervisor");
 const { resolveAgent } = require("../resources/agents");
 const { createRuntimeSnapshot } = require("./runtimeSnapshot");
 const { agentMaxConcurrency } = require("./concurrency");
+const { SystemSettings } = require("../models/systemSettings");
 
 const DEFAULT_TIMEOUT_MS = 150 * 60 * 1_000;
 const DEFAULT_AGENT_RUN_MS = 15 * 60 * 1_000;
@@ -57,6 +58,8 @@ async function submitAgentRun({
       : "always_allow");
   const agent = await resolveAgent(agentId);
   if (!agent) throw new Error("No enabled Agent is configured.");
+  const disableExecutionLimits =
+    await SystemSettings.agentExecutionLimitsDisabled();
   const snapshot = await createRuntimeSnapshot({
     agent,
     workspace,
@@ -75,40 +78,46 @@ async function submitAgentRun({
     configuration: {
       ...configuration,
       approvalMode,
-      maxRuntimeMs: Math.min(
-        Math.max(
-          Number(configuration.maxRuntimeMs) || DEFAULT_AGENT_RUN_MS,
-          60_000
-        ),
-        60 * 60 * 1_000
-      ),
-      maxModelCallsPerTask: Math.min(
-        Math.max(Number(configuration.maxModelCallsPerTask) || 16, 1),
-        60
-      ),
-      maxToolCalls: Math.min(
-        Number(configuration.maxToolCalls) || 2_500,
-        2_500
-      ),
+      disableExecutionLimits,
+      maxRuntimeMs: disableExecutionLimits
+        ? null
+        : Math.min(
+            Math.max(
+              Number(configuration.maxRuntimeMs) || DEFAULT_AGENT_RUN_MS,
+              60_000
+            ),
+            60 * 60 * 1_000
+          ),
+      maxModelCallsPerTask: disableExecutionLimits
+        ? null
+        : Math.min(
+            Math.max(Number(configuration.maxModelCallsPerTask) || 16, 1),
+            60
+          ),
+      maxToolCalls: disableExecutionLimits
+        ? null
+        : Math.min(Number(configuration.maxToolCalls) || 2_500, 2_500),
     },
     policySnapshot: {
       approvalMode,
-      maxToolCalls: Math.min(
-        Number(configuration.maxToolCalls) || 2_500,
-        2_500
-      ),
+      disableExecutionLimits,
+      maxToolCalls: disableExecutionLimits
+        ? null
+        : Math.min(Number(configuration.maxToolCalls) || 2_500, 2_500),
       maxTasks: 8,
       maxConcurrency: agentMaxConcurrency(),
       maxReviewRounds: 1,
-      maxTaskToolCalls: 40,
-      maxTaskModelCalls: 16,
-      maxRuntimeMs: Math.min(
-        Math.max(
-          Number(configuration.maxRuntimeMs) || DEFAULT_AGENT_RUN_MS,
-          60_000
-        ),
-        60 * 60 * 1_000
-      ),
+      maxTaskToolCalls: disableExecutionLimits ? null : 40,
+      maxTaskModelCalls: disableExecutionLimits ? null : 16,
+      maxRuntimeMs: disableExecutionLimits
+        ? null
+        : Math.min(
+            Math.max(
+              Number(configuration.maxRuntimeMs) || DEFAULT_AGENT_RUN_MS,
+              60_000
+            ),
+            60 * 60 * 1_000
+          ),
     },
     ...snapshot,
   });

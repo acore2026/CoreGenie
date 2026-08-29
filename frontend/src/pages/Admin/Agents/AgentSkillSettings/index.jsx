@@ -5,14 +5,18 @@ import { useTranslation } from "react-i18next";
 import MaxToolCallStack from "./MaxToolCallStack";
 import AgentClarifyingQuestions from "./AgentClarifyingQuestions";
 import AgentSkillReranker from "./AgentSkillReranker";
+import ExecutionLimitsOverride from "./ExecutionLimitsOverride";
 
 export default function AgentSkillSettings() {
   const { isOpen, openModal, closeModal } = useModal();
+  const { t } = useTranslation();
   return (
     <>
       <button
         type="button"
         onClick={openModal}
+        aria-label={t("agent.settings.title")}
+        title={t("agent.settings.title")}
         className={`w-10 h-10 flex items-center justify-center light:border-black/10 light:border-solid border-none light:!border rounded-lg transition-colors outline-none bg-transparent hover:bg-theme-bg-secondary`}
       >
         <SlidersHorizontal size={24} className={`text-theme-text-secondary`} />
@@ -28,13 +32,15 @@ function AgentSkillSettingsModal({ isOpen, closeModal }) {
 
   return (
     <ModalWrapper isOpen={isOpen}>
-      <div className="w-[500px] bg-theme-bg-sidebar px-6 py-4 rounded-lg flex flex-col items-center justify-between relative shadow-lg border border-white/10">
+      <div className="w-[calc(100vw-32px)] max-w-[500px] max-h-[calc(100vh-32px)] overflow-y-auto bg-theme-bg-sidebar px-6 py-4 rounded-lg flex flex-col items-center justify-between relative shadow-lg border border-white/10">
         <div className="w-full flex items-center justify-between">
           <div className="text-white text-left font-medium text-lg">
             {t("agent.settings.title")}
           </div>
           <button
+            type="button"
             onClick={closeModal}
+            aria-label={t("agent.settings.close")}
             className="text-white opacity-60 hover:text-white hover:opacity-100 border-none outline-none"
           >
             <X size={20} />
@@ -43,6 +49,8 @@ function AgentSkillSettingsModal({ isOpen, closeModal }) {
 
         <div className="flex flex-col w-full">
           <div className="flex flex-col gap-y-5 w-full">
+            <ExecutionLimitsOverride />
+            <div className="border-b border-white/10 h-[1px] w-full" />
             <MaxToolCallStack />
             <div className="border-b border-white/10 h-[1px] w-full" />
             <AgentSkillReranker />

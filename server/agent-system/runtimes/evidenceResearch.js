@@ -16,6 +16,7 @@ const { contentText, finalText, userContent } = require("../message");
 const { getCustomCheckpointer } = require("../checkpointer");
 const { childRunnableConfig, withAgentStepTrace } = require("../observability");
 const { consumeGraphStream } = require("./stream");
+const { recursionLimitFor } = require("../executionLimits");
 
 const MAX_WORKERS_PER_ROUND = 8;
 const MAX_CONCURRENT_WORKERS = 4;
@@ -334,7 +335,7 @@ function createResearchGraph(context) {
             configurable: {
               thread_id: `${run.checkpointThreadId}:worker:${state.round}:${state.workItem.id}`,
             },
-            recursionLimit: 1_100,
+            recursionLimit: recursionLimitFor(run, 1_100),
             signal,
           }
         );
@@ -596,9 +597,9 @@ async function executeSegment(context) {
     ...runnableConfig,
     streamMode: ["values"],
     configurable: { thread_id: run.checkpointThreadId },
-    recursionLimit: Math.min(
-      (run.configuration?.maxToolCalls || 2_500) * 2 + 100,
-      5_500
+    recursionLimit: recursionLimitFor(
+      run,
+      Math.min((run.configuration?.maxToolCalls || 2_500) * 2 + 100, 5_500)
     ),
     signal,
   });

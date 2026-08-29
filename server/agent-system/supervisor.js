@@ -8,6 +8,7 @@ const { AgentToolExecution } = require("../models/agentToolExecution");
 const { executeAgentRun, persistFailedAgentRun } = require("./executor");
 const { flushLangfuse } = require("./observability");
 const { deleteCheckpointThread } = require("./checkpointer");
+const { executionLimitsDisabled } = require("./executionLimits");
 
 class AgentRunSupervisor {
   constructor({ concurrency = 4 } = {}) {
@@ -61,18 +62,22 @@ class AgentRunSupervisor {
       }
       const controller = new AbortController();
       let timedOut = false;
-      const maxRuntimeMs = Math.min(
-        Math.max(
-          Number(claimed.configuration?.maxRuntimeMs) || 15 * 60 * 1_000,
-          60_000
-        ),
-        60 * 60 * 1_000
-      );
-      const timeout = setTimeout(() => {
-        timedOut = true;
-        controller.abort(new Error("Agent run time budget exhausted."));
-      }, maxRuntimeMs);
-      timeout.unref?.();
+      const timeout = executionLimitsDisabled(claimed)
+        ? null
+        : setTimeout(
+            () => {
+              timedOut = true;
+              controller.abort(new Error("Agent run time budget exhausted."));
+            },
+            Math.min(
+              Math.max(
+                Number(claimed.configuration?.maxRuntimeMs) || 15 * 60 * 1_000,
+                60_000
+              ),
+              60 * 60 * 1_000
+            )
+          );
+      timeout?.unref?.();
       this.controllers.set(id, controller);
       const heartbeat = setInterval(
         () =>

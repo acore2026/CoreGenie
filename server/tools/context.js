@@ -1,3 +1,5 @@
+const { executionLimitsDisabled } = require("../agent-system/executionLimits");
+
 class AgentToolContext {
   constructor({
     run,
@@ -35,11 +37,13 @@ class AgentToolContext {
     this.onNoProgress = onNoProgress;
     this.consecutiveNoProgress = 0;
     this.toolCalls = 0;
-    this.maxToolCalls = Math.min(
-      Number(run.configuration?.maxToolCalls) || 2_500,
-      2_500
-    );
-    this.maxLocalToolCalls = maxLocalToolCalls || this.maxToolCalls;
+    this.executionLimitsDisabled = executionLimitsDisabled(run);
+    this.maxToolCalls = this.executionLimitsDisabled
+      ? null
+      : Math.min(Number(run.configuration?.maxToolCalls) || 2_500, 2_500);
+    this.maxLocalToolCalls = this.executionLimitsDisabled
+      ? null
+      : maxLocalToolCalls || this.maxToolCalls;
     this.budget = budget || {
       calls: 0,
       subagentCalls: 0,
@@ -60,11 +64,17 @@ class AgentToolContext {
   consumeToolCall() {
     this.toolCalls += 1;
     this.budget.calls += 1;
-    if (this.toolCalls > this.maxLocalToolCalls)
+    if (
+      Number.isFinite(this.maxLocalToolCalls) &&
+      this.toolCalls > this.maxLocalToolCalls
+    )
       throw new Error(
         `Agent tool-call budget (${this.maxLocalToolCalls}) exhausted.`
       );
-    if (this.budget.calls > this.maxToolCalls)
+    if (
+      Number.isFinite(this.maxToolCalls) &&
+      this.budget.calls > this.maxToolCalls
+    )
       throw new Error(
         `Agent tool-call budget (${this.maxToolCalls}) exhausted.`
       );

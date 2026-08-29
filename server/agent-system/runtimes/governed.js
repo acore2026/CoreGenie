@@ -30,6 +30,10 @@ const { retrieveWorkspaceContext } = require("../../tools/rag");
 const { buildAgentGraph } = require("../graph");
 const { agentMaxConcurrency } = require("../concurrency");
 const {
+  executionLimitsDisabled,
+  recursionLimitFor,
+} = require("../executionLimits");
+const {
   activatedSkillSnapshot,
   activatedSkillsPrompt,
   mergeActivatedSkills,
@@ -1999,6 +2003,7 @@ function createGovernedGraph(context) {
       taskItem
     );
     const quick3gppLookupTask = isQuick3gppLookupTask(taskItem);
+    const limitsDisabled = executionLimitsDisabled(run);
     const workerRun = {
       ...run,
       configuration: {
@@ -2010,11 +2015,12 @@ function createGovernedGraph(context) {
           true,
         model: roleModel(run, "worker"),
         toolOverrides: allowedToolIds,
-        maxModelCallsPerTask:
-          run.configuration?.maxModelCallsPerTask ||
-          (quick3gppLookupTask
-            ? DEFAULTS.maxQuickLookupModelCalls
-            : DEFAULTS.maxTaskModelCalls),
+        maxModelCallsPerTask: limitsDisabled
+          ? null
+          : run.configuration?.maxModelCallsPerTask ||
+            (quick3gppLookupTask
+              ? DEFAULTS.maxQuickLookupModelCalls
+              : DEFAULTS.maxTaskModelCalls),
       },
     };
     let lastError = null;
@@ -2025,24 +2031,28 @@ function createGovernedGraph(context) {
         signal || new AbortController().signal,
         taskController.signal,
       ]);
-      const maxTaskMs = Math.min(
-        Math.max(
-          Number(taskItem.budget?.maxElapsedMs) || DEFAULTS.maxTaskMs,
-          60_000
-        ),
-        DEFAULTS.maxTaskMs
-      );
-      const taskTimeout = setTimeout(
-        () =>
-          taskController.abort(
-            taskTerminalError(
-              "TASK_TIME_BUDGET_EXHAUSTED",
-              `任务“${taskItem.title}”运行超过 ${Math.round(maxTaskMs / 60_000)} 分钟，已停止当前步骤。`
-            )
-          ),
-        maxTaskMs
-      );
-      taskTimeout.unref?.();
+      const maxTaskMs = limitsDisabled
+        ? null
+        : Math.min(
+            Math.max(
+              Number(taskItem.budget?.maxElapsedMs) || DEFAULTS.maxTaskMs,
+              60_000
+            ),
+            DEFAULTS.maxTaskMs
+          );
+      const taskTimeout = limitsDisabled
+        ? null
+        : setTimeout(
+            () =>
+              taskController.abort(
+                taskTerminalError(
+                  "TASK_TIME_BUDGET_EXHAUSTED",
+                  `任务“${taskItem.title}”运行超过 ${Math.round(maxTaskMs / 60_000)} 分钟，已停止当前步骤。`
+                )
+              ),
+            maxTaskMs
+          );
+      taskTimeout?.unref?.();
       try {
         const durableTask = await AgentRunTask.get(taskItem.id);
         if (["cancelled", "skipped"].includes(durableTask?.status)) {
@@ -2069,9 +2079,11 @@ function createGovernedGraph(context) {
           onNoProgress: (error) => taskController.abort(error),
           budget: sharedBudget,
           depth: context.depth || 0,
-          maxLocalToolCalls: quick3gppLookupTask
-            ? DEFAULTS.maxQuickLookupToolCalls
-            : DEFAULTS.maxTaskToolCalls,
+          maxLocalToolCalls: limitsDisabled
+            ? null
+            : quick3gppLookupTask
+              ? DEFAULTS.maxQuickLookupToolCalls
+              : DEFAULTS.maxTaskToolCalls,
           systemPromptOverride: workerSystemPrompt({
             basePrompt: workerAgent.systemPrompt || basePrompt,
             taskItem,
@@ -2104,7 +2116,10 @@ function createGovernedGraph(context) {
           // A tool round consumes several LangGraph steps. Complex Skills
           // (for example, document extraction plus visual verification)
           // legitimately need more than the framework's small default.
-          recursionLimit: DEFAULTS.maxTaskToolCalls * 4 + 200,
+          recursionLimit: recursionLimitFor(
+            run,
+            DEFAULTS.maxTaskToolCalls * 4 + 200
+          ),
           signal: taskSignal,
         };
         let invocationInput = {
@@ -2516,7 +2531,7 @@ async function executeSegment(context) {
     ...runnableConfig,
     streamMode: ["values"],
     configurable: { thread_id: run.checkpointThreadId },
-    recursionLimit: 800,
+    recursionLimit: recursionLimitFor(run, 800),
     maxConcurrency: DEFAULTS.maxConcurrency,
     signal,
   });
