@@ -401,6 +401,8 @@ function HelpCenter() {
 }
 
 function SavedExamples({ examples, t }) {
+  if (!examples.length) return null;
+
   return (
     <section
       className="border-t border-white/[0.07] py-8 light:border-slate-200"
