@@ -100,6 +100,15 @@ function taskRequestsArtifactWrite(task = {}) {
   );
 }
 
+function taskRequestsKnowledgePublish(task = {}) {
+  const text = [task.title, task.objective, ...(task.successCriteria || [])]
+    .filter(Boolean)
+    .join("\n");
+  return /\bpublish\b.{0,80}\b(?:knowledge\s*base|workspace)\b|\b(?:knowledge\s*base|workspace)\b.{0,80}\bpublish\b|发布.{0,40}(?:知识库|Workspace)|(?:知识库|Workspace).{0,40}发布/i.test(
+    text
+  );
+}
+
 function taskTerminalError(code, message) {
   const error = new Error(message);
   error.code = code;
@@ -925,7 +934,17 @@ function validatePlan(rawPlan, { run, agent, availableAgents = [] }) {
       if (!localToScoped.has(dependency))
         throw new Error(`Task ${task.id} has an unknown dependency.`);
     }
-    for (const toolId of task.allowedToolIds) {
+    const allowedToolIds = [...task.allowedToolIds];
+    const publishDescriptor = toolRegistry.get("knowledge.publish");
+    const shouldAddPublishTool = Boolean(
+      allowWrites &&
+        taskRequestsKnowledgePublish(task) &&
+        publishDescriptor &&
+        legacySelectionAllows(configuredTools, publishDescriptor)
+    );
+    if (shouldAddPublishTool && !allowedToolIds.includes(publishDescriptor.id))
+      allowedToolIds.push(publishDescriptor.id);
+    for (const toolId of allowedToolIds) {
       if (!registryIds.has(toolId))
         throw new Error(`Task ${task.id} selected unknown tool ${toolId}.`);
       const descriptor =
@@ -938,8 +957,10 @@ function validatePlan(rawPlan, { run, agent, availableAgents = [] }) {
       )
         throw new Error(`Task ${task.id} selected disallowed tool ${toolId}.`);
     }
-    const hasWriteTool = taskHasWriteTool(task.allowedToolIds);
-    const effectiveWriteIntent = Boolean(task.writeIntent && allowWrites);
+    const hasWriteTool = taskHasWriteTool(allowedToolIds);
+    const effectiveWriteIntent = Boolean(
+      (task.writeIntent || shouldAddPublishTool) && allowWrites
+    );
     if (effectiveWriteIntent && !hasWriteTool)
       throw new Error(
         `Task ${task.id} declares writeIntent but has no write-capable tool.`
@@ -960,6 +981,7 @@ function validatePlan(rawPlan, { run, agent, availableAgents = [] }) {
       throw new Error("Final answer synthesis cannot be a worker task.");
     return {
       ...task,
+      allowedToolIds,
       id: localToScoped.get(task.id),
       dependsOn: task.dependsOn.map((id) => localToScoped.get(id)),
       assignedAgentId: task.assignedAgentId || null,
@@ -2164,6 +2186,7 @@ module.exports = {
   taskHasWriteTool,
   taskCanDispatch,
   taskRequestsArtifactWrite,
+  taskRequestsKnowledgePublish,
   taskRequiredCompletionTools,
   taskSchema,
   toolExecutionEvidence,

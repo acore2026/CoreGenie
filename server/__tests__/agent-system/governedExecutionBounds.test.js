@@ -3,6 +3,7 @@ const {
   DEFAULTS,
   blockedTaskResults,
   taskCanDispatch,
+  validatePlan,
 } = require("../../agent-system/runtimes/governed");
 
 describe("governed execution bounds", () => {
@@ -37,5 +38,39 @@ describe("governed execution bounds", () => {
 
     expect(skipped.map((item) => item.id)).toEqual(["verify", "write"]);
     expect(taskCanDispatch(tasks[1], results)).toBe(false);
+  });
+
+  it("adds the publish tool when the requested publish step omitted it", () => {
+    const plan = validatePlan(
+      {
+        goal: "生成并发布报告",
+        tasks: [
+          {
+            id: "publish",
+            title: "发布报告到知识库",
+            objective: "将 verified 版报告发布到 Workspace 知识库。",
+            dependsOn: [],
+            allowedToolIds: ["filesystem.read"],
+            requiredCapabilities: [],
+            successCriteria: ["报告已发布到知识库"],
+            acceptsPartialDependencies: false,
+            writeIntent: true,
+          },
+        ],
+      },
+      {
+        run: { id: "run-1", prompt: "生成报告并发布到知识库" },
+        agent: {
+          id: 7,
+          tools: ["filesystem.read", "knowledge.publish"],
+        },
+      }
+    );
+
+    expect(plan.tasks[0].allowedToolIds).toEqual([
+      "filesystem.read",
+      "knowledge.publish",
+    ]);
+    expect(plan.tasks[0].writeIntent).toBe(true);
   });
 });
