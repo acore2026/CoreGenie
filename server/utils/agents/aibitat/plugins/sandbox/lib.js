@@ -85,11 +85,15 @@ class SandboxClient {
         if (newline === -1) return;
         try {
           const result = JSON.parse(response.slice(0, newline));
-          if (!result?.ok)
-            return finish(
-              reject,
-              new Error(result?.error || "Sandbox execution failed")
+          if (!result?.ok) {
+            const error = new Error(
+              result?.error || "Sandbox execution failed"
             );
+            if (typeof result?.code === "string") error.code = result.code;
+            if (typeof result?.retryable === "boolean")
+              error.retryable = result.retryable;
+            return finish(reject, error);
+          }
           finish(resolve, result);
         } catch {
           finish(reject, new Error("Sandbox broker returned invalid JSON"));

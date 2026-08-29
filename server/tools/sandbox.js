@@ -1,7 +1,10 @@
 const { z } = require("zod");
 const { defineTool } = require("./descriptor");
 const sandbox = require("../utils/agents/aibitat/plugins/sandbox/lib");
-const { sandboxToolResult } = require("./sandboxResult");
+const {
+  sandboxBrokerErrorResult,
+  sandboxToolResult,
+} = require("./sandboxResult");
 const { resolveAvailableSkill } = require("../agent-skills/registry");
 
 const DEFAULT_TIMEOUT_SECONDS = 300;
@@ -99,14 +102,21 @@ function sandboxDescriptor(language) {
     execute: async ({ code, timeout_seconds, cwd }, context) => {
       const resolved = await resolveSkillMount(cwd, context);
       if (resolved.result) return resolved.result;
-      const result = await sandbox.run({
-        language,
-        code,
-        workspaceId: context.workspace.id,
-        invocationId: context.run.id,
-        timeoutSeconds: timeout_seconds,
-        skill: resolved.skill,
-      });
+      let result;
+      try {
+        result = await sandbox.run({
+          language,
+          code,
+          workspaceId: context.workspace.id,
+          invocationId: context.run.id,
+          timeoutSeconds: timeout_seconds,
+          skill: resolved.skill,
+        });
+      } catch (error) {
+        const brokerFailure = sandboxBrokerErrorResult(error);
+        if (brokerFailure) return brokerFailure;
+        throw error;
+      }
       if (resolved.skill)
         await context.emit("skill.script.executed", {
           name: resolved.skill.name,

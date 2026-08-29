@@ -52,6 +52,31 @@ class BrokerValidationTests(unittest.TestCase):
             self.assertEqual(first, second)
             self.assertEqual(first.parent, Path(root).resolve())
 
+    def test_reports_capacity_pressure_as_retryable(self):
+        with tempfile.TemporaryDirectory() as root:
+            broker = SandboxBroker(
+                token=self.token,
+                workspace_root=Path(root),
+                docker_workspace_root=Path(root),
+                global_skills_root=Path(root) / "global-skills",
+                docker_global_skills_root=Path(root) / "global-skills",
+                image="anythingllm-sandbox:local",
+                docker_binary="docker",
+                max_concurrency=1,
+                workspace_uid=1000,
+                workspace_gid=1000,
+                network="bridge",
+                proxy_url=None,
+            )
+            self.assertTrue(broker.capacity.acquire(blocking=False))
+            try:
+                with self.assertRaises(BrokerError) as raised:
+                    broker.execute(self.payload)
+                self.assertEqual(raised.exception.code, "SANDBOX_BUSY")
+                self.assertTrue(raised.exception.retryable)
+            finally:
+                broker.capacity.release()
+
     def test_runner_uses_configured_network_and_proxy(self):
         with tempfile.TemporaryDirectory() as root:
             broker = SandboxBroker(

@@ -1,5 +1,8 @@
 /* eslint-env jest, node */
-const { sandboxToolResult } = require("../../tools/sandboxResult");
+const {
+  sandboxBrokerErrorResult,
+  sandboxToolResult,
+} = require("../../tools/sandboxResult");
 
 describe("governed sandbox result classification", () => {
   it("treats a missing sandbox image as capability failure", () => {
@@ -63,5 +66,19 @@ describe("governed sandbox result classification", () => {
         30
       )
     ).toMatchObject({ ok: true, code: "OK" });
+  });
+
+  it("preserves broker capacity pressure as a retryable failure", () => {
+    const error = Object.assign(
+      new Error("sandbox capacity is busy; retry shortly"),
+      { code: "SANDBOX_BUSY", retryable: true }
+    );
+
+    expect(sandboxBrokerErrorResult(error)).toMatchObject({
+      ok: false,
+      code: "SANDBOX_BUSY",
+      retryable: true,
+    });
+    expect(sandboxBrokerErrorResult(new Error("socket closed"))).toBeNull();
   });
 });

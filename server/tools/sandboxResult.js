@@ -44,4 +44,16 @@ function sandboxToolResult(result, timeoutSeconds) {
   };
 }
 
-module.exports = { sandboxToolResult };
+function sandboxBrokerErrorResult(error) {
+  if (error?.code !== "SANDBOX_BUSY") return null;
+  return {
+    ok: false,
+    code: "SANDBOX_BUSY",
+    summary: error.message || "Sandbox capacity is busy; retry shortly.",
+    retryable: true,
+    evidenceIds: [],
+    artifactIds: [],
+  };
+}
+
+module.exports = { sandboxBrokerErrorResult, sandboxToolResult };

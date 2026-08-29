@@ -29,6 +29,17 @@ SKILL_NAME_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 class BrokerError(Exception):
     """A safe error that may be returned to the AnythingLLM server."""
 
+    def __init__(
+        self,
+        message: str,
+        *,
+        code: str = "SANDBOX_BROKER_ERROR",
+        retryable: bool = False,
+    ):
+        super().__init__(message)
+        self.code = code
+        self.retryable = retryable
+
 
 def parse_positive_int(value: object, field: str) -> int:
     if isinstance(value, bool):
@@ -327,7 +338,11 @@ class SandboxBroker:
     def execute(self, payload: object) -> dict:
         request = validate_request(payload, self.token)
         if not self.capacity.acquire(blocking=False):
-            raise BrokerError("sandbox capacity is busy; retry shortly")
+            raise BrokerError(
+                "sandbox capacity is busy; retry shortly",
+                code="SANDBOX_BUSY",
+                retryable=True,
+            )
 
         try:
             workspace_path = self.workspace_path(request["workspace_id"])
@@ -406,7 +421,12 @@ class RequestHandler(socketserver.StreamRequestHandler):
         except (json.JSONDecodeError, UnicodeDecodeError):
             result = {"ok": False, "error": "request must contain valid JSON"}
         except BrokerError as exc:
-            result = {"ok": False, "error": str(exc)}
+            result = {
+                "ok": False,
+                "code": exc.code,
+                "error": str(exc),
+                "retryable": exc.retryable,
+            }
         except Exception as exc:  # Do not expose a traceback over the socket.
             print(f"Unexpected broker error: {exc}", flush=True)
             result = {"ok": False, "error": "sandbox broker failed"}
