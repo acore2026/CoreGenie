@@ -1,19 +1,19 @@
 {
-  "name": "anything-llm",
+  "name": "coregenie",
   "version": "1.15.0",
-  "description": "The best solution for turning private documents into a chat bot using off-the-shelf tools and commercially viable AI technologies.",
+  "description": "A Chinese Agent workbench for 3GPP standards research and knowledge workflows.",
   "main": "index.js",
   "type": "module",
-  "author": "Timothy Carambat (Mintplex Labs)",
+  "author": "CoreGenie contributors",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mintplex-labs/anything-llm.git"
+    "url": "git+https://github.com/acore2026/CoreGenie.git"
   },
   "bugs": {
-    "url": "https://github.com/mintplex-labs/anything-llm/issues"
+    "url": "https://github.com/acore2026/CoreGenie/issues"
   },
-  "homepage": "https://github.com/mintplex-labs/anything-llm#readme",
+  "homepage": "https://github.com/acore2026/CoreGenie#readme",
   "engines": {
     "node": ">=24 <25"
   },
