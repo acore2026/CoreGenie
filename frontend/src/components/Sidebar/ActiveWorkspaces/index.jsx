@@ -9,6 +9,8 @@ import paths from "@/utils/paths";
 import { Link, useParams, useNavigate, useMatch } from "react-router-dom";
 import {
   CaretDown,
+  ChatCircleText,
+  CircleNotch,
   DotsSixVertical,
   FilePlus,
   GearSix,
@@ -21,7 +23,11 @@ import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
 import showToast from "@/utils/toast";
 import { LAST_VISITED_WORKSPACE } from "@/utils/constants";
 import { safeJsonParse } from "@/utils/request";
-import { WORKSPACE_CREATED_EVENT, WORKSPACE_RENAMED_EVENT } from "../events";
+import {
+  THREAD_CREATED_EVENT,
+  WORKSPACE_CREATED_EVENT,
+  WORKSPACE_RENAMED_EVENT,
+} from "../events";
 import WorkspaceInviteModal from "@/components/Modals/WorkspaceInvite";
 
 let cachedWorkspaces = null;
@@ -37,6 +43,7 @@ export default function ActiveWorkspaces() {
   const [selectedWs, setSelectedWs] = useState(null);
   const [inviteWorkspace, setInviteWorkspace] = useState(null);
   const [collapsedSlugs, setCollapsedSlugs] = useState(() => new Set());
+  const [creatingThreadSlug, setCreatingThreadSlug] = useState(null);
   const renameInputRef = useRef(null);
   const renameSavingRef = useRef(false);
   const renameCancelledRef = useRef(false);
@@ -186,6 +193,37 @@ export default function ActiveWorkspaces() {
       workspaceClickTimerRef.current = null;
     }
     startWorkspaceRename(workspace);
+  }
+
+  async function createWorkspaceThread(event, workspace) {
+    event.preventDefault();
+    event.stopPropagation();
+    if (creatingThreadSlug) return;
+
+    setCreatingThreadSlug(workspace.slug);
+    try {
+      const { thread, error } = await Workspace.threads.new(workspace.slug);
+      if (!thread) {
+        showToast(error || t("sidebar-create.thread-failed"), "error", {
+          clear: true,
+        });
+        return;
+      }
+
+      window.dispatchEvent(
+        new CustomEvent(THREAD_CREATED_EVENT, {
+          detail: { workspaceSlug: workspace.slug, thread },
+        })
+      );
+      setCollapsedSlugs((current) => {
+        const next = new Set(current);
+        next.delete(workspace.slug);
+        return next;
+      });
+      navigate(paths.workspace.thread(workspace.slug, thread.slug));
+    } finally {
+      setCreatingThreadSlug(null);
+    }
   }
 
   async function commitWorkspaceRename(workspace) {
@@ -453,6 +491,30 @@ export default function ActiveWorkspaces() {
                               </div>
                             </div>
                           </Link>
+                        )}
+                        {renamingSlug !== workspace.slug && (
+                          <button
+                            type="button"
+                            onClick={(event) =>
+                              createWorkspaceThread(event, workspace)
+                            }
+                            disabled={creatingThreadSlug !== null}
+                            aria-label={t("sidebar-create.thread")}
+                            aria-busy={creatingThreadSlug === workspace.slug}
+                            data-tooltip-id="workspace-new-thread"
+                            data-tooltip-content={t("sidebar-create.thread")}
+                            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-white/[0.08] bg-theme-sidebar-item-default text-zinc-400 transition-[background-color,border-color,color,transform] duration-150 hover:border-cyan-300/30 hover:bg-cyan-300/10 hover:text-cyan-200 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/50 disabled:cursor-not-allowed disabled:opacity-50 light:border-slate-300 light:text-slate-600 light:hover:border-cyan-500/35 light:hover:bg-cyan-50 light:hover:text-cyan-800 ${isActive ? "border-cyan-300/20 text-cyan-300 light:border-cyan-500/25 light:text-cyan-700" : ""}`}
+                          >
+                            {creatingThreadSlug === workspace.slug ? (
+                              <CircleNotch
+                                size={17}
+                                weight="bold"
+                                className="animate-spin"
+                              />
+                            ) : (
+                              <ChatCircleText size={17} weight="bold" />
+                            )}
+                          </button>
                         )}
                       </div>
                       {isExpanded && <ThreadContainer workspace={workspace} />}

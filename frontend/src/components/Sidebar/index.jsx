@@ -222,6 +222,14 @@ function WorkspaceAndThreadTooltips() {
         style={{ zIndex: 1000 }}
         className="tooltip !z-[1000] !text-xs"
       />
+      <Tooltip
+        id="workspace-new-thread"
+        place="top"
+        delayShow={300}
+        positionStrategy="fixed"
+        style={{ zIndex: 1000 }}
+        className="tooltip !z-[1000] !text-xs"
+      />
     </React.Fragment>,
     document.body
   );
