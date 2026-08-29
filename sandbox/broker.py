@@ -472,7 +472,7 @@ def main() -> None:
     parser.add_argument("--docker-global-skills-root", required=True, type=Path)
     parser.add_argument("--image", default="anythingllm-sandbox:local")
     parser.add_argument("--docker-binary", default="docker")
-    parser.add_argument("--max-concurrency", type=int, default=2)
+    parser.add_argument("--max-concurrency", type=int, default=6)
     parser.add_argument("--socket-uid", type=int, default=os.getuid())
     parser.add_argument("--socket-gid", type=int, default=os.getgid())
     parser.add_argument("--workspace-uid", type=int, default=1000)

@@ -4,6 +4,7 @@ const { AgentSkillWhitelist } = require("../models/agentSkillWhitelist");
 const { agentRunSupervisor } = require("./supervisor");
 const { resolveAgent } = require("../resources/agents");
 const { createRuntimeSnapshot } = require("./runtimeSnapshot");
+const { agentMaxConcurrency } = require("./concurrency");
 
 const DEFAULT_TIMEOUT_MS = 150 * 60 * 1_000;
 const DEFAULT_AGENT_RUN_MS = 15 * 60 * 1_000;
@@ -97,7 +98,7 @@ async function submitAgentRun({
         2_500
       ),
       maxTasks: 8,
-      maxConcurrency: 3,
+      maxConcurrency: agentMaxConcurrency(),
       maxReviewRounds: 1,
       maxTaskToolCalls: 40,
       maxTaskModelCalls: 16,
