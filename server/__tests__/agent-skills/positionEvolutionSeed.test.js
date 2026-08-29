@@ -47,7 +47,7 @@ const {
 } = require("../../agent-skills/positionEvolutionSeed");
 
 describe("3GPP position evolution seed", () => {
-  it("creates a packaged Skill and an Agent with both 3GPP Skills", async () => {
+  it("keeps the packaged Skill but disables the position evolution Agent", async () => {
     await seed3gppPositionEvolution();
 
     expect(PredefinedAgentSkill.createPackage).toHaveBeenCalledTimes(1);
@@ -77,6 +77,7 @@ describe("3GPP position evolution seed", () => {
         runtimeConfig: expect.objectContaining({
           requiredCompletionTools: ["knowledge.publish"],
         }),
+        enabled: false,
         examplePrompts: expect.arrayContaining([
           expect.objectContaining({
             label: expect.stringContaining("Huawei 与 Ericsson"),
@@ -87,7 +88,7 @@ describe("3GPP position evolution seed", () => {
     );
     expect(prisma.system_settings.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { label: "agent_skill_seed_3gpp_position_evolution_v9" },
+        where: { label: "agent_skill_seed_3gpp_position_evolution_v10" },
       })
     );
   });

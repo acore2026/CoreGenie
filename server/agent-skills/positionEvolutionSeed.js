@@ -4,7 +4,7 @@ const prisma = require("../utils/prisma");
 const { PredefinedAgentSkill } = require("../models/predefinedAgentSkill");
 const { PredefinedAgent } = require("../models/predefinedAgent");
 
-const SEED_SETTING = "agent_skill_seed_3gpp_position_evolution_v9";
+const SEED_SETTING = "agent_skill_seed_3gpp_position_evolution_v10";
 const SKILL_NAME = "3gpp-position-evolution";
 const REVIEW_SKILL_NAMES = ["3gpp-review", "3gpp-tdocs"];
 const AGENT_NAME = "3GPP 技术路线与立场分析助手";
@@ -138,7 +138,9 @@ async function seed3gppPositionEvolution() {
       visionModel: "qwen3.7-plus",
       requiredCompletionTools: ["knowledge.publish"],
     },
-    enabled: true,
+    // Keep the Skill package and historical runs, but stop offering this Agent
+    // until its long-running workflow is reliable enough to restore.
+    enabled: false,
   };
   const existingAgent = (await PredefinedAgent.all()).find(
     (item) => item.name === AGENT_NAME

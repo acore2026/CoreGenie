@@ -28,6 +28,7 @@ import showToast from "@/utils/toast";
 import { PENDING_HELP_DRAFT, SEEN_HELP_INTRO } from "@/utils/constants";
 
 const CAPABILITY_ICONS = [FolderOpen, Sparkle, ShieldCheck, FileText];
+const HIDDEN_SAVED_EXAMPLE_IDS = new Set(["huawei-ericsson-ki18"]);
 
 function arrayValue(value) {
   return Array.isArray(value) ? value : [];
@@ -107,7 +108,7 @@ function HelpCenter() {
   );
   const savedExamples = arrayValue(
     t("help.saved_examples.items", { returnObjects: true })
-  );
+  ).filter((example) => !HIDDEN_SAVED_EXAMPLE_IDS.has(example?.id));
   const faqItems = arrayValue(t("help.faq.items", { returnObjects: true }));
 
   function launch(agent, prompt) {
