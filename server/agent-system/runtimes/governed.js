@@ -225,7 +225,27 @@ function toolExecutionEvidence(executions = [], requiredToolIds = []) {
 }
 
 function claimSaysToolDidNotRun(value = "") {
-  return /(?:no\s+[^.\n]*tool call|tool\s+(?:was|has)\s+not\s+(?:been\s+)?executed|never\s+(?:actually\s+)?executed|not\s+executed|未[^。\n]{0,20}(?:执行|调用)|从未[^。\n]{0,20}(?:发起|执行|调用)|没有[^。\n]{0,20}工具(?:调用|输出)|工具调用[^。\n]{0,12}(?:被)?跳过)/i.test(
+  return /(?:no\s+[^.\n]*tool call|tool\s+(?:was|has)\s+not\s+(?:been\s+)?executed|never\s+(?:actually\s+)?executed|not\s+executed|未[^。\n]{0,20}(?:执行|调用)|从未[^。\n]{0,20}(?:发起|执行|调用)|没有[^。\n]{0,20}工具(?:调用|输出)|工具调用[^。\n]{0,12}(?:被)?跳过|均[^。\n]{0,40}(?:失败|未返回)|未返回任何[^。\n]{0,30}(?:数据|结果))/i.test(
+    String(value)
+  );
+}
+
+function toolExecutionHasUsableResult(execution = {}) {
+  const data = execution.result?.data;
+  if (Array.isArray(data)) return data.length > 0;
+  if (typeof data === "string")
+    return !["", "[]", "{}", "null"].includes(data.trim().toLowerCase());
+  if (data && typeof data === "object") return Object.keys(data).length > 0;
+  const summary = String(
+    execution.result?.summary || execution.result_summary || ""
+  )
+    .trim()
+    .toLowerCase();
+  return !["", "[]", "{}", "null"].includes(summary);
+}
+
+function claimSaysNoToolResults(value = "") {
+  return /(?:no\s+(?:usable\s+)?(?:results?|data|documents?|files?)\s+(?:were\s+)?(?:found|returned|retrieved)|(?:没有|未)(?:成功)?(?:检索|搜索|查找|读取|获得|获取|返回)(?:到)?[^。\n]{0,50}(?:结果|报告|资料|数据|全文|文件|文档|TDoc))/i.test(
     String(value)
   );
 }
@@ -236,15 +256,40 @@ function groundWorkerResultInToolExecutions(
   requiredToolIds,
   executions = []
 ) {
-  if (!parsed || !requiredToolIds.length) return parsed;
-  const completed = executions.filter(
-    (item) =>
-      requiredToolIds.includes(item.tool_id) &&
-      item.status === "completed" &&
-      item.result?.ok !== false
+  if (!parsed) return parsed;
+  const completedExecutions = executions.filter(
+    (item) => item.status === "completed" && item.result?.ok !== false
+  );
+  if (!completedExecutions.length) return parsed;
+  const relevantCompletedExecutions = requiredToolIds.length
+    ? completedExecutions.filter((item) =>
+        requiredToolIds.includes(item.tool_id)
+      )
+    : completedExecutions;
+  const contradictsNoResultClaim = (value) =>
+    claimSaysNoToolResults(value) &&
+    relevantCompletedExecutions.some(toolExecutionHasUsableResult);
+  const contradictsDurableExecutions =
+    claimSaysToolDidNotRun(parsed.summary) ||
+    contradictsNoResultClaim(parsed.summary) ||
+    (parsed.unresolved || []).some(
+      (item) =>
+        claimSaysToolDidNotRun(item) || contradictsNoResultClaim(item)
+    );
+  const evidenceToolIds = requiredToolIds.length
+    ? requiredToolIds
+    : contradictsDurableExecutions
+      ? [...new Set(completedExecutions.map((item) => item.tool_id))]
+      : [];
+  if (!evidenceToolIds.length) return parsed;
+  const completed = completedExecutions.filter((item) =>
+    evidenceToolIds.includes(item.tool_id)
   );
   if (!completed.length) return parsed;
-  const durableEvidence = toolExecutionEvidence(executions, requiredToolIds);
+  const durableEvidence = toolExecutionEvidence(
+    executions,
+    evidenceToolIds
+  ).slice(-12);
   const evidence = [...(parsed.evidence || [])];
   const seen = new Set(
     evidence.map((item) =>
@@ -262,12 +307,13 @@ function groundWorkerResultInToolExecutions(
   const resultCount = durableEvidence.length;
   return {
     ...parsed,
-    summary: claimSaysToolDidNotRun(parsed.summary)
-      ? `已成功执行 ${completedIds.join(", ")}${resultCount ? `，并获得 ${resultCount} 条可用结果` : ""}。`
+    summary: contradictsDurableExecutions
+      ? `已成功执行 ${completedIds.join(", ")}，共 ${completed.length} 次完成调用${resultCount ? `，并获得 ${resultCount} 条可用结果` : ""}。请以以下实际工具结果为准。`
       : parsed.summary,
     evidence,
     unresolved: (parsed.unresolved || []).filter(
-      (item) => !claimSaysToolDidNotRun(item)
+      (item) =>
+        !claimSaysToolDidNotRun(item) && !contradictsNoResultClaim(item)
     ),
   };
 }
