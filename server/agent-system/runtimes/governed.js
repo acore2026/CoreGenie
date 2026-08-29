@@ -49,14 +49,14 @@ const {
 } = require("./evidenceResearch");
 
 const DEFAULTS = Object.freeze({
-  maxTasks: 12,
+  maxTasks: 8,
   maxConcurrency: 3,
-  maxReviewRounds: 2,
-  maxTaskToolCalls: 100,
-  maxTaskModelCalls: 60,
-  maxTaskMs: 25 * 60 * 1_000,
-  maxRunMs: 60 * 60 * 1_000,
-  maxConsecutiveNoProgress: 5,
+  maxReviewRounds: 1,
+  maxTaskToolCalls: 40,
+  maxTaskModelCalls: 16,
+  maxTaskMs: 8 * 60 * 1_000,
+  maxRunMs: 15 * 60 * 1_000,
+  maxConsecutiveNoProgress: 3,
   maxQuickLookupToolCalls: 12,
   maxQuickLookupModelCalls: 8,
 });
@@ -134,6 +134,44 @@ function mergeById(current = [], updates = []) {
 function resolvedTaskDependencies(taskItem, resultsById) {
   const dependencies = taskItem.dependsOn.map((id) => resultsById.get(id));
   return dependencies.every(Boolean) ? dependencies : null;
+}
+
+function blockedTaskResults(tasks = [], taskResults = []) {
+  const results = new Map(taskResults.map((item) => [item.id, item]));
+  const skipped = [];
+  let foundBlockedTask = true;
+  while (foundBlockedTask) {
+    foundBlockedTask = false;
+    for (const taskItem of tasks) {
+      if (results.has(taskItem.id)) continue;
+      const dependencies = resolvedTaskDependencies(taskItem, results);
+      if (!dependencies) continue;
+      const failed = dependencies.filter(
+        (item) => item.status !== "completed"
+      );
+      if (!failed.length || taskItem.acceptsPartialDependencies) continue;
+      const result = {
+        id: taskItem.id,
+        status: "skipped",
+        summary: "前置任务没有完成，已跳过这一步。",
+        unresolved: failed.map((item) => item.error || item.summary),
+        evidence: [],
+      };
+      skipped.push(result);
+      results.set(taskItem.id, result);
+      foundBlockedTask = true;
+    }
+  }
+  return skipped;
+}
+
+function taskCanDispatch(taskItem, resultsById) {
+  const dependencies = resolvedTaskDependencies(taskItem, resultsById);
+  if (!dependencies) return false;
+  return (
+    taskItem.acceptsPartialDependencies ||
+    dependencies.every((item) => item.status === "completed")
+  );
 }
 
 function normalizedActionToolId(taskItem = {}) {
@@ -1480,32 +1518,20 @@ function createGovernedGraph(context) {
   };
 
   const schedule = async (state) => {
-    const results = new Map(state.taskResults.map((item) => [item.id, item]));
-    const skipped = [];
-    for (const taskItem of state.plan?.tasks || []) {
-      if (results.has(taskItem.id)) continue;
-      const dependencies = resolvedTaskDependencies(taskItem, results);
-      if (!dependencies) continue;
-      const failed = dependencies.filter((item) => item.status !== "completed");
-      if (failed.length && !taskItem.acceptsPartialDependencies) {
-        const result = {
-          id: taskItem.id,
-          status: "skipped",
-          summary: "Skipped because a required dependency did not complete.",
-          unresolved: failed.map((item) => item.error || item.summary),
-          evidence: [],
-        };
-        skipped.push(result);
-        await AgentRunTask.update(taskItem.id, {
-          status: "skipped",
-          resultSummary: result.summary,
-          completedAt: new Date(),
-        });
-        await emit("task.skipped", {
-          taskId: taskItem.id,
-          reason: result.summary,
-        });
-      }
+    const skipped = blockedTaskResults(
+      state.plan?.tasks || [],
+      state.taskResults
+    );
+    for (const result of skipped) {
+      await AgentRunTask.update(result.id, {
+        status: "skipped",
+        resultSummary: result.summary,
+        completedAt: new Date(),
+      });
+      await emit("task.skipped", {
+        taskId: result.id,
+        reason: result.summary,
+      });
     }
     return { taskResults: skipped };
   };
@@ -1515,7 +1541,7 @@ function createGovernedGraph(context) {
     const ready = (state.plan?.tasks || []).filter(
       (taskItem) =>
         !results.has(taskItem.id) &&
-        taskItem.dependsOn.every((id) => results.has(id))
+        taskCanDispatch(taskItem, results)
     );
     if (!ready.length) return "review_results";
     return ready.slice(0, DEFAULTS.maxConcurrency).map(
@@ -1645,7 +1671,7 @@ function createGovernedGraph(context) {
           budget: sharedBudget,
           depth: context.depth || 0,
           maxLocalToolCalls: skillBootstrapTask
-            ? 120
+            ? 16
             : quick3gppLookupTask
               ? DEFAULTS.maxQuickLookupToolCalls
               : DEFAULTS.maxTaskToolCalls,
@@ -1820,7 +1846,6 @@ function createGovernedGraph(context) {
           : error;
         lastError = taskError;
         if (signal?.aborted) throw taskError;
-        if (isTerminalTaskError(taskError)) break;
         if (skillBootstrapTask) {
           const bootstrap = skillBootstrapCompletion(
             taskItem,
@@ -1852,6 +1877,7 @@ function createGovernedGraph(context) {
             return { taskResults: [result] };
           }
         }
+        if (isTerminalTaskError(taskError)) break;
         if (attempt < maxWorkerAttempts) {
           await AgentRunTask.update(taskItem.id, {
             status: "retrying",
@@ -2113,6 +2139,7 @@ module.exports = {
   DEFAULTS,
   GovernedState,
   askUserTool,
+  blockedTaskResults,
   controllerDecisionWithFallback,
   createGovernedGraph,
   classify3gppRequest,
@@ -2135,6 +2162,7 @@ module.exports = {
   isSkillBootstrapTask,
   skillBootstrapCompletion,
   taskHasWriteTool,
+  taskCanDispatch,
   taskRequestsArtifactWrite,
   taskRequiredCompletionTools,
   taskSchema,

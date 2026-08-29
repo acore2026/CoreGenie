@@ -6,6 +6,7 @@ const { resolveAgent } = require("../resources/agents");
 const { createRuntimeSnapshot } = require("./runtimeSnapshot");
 
 const DEFAULT_TIMEOUT_MS = 150 * 60 * 1_000;
+const DEFAULT_AGENT_RUN_MS = 15 * 60 * 1_000;
 
 function delay(milliseconds, signal = null) {
   return new Promise((resolve, reject) => {
@@ -73,6 +74,17 @@ async function submitAgentRun({
     configuration: {
       ...configuration,
       approvalMode,
+      maxRuntimeMs: Math.min(
+        Math.max(
+          Number(configuration.maxRuntimeMs) || DEFAULT_AGENT_RUN_MS,
+          60_000
+        ),
+        60 * 60 * 1_000
+      ),
+      maxModelCallsPerTask: Math.min(
+        Math.max(Number(configuration.maxModelCallsPerTask) || 16, 1),
+        60
+      ),
       maxToolCalls: Math.min(
         Number(configuration.maxToolCalls) || 2_500,
         2_500
@@ -84,11 +96,18 @@ async function submitAgentRun({
         Number(configuration.maxToolCalls) || 2_500,
         2_500
       ),
-      maxTasks: 12,
+      maxTasks: 8,
       maxConcurrency: 3,
-      maxReviewRounds: 2,
-      maxTaskToolCalls: 100,
-      maxTaskModelCalls: 60,
+      maxReviewRounds: 1,
+      maxTaskToolCalls: 40,
+      maxTaskModelCalls: 16,
+      maxRuntimeMs: Math.min(
+        Math.max(
+          Number(configuration.maxRuntimeMs) || DEFAULT_AGENT_RUN_MS,
+          60_000
+        ),
+        60 * 60 * 1_000
+      ),
     },
     ...snapshot,
   });
