@@ -311,16 +311,6 @@ function predefinedAgentEndpoints(app) {
         return response
           .status(404)
           .json({ success: false, error: "Agent not found." });
-      if (current.isBuiltinDefault) data.enabled = true;
-      if (
-        Number(request.params.id) === (await PredefinedAgent.defaultId()) &&
-        data.enabled === false
-      )
-        return response.status(400).json({
-          success: false,
-          error:
-            "Choose another global default Agent before disabling this one.",
-        });
       const agent = await PredefinedAgent.update(request.params.id, data);
       return response.status(agent ? 200 : 404).json({
         success: !!agent,

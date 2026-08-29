@@ -121,9 +121,16 @@ export default function PredefinedAgentManager({ view = "agents" }) {
                   aria-label="Global default Agent"
                   value={data.defaultAgentId || ""}
                   onChange={setDefaultAgent}
-                  disabled={loading || !data.agents.length}
+                  disabled={
+                    loading || !data.agents.some((agent) => agent.enabled)
+                  }
                   className="max-w-40 bg-transparent font-medium text-theme-text-primary outline-none"
                 >
+                  {!data.defaultAgentId && (
+                    <option value="" disabled>
+                      未设置
+                    </option>
+                  )}
                   {data.agents
                     .filter((agent) => agent.enabled)
                     .map((agent) => (
@@ -656,7 +663,7 @@ function AgentEditor({
         prompt.prompt.trim()
       ),
       systemPrompt: form.systemPrompt,
-      enabled: form.makeDefault ? true : form.enabled,
+      enabled: form.enabled,
       tools: form.allTools ? null : form.tools,
       skillIds: form.skillIds,
       runtimeKey: form.runtimeKey,
@@ -678,7 +685,11 @@ function AgentEditor({
       if (!iconResult.success)
         showToast(iconResult.error || "图标上传失败", "error");
     }
-    if (form.makeDefault && result.agent.id !== defaultAgentId) {
+    if (
+      form.enabled &&
+      form.makeDefault &&
+      result.agent.id !== defaultAgentId
+    ) {
       const defaultResult = await PredefinedAgent.setDefault(result.agent.id);
       if (!defaultResult.success) {
         showToast(
@@ -757,16 +768,21 @@ function AgentEditor({
               <input
                 type="checkbox"
                 checked={form.enabled}
-                disabled={agent?.isBuiltinDefault || isCurrentDefault}
-                onChange={(event) =>
-                  setForm({ ...form, enabled: event.target.checked })
-                }
+                disabled={saving}
+                onChange={(event) => {
+                  const enabled = event.target.checked;
+                  setForm({
+                    ...form,
+                    enabled,
+                    makeDefault: enabled ? form.makeDefault : false,
+                  });
+                }}
                 className="accent-cyan-300 disabled:cursor-not-allowed disabled:opacity-50"
               />
               {agent?.isBuiltinDefault
-                ? "内置通用助手始终启用"
+                ? "在 Agent 列表中启用内置通用助手"
                 : isCurrentDefault
-                  ? "全局默认 Agent 必须保持启用"
+                  ? "停用后，不再作为全局默认 Agent"
                   : "在 Agent 展示区启用"}
             </label>
           </div>
