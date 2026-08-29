@@ -141,7 +141,7 @@ function ToolExecutionRow({ tool, t }) {
   const Icon = active
     ? CircleNotch
     : failed
-      ? XCircle
+      ? WarningCircle
       : cancelled
         ? MinusCircle
         : skipped
@@ -150,7 +150,7 @@ function ToolExecutionRow({ tool, t }) {
   const tone = active
     ? "text-cyan-300 light:text-cyan-700"
     : failed
-      ? "text-red-400 light:text-red-700"
+      ? "text-amber-300 light:text-amber-700"
       : cancelled
         ? "text-zinc-500 light:text-slate-500"
         : skipped
@@ -171,7 +171,7 @@ function ToolExecutionRow({ tool, t }) {
         </span>
         {detail && (
           <span
-            className={`mt-0.5 block truncate text-[11px] leading-4 ${failed ? "text-red-400 light:text-red-700" : "text-theme-text-secondary"}`}
+            className={`mt-0.5 block truncate text-[11px] leading-4 ${failed ? "text-amber-300 light:text-amber-700" : "text-theme-text-secondary"}`}
           >
             {detail}
           </span>
@@ -373,8 +373,7 @@ export default function AgentExecutionRail({
     () => !!runState && !TERMINAL.has(runState.status)
   );
   const [expansionWasChosen, setExpansionWasChosen] = useState(false);
-  const [failedToolsExpanded, setFailedToolsExpanded] = useState(false);
-  const [completedToolsExpanded, setCompletedToolsExpanded] = useState(false);
+  const [doneToolsExpanded, setDoneToolsExpanded] = useState(false);
   const [snapshotState, setSnapshotState] = useState(null);
   const [now, setNow] = useState(() => Date.now());
   const state = runState || snapshotState;
@@ -411,13 +410,11 @@ export default function AgentExecutionRail({
   const runningTools = tools.filter((tool) =>
     ACTIVE_TOOL_STATUSES.has(tool.status || "requested")
   );
-  const failedTools = tools.filter((tool) =>
-    ["failed", "cancelled"].includes(tool.status)
+  const doneTools = tools.filter(
+    (tool) => !ACTIVE_TOOL_STATUSES.has(tool.status || "requested")
   );
-  const completedTools = tools.filter(
-    (tool) =>
-      !ACTIVE_TOOL_STATUSES.has(tool.status || "requested") &&
-      !["failed", "cancelled"].includes(tool.status)
+  const doneToolsNeedAttention = doneTools.some((tool) =>
+    ["failed", "cancelled"].includes(tool.status)
   );
   const completed = tasks.filter((task) => task.status === "completed").length;
   const runActive = state ? !TERMINAL.has(state.status) : false;
@@ -623,68 +620,43 @@ export default function AgentExecutionRail({
                   </ol>
                 </div>
               )}
-              {failedTools.length > 0 && (
-                <div className={runningTools.length > 0 ? "mt-1" : ""}>
-                  <button
-                    type="button"
-                    onClick={() => setFailedToolsExpanded((value) => !value)}
-                    className="flex min-h-9 w-full items-center justify-between rounded-md px-1 text-left text-[10px] font-semibold uppercase tracking-[0.1em] text-red-400 outline-none hover:bg-red-400/[0.06] focus-visible:ring-2 focus-visible:ring-red-400/60 light:text-red-700 light:hover:bg-red-50"
-                    aria-expanded={failedToolsExpanded}
-                  >
-                    <span className="flex items-center gap-2">
-                      <XCircle size={14} weight="fill" />
-                      {t("chat_window.agent_invocation.error")}
-                    </span>
-                    <span className="flex items-center gap-2 font-mono tabular-nums">
-                      {failedTools.length}
-                      <CaretDown
-                        size={12}
-                        className={`transition-transform duration-150 ${failedToolsExpanded ? "rotate-180" : ""}`}
-                      />
-                    </span>
-                  </button>
-                  {failedToolsExpanded && (
-                    <ol className="m-0 space-y-0.5 p-0">
-                      {failedTools.map((tool) => (
-                        <ToolExecutionRow
-                          key={tool.call_id || tool.id}
-                          tool={tool}
-                          t={t}
-                        />
-                      ))}
-                    </ol>
-                  )}
-                </div>
-              )}
-              {completedTools.length > 0 && (
+              {doneTools.length > 0 && (
                 <div
-                  className={`${runningTools.length > 0 || failedTools.length > 0 ? "mt-2 border-t border-white/[0.07] pt-1 light:border-slate-200" : ""}`}
+                  className={`${runningTools.length > 0 ? "mt-2 border-t border-white/[0.07] pt-1 light:border-slate-200" : ""}`}
                 >
                   <button
                     type="button"
-                    onClick={() => setCompletedToolsExpanded((value) => !value)}
-                    className="flex min-h-9 w-full items-center justify-between rounded-md px-1 text-left text-[10px] font-semibold uppercase tracking-[0.1em] text-theme-text-secondary outline-none hover:bg-white/[0.035] focus-visible:ring-2 focus-visible:ring-cyan-400/60 light:hover:bg-slate-100"
-                    aria-expanded={completedToolsExpanded}
+                    onClick={() => setDoneToolsExpanded((value) => !value)}
+                    className={`flex min-h-9 w-full items-center justify-between rounded-md px-1 text-left text-[10px] font-semibold uppercase tracking-[0.1em] outline-none focus-visible:ring-2 ${
+                      doneToolsNeedAttention
+                        ? "text-amber-300 hover:bg-amber-400/[0.06] focus-visible:ring-amber-400/60 light:text-amber-700 light:hover:bg-amber-50"
+                        : "text-theme-text-secondary hover:bg-white/[0.035] focus-visible:ring-cyan-400/60 light:hover:bg-slate-100"
+                    }`}
+                    aria-expanded={doneToolsExpanded}
                   >
                     <span className="flex items-center gap-2">
-                      <CheckCircle
-                        size={14}
-                        weight="fill"
-                        className="text-emerald-400 light:text-emerald-700"
-                      />
+                      {doneToolsNeedAttention ? (
+                        <WarningCircle size={14} weight="fill" />
+                      ) : (
+                        <CheckCircle
+                          size={14}
+                          weight="fill"
+                          className="text-emerald-400 light:text-emerald-700"
+                        />
+                      )}
                       {t("chat_window.agent_invocation.status.completed")}
                     </span>
                     <span className="flex items-center gap-2 font-mono tabular-nums">
-                      {completedTools.length}
+                      {doneTools.length}
                       <CaretDown
                         size={12}
-                        className={`transition-transform duration-150 ${completedToolsExpanded ? "rotate-180" : ""}`}
+                        className={`transition-transform duration-150 ${doneToolsExpanded ? "rotate-180" : ""}`}
                       />
                     </span>
                   </button>
-                  {completedToolsExpanded && (
+                  {doneToolsExpanded && (
                     <ol className="m-0 space-y-0.5 p-0">
-                      {completedTools.map((tool) => (
+                      {doneTools.map((tool) => (
                         <ToolExecutionRow
                           key={tool.call_id || tool.id}
                           tool={tool}

@@ -8,6 +8,7 @@ import ManageWorkspace, {
 import paths from "@/utils/paths";
 import { Link, useParams, useNavigate, useMatch } from "react-router-dom";
 import {
+  CaretDown,
   DotsSixVertical,
   FilePlus,
   GearSix,
@@ -35,9 +36,11 @@ export default function ActiveWorkspaces() {
   const [renameValue, setRenameValue] = useState("");
   const [selectedWs, setSelectedWs] = useState(null);
   const [inviteWorkspace, setInviteWorkspace] = useState(null);
+  const [collapsedSlugs, setCollapsedSlugs] = useState(() => new Set());
   const renameInputRef = useRef(null);
   const renameSavingRef = useRef(false);
   const renameCancelledRef = useRef(false);
+  const workspaceClickTimerRef = useRef(null);
   const { showing, showModal, hideModal } = useManageWorkspaceModal();
   const { user } = useUser();
   const isInWorkspaceSettings = !!useMatch("/workspace/:slug/settings/:tab");
@@ -90,6 +93,14 @@ export default function ActiveWorkspaces() {
     renameInputRef.current?.select();
   }, [renamingSlug]);
 
+  useEffect(
+    () => () => {
+      if (workspaceClickTimerRef.current)
+        clearTimeout(workspaceClickTimerRef.current);
+    },
+    []
+  );
+
   if (loading) {
     return (
       <Skeleton.default
@@ -137,6 +148,44 @@ export default function ActiveWorkspaces() {
     renameCancelledRef.current = false;
     setRenameValue(workspace.name);
     setRenamingSlug(workspace.slug);
+  }
+
+  function toggleWorkspace(workspaceSlug) {
+    setCollapsedSlugs((current) => {
+      const next = new Set(current);
+      if (next.has(workspaceSlug)) next.delete(workspaceSlug);
+      else next.add(workspaceSlug);
+      return next;
+    });
+  }
+
+  function handleWorkspaceClick(event, workspace, isActive) {
+    event.preventDefault();
+    if (workspaceClickTimerRef.current)
+      clearTimeout(workspaceClickTimerRef.current);
+    workspaceClickTimerRef.current = setTimeout(() => {
+      workspaceClickTimerRef.current = null;
+      if (isActive) {
+        toggleWorkspace(workspace.slug);
+        return;
+      }
+      setCollapsedSlugs((current) => {
+        const next = new Set(current);
+        next.delete(workspace.slug);
+        return next;
+      });
+      navigate(paths.workspace.chat(workspace.slug));
+    }, 180);
+  }
+
+  function handleWorkspaceDoubleClick(event, workspace) {
+    event.preventDefault();
+    event.stopPropagation();
+    if (workspaceClickTimerRef.current) {
+      clearTimeout(workspaceClickTimerRef.current);
+      workspaceClickTimerRef.current = null;
+    }
+    startWorkspaceRename(workspace);
   }
 
   async function commitWorkspaceRename(workspace) {
@@ -214,6 +263,8 @@ export default function ActiveWorkspaces() {
             {workspaces.map((workspace, index) => {
               const isVirtuallyActive = workspace.slug === virtualActiveSlug;
               const isActive = workspace.slug === slug || isVirtuallyActive;
+              const isExpanded =
+                isActive && !collapsedSlugs.has(workspace.slug);
               return (
                 <Draggable
                   key={workspace.id}
@@ -268,12 +319,11 @@ export default function ActiveWorkspaces() {
                         ) : (
                           <Link
                             to={paths.workspace.chat(workspace.slug)}
-                            onClick={(event) => {
-                              if (!isActive) return;
-                              event.preventDefault();
-                              startWorkspaceRename(workspace);
-                            }}
+                            onClick={(event) =>
+                              handleWorkspaceClick(event, workspace, isActive)
+                            }
                             aria-current={isActive ? "page" : ""}
+                            aria-expanded={isActive ? isExpanded : undefined}
                             className={`
                             transition-all duration-[200ms]
                             flex flex-grow w-[75%] gap-x-2 py-[6px] pl-[4px] pr-[6px] rounded-[4px] text-white justify-start items-center
@@ -299,6 +349,9 @@ export default function ActiveWorkspaces() {
                               <div
                                 data-tooltip-id="workspace-name"
                                 data-tooltip-content={workspace.name}
+                                onDoubleClick={(event) =>
+                                  handleWorkspaceDoubleClick(event, workspace)
+                                }
                                 className="flex items-center space-x-2 overflow-hidden flex-grow"
                               >
                                 <div className="w-[130px] overflow-hidden">
@@ -313,6 +366,11 @@ export default function ActiveWorkspaces() {
                                   </p>
                                 </div>
                               </div>
+                              <CaretDown
+                                size={14}
+                                aria-hidden="true"
+                                className={`shrink-0 text-zinc-500 transition-transform duration-150 light:text-slate-500 ${isExpanded ? "rotate-0" : "-rotate-90"}`}
+                              />
                               <div
                                 className={`flex items-center gap-x-[2px] transition-opacity duration-200 ${isActive ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
                               >
@@ -397,7 +455,7 @@ export default function ActiveWorkspaces() {
                           </Link>
                         )}
                       </div>
-                      {isActive && <ThreadContainer workspace={workspace} />}
+                      {isExpanded && <ThreadContainer workspace={workspace} />}
                     </div>
                   )}
                 </Draggable>

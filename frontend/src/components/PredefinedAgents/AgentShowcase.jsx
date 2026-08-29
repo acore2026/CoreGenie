@@ -36,7 +36,7 @@ export default function AgentShowcase() {
           </button>
         )}
       </div>
-      <div className="flex gap-2 overflow-x-auto pb-2 no-scroll">
+      <div className="grid grid-cols-2 gap-2 pb-2">
         {visibleAgents.map((agent) => {
           const active = selectedAgentId === agent.id;
           return (
@@ -44,7 +44,7 @@ export default function AgentShowcase() {
               key={agent.id}
               type="button"
               onClick={() => selectAgent(agent.id)}
-              className={`group relative flex min-w-[190px] max-w-[240px] items-center gap-2.5 rounded-2xl border px-3 py-2.5 text-left transition-all ${
+              className={`group relative flex w-full min-w-0 items-center gap-2.5 rounded-2xl border px-3 py-2.5 text-left transition-all ${
                 active
                   ? "border-cyan-300/45 bg-cyan-300/[0.08] shadow-[0_8px_28px_rgba(34,211,238,0.08)] light:border-cyan-500/40 light:bg-cyan-50"
                   : "border-white/[0.08] bg-white/[0.035] hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.06] light:border-slate-200 light:bg-slate-50 light:hover:border-slate-300 light:hover:bg-white"
@@ -52,7 +52,7 @@ export default function AgentShowcase() {
             >
               <AgentAvatar agent={agent} size={40} />
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-semibold text-zinc-100 light:text-slate-900">
+                <span className="block line-clamp-2 text-sm font-semibold leading-4 text-zinc-100 light:text-slate-900">
                   {agent.name}
                 </span>
                 <span className="mt-1 block line-clamp-2 text-xs leading-4 text-zinc-500 light:text-slate-500">
