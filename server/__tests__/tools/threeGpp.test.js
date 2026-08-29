@@ -1,13 +1,29 @@
 /* eslint-env jest, node */
+const AdmZip = require("adm-zip");
+const fs = require("fs/promises");
+const os = require("os");
+const path = require("path");
 const {
   DIRECTORY_BY_GROUP,
+  downloadOfficialTdoc,
   meetingFolders,
+  meetingFoldersForYear,
   officialPdfLinks,
+  parseTdoc,
   resolveMeeting,
 } = require("../../tools/threeGpp");
 
 describe("3GPP meeting resolver", () => {
-  afterEach(() => jest.restoreAllMocks());
+  const temporaryRoots = [];
+
+  afterEach(async () => {
+    jest.restoreAllMocks();
+    await Promise.all(
+      temporaryRoots
+        .splice(0)
+        .map((root) => fs.rm(root, { recursive: true, force: true }))
+    );
+  });
 
   it("uses canonical working-group directories", () => {
     expect(DIRECTORY_BY_GROUP).toMatchObject({
@@ -33,14 +49,85 @@ describe("3GPP meeting resolver", () => {
     ]);
   });
 
+  it("derives the working group and year from one TDoc number", () => {
+    expect(parseTdoc("s2-2606085")).toEqual({
+      tdoc: "S2-2606085",
+      group: "SA2",
+      year: 2026,
+    });
+    expect(parseTdoc("C4-261072")).toEqual({
+      tdoc: "C4-261072",
+      group: "CT4",
+      year: 2026,
+    });
+    expect(parseTdoc("R2-260001")).toBeNull();
+  });
+
+  it("sorts official meeting folders for the TDoc year from newest to oldest", () => {
+    const html = `
+      <a href="TSGS2_175-AH-e_Electronic_2026-06/">175 AH</a>
+      <a href="TSGS2_176_Prague_2026-08/">176</a>
+      <a href="TSGS2_174_Athens_2025-12/">174</a>`;
+
+    expect(meetingFoldersForYear(html, "SA2", 2026)).toEqual([
+      "TSGS2_176_Prague_2026-08",
+      "TSGS2_175-AH-e_Electronic_2026-06",
+    ]);
+  });
+
+  it("downloads the exact official ZIP with a browser user agent and extracts its DOCX", async () => {
+    const root = await fs.mkdtemp(
+      path.join(os.tmpdir(), "threegpp-tool-test-")
+    );
+    temporaryRoots.push(root);
+    const archive = new AdmZip();
+    archive.addFile("S2-2606085.docx", Buffer.from("test-docx"));
+    const archiveBuffer = archive.toBuffer();
+    const listing = `
+      <a href="TSGS2_176_Prague_2026-08/">176</a>
+      <a href="TSGS2_175-AH-e_Electronic_2026-06/">175 AH</a>`;
+    const response = ({ status = 200, body = Buffer.alloc(0), text = "" }) => ({
+      ok: status >= 200 && status < 300,
+      status,
+      headers: new Headers({ "content-length": String(body.length) }),
+      text: jest.fn().mockResolvedValue(text),
+      arrayBuffer: jest.fn().mockResolvedValue(body),
+    });
+    const fetchMock = jest
+      .spyOn(global, "fetch")
+      .mockResolvedValueOnce(response({ text: listing }))
+      .mockResolvedValueOnce(response({ status: 404 }))
+      .mockResolvedValueOnce(response({ body: archiveBuffer }));
+    const manager = {
+      validatePath: jest.fn(async (relative) => path.join(root, relative)),
+    };
+
+    const result = await downloadOfficialTdoc(
+      parseTdoc("S2-2606085"),
+      { signal: new AbortController().signal },
+      manager
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      folder: "TSGS2_175-AH-e_Electronic_2026-06",
+      docxRelative:
+        "3gpp-review/TSGS2_175-AH-e_Electronic_2026-06/docs/S2-2606085.docx",
+      cached: false,
+    });
+    expect(
+      await fs.readFile(path.join(root, result.docxRelative), "utf8")
+    ).toBe("test-docx");
+    for (const [, options] of fetchMock.mock.calls)
+      expect(options.headers["User-Agent"]).toMatch(/^Mozilla\/5\.0/);
+  });
+
   it("fetches only the canonical parent and returns official candidate URLs", async () => {
     const fetchMock = jest.spyOn(global, "fetch").mockResolvedValue({
       ok: true,
       text: jest
         .fn()
-        .mockResolvedValue(
-          '<a href="TSGS2_175_Dalian_2026-05/">SA2#175</a>'
-        ),
+        .mockResolvedValue('<a href="TSGS2_175_Dalian_2026-05/">SA2#175</a>'),
     });
 
     const result = await resolveMeeting.execute(

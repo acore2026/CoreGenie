@@ -66,14 +66,14 @@ describe("3GPP position evolution seed", () => {
         name: "3GPP 技术路线与立场分析助手",
         skillIds: [20, 10],
         tools: expect.arrayContaining([
-          "skill.activate",
           "skill.read_resource",
           "3gpp.resolve-meeting",
           "web.search",
+          "knowledge.search",
+          "knowledge.ingest",
         ]),
-        systemPrompt: expect.stringContaining(
-          "该任务不得执行 RAG 检索、Workspace 目录遍历或会议范围研究"
-        ),
+        systemPrompt:
+          expect.stringContaining("计划的第一步应直接处理范围或资料准备"),
         runtimeConfig: expect.objectContaining({
           requiredCompletionTools: ["knowledge.publish"],
         }),
@@ -88,7 +88,7 @@ describe("3GPP position evolution seed", () => {
     );
     expect(prisma.system_settings.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { label: "agent_skill_seed_3gpp_position_evolution_v10" },
+        where: { label: "agent_skill_seed_3gpp_position_evolution_v11" },
       })
     );
   });

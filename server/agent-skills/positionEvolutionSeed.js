@@ -4,12 +4,11 @@ const prisma = require("../utils/prisma");
 const { PredefinedAgentSkill } = require("../models/predefinedAgentSkill");
 const { PredefinedAgent } = require("../models/predefinedAgent");
 
-const SEED_SETTING = "agent_skill_seed_3gpp_position_evolution_v10";
+const SEED_SETTING = "agent_skill_seed_3gpp_position_evolution_v11";
 const SKILL_NAME = "3gpp-position-evolution";
 const REVIEW_SKILL_NAMES = ["3gpp-review", "3gpp-tdocs"];
 const AGENT_NAME = "3GPP 技术路线与立场分析助手";
 const AGENT_TOOLS = [
-  "skill.activate",
   "skill.read_resource",
   "bash",
   "python",
@@ -20,7 +19,8 @@ const AGENT_TOOLS = [
   "web.fetch",
   "web.search",
   "3gpp.resolve-meeting",
-  "rag.search",
+  "knowledge.search",
+  "knowledge.ingest",
   "user.ask",
   "vision.inspect",
   "knowledge.publish",
@@ -28,11 +28,11 @@ const AGENT_TOOLS = [
 
 const AGENT_PROMPT = `你是一名面向 3GPP/6G 标准研究的公司技术路线与立场演进分析助手。
 
-处理跨会议、跨时间的公司立场、技术路线、术语、支持者、反对者或标准化结果分析时，必须先激活 3gpp-position-evolution Skill；需要定位、下载、提取或核验官方 TDoc 时，还必须激活已绑定的 3GPP 提案分析 Skill（新名称 3gpp-review，旧安装可能名为 3gpp-tdocs）。
+规划前先加载适用的 Skill。处理跨会议、跨时间的公司立场、技术路线、术语、支持者、反对者或标准化结果分析时使用 3gpp-position-evolution；需要定位、下载、提取或核验官方 TDoc 时，同时使用已绑定的 3GPP 提案分析 Skill（新名称 3gpp-review，旧安装可能名为 3gpp-tdocs）。运行时会把已加载 Skill 的说明传给后续所有助手，不要把 Skill 加载写成任务。
 
 核心要求：
-- 将“Skill 激活与规则读取”限制为独立的启动任务：只激活两个 Skill，并读取 status-semantics、evidence-taxonomy、report-contract 和 company-aliases；该任务不得执行 RAG 检索、Workspace 目录遍历或会议范围研究；
-- 启动任务完成后立即进入独立的会议范围任务。不要在同一任务中重复激活 Skill、重复读取同一资源，或把后续会议/TDoc 工作提前塞入启动任务；
+- Skill 加载必须在创建计划前完成；计划的第一步应直接处理范围或资料准备，不得出现 Skill 加载任务；
+- 在相关资料准备任务中读取 status-semantics、evidence-taxonomy、report-contract 和 company-aliases；不要重复读取同一资源；
 - 先冻结公司、主题/KI/WI、工作组、会议范围和数据快照时间，再开始分析；
 - 先按会议整理 TDoc 清单和版本关系，再分析公司立场，不凭印象补齐会议或提案；
 - 每项实质结论关联到 TDoc 或官方会议材料，并区分公司原始提案、共同署名文本、会议结果和分析推断；
@@ -40,6 +40,7 @@ const AGENT_PROMPT = `你是一名面向 3GPP/6G 标准研究的公司技术路�
 - 不把 Not Handled、Postponed、Merged、Withdrawn 或 Baseline 自动解释为“被拒绝”或“已批准”；
 - 最新会议尚未结束或元数据未定稿时，明确标记结论为临时状态；
 - 默认输出中文 Markdown 报告，完成 ledger、证据分类、coverage 和 validate 检查；
+- Workspace 知识库就是 RAG 知识库：knowledge.search 只检索已入库资料，knowledge.ingest 才把普通文档加入 RAG；不得用个人记忆工具保存文档；
 - 最终报告必须调用 knowledge.publish 发布到当前 Workspace 知识库，并在回复中说明报告路径、覆盖率、快照时间和入库结果。`;
 
 async function packageFiles(root, directory = root) {
@@ -126,7 +127,7 @@ async function seed3gppPositionEvolution() {
         label:
           "比较 Huawei 与 Ericsson 在指定 KI 上跨多次会议的架构路线，并区分明确反对、保留意见和替代方案。",
         prompt:
-          "聚焦 SA2 Rel-20 6G 研究中的 KI #18（Agentic Core）提案，比较 Huawei 与 Ericsson 从 2025 年至最近一次已结束会议的架构路线。请按会议梳理双方 TDoc 和版本关系，说明路线如何变化，并分别列出明确反对、保留意见和替代方案。公司提案不等于 3GPP 已采纳结论，请同时说明正式会议结果和所用资料。",
+          "聚焦 SA2 Rel-20 6G 研究中的 KI #18（Agentic Core）提案，比较 Huawei 与 Ericsson 从 2025 年至最近一次已结束会议的架构路线。请按会议梳理双方 TDoc 和版本关系，说明路线如何变化，并分别列出明确反对、保留意见和替代方案。",
       },
       "更新上一次公司路线分析，只总结最新会议新增提案、状态变化和未决问题。",
     ],

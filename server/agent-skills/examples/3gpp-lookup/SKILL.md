@@ -1,7 +1,7 @@
 ---
 name: 3gpp-lookup
 description: 快速查询 3GPP 工作组会议的时间、地点、会议目录和其他简短事实。适用于只需少量官方资料即可回答的问题；下载提案、批量筛选、DOCX 解析和跨提案分析应使用 3gpp-review。
-allowed-tools: skill.activate 3gpp.resolve-meeting web.fetch
+allowed-tools: 3gpp.resolve-meeting web.fetch
 ---
 
 # 3GPP 快速查询

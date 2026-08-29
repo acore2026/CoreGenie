@@ -86,6 +86,11 @@ describe("3GPP review seed", () => {
       expect.objectContaining({
         name: "3GPP 提案分析助手",
         skillIds: [10, 11],
+        tools: expect.arrayContaining([
+          "knowledge.search",
+          "knowledge.ingest",
+          "knowledge.publish",
+        ]),
         runtimeConfig: expect.objectContaining({
           publicationRequiresCoverage: true,
         }),
@@ -100,10 +105,16 @@ describe("3GPP review seed", () => {
         skillIds: [10],
         runtimeConfig: expect.objectContaining({
           attachmentMode: "workspace_file",
+          workflow: "3gpp-markdown-conversion",
+          thinking: false,
         }),
-        tools: expect.not.arrayContaining(["knowledge.publish"]),
+        tools: expect.arrayContaining(["3gpp.convert-markdown"]),
       })
     );
+    const converter = PredefinedAgent.create.mock.calls
+      .map(([value]) => value)
+      .find((value) => value.name === "3GPP 提案转 Markdown 助手");
+    expect(converter.tools).not.toContain("knowledge.publish");
     expect(PredefinedAgentSkill.createPackage).toHaveBeenCalledWith(
       expect.objectContaining({
         skillMd: expect.stringContaining("name: 3gpp-lookup"),
@@ -114,7 +125,7 @@ describe("3GPP review seed", () => {
     });
     expect(prisma.system_settings.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { label: "agent_skill_seed_3gpp_review_v12" },
+        where: { label: "agent_skill_seed_3gpp_review_v15" },
       })
     );
   });

@@ -301,6 +301,7 @@ function agentRunEndpoints(app) {
         await AgentRunEvent.append(run.id, "input.resolved", {
           requestId: command.requestId,
           skipped: Boolean(command.skipped),
+          answers: command.answers || [],
         });
         await AgentRunCommand.complete(persistedCommand.id, { success: true });
         setImmediate(() => agentRunSupervisor.enqueue(run.id));

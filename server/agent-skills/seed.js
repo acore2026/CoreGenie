@@ -5,7 +5,7 @@ const { PredefinedAgentSkill } = require("../models/predefinedAgentSkill");
 const { PredefinedAgent } = require("../models/predefinedAgent");
 const { seed3gppPositionEvolution } = require("./positionEvolutionSeed");
 
-const SEED_SETTING = "agent_skill_seed_3gpp_review_v12";
+const SEED_SETTING = "agent_skill_seed_3gpp_review_v15";
 const AGENT_NAME = "3GPP 提案分析助手";
 const LEGACY_AGENT_NAMES = ["3GPP 提案分析助手（Skill）"];
 const CONVERTER_AGENT_NAME = "3GPP 提案转 Markdown 助手";
@@ -21,7 +21,8 @@ const AGENT_TOOLS = [
   "filesystem.search",
   "web.fetch",
   "3gpp.resolve-meeting",
-  "rag.search",
+  "knowledge.search",
+  "knowledge.ingest",
   "user.ask",
   "vision.inspect",
   "knowledge.publish",
@@ -29,7 +30,7 @@ const AGENT_TOOLS = [
 
 const AGENT_PROMPT = `你是一名面向 3GPP/6G 标准研究的提案分析助手。
 
-查询会议时间、地点或目录等简短事实时，只激活 3gpp-lookup Skill，并在获得足够的官方资料后立即回答。下载、筛选或分析 TDoc，以及处理 KI、公司立场或 Solution/Variant 时，必须激活 3gpp-review Skill，并完整遵循其证据、覆盖率、图表核验和报告流程。
+规划前先选择适用的 Skill：查询会议时间、地点或目录等简短事实时使用 3gpp-lookup；下载、筛选或分析 TDoc，以及处理 KI、公司立场或 Solution/Variant 时使用 3gpp-review。运行时会在创建任务计划前加载所选 Skill 的完整说明，后续步骤直接遵循这些说明，不要把 Skill 加载写成任务。
 
 核心要求：
 - 不猜测会议目录、议程映射、TDoc 元数据或提案内容；
@@ -39,12 +40,14 @@ const AGENT_PROMPT = `你是一名面向 3GPP/6G 标准研究的提案分析助�
 - 默认输出中文 Markdown 报告；
 - 使用 filter-index 生成并验证 proposals.json，不得手写或改造 manifest；
 - 将工作拆为会议与清单、下载与提取、分析与严格 coverage、报告与发布四个有依赖关系的阶段；
-- 调用 Skill 自带脚本时，bash 的 cwd 必须使用 skill.activate 返回的 skill:// 路径，并通过相对路径 scripts/3gpp_tdocs.py 执行；禁止调用 /workspace/3gpp-review/scripts/3gpp_tdocs.py 或其他工作区脚本副本；
+- Workspace 知识库就是 RAG 知识库：用 knowledge.search 检索已入库资料，用 knowledge.ingest 将普通文档文件加入 RAG；不得用个人记忆工具保存文档；
+- 调用 Skill 自带脚本时，bash 的 cwd 必须使用已加载 Skill 提供的 skill:// 路径，并通过相对路径 scripts/3gpp_tdocs.py 执行；禁止调用 /workspace/3gpp-review/scripts/3gpp_tdocs.py 或其他工作区脚本副本；
 - 后续工具调用必须复用上一步返回的准确文件路径，路径不确定时先搜索，不得根据文件名猜目录；
 - 最终报告必须通过严格 coverage 并生成 receipt，再将 manifest、receipt 和完整 TDoc 列表一并传给 knowledge.publish；
 - 每次运行只发布一份最终报告，发布成功后不得换路径再次发布；
 - knowledge.publish 成功后，在最终回复中说明报告路径、覆盖率和入库结果。`;
 const CONVERTER_TOOLS = [
+  "3gpp.convert-markdown",
   "bash",
   "python",
   "filesystem.read",
@@ -56,17 +59,18 @@ const CONVERTER_TOOLS = [
 ];
 const CONVERTER_PROMPT = `你负责把 3GPP 提案 DOCX 转成 Markdown 和图片压缩包。
 
-开始处理前必须激活 3gpp-review Skill，并使用其中的 conversion mode 和 convert-docx 命令。
+规划前必须加载 3gpp-review Skill，并使用其中的 conversion mode 和 convert-docx 命令。不要创建单独的 Skill 加载任务。
 
 核心要求：
 - 输入可以是用户上传的 DOCX 工作区路径，也可以是 TDoc 编号、工作组和会议信息；
+- 输入能够确定一个文件时，调用 3gpp.convert-markdown 一次完成下载、转换、检查和 ZIP 登记；工具成功后不要再用 bash 重复转换；
 - 用户提供 TDoc 信息时，只从 3GPP 官方网站查找和下载；结果不唯一时先询问，不要猜文件；
 - 只做格式转换，不总结、比较或分析提案观点；
 - 保留标题、段落、列表、表格、链接、图片和可导出的嵌入对象；
 - 不把图片改写成 Mermaid，也不根据模糊图片补画内容；
 - 每次转换使用 /workspace/3gpp-markdown/results/ 下的新目录；
 - 完成后检查 Markdown、conversion-summary.json 和 ZIP 是否存在；
-- 最终回复说明 ZIP 路径和转换警告，不调用 knowledge.publish。`;
+- 最终回复说明 ZIP 路径和转换警告，不把转换结果发布到知识库。`;
 let seedPromise = null;
 
 async function seed3gppReview() {
@@ -156,8 +160,7 @@ async function seed3gppReview() {
 
   const agents = await PredefinedAgent.all();
   let agent = agents.find(
-    (item) =>
-      item.name === AGENT_NAME || LEGACY_AGENT_NAMES.includes(item.name)
+    (item) => item.name === AGENT_NAME || LEGACY_AGENT_NAMES.includes(item.name)
   );
   const agentData = {
     name: AGENT_NAME,
@@ -206,6 +209,8 @@ async function seed3gppReview() {
     runtimeKey: "governed-agent",
     runtimeConfig: {
       attachmentMode: "workspace_file",
+      workflow: "3gpp-markdown-conversion",
+      thinking: false,
     },
     enabled: true,
   };

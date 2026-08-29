@@ -7,8 +7,10 @@ const { WorkspaceChats } = require("../models/workspaceChats");
 const { WorkspaceThread } = require("../models/workspaceThread");
 const { User } = require("../models/user");
 const { AgentReportPublication } = require("../models/agentReportPublication");
+const { AgentRunArtifact } = require("../models/agentRunArtifact");
 const { publicationOutput } = require("../tools/knowledge");
 const filesystem = require("../utils/agents/aibitat/plugins/filesystem/lib");
+const path = require("path");
 const { resolveAgent } = require("../resources/agents");
 const { normalizedHistory } = require("./message");
 const { withAgentTrace } = require("./observability");
@@ -43,14 +45,14 @@ function historicalTrace(events = []) {
       contextTraces.push({
         id: `${event.runId}:memory:${event.id}`,
         kind: "memory",
-        title: `Recalled ${event.payload.count} memories`,
+        title: `已召回 ${event.payload.count} 条记忆`,
         details: event.payload.memories,
       });
     if (event.type === "context.rag.recalled")
       contextTraces.push({
         id: `${event.runId}:rag:${event.id}`,
         kind: "rag",
-        title: `Used ${event.payload.count} knowledge sources`,
+        title: `已找到 ${event.payload.count} 条工作区资料`,
         details: event.payload.sources,
       });
   }
@@ -58,6 +60,21 @@ function historicalTrace(events = []) {
     agentTrace,
     subagentRuns: [...subagents.values()],
     contextTraces,
+  };
+}
+
+function artifactOutput(artifact, workspace, stats) {
+  return {
+    type: "workspaceFile",
+    payload: {
+      workspaceSlug: workspace.slug,
+      path: artifact.storagePath,
+      filename:
+        artifact.metadata?.filename ||
+        path.basename(artifact.storagePath || artifact.title),
+      fileSize: stats.size,
+      artifactId: artifact.id,
+    },
   };
 }
 
@@ -191,9 +208,7 @@ async function executeAgentRunSegment(initialRun, signal, runnableConfig = {}) {
     await emit("activity.updated", {
       phase: inputRequest ? "input" : "approval",
       requestId: inputRequest ? pendingInterrupt.requestId : undefined,
-      summaryKey: inputRequest
-        ? "waiting_for_input"
-        : "waiting_for_approval",
+      summaryKey: inputRequest ? "waiting_for_input" : "waiting_for_approval",
     });
     return AgentRun.get(run.id);
   }
@@ -231,9 +246,11 @@ async function executeAgentRunSegment(initialRun, signal, runnableConfig = {}) {
       ? {}
       : historicalTrace(await AgentRunEvent.after(run.id, 0, 10_000));
   const publicationRows = await AgentReportPublication.forRun(run.id);
+  const artifactRows = await AgentRunArtifact.forRun(run.id);
   const workspaceManager = filesystem.forWorkspace(workspace.id);
   await workspaceManager.ensureInitialized();
   const outputs = [];
+  const outputPaths = new Set();
   for (const publication of publicationRows) {
     try {
       const absolute = await workspaceManager.validatePath(
@@ -241,6 +258,24 @@ async function executeAgentRunSegment(initialRun, signal, runnableConfig = {}) {
       );
       const stats = await require("fs/promises").stat(absolute);
       outputs.push(publicationOutput(publication, workspace, stats));
+      outputPaths.add(publication.sourcePath);
+    } catch {}
+  }
+  for (const artifact of artifactRows) {
+    if (
+      artifact.kind !== "workspaceFile" ||
+      !artifact.storagePath ||
+      outputPaths.has(artifact.storagePath)
+    )
+      continue;
+    try {
+      const absolute = await workspaceManager.validatePath(
+        artifact.storagePath
+      );
+      const stats = await require("fs/promises").stat(absolute);
+      if (!stats.isFile()) continue;
+      outputs.push(artifactOutput(artifact, workspace, stats));
+      outputPaths.add(artifact.storagePath);
     } catch {}
   }
   const { chat, message } =
@@ -361,6 +396,7 @@ async function persistFailedAgentRun(runId, error) {
 
 module.exports = {
   applicableCompletionTools,
+  artifactOutput,
   consumeGraphStream,
   executeAgentRun,
   executeAgentRunSegment,

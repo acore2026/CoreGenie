@@ -26,6 +26,32 @@ function context(emit = jest.fn().mockResolvedValue(undefined)) {
 describe("governed tool execution policy", () => {
   beforeEach(() => jest.clearAllMocks());
 
+  it("does not emit phantom task progress for pre-planning tools", async () => {
+    const emit = jest.fn().mockResolvedValue(undefined);
+    const wrapped = toLangChainTool(
+      defineTool({
+        id: "skill.preplan-test",
+        description: "Load pre-planning context",
+        schema: z.object({ name: z.string() }),
+        execute: async () => "loaded",
+        action: false,
+      }),
+      context(emit)
+    );
+
+    await wrapped.func({ name: "demo" }, undefined, {
+      toolCall: { id: "preplan-call" },
+    });
+
+    expect(emit).toHaveBeenCalledWith(
+      "tool.completed",
+      expect.objectContaining({ taskId: null, toolId: "skill.preplan-test" })
+    );
+    expect(emit.mock.calls.some(([type]) => type === "task.progress")).toBe(
+      false
+    );
+  });
+
   it("reuses a successful read and stops after repeated calls add no new result", async () => {
     const emit = jest.fn().mockResolvedValue(undefined);
     const execute = jest.fn().mockResolvedValue("usable result");

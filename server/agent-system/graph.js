@@ -6,7 +6,7 @@ const {
 const { createChatModel, selectedProvider } = require("../resources/models");
 const { composeAgentPrompt } = require("../resources/prompts");
 const { agentListForPrompt } = require("../resources/agents");
-const { toolsForAgent } = require("../tools");
+const { toolsForAgent, visibleToolDescriptorsForAgent } = require("../tools");
 const { AgentToolContext } = require("../tools/context");
 const { getCheckpointer } = require("./checkpointer");
 const { AgentSkillWhitelist } = require("../models/agentSkillWhitelist");
@@ -31,12 +31,33 @@ async function buildAgentGraph({
   taskTitle = null,
   maxConsecutiveNoProgress = 5,
   onNoProgress = null,
+  includeSkillCatalog = true,
+  activatedSkillScope = null,
 }) {
+  const configuredAgent = Array.isArray(run.configuration?.toolOverrides)
+    ? { ...agent, tools: run.configuration.toolOverrides }
+    : agent;
+  const allowActions =
+    !["query", "chat"].includes(run.mode) && run.source !== "embed";
+  const availableAgents = allowActions
+    ? await agentListForPrompt(agent?.id)
+    : [];
+  const strictSelection = Array.isArray(run.configuration?.toolOverrides);
+  const visibleToolIds = new Set(
+    (disableTools
+      ? []
+      : visibleToolDescriptorsForAgent(configuredAgent, {
+          allowActions,
+          excludeToolIds,
+          strictSelection,
+        })
+    ).map((descriptor) => descriptor.id)
+  );
   const context = new AgentToolContext({
     run,
     workspace,
     user,
-    agent,
+    agent: configuredAgent,
     emit,
     signal,
     approvalMode: run.configuration?.approvalMode || "always_allow",
@@ -45,34 +66,36 @@ async function buildAgentGraph({
     maxLocalToolCalls,
     taskId,
     taskTitle,
+    visibleToolIds,
     maxConsecutiveNoProgress,
     onNoProgress,
+    activatedSkillScope,
   });
-  const allowActions =
-    !["query", "chat"].includes(run.mode) && run.source !== "embed";
-  const availableAgents = allowActions
-    ? await agentListForPrompt(agent?.id)
-    : [];
-  const configuredAgent = Array.isArray(run.configuration?.toolOverrides)
-    ? { ...agent, tools: run.configuration.toolOverrides }
-    : agent;
   const tools = disableTools
     ? []
     : await toolsForAgent(configuredAgent, context, {
         allowActions,
         availableAgents,
         excludeToolIds,
-        strictSelection: Array.isArray(run.configuration?.toolOverrides),
+        strictSelection,
       });
   const systemPrompt = systemPromptOverride
-    ? [systemPromptOverride, await skillCatalogPrompt(agent, workspace)]
+    ? [
+        systemPromptOverride,
+        includeSkillCatalog
+          ? await skillCatalogPrompt(configuredAgent, workspace, null, {
+              visibleToolIds,
+            })
+          : null,
+      ]
         .filter(Boolean)
         .join("\n\n")
     : await composeAgentPrompt({
-        agent,
+        agent: configuredAgent,
         user,
         workspace,
         runtimePrompt: run.configuration?.systemPrompt || null,
+        visibleToolIds,
       });
   const modelOptions = {
     workspace,
@@ -115,7 +138,7 @@ async function buildAgentGraph({
               "filesystem_list",
               "filesystem_search",
               "memory_recall",
-              "rag_search",
+              "knowledge_search",
               "web_fetch",
               "activate_skill",
               "read_skill_resource",

@@ -1,24 +1,32 @@
 /* eslint-env jest, node */
 const {
   DEFAULTS,
+  activateSkillControlTool,
+  activatedSkillToolIds,
   askUserTool,
   controllerDecisionWithFallback,
   classify3gppRequest,
   createGovernedGraph,
+  effectiveTaskToolIds,
   groundWorkerResultInToolExecutions,
+  isKnowledgeIngestionRequest,
+  is3gppMarkdownConversionAgent,
   isQuick3gppLookupTask,
-  isSkillBootstrapTask,
+  knowledgeToolGuidance,
   mergeById,
   normalized3gppLookupPlan,
   normalizedActionPlan,
   parse3gppInvitationFacts,
+  parse3gppConversionRequest,
   parse3gppMeetingRequest,
   quick3gppResponse,
+  rethrowWorkerInterrupt,
   requestAllowsWrite,
   resolvedTaskDependencies,
   scopedTaskId,
+  shouldRecallPersonalMemory,
+  shouldRetrieveWorkspaceContext,
   streamControllerDecision,
-  skillBootstrapCompletion,
   taskHasWriteTool,
   taskRequestsArtifactWrite,
   taskRequiredCompletionTools,
@@ -27,7 +35,21 @@ const {
   workerResultFromPlainText,
   workerSystemPrompt,
 } = require("../../agent-system/runtimes/governed");
-const { taskSelectionAllows, toolRegistry } = require("../../tools");
+const {
+  Annotation,
+  Command,
+  END,
+  GraphInterrupt,
+  MemorySaver,
+  START,
+  StateGraph,
+  interrupt: pauseGraph,
+} = require("@langchain/langgraph");
+const {
+  normalizeToolId,
+  taskSelectionAllows,
+  toolRegistry,
+} = require("../../tools");
 
 const context = {
   run: { id: "run-1", prompt: "Research the latest meeting agenda" },
@@ -48,6 +70,63 @@ describe("Governed Agent runtime", () => {
     expect(DEFAULTS.maxQuickLookupModelCalls).toBe(8);
   });
 
+  it("does not preload workspace RAG for a public-web-only request", () => {
+    expect(
+      shouldRetrieveWorkspaceContext("尝试在线搜索 Agent Connecting Network", {
+        autoRecall: true,
+        mode: "chat",
+      })
+    ).toBe(false);
+    expect(
+      shouldRetrieveWorkspaceContext("Search the web for current ACN news", {
+        autoRecall: true,
+        mode: "chat",
+      })
+    ).toBe(false);
+  });
+
+  it("keeps workspace retrieval when the request names workspace sources", () => {
+    expect(
+      shouldRetrieveWorkspaceContext("同时搜索工作区和互联网中的 ACN 资料", {
+        autoRecall: true,
+        mode: "chat",
+      })
+    ).toBe(true);
+    expect(
+      shouldRetrieveWorkspaceContext("在知识库中检索 ACN", {
+        autoRecall: true,
+        mode: "chat",
+      })
+    ).toBe(true);
+  });
+
+  it("does not preload RAG or personal-memory context for document ingestion intent", () => {
+    expect(isKnowledgeIngestionRequest("将这些文档加入 RAG")).toBe(true);
+    expect(isKnowledgeIngestionRequest("记住我喜欢简短报告")).toBe(false);
+    expect(
+      shouldRetrieveWorkspaceContext("将这些文档加入 RAG", {
+        autoRecall: true,
+        mode: "automatic",
+      })
+    ).toBe(false);
+    expect(
+      shouldRecallPersonalMemory("将这些文档加入 RAG", {
+        autoRecall: true,
+        userId: 1,
+      })
+    ).toBe(false);
+    expect(requestAllowsWrite("将这些文档加入 RAG")).toBe(true);
+  });
+
+  it("describes only knowledge tools visible to the controller model", () => {
+    const guidance = knowledgeToolGuidance(new Set(["knowledge.search"]));
+
+    expect(guidance).toContain("knowledge.search");
+    expect(guidance).not.toContain("knowledge.ingest");
+    expect(guidance).not.toContain("knowledge.publish");
+    expect(guidance).not.toContain("memory.store");
+  });
+
   it("routes only simple 3GPP meeting facts to the quick lookup", () => {
     expect(classify3gppRequest("SA2#175 是什么时候的会议？")).toBe(
       "3gpp_fact_lookup"
@@ -55,9 +134,9 @@ describe("Governed Agent runtime", () => {
     expect(classify3gppRequest("SA2#175 在哪里举行？")).toBe(
       "3gpp_fact_lookup"
     );
-    expect(
-      classify3gppRequest("下载 SA2#175 KI#22 中 Huawei 的提案")
-    ).toBe("general");
+    expect(classify3gppRequest("下载 SA2#175 KI#22 中 Huawei 的提案")).toBe(
+      "general"
+    );
     expect(classify3gppRequest("分析 SA2#175 的提案并生成报告")).toBe(
       "general"
     );
@@ -79,20 +158,20 @@ describe("Governed Agent runtime", () => {
       country: "China",
     });
     const response = quick3gppResponse({
-        meeting: { group: "SA2", meetingNumber: 175 },
-        data: {
-          candidates: [
-            {
-              folder: "TSGS2_175_Dalian_2026-05",
-              url: "https://www.3gpp.org/meeting",
-            },
-          ],
-          officialDetails: {
-            invitationUrl: "https://www.3gpp.org/invitation.pdf",
-            invitationText: invitation,
+      meeting: { group: "SA2", meetingNumber: 175 },
+      data: {
+        candidates: [
+          {
+            folder: "TSGS2_175_Dalian_2026-05",
+            url: "https://www.3gpp.org/meeting",
           },
+        ],
+        officialDetails: {
+          invitationUrl: "https://www.3gpp.org/invitation.pdf",
+          invitationText: invitation,
         },
-      }).text;
+      },
+    }).text;
     expect(response).toContain("2026 年 5 月 18 日至 22 日");
     expect(response).toContain("地点为中国大连");
   });
@@ -106,11 +185,7 @@ describe("Governed Agent runtime", () => {
     expect(plan.tasks).toHaveLength(1);
     expect(plan.tasks[0]).toMatchObject({
       writeIntent: false,
-      allowedToolIds: [
-        "skill.activate",
-        "3gpp.resolve-meeting",
-        "web.fetch",
-      ],
+      allowedToolIds: ["3gpp.resolve-meeting", "web.fetch"],
     });
     expect(plan.tasks[0].allowedToolIds).not.toEqual(
       expect.arrayContaining(["bash", "python", "filesystem.write"])
@@ -121,10 +196,9 @@ describe("Governed Agent runtime", () => {
   it("does not apply quick lookup limits to a full 3GPP review task", () => {
     expect(
       isQuick3gppLookupTask({
-        title: "激活 Skill 并解析会议目录",
+        title: "解析会议目录并下载文稿",
         writeIntent: true,
         allowedToolIds: [
-          "skill.activate",
           "3gpp.resolve-meeting",
           "web.fetch",
           "filesystem.write",
@@ -168,7 +242,9 @@ describe("Governed Agent runtime", () => {
 
     expect(prompt).toMatch(/read-only task/i);
     expect(prompt).toMatch(/Do not create, update, save, or publish/);
-    expect(prompt).not.toMatch(/create the file with a first filesystem\.write/);
+    expect(prompt).not.toMatch(
+      /create the file with a first filesystem\.write/
+    );
     expect(continuation).toMatch(/read-only task/i);
     expect(continuation).not.toMatch(/filesystem\.write chunks/);
   });
@@ -227,6 +303,28 @@ describe("Governed Agent runtime", () => {
     ).toBeNull();
   });
 
+  it("routes one TDoc or one uploaded DOCX into the fixed conversion flow", () => {
+    expect(
+      parse3gppConversionRequest("请下载 S2-2606085，并转换成 Markdown。")
+    ).toEqual({ tdoc: "S2-2606085" });
+    expect(
+      parse3gppConversionRequest("请转换这个文件。", [
+        {
+          mime: "application/anythingllm-workspace-file",
+          contentString:
+            "/workspace/3gpp-markdown/inbox/upload-1/proposal.docx",
+        },
+      ])
+    ).toEqual({
+      input_path: "/workspace/3gpp-markdown/inbox/upload-1/proposal.docx",
+    });
+    expect(
+      is3gppMarkdownConversionAgent({
+        runtimeConfig: { workflow: "3gpp-markdown-conversion" },
+      })
+    ).toBe(true);
+  });
+
   it("requires completion tools only in tasks that are allowed to call them", () => {
     const run = {
       runtimeSnapshot: {
@@ -247,7 +345,7 @@ describe("Governed Agent runtime", () => {
 
   it("requires a controller-normalized action to execute its selected tool", () => {
     const plan = normalizedActionPlan({
-      descriptor: toolRegistry.get("rag.search"),
+      descriptor: toolRegistry.get(normalizeToolId("rag.search")),
       args: { query: "Agent Connecting Network ACN" },
       request: "尝试在线搜索",
       agent: { id: 1 },
@@ -259,22 +357,22 @@ describe("Governed Agent runtime", () => {
         plan.tasks[0].allowedToolIds,
         plan.tasks[0]
       )
-    ).toEqual(["rag.search"]);
+    ).toEqual(["knowledge.search"]);
   });
 
   it("grounds a worker result in the durable search execution", () => {
     const grounded = groundWorkerResultInToolExecutions(
       {
         summary:
-          "No rag_search tool call was executed, so no search results were captured.",
+          "No knowledge_search tool call was executed, so no search results were captured.",
         evidence: [],
         unresolved: ["The search tool was not executed."],
       },
       { id: "task-1" },
-      ["rag.search"],
+      ["knowledge.search"],
       [
         {
-          tool_id: "rag.search",
+          tool_id: "knowledge.search",
           status: "completed",
           arguments: { query: "Agent Connecting Network ACN" },
           result: {
@@ -293,7 +391,7 @@ describe("Governed Agent runtime", () => {
       ]
     );
 
-    expect(grounded.summary).toMatch(/已成功执行 rag\.search/);
+    expect(grounded.summary).toMatch(/已成功执行 knowledge\.search/);
     expect(grounded.unresolved).toEqual([]);
     expect(grounded.evidence).toEqual([
       expect.objectContaining({
@@ -304,65 +402,51 @@ describe("Governed Agent runtime", () => {
     ]);
   });
 
-  it("recognizes a completed Skill bootstrap from durable tool records", () => {
-    const task = {
-      title: "Skill bootstrap",
-      objective:
-        "Activate demo-skill and read status-semantics and company-aliases.",
-      allowedToolIds: ["skill.activate", "skill.read_resource"],
-    };
-    const skills = [
+  it("grounds a contradictory worker result even without required completion tools", () => {
+    const grounded = groundWorkerResultInToolExecutions(
       {
-        name: "demo-skill",
-        files: [
-          { path: "SKILL.md", text: true },
-          { path: "references/status-semantics.md", text: true },
-          { path: "references/company-aliases.json", text: true },
-        ],
+        summary: "没有执行任何工具调用。",
+        evidence: [],
+        unresolved: ["Skill 未执行。"],
       },
-    ];
-    const executions = [
-      {
-        status: "completed",
-        tool_id: "skill.activate",
-        arguments: { name: "demo-skill" },
-      },
-      {
-        status: "completed",
-        tool_id: "skill.read_resource",
-        arguments: {
-          name: "demo-skill",
-          path: "references/status-semantics.md",
-        },
-        result: {
-          data: {
-            path: "references/status-semantics.md",
-            nextOffset: null,
+      { id: "task-1" },
+      [],
+      [
+        {
+          tool_id: "skill.activate",
+          status: "completed",
+          arguments: { name: "3gpp-review" },
+          result: {
+            ok: true,
+            summary: "Activated 3gpp-review.",
           },
         },
-      },
-      {
-        status: "completed",
-        tool_id: "skill.read_resource",
-        arguments: {
-          name: "demo-skill",
-          path: "references/company-aliases.json",
-        },
-        result: {
-          data: {
-            path: "references/company-aliases.json",
-            nextOffset: null,
-          },
-        },
-      },
-    ];
+      ]
+    );
 
-    expect(isSkillBootstrapTask(task)).toBe(true);
-    expect(skillBootstrapCompletion(task, skills, executions)).toMatchObject({
-      complete: true,
-      missingSkills: [],
-      missingResources: [],
-    });
+    expect(grounded.summary).toMatch(/已成功执行 skill\.activate/);
+    expect(grounded.unresolved).toEqual([]);
+    expect(grounded.evidence).toEqual([
+      expect.objectContaining({
+        kind: "tool",
+        title: "skill.activate 结果",
+        excerpt: "Activated 3gpp-review.",
+      }),
+    ]);
+  });
+
+  it("offers exact Skill names as pre-planning controller actions", () => {
+    const control = activateSkillControlTool([
+      { name: "3gpp-review" },
+      { name: "3gpp-lookup" },
+    ]);
+
+    expect(control.name).toBe("activate_skill");
+    expect(control.description).toMatch(/before planning/);
+    expect(control.schema.safeParse({ name: "3gpp-review" }).success).toBe(
+      true
+    );
+    expect(control.schema.safeParse({ name: "unknown" }).success).toBe(false);
   });
 
   it("compiles without state-channel and node-name collisions", () => {
@@ -472,26 +556,68 @@ describe("Governed Agent runtime", () => {
     ).toThrow(/disallowed tool bash/);
   });
 
-  it("always permits framework Skill tools for Skill-bound Agents", () => {
+  it("accepts RAG document ingestion and rejects personal-memory storage for the same Agent", () => {
+    const ingestionContext = {
+      ...context,
+      run: { id: "run-ingest", prompt: "将这些文档加入 RAG" },
+      agent: { id: 7, tools: ["knowledge.ingest", "knowledge.search"] },
+    };
     const plan = validatePlan(
       {
-        goal: "activate the bound skill",
+        goal: "将文档加入 Workspace RAG",
         tasks: [
           {
-            id: "activate",
-            title: "Activate Skill",
-            objective: "Activate and follow the bound Skill",
-            allowedToolIds: ["skill.activate", "skill.read_resource"],
+            id: "ingest",
+            title: "加入 RAG",
+            objective: "将已解析文档加入 Workspace RAG 知识库",
+            allowedToolIds: ["knowledge.ingest"],
+            writeIntent: true,
           },
         ],
       },
-      { ...context, agent: { id: 1, tools: ["bash"] } }
+      ingestionContext
     );
 
-    expect(plan.tasks[0].allowedToolIds).toEqual([
-      "skill.activate",
-      "skill.read_resource",
-    ]);
+    expect(plan.tasks[0]).toMatchObject({
+      allowedToolIds: ["knowledge.ingest"],
+      writeIntent: true,
+    });
+    expect(() =>
+      validatePlan(
+        {
+          goal: "错误地保存到个人记忆",
+          tasks: [
+            {
+              id: "store-memory",
+              title: "错误入库",
+              objective: "保存文档",
+              allowedToolIds: ["memory.store"],
+              writeIntent: true,
+            },
+          ],
+        },
+        ingestionContext
+      )
+    ).toThrow(/disallowed tool memory\.store/);
+  });
+
+  it("rejects Skill activation inside a task plan", () => {
+    expect(() =>
+      validatePlan(
+        {
+          goal: "activate the bound skill",
+          tasks: [
+            {
+              id: "activate",
+              title: "Activate Skill",
+              objective: "Activate and follow the bound Skill",
+              allowedToolIds: ["skill.activate", "skill.read_resource"],
+            },
+          ],
+        },
+        { ...context, agent: { id: 1, tools: ["bash"] } }
+      )
+    ).toThrow(/before create_plan/);
   });
 
   it("keeps Skill tools implicit normally but honors strict task overrides", () => {
@@ -505,99 +631,49 @@ describe("Governed Agent runtime", () => {
     ).toBe(true);
   });
 
-  it("splits direct 3GPP Skill activation into dependent workflow phases", () => {
-    const plan = normalizedActionPlan({
-      descriptor: toolRegistry.get("skill.activate"),
-      args: { name: "3gpp-review" },
-      request: "帮助我下载 KI #18 最近一次会议的 Huawei 提案",
-      agent: {
-        id: 1,
-        tools: [
-          "bash",
-          "python",
-          "filesystem.read",
-          "filesystem.write",
-          "filesystem.list",
-          "filesystem.search",
-          "web.fetch",
-          "vision.inspect",
-          "knowledge.publish",
-        ],
-      },
-      skills: [
-        {
-          name: "3gpp-review",
-          allowedTools:
-            "skill.activate skill.read_resource bash python filesystem.read filesystem.write filesystem.list filesystem.search web.fetch vision.inspect knowledge.publish",
-        },
-      ],
-    });
-
-    expect(plan.tasks).toHaveLength(4);
-    expect(plan.tasks[0].allowedToolIds).toEqual([
-      "skill.activate",
-      "skill.read_resource",
-    ]);
-    expect(plan.tasks[1].dependsOn).toEqual(["activate-3gpp-review"]);
-    expect(plan.tasks[2].dependsOn).toEqual(["resolve-and-filter"]);
-    expect(plan.tasks[3].dependsOn).toEqual(["download-extract-cover"]);
-    expect(plan.tasks[3].allowedToolIds).toContain("knowledge.publish");
-    expect(
-      plan.tasks
-        .slice(0, 3)
-        .every((task) =>
-          task.allowedToolIds.every((toolId) => toolId !== "knowledge.publish")
-        )
-    ).toBe(true);
+  it("never normalizes Skill activation into a work plan", () => {
+    expect(() =>
+      normalizedActionPlan({
+        descriptor: toolRegistry.get("skill.activate"),
+        args: { name: "3gpp-review" },
+        request: "下载 KI #18 文稿",
+      })
+    ).toThrow(/pre-planning controller action/);
   });
 
-  it("keeps skill-permitted tools available after normalized activation", () => {
-    const plan = normalizedActionPlan({
-      descriptor: toolRegistry.get("skill.activate"),
-      args: {},
-      request: "List the KI8 documents",
-      agent: { id: 1, tools: null },
-      skills: [
-        {
-          name: "3gpp-tdocs",
-          allowedTools:
-            "skill.activate skill.read_resource bash python web.fetch",
-        },
-      ],
-    });
-
-    expect(plan.tasks[0].allowedToolIds).toEqual(
-      expect.arrayContaining([
-        "skill.activate",
-        "skill.read_resource",
-        "bash",
-        "python",
-        "web.fetch",
-      ])
+  it("intersects task tools with the activated Skill declaration", () => {
+    const skills = [
+      {
+        name: "3gpp-review",
+        allowedTools: "skill.read_resource bash web.fetch",
+      },
+    ];
+    expect(activatedSkillToolIds(skills)).toEqual(
+      new Set(["skill.read_resource", "bash", "web.fetch"])
     );
-    expect(plan.tasks[0].successCriteria.join(" ")).toMatch(
-      /不要只停留在激活步骤/
-    );
+    expect(
+      effectiveTaskToolIds(
+        [
+          "skill.activate",
+          "skill.read_resource",
+          "bash",
+          "python",
+          "web.fetch",
+        ],
+        { tools: ["bash", "python", "web-browsing"] },
+        skills
+      )
+    ).toEqual(["skill.read_resource", "bash", "web.fetch"]);
   });
 
   it("does not let a skill expand beyond the selected Agent tool policy", () => {
-    const plan = normalizedActionPlan({
-      descriptor: toolRegistry.get("skill.activate"),
-      args: { name: "3gpp-tdocs" },
-      request: "Inspect the meeting index",
-      agent: { id: 1, tools: ["web-browsing"] },
-      skills: [
-        {
-          name: "3gpp-tdocs",
-          allowedTools: "bash python web.fetch",
-        },
-      ],
-    });
-
-    const selectedTools = plan.tasks.flatMap((task) => task.allowedToolIds);
-    expect(selectedTools).toContain("web.fetch");
-    expect(selectedTools).not.toContain("bash");
-    expect(selectedTools).not.toContain("python");
+    expect(
+      effectiveTaskToolIds(
+        ["bash", "python", "web.fetch"],
+        { id: 1, tools: ["web-browsing"] },
+        [{ name: "3gpp-review", allowedTools: "bash python web.fetch" }]
+      )
+    ).toEqual(["web.fetch"]);
   });
 
   it("removes undeclared write intent and merges task updates by ID", () => {
@@ -661,6 +737,76 @@ describe("Governed Agent runtime", () => {
         choices: ["Latest", "All", "Baseline", "Other"],
       }).success
     ).toBe(false);
+  });
+
+  it("does not turn a worker input request into a failed task", () => {
+    const interrupt = new GraphInterrupt([
+      {
+        value: {
+          kind: "input",
+          requestId: "worker-input-1",
+          questions: [{ kind: "choice", question: "选择会议范围" }],
+        },
+      },
+    ]);
+
+    expect(() => rethrowWorkerInterrupt(interrupt)).toThrow(interrupt);
+    expect(() =>
+      rethrowWorkerInterrupt(new Error("ordinary failure"))
+    ).not.toThrow();
+  });
+
+  it("pauses and resumes an input request raised by a nested worker graph", async () => {
+    const checkpointer = new MemorySaver();
+    const innerState = Annotation.Root({ answer: Annotation() });
+    const workerGraph = new StateGraph(innerState)
+      .addNode("ask", () => ({
+        answer: pauseGraph({
+          kind: "input",
+          requestId: "worker-input-1",
+          questions: [{ kind: "choice", question: "选择会议范围" }],
+        }),
+      }))
+      .addEdge(START, "ask")
+      .addEdge("ask", END)
+      .compile({ checkpointer });
+    const outerState = Annotation.Root({ answer: Annotation() });
+    const graph = new StateGraph(outerState)
+      .addNode("worker", async (_state, config) => {
+        try {
+          return await workerGraph.invoke(
+            {},
+            {
+              ...config,
+              configurable: {
+                ...config.configurable,
+                thread_id: "nested-worker-input",
+              },
+            }
+          );
+        } catch (error) {
+          rethrowWorkerInterrupt(error);
+          throw error;
+        }
+      })
+      .addEdge(START, "worker")
+      .addEdge("worker", END)
+      .compile({ checkpointer });
+    const config = { configurable: { thread_id: "outer-worker-input" } };
+
+    const paused = await graph.invoke({}, config);
+    expect(paused.__interrupt__[0].value).toMatchObject({
+      kind: "input",
+      requestId: "worker-input-1",
+    });
+
+    const answer = {
+      skipped: false,
+      answers: [{ skipped: false, answer: "SA2#175 至 #176" }],
+    };
+    await expect(
+      graph.invoke(new Command({ resume: answer }), config)
+    ).resolves.toMatchObject({ answer });
   });
 
   it("retains streamed controller text when the merged content is empty", async () => {

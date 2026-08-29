@@ -10,10 +10,19 @@ jest.mock("../../models/agentToolExecution", () => ({
 
 jest.mock("fs/promises", () => ({
   stat: jest.fn(),
+  lstat: jest.fn(),
   readFile: jest.fn(),
   mkdir: jest.fn(),
   writeFile: jest.fn(),
   rename: jest.fn(),
+  rm: jest.fn(),
+}));
+const mockCollector = {
+  online: jest.fn(),
+  parseDocument: jest.fn(),
+};
+jest.mock("../../utils/collectorApi", () => ({
+  CollectorApi: jest.fn(() => mockCollector),
 }));
 jest.mock("../../utils/agents/aibitat/plugins/filesystem/lib", () => ({
   forWorkspace: jest.fn(() => mockManager),
@@ -31,6 +40,7 @@ jest.mock("../../models/agentReportPublication", () => ({
   },
 }));
 jest.mock("../../utils/files", () => ({
+  directUploadsPath: "/storage/direct-uploads",
   documentsPath: "/storage/documents",
 }));
 jest.mock("../../utils/helpers/chat/LLMPerformanceMonitor", () => ({
@@ -42,7 +52,7 @@ const { Document } = require("../../models/documents");
 const {
   AgentReportPublication,
 } = require("../../models/agentReportPublication");
-const { publishReport } = require("../../tools/knowledge");
+const { ingestDocuments, publishReport } = require("../../tools/knowledge");
 
 function context() {
   return {
@@ -69,6 +79,11 @@ describe("knowledge.publish", () => {
       "/storage/workspace-2/3gpp-review/reports/SA2-175/KI22/report.md"
     );
     fs.stat.mockResolvedValue({ isFile: () => true, size: 2048 });
+    fs.lstat.mockResolvedValue({
+      isFile: () => true,
+      isSymbolicLink: () => false,
+      size: 2048,
+    });
     fs.readFile.mockResolvedValue("# Report\n\nS2-2606085 evidence.");
     AgentReportPublication.get.mockResolvedValue(null);
     AgentReportPublication.forRun.mockResolvedValue([]);
@@ -91,6 +106,17 @@ describe("knowledge.publish", () => {
       errors: [],
       embedded: ["agent-reports/3gpp/run-publish/report.json"],
     });
+    mockCollector.online.mockResolvedValue(true);
+    mockCollector.parseDocument.mockResolvedValue({
+      success: true,
+      documents: [],
+    });
+  });
+
+  it("describes publication as writing to the Workspace RAG knowledge base", () => {
+    expect(publishReport.description).toMatch(/Workspace RAG knowledge base/);
+    expect(publishReport.description).toMatch(/knowledge\.search/);
+    expect(publishReport.description).toMatch(/not personal memory/i);
   });
 
   it("embeds a report and returns a workspace download output", async () => {
@@ -304,5 +330,86 @@ describe("knowledge.publish", () => {
 
     expect(result).toMatchObject({ ok: false, code: "TDOC_SET_MISMATCH" });
     expect(AgentReportPublication.begin).not.toHaveBeenCalled();
+  });
+});
+
+describe("knowledge.ingest", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockManager.validatePath.mockResolvedValue(
+      "/storage/workspace-2/inbox/S2-2607173.docx"
+    );
+    mockManager.getAllowedDirectories.mockReturnValue(["/storage/workspace-2"]);
+    fs.lstat.mockResolvedValue({
+      isFile: () => true,
+      isSymbolicLink: () => false,
+      size: 4096,
+    });
+    fs.readFile.mockResolvedValue(Buffer.from("docx-content"));
+    fs.rm.mockResolvedValue(undefined);
+    mockCollector.online.mockResolvedValue(true);
+    mockCollector.parseDocument.mockResolvedValue({
+      success: true,
+      documents: [
+        {
+          id: "parsed-1",
+          title: "S2-2607173.docx",
+          pageContent: "Proposal content",
+          location: "direct-uploads/parsed-1.json",
+          isDirectUpload: true,
+        },
+      ],
+    });
+    Document.get.mockReset().mockResolvedValue(null);
+    Document.addDocuments.mockImplementation(async (_workspace, additions) => ({
+      failedToEmbed: [],
+      errors: [],
+      embedded: additions,
+    }));
+  });
+
+  it("parses, embeds, and reports a regular Workspace document as RAG knowledge", async () => {
+    const ctx = context();
+    const result = await ingestDocuments.execute(
+      { paths: ["inbox/S2-2607173.docx"] },
+      ctx
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      code: "RAG_DOCUMENTS_INGESTED",
+      data: {
+        results: [
+          expect.objectContaining({
+            sourcePath: "inbox/S2-2607173.docx",
+            status: "ingested",
+          }),
+        ],
+        failed: [],
+      },
+    });
+    expect(mockCollector.parseDocument).toHaveBeenCalledWith(
+      "S2-2607173.docx",
+      { absolutePath: "/storage/workspace-2/inbox/S2-2607173.docx" }
+    );
+    expect(Document.addDocuments).toHaveBeenCalledWith(
+      ctx.workspace,
+      [expect.stringMatching(/^rag-ingest\/3gpp\/.*\.json$/)],
+      1
+    );
+    expect(fs.rm).toHaveBeenCalledWith(
+      "/storage/direct-uploads/parsed-1.json",
+      { force: true }
+    );
+    expect(ctx.emit).toHaveBeenCalledWith(
+      "knowledge.ingested",
+      expect.objectContaining({ ingested: 1, failed: 0 })
+    );
+  });
+
+  it("states that ingestion writes to RAG and is not personal memory", () => {
+    expect(ingestDocuments.description).toMatch(/RAG knowledge base/);
+    expect(ingestDocuments.description).toMatch(/not personal memory/i);
+    expect(ingestDocuments.description).toMatch(/knowledge\.search/);
   });
 });

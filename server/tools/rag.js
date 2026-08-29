@@ -44,11 +44,11 @@ async function retrieveWorkspaceContext({ workspace, user, thread, query }) {
   ];
 }
 
-const ragSearch = defineTool({
-  id: "rag.search",
-  name: "rag_search",
+const knowledgeSearch = defineTool({
+  id: "knowledge.search",
+  name: "knowledge_search",
   description:
-    "Search documents and parsed files in the current workspace knowledge base.",
+    "Search the current Workspace RAG knowledge base. This retrieves relevant passages from documents that were previously ingested or published for retrieval-augmented generation (RAG); it does not store personal memory or add new documents.",
   schema: z.object({ query: z.string().min(1) }),
   action: false,
   execute: async ({ query }, context) => {
@@ -66,4 +66,4 @@ const ragSearch = defineTool({
   },
 });
 
-module.exports = { retrieveWorkspaceContext, ragSearch };
+module.exports = { retrieveWorkspaceContext, knowledgeSearch };

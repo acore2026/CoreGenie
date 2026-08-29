@@ -312,11 +312,12 @@ function toLangChainTool(descriptor, context) {
           summary: activity,
           arguments: args,
         });
-        await context.emit("task.progress", {
-          taskId: context.taskId,
-          phase: "tool",
-          summary: activity,
-        });
+        if (context.taskId)
+          await context.emit("task.progress", {
+            taskId: context.taskId,
+            phase: "tool",
+            summary: activity,
+          });
 
         try {
           const execute = () =>
@@ -405,13 +406,14 @@ function toLangChainTool(descriptor, context) {
             error: resultError,
             result,
           });
-          await context.emit("task.progress", {
-            taskId: context.taskId,
-            phase: "reasoning",
-            summary: context.taskTitle
-              ? `Reviewing results for ${context.taskTitle}`
-              : "Reviewing the latest result",
-          });
+          if (context.taskId)
+            await context.emit("task.progress", {
+              taskId: context.taskId,
+              phase: "reasoning",
+              summary: context.taskTitle
+                ? `Reviewing results for ${context.taskTitle}`
+                : "Reviewing the latest result",
+            });
           return JSON.stringify(result);
         } catch (error) {
           if (isGraphBubbleUp(error)) throw error;

@@ -3,6 +3,16 @@ const { v4: uuidv4 } = require("uuid");
 const { interrupt } = require("@langchain/langgraph");
 const { defineTool } = require("./descriptor");
 
+function normalizeUserQuestions(questions = []) {
+  return questions.map(({ question, type = "text", options = [] }) => ({
+    kind: type === "text" ? "input" : "choice",
+    question,
+    options,
+    multiSelect: type === "multiple",
+    allowOther: true,
+  }));
+}
+
 const askUser = defineTool({
   id: "user.ask",
   name: "ask_user",
@@ -25,8 +35,8 @@ const askUser = defineTool({
     interrupt({
       kind: "input",
       requestId: uuidv4(),
-      questions,
+      questions: normalizeUserQuestions(questions),
     }),
 });
 
-module.exports = { askUser };
+module.exports = { askUser, normalizeUserQuestions };

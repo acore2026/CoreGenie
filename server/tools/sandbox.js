@@ -5,7 +5,7 @@ const {
   sandboxBrokerErrorResult,
   sandboxToolResult,
 } = require("./sandboxResult");
-const { resolveAvailableSkill } = require("../agent-skills/registry");
+const { resolveActivatedSkillSnapshot } = require("../agent-skills/registry");
 
 const DEFAULT_TIMEOUT_SECONDS = 300;
 const MAX_TIMEOUT_SECONDS = 1800;
@@ -35,11 +35,7 @@ async function resolveSkillMount(cwd, context) {
         retryable: false,
       },
     };
-  const skill = await resolveAvailableSkill(
-    context.agent,
-    context.workspace,
-    name
-  );
+  const skill = await resolveActivatedSkillSnapshot(active, context.workspace);
   if (!skill)
     return {
       skill: null,

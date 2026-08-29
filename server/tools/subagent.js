@@ -5,6 +5,11 @@ const { defineTool, toLangChainTool } = require("./descriptor");
 const { resolveAgent } = require("../resources/agents");
 const { childRunnableConfig } = require("../agent-system/observability");
 const { invokeAgentRuntime } = require("../agent-system/runtimes/invoke");
+const { activatedSkillSnapshot } = require("../agent-system/activatedSkills");
+
+function inheritedSkillSnapshots(context) {
+  return context.activatedSkills().map(activatedSkillSnapshot);
+}
 
 function createSubagentTool(context, availableAgents = []) {
   const roster = availableAgents
@@ -31,6 +36,7 @@ function createSubagentTool(context, availableAgents = []) {
         throw new Error("Requested Agent is not available to this Agent.");
       const child = await resolveAgent(agent_id);
       if (!child) throw new Error("Requested Agent is disabled or missing.");
+      const inheritedSkills = inheritedSkillSnapshots(context);
 
       const childRunId = runnableConfig?.toolCall?.id || uuidv4();
       await context.emit("subagent.started", {
@@ -39,6 +45,10 @@ function createSubagentTool(context, availableAgents = []) {
         depth: context.depth + 1,
         task,
         agent: { id: child.id, name: child.name },
+        activatedSkills: inheritedSkills.map(({ name, revision }) => ({
+          name,
+          revision,
+        })),
       });
       try {
         const invocation = {
@@ -51,6 +61,7 @@ function createSubagentTool(context, availableAgents = []) {
           emit: context.emit,
           signal: context.signal,
           budget: context.budget,
+          inheritedSkills,
           depth: context.depth + 1,
           maxLocalToolCalls: 250,
           runnableConfig: childRunnableConfig(runnableConfig, {
@@ -58,6 +69,9 @@ function createSubagentTool(context, availableAgents = []) {
             metadata: {
               childAgentId: String(child.id),
               subagentDepth: String(context.depth + 1),
+              activatedSkills: inheritedSkills
+                .map((skill) => skill.name)
+                .join(","),
             },
           }),
         };
@@ -103,4 +117,4 @@ function createSubagentTool(context, availableAgents = []) {
   return toLangChainTool(descriptor, context);
 }
 
-module.exports = { createSubagentTool };
+module.exports = { createSubagentTool, inheritedSkillSnapshots };

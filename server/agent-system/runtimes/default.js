@@ -4,6 +4,10 @@ const { finalText, userContent } = require("../message");
 const { retrieveWorkspaceContext } = require("../../tools/rag");
 const { withRetrieverTrace } = require("../observability");
 const { consumeGraphStream } = require("./stream");
+const {
+  activatedSkillsPrompt,
+  restoreActivatedSkills,
+} = require("../activatedSkills");
 
 async function executeSegment({
   run,
@@ -16,9 +20,20 @@ async function executeSegment({
   runnableConfig,
   onToken,
   budget = null,
+  activatedSkillScope = null,
+  inheritedSkills = [],
   depth = 0,
   maxLocalToolCalls = null,
 }) {
+  const sharedBudget = budget || {
+    calls: 0,
+    subagentCalls: 0,
+    actionTail: Promise.resolve(),
+  };
+  const skillScope =
+    activatedSkillScope || sharedBudget.activatedSkills || new Map();
+  await restoreActivatedSkills(inheritedSkills, workspace, skillScope);
+  const inheritedSkillContext = activatedSkillsPrompt(inheritedSkills);
   let sources = [];
   let retrievedContext = [];
   if (["query", "chat"].includes(run.mode)) {
@@ -56,10 +71,16 @@ async function executeSegment({
     agent,
     emit,
     signal,
-    budget,
+    budget: sharedBudget,
+    activatedSkillScope: skillScope,
     depth,
     maxLocalToolCalls,
-    systemPromptOverride: run.runtimeSnapshot?.systemPrompt || null,
+    systemPromptOverride: [
+      run.runtimeSnapshot?.systemPrompt || null,
+      inheritedSkillContext || null,
+    ]
+      .filter(Boolean)
+      .join("\n\n"),
   });
   const resume = run.configuration?.resume || null;
   const graphInput = run.configuration?.recover

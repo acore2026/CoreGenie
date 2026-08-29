@@ -66,6 +66,22 @@ async function resolveAvailableSkill(agent, workspace, name) {
   return workspaceSkill?.valid ? descriptor(workspaceSkill, "workspace") : null;
 }
 
+async function resolveActivatedSkillSnapshot(snapshot, workspace) {
+  if (!snapshot?.name || !snapshot?.scope) return null;
+  if (snapshot.scope === "global") {
+    const skill = snapshot.id
+      ? await PredefinedAgentSkill.get(snapshot.id)
+      : (await PredefinedAgentSkill.all()).find(
+          (candidate) => candidate.name === snapshot.name
+        );
+    if (!skill || skill.name !== snapshot.name) return null;
+    return descriptor(skill, "global");
+  }
+  if (snapshot.scope !== "workspace" || !workspace?.id) return null;
+  const skill = await resolveWorkspacePackage(workspace.id, snapshot.name);
+  return skill?.valid ? descriptor(skill, "workspace") : null;
+}
+
 function allowedToolIds(skill) {
   return [
     ...new Set(
@@ -77,22 +93,49 @@ function allowedToolIds(skill) {
   ];
 }
 
-async function skillCatalogPrompt(agent, workspace, providedSkills = null) {
+function canonicalSkillToolId(toolId) {
+  return toolId === "rag.search" || toolId === "rag_search"
+    ? "knowledge.search"
+    : toolId;
+}
+
+function visibleSkillText(text, skill, visible = null) {
+  let content = String(text || "");
+  for (const declaredToolId of allowedToolIds(skill)) {
+    const canonical = canonicalSkillToolId(declaredToolId);
+    if (declaredToolId !== canonical)
+      content = content.split(declaredToolId).join(canonical);
+    if (visible && !visible.has(canonical))
+      content = content.split(canonical).join("[unavailable tool]");
+  }
+  return content;
+}
+
+async function skillCatalogPrompt(
+  agent,
+  workspace,
+  providedSkills = null,
+  { visibleToolIds = null } = {}
+) {
   const skills = providedSkills || (await availableSkills(agent, workspace));
   if (!skills.length) return "";
+  const visible = visibleToolIds ? new Set(visibleToolIds) : null;
   const catalog = skills
-    .map(
-      (skill) =>
-        `<skill name="${skill.name}" scope="${skill.scope}" revision="${skill.revision}" allowed-tools="${allowedToolIds(skill).join(" ")}">\n${skill.description}\n</skill>`
-    )
+    .map((skill) => {
+      const allowedTools = [
+        ...new Set(allowedToolIds(skill).map(canonicalSkillToolId)),
+      ].filter((toolId) => !visible || visible.has(toolId));
+      return `<skill name="${skill.name}" scope="${skill.scope}" revision="${skill.revision}" allowed-tools="${allowedTools.join(" ")}">\n${visibleSkillText(skill.description, skill, visible)}\n</skill>`;
+    })
     .join("\n");
-  return `<available_agent_skills>\n${catalog}\n</available_agent_skills>\nUse activate_skill before following a skill. Skill scripts and resources are relative to the activated skill root.`;
+  return `<available_agent_skills>\n${catalog}\n</available_agent_skills>\nThese descriptions are only for pre-planning selection. When a Skill is relevant, call activate_skill before create_plan. Activation loads its complete instructions and file list. Never put Skill activation in a plan task.`;
 }
 
 module.exports = {
   allowedToolIds,
   availableSkills,
   descriptor,
+  resolveActivatedSkillSnapshot,
   resolveAvailableSkill,
   skillCatalogPrompt,
 };

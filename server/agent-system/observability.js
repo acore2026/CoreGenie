@@ -394,6 +394,40 @@ function subagentObservationName(input) {
   }
 }
 
+function compactAgentToolOutput(result) {
+  if (!result || typeof result !== "object") return result;
+  const data =
+    result.data && typeof result.data === "object" ? result.data : {};
+  const usefulData = Object.fromEntries(
+    [
+      "name",
+      "scope",
+      "revision",
+      "skillRoot",
+      "tdoc",
+      "meetingFolder",
+      "officialUrl",
+      "cachedDownload",
+      "markdownPath",
+      "archivePath",
+      "imageCount",
+      "embeddedCount",
+      "warnings",
+    ]
+      .filter((key) => data[key] !== undefined)
+      .map((key) => [key, data[key]])
+  );
+  return {
+    ok: result.ok,
+    code: result.code,
+    summary: result.summary,
+    ...(Object.keys(usefulData).length ? { data: usefulData } : {}),
+    ...(Array.isArray(result.artifactIds) && result.artifactIds.length
+      ? { artifactIds: result.artifactIds }
+      : {}),
+  };
+}
+
 function withLangfuseModel(
   extraParams,
   metadata,
@@ -716,6 +750,39 @@ async function withAgentStepTrace(
   );
 }
 
+async function withAgentToolTrace(
+  name,
+  { input = null, metadata = {} } = {},
+  operation
+) {
+  if (!runtime) return operation();
+  const { startActiveObservation } = require("@langfuse/tracing");
+  return startActiveObservation(
+    name,
+    async (observation) => {
+      observation.update({ input, metadata });
+      try {
+        const result = await operation();
+        observation.update({ output: compactAgentToolOutput(result) });
+        if (result?.ok === false)
+          observation.update({
+            level: "ERROR",
+            statusMessage: result.summary || result.code || "Tool failed",
+          });
+        return result;
+      } catch (error) {
+        observation.update({
+          level: "ERROR",
+          statusMessage: error.message,
+          output: { error: error.message },
+        });
+        throw error;
+      }
+    },
+    { asType: "tool" }
+  );
+}
+
 function childRunnableConfig(config = {}, { tags = [], metadata = {} } = {}) {
   return {
     ...(config.callbacks ? { callbacks: config.callbacks } : {}),
@@ -747,6 +814,7 @@ async function shutdownLangfuse() {
 module.exports = {
   childRunnableConfig,
   compactIdentifier,
+  compactAgentToolOutput,
   envBoolean,
   estimateTokenUsage,
   ensureLangfuseResponseModel,
@@ -765,5 +833,6 @@ module.exports = {
   withLangfuseModel,
   withAgentTrace,
   withAgentStepTrace,
+  withAgentToolTrace,
   withRetrieverTrace,
 };

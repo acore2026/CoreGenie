@@ -7,9 +7,10 @@ async function composeAgentPrompt({
   workspace = null,
   runtimePrompt = null,
   includeSkillCatalog = true,
+  visibleToolIds = null,
 }) {
   const catalog = includeSkillCatalog
-    ? await skillCatalogPrompt(agent, workspace)
+    ? await skillCatalogPrompt(agent, workspace, null, { visibleToolIds })
     : "";
   const basePrompt = [
     agent?.systemPrompt ||

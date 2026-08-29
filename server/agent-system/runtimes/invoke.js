@@ -1,5 +1,6 @@
 const { createRuntimeSnapshot } = require("../runtimeSnapshot");
 const { requireRuntime } = require("./registry");
+const { restoreActivatedSkills } = require("../activatedSkills");
 
 async function invokeAgentRuntime({
   parentRun,
@@ -12,6 +13,7 @@ async function invokeAgentRuntime({
   signal,
   runnableConfig = {},
   budget = null,
+  inheritedSkills = [],
   depth = 0,
   maxLocalToolCalls = 250,
   resume = null,
@@ -36,6 +38,8 @@ async function invokeAgentRuntime({
     ...snapshot,
   };
   const { runtime } = requireRuntime(run.runtimeKey, run.runtimeVersion);
+  const activatedSkillScope = new Map();
+  await restoreActivatedSkills(inheritedSkills, workspace, activatedSkillScope);
   const result = await runtime.executeSegment({
     run,
     workspace,
@@ -48,6 +52,8 @@ async function invokeAgentRuntime({
     runnableConfig,
     onToken: async () => null,
     budget,
+    activatedSkillScope,
+    inheritedSkills,
     depth,
     maxLocalToolCalls,
   });

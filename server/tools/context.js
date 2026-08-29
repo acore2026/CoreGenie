@@ -12,8 +12,10 @@ class AgentToolContext {
     maxLocalToolCalls = null,
     taskId = null,
     taskTitle = null,
+    visibleToolIds = null,
     maxConsecutiveNoProgress = 5,
     onNoProgress = null,
+    activatedSkillScope = null,
   }) {
     this.run = run;
     this.workspace = workspace;
@@ -25,6 +27,7 @@ class AgentToolContext {
     this.depth = depth;
     this.taskId = taskId;
     this.taskTitle = taskTitle;
+    this.visibleToolIds = visibleToolIds ? new Set(visibleToolIds) : null;
     this.maxConsecutiveNoProgress = Math.max(
       1,
       Number(maxConsecutiveNoProgress) || 5
@@ -50,6 +53,8 @@ class AgentToolContext {
       this.budget.failureFamilyCounts = new Map();
     if (!this.budget.capabilityBlocks) this.budget.capabilityBlocks = new Map();
     if (!this.budget.activatedSkills) this.budget.activatedSkills = new Map();
+    this.activatedSkillScope =
+      activatedSkillScope || this.budget.activatedSkills;
   }
 
   consumeToolCall() {
@@ -165,11 +170,15 @@ class AgentToolContext {
   }
 
   activateSkill(skill) {
-    this.budget.activatedSkills.set(skill.name, skill);
+    this.activatedSkillScope.set(skill.name, skill);
   }
 
   activatedSkill(name) {
-    return this.budget.activatedSkills.get(String(name || "")) || null;
+    return this.activatedSkillScope.get(String(name || "")) || null;
+  }
+
+  activatedSkills() {
+    return [...this.activatedSkillScope.values()];
   }
 
   async runAction(operation) {

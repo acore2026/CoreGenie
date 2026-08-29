@@ -6,13 +6,16 @@ const { z } = require("zod");
 const { defineTool } = require("./descriptor");
 const { Document } = require("../models/documents");
 const { AgentReportPublication } = require("../models/agentReportPublication");
-const { documentsPath } = require("../utils/files");
+const { CollectorApi } = require("../utils/collectorApi");
+const { directUploadsPath, documentsPath } = require("../utils/files");
 const filesystem = require("../utils/agents/aibitat/plugins/filesystem/lib");
 const {
   LLMPerformanceMonitor,
 } = require("../utils/helpers/chat/LLMPerformanceMonitor");
 
 const MAX_REPORT_BYTES = 5 * 1024 * 1024;
+const MAX_INGEST_FILES = 50;
+const MAX_INGEST_SOURCE_BYTES = 100 * 1024 * 1024;
 const MANIFEST_SCHEMA = "3gpp-review-manifest/v1";
 const COVERAGE_SCHEMA = "3gpp-review-coverage/v1";
 
@@ -135,7 +138,7 @@ function embeddingUnavailableResult(error) {
     ok: false,
     code: "EMBEDDING_MODEL_UNAVAILABLE",
     summary:
-      "The report was preserved, but publication could not embed it because the configured embedding model is unavailable. Retry in a new run after the model cache or network is repaired.",
+      "The content was preserved, but it could not be added to the Workspace RAG knowledge base because the configured embedding model is unavailable. Retry in a new run after the model cache or network is repaired.",
     data: { cause: message },
     evidenceIds: [],
     artifactIds: [],
@@ -166,11 +169,199 @@ function publicationOutput(publication, workspace, sourceStats) {
   };
 }
 
+async function removeParsedUpload(document) {
+  const location = String(document?.location || "");
+  if (!location) return;
+  const target = path.join(directUploadsPath, path.basename(location));
+  await fs.rm(target, { force: true }).catch(() => null);
+}
+
+async function ingestSource(sourcePath, context, manager, collector) {
+  const target = await manager.validatePath(sourcePath);
+  const stats = await fs.lstat(target);
+  if (!stats.isFile() || stats.isSymbolicLink())
+    throw new Error("RAG ingestion only accepts regular workspace files.");
+  if (stats.size === 0) throw new Error("The source file is empty.");
+  if (stats.size > MAX_INGEST_SOURCE_BYTES)
+    throw new Error("The source file exceeds the 100 MiB ingestion limit.");
+
+  const contentHash = crypto
+    .createHash("sha256")
+    .update(await fs.readFile(target))
+    .digest("hex");
+  const root = manager.getAllowedDirectories()[0];
+  const relativeSource = path.relative(root, target).split(path.sep).join("/");
+  const parsed = await collector.parseDocument(path.basename(target), {
+    absolutePath: target,
+  });
+  if (!parsed?.success || !parsed.documents?.length)
+    throw new Error(parsed?.reason || "The document could not be parsed.");
+
+  const folder = path.join(
+    "rag-ingest",
+    safeSegment(context.workspace.slug, `workspace-${context.workspace.id}`)
+  );
+  const documentPaths = [];
+  try {
+    for (const [index, parsedDocument] of parsed.documents.entries()) {
+      const suffix = parsed.documents.length > 1 ? `-${index + 1}` : "";
+      const docPath = path
+        .join(
+          folder,
+          `${contentHash.slice(0, 24)}-${safeSegment(path.basename(target), "document")}${suffix}.json`
+        )
+        .split(path.sep)
+        .join("/");
+      documentPaths.push(docPath);
+      const existing = await Document.get({
+        workspaceId: context.workspace.id,
+        docpath: docPath,
+      });
+      if (existing) continue;
+
+      const absoluteDocPath = path.join(documentsPath, docPath);
+      const documentData = {
+        ...parsedDocument,
+        id: parsedDocument.id || uuidv4(),
+        name: path.basename(target),
+        title: parsedDocument.title || path.basename(target),
+        url: `workspace://${context.workspace.slug}/${relativeSource}`,
+        chunkSource: `workspace://${context.workspace.slug}/${relativeSource}`,
+        docAuthor: context.agent?.name || "CoreGenie Agent",
+        description: `Workspace document ingested into the RAG knowledge base from ${relativeSource}.`,
+        docSource: "workspace-rag-ingest",
+        ragSourceSha256: contentHash,
+      };
+      delete documentData.location;
+      delete documentData.isDirectUpload;
+      await fs.mkdir(path.dirname(absoluteDocPath), { recursive: true });
+      const temporary = `${absoluteDocPath}.${uuidv4()}.tmp`;
+      await fs.writeFile(temporary, JSON.stringify(documentData), "utf8");
+      await fs.rename(temporary, absoluteDocPath);
+    }
+  } finally {
+    await Promise.all(parsed.documents.map(removeParsedUpload));
+  }
+
+  const pendingPaths = [];
+  const alreadyEmbedded = [];
+  for (const docPath of documentPaths) {
+    const existing = await Document.get({
+      workspaceId: context.workspace.id,
+      docpath: docPath,
+    });
+    if (existing) alreadyEmbedded.push(docPath);
+    else pendingPaths.push(docPath);
+  }
+  if (pendingPaths.length) {
+    const result = await Document.addDocuments(
+      context.workspace,
+      pendingPaths,
+      context.user?.id || null
+    );
+    if (
+      result.failedToEmbed?.length ||
+      result.embedded?.length !== pendingPaths.length
+    )
+      throw new Error(result.errors?.[0] || "Failed to embed the document.");
+  }
+  return {
+    sourcePath: relativeSource,
+    sha256: contentHash,
+    documentPaths,
+    status: pendingPaths.length ? "ingested" : "already_ingested",
+  };
+}
+
+const ingestDocuments = defineTool({
+  id: "knowledge.ingest",
+  name: "knowledge_ingest",
+  description:
+    "Add regular document files from the authenticated Workspace filesystem to this Workspace RAG knowledge base. The files are parsed, chunked, embedded, and become searchable through knowledge.search for retrieval-augmented generation (RAG). This is not personal memory. Extract ZIP archives before calling this tool.",
+  action: true,
+  effect: "write",
+  idempotency: "keyed",
+  concurrencyKey: "knowledge-ingest",
+  failureScope: "RAG knowledge ingestion",
+  schema: z.object({
+    paths: z
+      .array(z.string().trim().min(1).max(2_000))
+      .min(1)
+      .max(MAX_INGEST_FILES),
+  }),
+  activity: ({ paths }) =>
+    `Adding ${paths.length} document${paths.length === 1 ? "" : "s"} to Workspace RAG`,
+  execute: async ({ paths }, context) => {
+    const manager = filesystem.forWorkspace(context.workspace.id);
+    const collector = new CollectorApi();
+    if (!(await collector.online()))
+      return {
+        ok: false,
+        code: "DOCUMENT_PROCESSOR_UNAVAILABLE",
+        summary:
+          "The document processor is unavailable, so the files were not added to the Workspace RAG knowledge base.",
+        data: { ingested: [], failed: paths },
+        evidenceIds: [],
+        artifactIds: [],
+        retryable: false,
+      };
+
+    const results = [];
+    const failed = [];
+    const uniquePaths = [...new Set(paths)];
+    for (const sourcePath of uniquePaths) {
+      try {
+        results.push(
+          await ingestSource(sourcePath, context, manager, collector)
+        );
+      } catch (error) {
+        const unavailable = embeddingUnavailableResult(error);
+        if (unavailable) return unavailable;
+        failed.push({
+          sourcePath,
+          error: String(error?.message || error),
+        });
+      }
+    }
+
+    const ingested = results.filter((item) => item.status === "ingested");
+    const existing = results.filter(
+      (item) => item.status === "already_ingested"
+    );
+    const ok = results.length > 0;
+    const code = failed.length
+      ? ok
+        ? "RAG_INGEST_PARTIAL"
+        : "RAG_INGEST_FAILED"
+      : existing.length === results.length
+        ? "RAG_DOCUMENTS_ALREADY_INGESTED"
+        : "RAG_DOCUMENTS_INGESTED";
+    const summary = ok
+      ? `Added ${ingested.length} document source(s) to Workspace RAG; ${existing.length} were already present${failed.length ? `; ${failed.length} failed` : ""}.`
+      : `No documents were added to Workspace RAG; ${failed.length} failed.`;
+    await context.emit("knowledge.ingested", {
+      workspaceId: context.workspace.id,
+      ingested: ingested.length,
+      alreadyIngested: existing.length,
+      failed: failed.length,
+    });
+    return {
+      ok,
+      code,
+      summary,
+      data: { results, failed },
+      evidenceIds: [],
+      artifactIds: [],
+      retryable: false,
+    };
+  },
+});
+
 const publishReport = defineTool({
   id: "knowledge.publish",
   name: "knowledge_publish",
   description:
-    "Publish a final Markdown report from the current workspace into this Workspace knowledge base. Call exactly once after coverage and report validation are complete.",
+    "Publish one final Markdown report into this Workspace RAG knowledge base. The report is embedded and becomes searchable through knowledge.search for retrieval-augmented generation (RAG). Call exactly once after coverage and report validation are complete; this is not personal memory or general document ingestion.",
   action: true,
   effect: "write",
   idempotency: "keyed",
@@ -391,9 +582,12 @@ const publishReport = defineTool({
 });
 
 module.exports = {
+  ingestDocuments,
   publishReport,
   publicationOutput,
   embeddingUnavailableResult,
   validateCoverageBinding,
   MAX_REPORT_BYTES,
+  MAX_INGEST_FILES,
+  MAX_INGEST_SOURCE_BYTES,
 };

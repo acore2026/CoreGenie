@@ -1,18 +1,20 @@
 ---
 name: 3gpp-position-evolution
 description: Trace a company's position, technical route, terminology, supporters, opponents, and standardization outcome across multiple 3GPP meetings. Use for longitudinal company/topic studies; use 3gpp-review instead for a single-meeting or document-by-document summary.
-allowed-tools: skill.activate skill.read_resource bash python filesystem.read filesystem.write filesystem.list filesystem.search web.fetch rag.search user.ask vision.inspect knowledge.publish
+allowed-tools: skill.read_resource 3gpp.resolve-meeting bash python filesystem.read filesystem.write filesystem.list filesystem.search web.fetch knowledge.search knowledge.ingest user.ask vision.inspect knowledge.publish
 ---
 
 # 3GPP position evolution
 
+The Workspace knowledge base is the RAG knowledge base. Use `knowledge.search` to retrieve indexed material, `knowledge.ingest` to add regular document files to RAG, and `knowledge.publish` only for the canonical final Markdown report. Personal memory tools are not document storage.
+
 Produce a longitudinal, evidence-linked Chinese analysis for one or more companies and a KI, WI, SID, solution, or technical topic. Separate deterministic source tracking from analytical synthesis: first build the TDoc ledger, then derive company positions from the ledger and extracted primary documents.
 
-Activate the bound 3GPP review Skill as well as this Skill when official meeting indexes or TDocs must be located, downloaded, or extracted. Its current name is `3gpp-review`; an upgraded installation may retain the legacy name `3gpp-tdocs`. If neither is available, work from user-provided indexes and documents and disclose the limitation.
+Before planning, the governed runtime must also activate the bound 3GPP review Skill when official meeting indexes or TDocs must be located, downloaded, or extracted. Its current name is `3gpp-review`; an upgraded installation may retain the legacy name `3gpp-tdocs`. If neither is available, work from user-provided indexes and documents and disclose the limitation.
 
 The helper is [scripts/3gpp_evolution.py](scripts/3gpp_evolution.py). Before classifying opposition, read [references/evidence-taxonomy.md](references/evidence-taxonomy.md). Before interpreting meeting outcomes, read [references/status-semantics.md](references/status-semantics.md). Before writing the report, read [references/report-contract.md](references/report-contract.md).
 
-When the governed runtime creates a task plan, keep Skill activation as a bounded bootstrap task. It may only activate the two 3GPP Skills and read `status-semantics.md`, `evidence-taxonomy.md`, `report-contract.md`, and `company-aliases.json`. Do not perform RAG searches, list Workspace directories, establish the meeting timeline, or discover TDocs in that task. Complete it immediately after the four resources are read; meeting scoping belongs to the next task. Do not activate the same Skill or read the same resource twice in one run.
+Skill activation is complete before the task plan is created and must never appear as a plan task. Put reads of `status-semantics.md`, `evidence-taxonomy.md`, `report-contract.md`, and `company-aliases.json` in the first relevant evidence-preparation task. Do not repeat the same resource read in one run.
 
 ## Workspace
 

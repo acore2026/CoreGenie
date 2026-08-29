@@ -1,10 +1,12 @@
 ---
 name: 3gpp-review
 description: Download, convert, summarize, and compare 3GPP contribution documents (TDocs). Use for requests such as converting a DOCX proposal to Markdown with images, reading TDocs, summarizing KI proposals, comparing company positions, analyzing 3GPP contributions, or “提案转Markdown/总结提案/分析KI”.
-allowed-tools: skill.activate skill.read_resource bash python filesystem.read filesystem.write filesystem.list filesystem.search web.fetch rag.search user.ask vision.inspect knowledge.publish
+allowed-tools: skill.read_resource 3gpp.resolve-meeting 3gpp.convert-markdown bash python filesystem.read filesystem.write filesystem.list filesystem.search web.fetch knowledge.search knowledge.ingest user.ask vision.inspect knowledge.publish
 ---
 
 # 3GPP TDoc review
+
+The Workspace knowledge base is the RAG knowledge base. Use `knowledge.search` to retrieve documents already indexed for RAG, `knowledge.ingest` to add regular document files to RAG, and `knowledge.publish` only for the one final Markdown report. Never use personal memory tools to store documents.
 
 Use this workflow on Linux to convert or analyze 3GPP contribution documents. The helper script is [scripts/3gpp_tdocs.py](scripts/3gpp_tdocs.py); resolve that path relative to this file.
 
@@ -15,6 +17,8 @@ Do not guess meeting directory names, agenda mappings, document metadata, or pro
 Use conversion mode when the active Agent or user asks to convert a proposal rather than analyze its technical position. Conversion mode is a faithful format conversion: do not add a proposal summary, infer missing diagram content, or publish the result to the knowledge base.
 
 The input is either an uploaded DOCX path under `/workspace/3gpp-markdown/inbox/` or a DOCX downloaded from an official 3GPP meeting directory. Only accept DOCX in this mode. If a TDoc number does not identify one official file, ask for the working group or meeting instead of guessing.
+
+When `3gpp.convert-markdown` is available, use it once with either the TDoc number or uploaded DOCX path. It searches the official yearly meeting directories, downloads the exact TDoc, runs the converter, checks the output files, and attaches the ZIP. Do not repeat the same work with Bash after this tool succeeds.
 
 Create a new run directory and invoke the bundled converter:
 
@@ -33,7 +37,7 @@ After conversion, read `conversion-summary.json`, confirm the Markdown and ZIP e
 
 ## Environment
 
-The Skill package is mounted read-only and the AnythingLLM workspace persists at `/workspace`. For every `bash` call that uses a bundled script, pass the exact `skillRoot` returned by `skill.activate` as the tool's `cwd` (normally `skill://3gpp-review`; an upgraded installation may return a legacy name such as `skill://3gpp-tdocs`) and invoke the script by its relative path `scripts/3gpp_tdocs.py`. A `skill://` URI is a virtual `cwd`, not a shell filesystem path: never pass it to `ls`, `find`, Python, or another shell command. Never copy the bundled helper into the workspace. Keep all mutable data in the workspace:
+The Skill package is mounted read-only and the AnythingLLM workspace persists at `/workspace`. For every `bash` call that uses a bundled script, pass the exact activated `skillRoot` as the tool's `cwd` (normally `skill://3gpp-review`; an upgraded installation may return a legacy name such as `skill://3gpp-tdocs`) and invoke the script by its relative path `scripts/3gpp_tdocs.py`. A `skill://` URI is a virtual `cwd`, not a shell filesystem path: never pass it to `ls`, `find`, Python, or another shell command. Never copy the bundled helper into the workspace. Keep all mutable data in the workspace:
 
 ```bash
 export TDP_CACHE="/workspace/3gpp-review"
@@ -67,7 +71,10 @@ Parse the working group, meeting identifier, and KI from the request. Default to
 Browse `https://www.3gpp.org/ftp/<directory>/` and search the returned directory listing for the exact meeting number. Folder names contain location, date, and sometimes `AH-e`; they are not safely predictable. Prefer the available web browsing tool. A shell fallback is:
 
 ```bash
+set -euo pipefail
+user_agent="${THREEGPP_USER_AGENT:-Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0}"
 curl --fail --location --retry 3 --silent --show-error \
+  --user-agent "$user_agent" \
   "https://www.3gpp.org/ftp/tsg_sa/WG2_Arch/" > "$TDP_CACHE/sa2-index.html"
 rg -o 'TSGS2_[^"< ]+' "$TDP_CACHE/sa2-index.html" | sort -u | rg '175'
 ```
@@ -79,10 +86,14 @@ Record `wg_path`, exact `meeting_folder`, meeting number/location/date, and docu
 Browse the exact meeting directory and locate the published Index ZIP; do not synthesize its filename. Download with validation and cache reuse:
 
 ```bash
+set -euo pipefail
+user_agent="${THREEGPP_USER_AGENT:-Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0}"
 meeting_url="https://www.3gpp.org/ftp/<wg_path>/<meeting_folder>"
 meeting_cache="$TDP_CACHE/<meeting_folder>"
 mkdir -p "$meeting_cache/index"
-curl --fail --location --retry 3 --output "$meeting_cache/index/<index.zip>" \
+curl --fail --location --retry 3 --silent --show-error \
+  --user-agent "$user_agent" \
+  --output "$meeting_cache/index/<index.zip>" \
   "$meeting_url/<index.zip>"
 unzip -o "$meeting_cache/index/<index.zip>" -d "$meeting_cache/index/extracted"
 find "$meeting_cache/index/extracted" -type f -iname '*.xlsx' -print

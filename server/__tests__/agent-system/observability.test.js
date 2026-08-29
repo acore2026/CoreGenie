@@ -1,5 +1,6 @@
 /* eslint-env jest, node */
 const {
+  compactAgentToolOutput,
   compactIdentifier,
   estimateTokenUsage,
   ensureLangfuseResponseModel,
@@ -11,6 +12,7 @@ const {
   shouldExportLangfuseSpan,
   subagentObservationName,
   traceAttributes,
+  withAgentToolTrace,
   withLangfuseModel,
 } = require("../../agent-system/observability");
 
@@ -154,16 +156,17 @@ describe("Langfuse Agent observability", () => {
   });
 
   it("promotes custom-provider model metadata to the first-class model field", () => {
-    expect(
-      withLangfuseModel(undefined, { ls_model_name: "glm-5.2" })
-    ).toEqual({ invocation_params: { model: "glm-5.2" } });
+    expect(withLangfuseModel(undefined, { ls_model_name: "glm-5.2" })).toEqual({
+      invocation_params: { model: "glm-5.2" },
+    });
     expect(
       withLangfuseModel(undefined, undefined, {
         kwargs: { model: "serialized-model" },
       })
     ).toEqual({ invocation_params: { model: "serialized-model" } });
-    expect(withLangfuseModel(undefined, undefined, null, "fallback-model"))
-      .toEqual({ invocation_params: { model: "fallback-model" } });
+    expect(
+      withLangfuseModel(undefined, undefined, null, "fallback-model")
+    ).toEqual({ invocation_params: { model: "fallback-model" } });
     expect(
       withLangfuseModel(
         { invocation_params: { model: "configured-model", temperature: 0 } },
@@ -200,5 +203,37 @@ describe("Langfuse Agent observability", () => {
     expect(
       shouldExportLangfuseSpan({ name: "model_request" }, defaultFilter)
     ).toBe(true);
+  });
+
+  it("keeps tool execution working when Langfuse is disabled", async () => {
+    await expect(
+      withAgentToolTrace(
+        "convert-3gpp-markdown",
+        { input: { tdoc: "S2-2606085" } },
+        async () => ({ ok: true, code: "TDOC_CONVERTED" })
+      )
+    ).resolves.toEqual({ ok: true, code: "TDOC_CONVERTED" });
+  });
+
+  it("keeps direct tool traces concise", () => {
+    expect(
+      compactAgentToolOutput({
+        ok: true,
+        code: "SKILL_ACTIVATED",
+        summary: "Activated 3gpp-review.",
+        data: {
+          name: "3gpp-review",
+          revision: "revision-1",
+          instructions: "long instructions should not enter the trace",
+          files: [{ path: "SKILL.md" }],
+        },
+        artifactIds: [],
+      })
+    ).toEqual({
+      ok: true,
+      code: "SKILL_ACTIVATED",
+      summary: "Activated 3gpp-review.",
+      data: { name: "3gpp-review", revision: "revision-1" },
+    });
   });
 });

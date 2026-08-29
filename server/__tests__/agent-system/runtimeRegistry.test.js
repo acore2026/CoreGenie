@@ -41,6 +41,21 @@ describe("Agent runtime registry", () => {
     ).toThrow();
   });
 
+  it("keeps the fixed 3GPP conversion workflow in the run snapshot config", () => {
+    expect(
+      normalizeRuntimeConfig(DEFAULT_RUNTIME_KEY, {
+        attachmentMode: "workspace_file",
+        workflow: "3gpp-markdown-conversion",
+        thinking: false,
+      })
+    ).toEqual({
+      attachmentMode: "workspace_file",
+      workflow: "3gpp-markdown-conversion",
+      thinking: false,
+      requiredCompletionTools: [],
+    });
+  });
+
   it("never silently changes a snapshotted runtime version", () => {
     expect(() => requireRuntime(DEFAULT_RUNTIME_KEY, 999)).toThrow(
       /version 999 is unavailable/

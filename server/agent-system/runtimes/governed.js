@@ -18,15 +18,27 @@ const { AgentToolExecution } = require("../../models/agentToolExecution");
 const { ModelCapability } = require("../../models/modelCapability");
 const { resolveAgent, agentListForPrompt } = require("../../resources/agents");
 const { createChatModel, selectedProvider } = require("../../resources/models");
-const { legacySelectionAllows, toolRegistry } = require("../../tools");
+const {
+  legacySelectionAllows,
+  normalizeToolId,
+  toolRegistry,
+  visibleToolDescriptorsForAgent,
+} = require("../../tools");
 const { AgentToolContext } = require("../../tools/context");
 const { toLangChainTool } = require("../../tools/descriptor");
 const { retrieveWorkspaceContext } = require("../../tools/rag");
 const { buildAgentGraph } = require("../graph");
 const { agentMaxConcurrency } = require("../concurrency");
 const {
+  activatedSkillSnapshot,
+  activatedSkillsPrompt,
+  mergeActivatedSkills,
+  restoreActivatedSkills,
+} = require("../activatedSkills");
+const {
   allowedToolIds: skillAllowedToolIds,
   availableSkills,
+  resolveAvailableSkill,
   skillCatalogPrompt,
 } = require("../../agent-skills/registry");
 const { getCheckpointer } = require("../checkpointer");
@@ -39,6 +51,7 @@ const {
 const {
   childRunnableConfig,
   withAgentStepTrace,
+  withAgentToolTrace,
   withRetrieverTrace,
 } = require("../observability");
 const { consumeGraphStream } = require("./stream");
@@ -156,9 +169,7 @@ function blockedTaskResults(tasks = [], taskResults = []) {
       if (results.has(taskItem.id)) continue;
       const dependencies = resolvedTaskDependencies(taskItem, results);
       if (!dependencies) continue;
-      const failed = dependencies.filter(
-        (item) => item.status !== "completed"
-      );
+      const failed = dependencies.filter((item) => item.status !== "completed");
       if (!failed.length || taskItem.acceptsPartialDependencies) continue;
       const result = {
         id: taskItem.id,
@@ -190,7 +201,7 @@ function normalizedActionToolId(taskItem = {}) {
     /^Use ([a-z0-9._-]+) to complete this request:/i
   );
   const localizedMatch = objective.match(/^使用 ([a-z0-9._-]+) 完成此请求：/i);
-  const toolId = match?.[1] || localizedMatch?.[1] || null;
+  const toolId = normalizeToolId(match?.[1] || localizedMatch?.[1] || null);
   return toolId && (taskItem?.allowedToolIds || []).includes(toolId)
     ? toolId
     : null;
@@ -222,7 +233,10 @@ function toolExecutionEvidence(executions = [], requiredToolIds = []) {
         item.result?.ok !== false
     )
     .flatMap((item) => {
-      if (item.tool_id === "rag.search" && Array.isArray(item.result?.data))
+      if (
+        item.tool_id === "knowledge.search" &&
+        Array.isArray(item.result?.data)
+      )
         return item.result.data.slice(0, 12).map((entry, index) => ({
           kind: "rag",
           title:
@@ -321,8 +335,7 @@ function groundWorkerResultInToolExecutions(
     claimSaysToolDidNotRun(parsed.summary) ||
     contradictsNoResultClaim(parsed.summary) ||
     (parsed.unresolved || []).some(
-      (item) =>
-        claimSaysToolDidNotRun(item) || contradictsNoResultClaim(item)
+      (item) => claimSaysToolDidNotRun(item) || contradictsNoResultClaim(item)
     );
   const evidenceToolIds = requiredToolIds.length
     ? requiredToolIds
@@ -360,95 +373,8 @@ function groundWorkerResultInToolExecutions(
       : parsed.summary,
     evidence,
     unresolved: (parsed.unresolved || []).filter(
-      (item) =>
-        !claimSaysToolDidNotRun(item) && !contradictsNoResultClaim(item)
+      (item) => !claimSaysToolDidNotRun(item) && !contradictsNoResultClaim(item)
     ),
-  };
-}
-
-function recoverTerminalWorkerResult({
-  taskItem,
-  requiredToolIds = [],
-  executions = [],
-  error = null,
-}) {
-  if (!isTerminalTaskError(error)) return null;
-  const completed = executions.filter(
-    (item) => item.status === "completed" && item.result?.ok !== false
-  );
-  if (!completed.length) return null;
-  const completedIds = [...new Set(completed.map((item) => item.tool_id))];
-  if (requiredToolIds.some((toolId) => !completedIds.includes(toolId)))
-    return null;
-  return groundWorkerResultInToolExecutions(
-    {
-      summary: `已保留 ${completed.length} 次成功工具调用的结果。模型在整理结果时停止：${error.message}`,
-      evidence: [],
-      unresolved: [
-        "当前步骤未逐项确认所有成功标准，后续任务应直接使用这些工具结果。",
-      ],
-    },
-    taskItem,
-    completedIds,
-    executions
-  );
-}
-
-function isSkillBootstrapTask(taskItem) {
-  const allowed = taskItem.allowedToolIds || [];
-  return (
-    allowed.includes("skill.activate") &&
-    allowed.length > 0 &&
-    allowed.every((toolId) =>
-      ["skill.activate", "skill.read_resource"].includes(toolId)
-    )
-  );
-}
-
-function skillBootstrapCompletion(taskItem, skills = [], executions = []) {
-  if (!isSkillBootstrapTask(taskItem)) return null;
-  const objective =
-    `${taskItem.title || ""}\n${taskItem.objective || ""}`.toLowerCase();
-  const requestedSkills = skills.filter((skill) =>
-    objective.includes(skill.name.toLowerCase())
-  );
-  const expectedSkills = requestedSkills.length ? requestedSkills : skills;
-  const completed = executions.filter((item) => item.status === "completed");
-  const missingSkills = expectedSkills.filter(
-    (skill) =>
-      !completed.some(
-        (item) =>
-          item.tool_id === "skill.activate" &&
-          item.arguments?.name === skill.name
-      )
-  );
-  const expectedResources = expectedSkills.flatMap((skill) =>
-    (skill.files || [])
-      .filter((file) => file.path !== "SKILL.md" && file.text !== false)
-      .filter((file) => {
-        const relative = file.path.toLowerCase();
-        const filename = relative.split("/").at(-1);
-        const stem = filename.replace(/\.[^.]+$/, "");
-        return objective.includes(relative) || objective.includes(stem);
-      })
-      .map((file) => ({ skill: skill.name, path: file.path }))
-  );
-  const missingResources = expectedResources.filter(
-    (resource) =>
-      !completed.some(
-        (item) =>
-          item.tool_id === "skill.read_resource" &&
-          item.arguments?.name === resource.skill &&
-          item.result?.data?.path === resource.path &&
-          item.result?.data?.nextOffset === null
-      )
-  );
-  return {
-    complete: !missingSkills.length && !missingResources.length,
-    expectedSkills,
-    expectedResources,
-    missingSkills,
-    missingResources,
   };
 }
 
@@ -516,6 +442,12 @@ const GovernedState = Annotation.Root({
   controllerAttachments: Annotation({ default: () => [] }),
   clarification: Annotation({ default: () => "" }),
   contextItems: Annotation({ reducer: mergeById, default: () => [] }),
+  activatedSkills: Annotation({
+    reducer: mergeActivatedSkills,
+    default: () => [],
+  }),
+  planningFeedback: Annotation({ default: () => "" }),
+  planningAttempts: Annotation({ default: () => 0 }),
   control: Annotation({ default: () => null }),
   plan: Annotation({ default: () => null }),
   workItem: Annotation({ default: () => null }),
@@ -537,9 +469,66 @@ function scopedTaskId(runId, value) {
 }
 
 function requestAllowsWrite(request = "") {
-  return /\b(?:write|edit|delete|remove|create|save|store|upload|download|generate|send|execute|run|modify)\b|(?:写入|编辑|删除|创建|保存|存储|上传|下载|生成|发送|执行|修改)/i.test(
+  return /\b(?:write|edit|delete|remove|create|save|store|upload|download|generate|send|execute|run|modify|ingest|embed|index|add)\b|(?:写入|编辑|删除|创建|保存|存储|上传|下载|生成|发送|执行|修改|加入|导入|入库|嵌入|索引)/i.test(
     String(request)
   );
+}
+
+function isKnowledgeIngestionRequest(request = "") {
+  const value = String(request);
+  const mentionsKnowledge =
+    /\b(?:rag|knowledge\s*base)\b/i.test(value) ||
+    /(?:RAG|知识库)/i.test(value);
+  const requestsIngestion =
+    /\b(?:add|upload|store|save|ingest|embed|index)\b/i.test(value) ||
+    /(?:加入|上传|保存|存储|导入|入库|嵌入|索引)/i.test(value);
+  const mentionsDocuments =
+    /\b(?:documents?|files?|attachments?)\b/i.test(value) ||
+    /(?:文档|文件|附件|资料)/i.test(value);
+  return mentionsKnowledge && requestsIngestion && mentionsDocuments;
+}
+
+function shouldRecallPersonalMemory(
+  request = "",
+  { autoRecall = true, userId = null } = {}
+) {
+  return Boolean(
+    autoRecall !== false && userId && !isKnowledgeIngestionRequest(request)
+  );
+}
+
+function knowledgeToolGuidance(visibleToolIds = new Set()) {
+  const visible = new Set(visibleToolIds);
+  const operations = [
+    ["knowledge.ingest", "adds regular document files"],
+    ["knowledge.search", "retrieves already indexed passages"],
+    ["knowledge.publish", "embeds one final Markdown report"],
+  ]
+    .filter(([toolId]) => visible.has(toolId))
+    .map(([toolId, purpose]) => `${toolId} ${purpose}`);
+  return operations.length
+    ? `Workspace knowledge is the RAG knowledge base: ${operations.join("; ")}. Personal memory is only for user facts and preferences; document ingestion always belongs to Workspace RAG.`
+    : "Workspace knowledge is the RAG knowledge base. Personal memory is only for user facts and preferences; document ingestion always belongs to Workspace RAG.";
+}
+
+function shouldRetrieveWorkspaceContext(
+  request = "",
+  { autoRecall = true, mode = null } = {}
+) {
+  const value = String(request);
+  if (isKnowledgeIngestionRequest(value)) return false;
+  const requestsPublicWeb =
+    /\b(?:search|look|research|browse)\s+(?:the\s+)?(?:public\s+)?(?:web|internet|online)\b|\b(?:web|internet|online)\s+(?:search|research|lookup)\b/i.test(
+      value
+    ) ||
+    /(?:(?:在线|联网|网上|互联网|网页)[^。；;\n]{0,6}(?:搜索|检索|查找|查询)|(?:搜索|检索|查找|查询)[^。；;\n]{0,6}(?:互联网|网页|网上))/.test(
+      value
+    );
+  const requestsWorkspace =
+    /\b(?:rag|workspace|knowledge\s*base|local\s+documents?)\b/i.test(value) ||
+    /(?:RAG|工作区|知识库|本地文档|已有资料)/i.test(value);
+  if (requestsPublicWeb && !requestsWorkspace) return false;
+  return autoRecall !== false || ["query", "chat"].includes(mode);
 }
 
 function classify3gppRequest(request = "") {
@@ -564,6 +553,33 @@ function parse3gppMeetingRequest(request = "") {
   const match = String(request).match(/\b(SA[1235]|CT[14])\s*#?\s*(\d+)\b/i);
   if (!match) return null;
   return { group: match[1].toUpperCase(), meetingNumber: Number(match[2]) };
+}
+
+function parse3gppConversionRequest(request = "", attachments = []) {
+  const tdocs = [
+    ...new Set(
+      [...String(request).matchAll(/\b([SC]\d-\d{6,8})\b/gi)].map((match) =>
+        match[1].toUpperCase()
+      )
+    ),
+  ];
+  const uploads = (attachments || [])
+    .filter(
+      (attachment) =>
+        attachment?.mime === "application/anythingllm-workspace-file" &&
+        /^\/workspace\/3gpp-markdown\/inbox\/[^/]+\/[^/]+\.docx$/i.test(
+          String(attachment.contentString || "")
+        )
+    )
+    .map((attachment) => attachment.contentString);
+  if (tdocs.length === 1 && uploads.length === 0) return { tdoc: tdocs[0] };
+  if (uploads.length === 1 && tdocs.length === 0)
+    return { input_path: uploads[0] };
+  return null;
+}
+
+function is3gppMarkdownConversionAgent(agent = {}) {
+  return agent.runtimeConfig?.workflow === "3gpp-markdown-conversion";
 }
 
 function parse3gppInvitationFacts(text = "") {
@@ -654,6 +670,7 @@ async function executeQuick3gppLookup({
   emit,
   signal,
   budget,
+  activatedSkillScope = null,
 }) {
   const meeting = parse3gppMeetingRequest(request);
   if (!meeting) return null;
@@ -669,6 +686,7 @@ async function executeQuick3gppLookup({
     maxLocalToolCalls: 2,
     taskId: null,
     taskTitle: "查询 3GPP 会议事实",
+    activatedSkillScope,
   });
   const invoke = async (toolId, args, suffix) => {
     const descriptor = toolRegistry.get(toolId);
@@ -698,6 +716,102 @@ async function executeQuick3gppLookup({
   return quick3gppResponse({ meeting, data: resolved.data });
 }
 
+async function execute3gppMarkdownConversion({
+  args,
+  run,
+  workspace,
+  user,
+  agent,
+  emit,
+  signal,
+  budget,
+  activatedSkillScope = null,
+}) {
+  const context = new AgentToolContext({
+    run,
+    workspace,
+    user,
+    agent,
+    emit,
+    signal,
+    approvalMode: "always_allow",
+    budget,
+    maxLocalToolCalls: 2,
+    taskId: null,
+    taskTitle: "转换 3GPP 提案",
+    activatedSkillScope,
+  });
+  const invoke = async (toolId, toolArgs, suffix, traceName) => {
+    const descriptor = toolRegistry.get(toolId);
+    if (!descriptor) return null;
+    return withAgentToolTrace(
+      traceName,
+      { input: toolArgs, metadata: { toolId: descriptor.id } },
+      async () =>
+        JSON.parse(
+          await toLangChainTool(descriptor, context).func(toolArgs, undefined, {
+            toolCall: { id: `${run.id}:3gpp-convert:${suffix}` },
+          })
+        )
+    );
+  };
+  const activation = await invoke(
+    "skill.activate",
+    { name: "3gpp-review" },
+    "activate",
+    "activate-skill"
+  );
+  if (!activation?.ok)
+    return {
+      text: `无法开始转换：${activation?.summary || "3gpp-review Skill 激活失败。"}`,
+      sources: [],
+      partial: true,
+    };
+  // A resumed graph may reuse the stored skill.activate result without running
+  // its in-memory side effect again. Restore that state before conversion.
+  const currentSkill = await resolveAvailableSkill(
+    agent,
+    workspace,
+    "3gpp-review"
+  );
+  if (currentSkill) context.activateSkill(currentSkill);
+  const converted = await invoke(
+    "3gpp.convert-markdown",
+    args,
+    "convert",
+    "convert-3gpp-markdown"
+  );
+  if (!converted?.ok)
+    return {
+      text: `没有完成转换：${converted?.summary || "转换工具没有返回结果。"}`,
+      sources: [],
+      partial: true,
+    };
+  const data = converted.data || {};
+  const warnings = Array.isArray(data.warnings) ? data.warnings : [];
+  const text = [
+    `已完成${data.tdoc ? ` **${data.tdoc}**` : " DOCX"} 的转换。`,
+    "",
+    `- 压缩包：\`${data.archivePath}\``,
+    `- Markdown：\`${data.markdownPath}\``,
+    `- 图片：${Number(data.imageCount) || 0} 张`,
+    `- 嵌入对象：${Number(data.embeddedCount) || 0} 个`,
+    warnings.length ? `- 转换提示：${warnings.join("；")}` : "- 转换提示：无",
+  ].join("\n");
+  const sources = data.officialUrl
+    ? [
+        {
+          id: `3gpp-tdoc:${data.tdoc}`,
+          url: data.officialUrl,
+          title: `${data.tdoc} 官方文件`,
+          text: data.meetingFolder || data.tdoc,
+          docSource: "3gpp-official",
+        },
+      ]
+    : [];
+  return { text, sources, partial: false };
+}
+
 function normalized3gppLookupPlan(request, allowedToolIds) {
   const tools = (ids) => ids.filter((id) => allowedToolIds.has(id));
   return {
@@ -706,13 +820,9 @@ function normalized3gppLookupPlan(request, allowedToolIds) {
       {
         id: "lookup-3gpp-meeting",
         title: "查询 3GPP 会议事实",
-        objective: `Activate 3gpp-lookup, resolve the canonical meeting directory without guessing paths, and answer only the requested meeting fact. Stop as soon as one sufficient official source is available; use a second source only when an exact date or ambiguous fact requires it. Do not run Bash or Python, install dependencies, download proposals, create files, or publish knowledge. User request: ${request}`,
+        objective: `Follow the already activated 3gpp-lookup Skill, resolve the canonical meeting directory without guessing paths, and answer only the requested meeting fact. Stop as soon as one sufficient official source is available; use a second source only when an exact date or ambiguous fact requires it. Do not run Bash or Python, install dependencies, download proposals, create files, or publish knowledge. User request: ${request}`,
         dependsOn: [],
-        allowedToolIds: tools([
-          "skill.activate",
-          "3gpp.resolve-meeting",
-          "web.fetch",
-        ]),
+        allowedToolIds: tools(["3gpp.resolve-meeting", "web.fetch"]),
         requiredCapabilities: [],
         successCriteria: [
           "The canonical meeting directory is resolved without guessed aliases.",
@@ -728,11 +838,7 @@ function normalized3gppLookupPlan(request, allowedToolIds) {
 
 function isQuick3gppLookupTask(taskItem = {}) {
   const allowedToolIds = taskItem.allowedToolIds || [];
-  const quickLookupTools = new Set([
-    "skill.activate",
-    "3gpp.resolve-meeting",
-    "web.fetch",
-  ]);
+  const quickLookupTools = new Set(["3gpp.resolve-meeting", "web.fetch"]);
   return (
     taskItem.writeIntent !== true &&
     allowedToolIds.includes("3gpp.resolve-meeting") &&
@@ -760,13 +866,14 @@ function workerSystemPrompt({
   allowedToolIds,
   requiredToolIds,
   dependencyResults,
+  activatedSkillContext = "",
 }) {
   const writeEnabled =
     taskItem.writeIntent === true && taskHasWriteTool(allowedToolIds);
   const artifactGuidance = writeEnabled
     ? "This task may write the requested artifact. Write long files incrementally: create the file with a first filesystem.write call of at most 3,000 characters, append each remaining section with append=true in chunks of at most 3,000 characters, and read the completed file back before publishing it. Do not place a complete long report in one tool argument."
     : "This is a read-only task. Return the completed analysis in the final worker JSON object. Do not create, update, save, or publish a report, ledger, manifest, Markdown file, or any other artifact. If the objective uses words such as complete a ledger or report, interpret that as completing the analysis fields in your JSON result, not modifying a file.";
-  return `${basePrompt}\n\nYou are a bounded worker in a governed task graph. Complete only the assigned task. Use only allowed tools. The required completion tools for this task are: ${requiredToolIds.join(", ") || "none"}. When that list is none, do not publish, search for a publication tool, or try to satisfy the Agent's run-level publication rule; publication belongs only to a task whose allowed tool list explicitly includes that publication tool. Do not write the final user response. Stop after the success criteria and every required completion tool are satisfied, or when progress is genuinely blocked. Never end with future intent such as “I will create or publish the report.” ${artifactGuidance} Reuse existing workspace artifacts and activated Skills instead of repeating discovery, downloads, extraction, or visual analysis. Reuse the exact workspace paths returned in dependency results and tool outputs. Never reconstruct a directory from only a filename; when an exact path is unavailable, resolve it with filesystem.search or filesystem.list before reading. For skill resources, use only exact paths from the files list returned by activate_skill; never probe guessed directory or extension variants. Return one JSON object with summary, evidence, and unresolved. Evidence entries require kind, title, uri, excerpt, and metadata. Never invent sources.\n\nTask: ${taskItem.title}\nObjective: ${taskItem.objective}\nSuccess criteria: ${taskItem.successCriteria.join("; ") || "Satisfy the objective"}\nDependency results: ${JSON.stringify(dependencyResults)}`;
+  return `${basePrompt}${activatedSkillContext ? `\n\n${activatedSkillContext}` : ""}\n\nYou are a bounded worker in a governed task graph. Complete only the assigned task. The relevant Skills were activated before planning and their complete instructions are included above. Follow them without calling activate_skill again. Use only allowed tools. The required completion tools for this task are: ${requiredToolIds.join(", ") || "none"}. When that list is none, do not publish, search for a publication tool, or try to satisfy the Agent's run-level publication rule; publication belongs only to a task whose allowed tool list explicitly includes that publication tool. Do not write the final user response. Stop after the success criteria and every required completion tool are satisfied, or when progress is genuinely blocked. Never end with future intent such as “I will create or publish the report.” ${artifactGuidance} Reuse existing workspace artifacts instead of repeating discovery, downloads, extraction, or visual analysis. Reuse the exact workspace paths returned in dependency results and tool outputs. Never reconstruct a directory from only a filename; when an exact path is unavailable, resolve it with filesystem.search or filesystem.list before reading. For Skill resources, use only exact paths from the activated Skill file lists above; never probe guessed directory or extension variants. Return one JSON object with summary, evidence, and unresolved. Evidence entries require kind, title, uri, excerpt, and metadata. Never invent sources.\n\nTask: ${taskItem.title}\nObjective: ${taskItem.objective}\nSuccess criteria: ${taskItem.successCriteria.join("; ") || "Satisfy the objective"}\nDependency results: ${JSON.stringify(dependencyResults)}`;
 }
 
 function workerResultFromPlainText(resultState, missingToolIds = []) {
@@ -776,30 +883,16 @@ function workerResultFromPlainText(resultState, missingToolIds = []) {
   return { summary, evidence: [], unresolved: [] };
 }
 
-function normalized3gppReviewPlan(request, requestedName, allowedToolIds) {
+function normalized3gppReviewPlan(request, _requestedName, allowedToolIds) {
   const tools = (ids) => ids.filter((id) => allowedToolIds.has(id));
   return {
     goal: "Complete the 3GPP TDoc workflow with a validated manifest and one canonical report",
     tasks: [
       {
-        id: "activate-3gpp-review",
-        title: "Activate the 3GPP review Skill",
-        objective: `Activate ${requestedName}, retain its exact skillRoot and complete instructions, and do not start discovery or downloads in this task. User request: ${request}`,
-        dependsOn: [],
-        allowedToolIds: tools(["skill.activate", "skill.read_resource"]),
-        requiredCapabilities: [],
-        successCriteria: [
-          "The requested Skill is activated exactly once.",
-          "Its exact skillRoot and packaged file paths are available to dependent tasks.",
-        ],
-        acceptsPartialDependencies: false,
-        writeIntent: false,
-      },
-      {
         id: "resolve-and-filter",
         title: "Resolve the meeting and create the proposal manifest",
         objective: `Resolve the exact meeting folder and Index from official data, determine the requested agenda/KI scope, and use filter-index to generate and validate the canonical proposals.json. Never hand-write a manifest. Reuse exact paths returned by tools. User request: ${request}`,
-        dependsOn: ["activate-3gpp-review"],
+        dependsOn: [],
         allowedToolIds: tools([
           "bash",
           "web.fetch",
@@ -870,55 +963,14 @@ function normalized3gppReviewPlan(request, requestedName, allowedToolIds) {
   };
 }
 
-function normalizedActionPlan({
-  descriptor,
-  args = {},
-  request,
-  agent,
-  skills = [],
-}) {
+function normalizedActionPlan({ descriptor, args = {}, request }) {
+  if (descriptor.id === "skill.activate")
+    throw new Error(
+      "Skill activation is a pre-planning controller action and cannot be normalized into a plan."
+    );
   const allowedToolIds = new Set([descriptor.id]);
-  let objective = `使用 ${descriptor.id} 完成此请求：${request}\n\n控制器建议参数：\n${JSON.stringify(args)}`;
-  let successCriteria = ["记录工具结果，并说明实际发生的执行错误。"];
-
-  if (descriptor.id === "skill.activate") {
-    allowedToolIds.add("skill.read_resource");
-    const requestedName = String(args?.name || "").trim();
-    const relevantSkills = requestedName
-      ? skills.filter((skill) => skill.name === requestedName)
-      : skills;
-    const configuredTools = Array.isArray(agent?.tools)
-      ? new Set(agent.tools)
-      : null;
-    for (const skill of relevantSkills) {
-      for (const toolId of skillAllowedToolIds(skill)) {
-        const toolDescriptor = toolRegistry.get(toolId);
-        if (!toolDescriptor) continue;
-        if (
-          toolDescriptor.id.startsWith("skill.") ||
-          legacySelectionAllows(configuredTools, toolDescriptor)
-        )
-          allowedToolIds.add(toolDescriptor.id);
-      }
-    }
-    if (
-      requestedName &&
-      relevantSkills.some((skill) =>
-        ["3gpp-review", "3gpp-tdocs"].includes(skill.name)
-      )
-    )
-      return normalized3gppReviewPlan(
-        request,
-        relevantSkills[0]?.name || requestedName,
-        allowedToolIds
-      );
-    objective = `激活相关 Agent Skill，按照 Skill 指令和允许的工具完成用户请求：${request}\n\n控制器建议参数：\n${JSON.stringify(args)}`;
-    successCriteria = [
-      "激活并遵循相关 Agent Skill。",
-      "使用 Skill 允许的工具完成请求，不要只停留在激活步骤。",
-      "记录已确认的结果，只说明实际发生的执行错误。",
-    ];
-  }
+  const objective = `使用 ${descriptor.id} 完成此请求：${request}\n\n控制器建议参数：\n${JSON.stringify(args)}`;
+  const successCriteria = ["记录工具结果，并说明实际发生的执行错误。"];
 
   return {
     goal: `使用 ${descriptor.name} 完成请求`,
@@ -938,7 +990,51 @@ function normalizedActionPlan({
   };
 }
 
-function validatePlan(rawPlan, { run, agent, availableAgents = [] }) {
+function activatedSkillToolIds(skills = []) {
+  if (!skills.length) return null;
+  return new Set(
+    skills.flatMap((skill) =>
+      skillAllowedToolIds(skill).map((toolId) => normalizeToolId(toolId))
+    )
+  );
+}
+
+function descriptorsForActivatedSkills(descriptors = [], skills = []) {
+  const allowed = activatedSkillToolIds(skills);
+  if (!allowed) return descriptors;
+  return descriptors.filter((descriptor) => allowed.has(descriptor.id));
+}
+
+function effectiveTaskToolIds(
+  requestedToolIds = [],
+  workerAgent = {},
+  activatedSkills = []
+) {
+  const configuredTools = Array.isArray(workerAgent?.tools)
+    ? new Set(workerAgent.tools)
+    : null;
+  const skillTools = activatedSkillToolIds(activatedSkills);
+  return [...new Set(requestedToolIds.map(normalizeToolId))].filter(
+    (toolId) => {
+      if (toolId === "skill.activate") return false;
+      if (skillTools && !skillTools.has(toolId)) return false;
+      if (toolId === "agent.call")
+        return legacySelectionAllows(configuredTools, {
+          id: "agent.call",
+          name: "call_agent",
+        });
+      const descriptor = toolRegistry.get(toolId);
+      if (!descriptor) return false;
+      if (descriptor.id.startsWith("skill.")) return true;
+      return legacySelectionAllows(configuredTools, descriptor);
+    }
+  );
+}
+
+function validatePlan(
+  rawPlan,
+  { run, agent, availableAgents = [], activatedSkills = [] }
+) {
   const parsed = planSchema.parse(rawPlan);
   const knownAgents = new Set([
     Number(agent.id),
@@ -949,6 +1045,7 @@ function validatePlan(rawPlan, { run, agent, availableAgents = [] }) {
   const configuredTools = Array.isArray(agent.tools)
     ? new Set(agent.tools)
     : null;
+  const activeSkillTools = activatedSkillToolIds(activatedSkills);
   const localToScoped = new Map(
     parsed.tasks.map((task) => [task.id, scopedTaskId(run.id, task.id)])
   );
@@ -962,7 +1059,9 @@ function validatePlan(rawPlan, { run, agent, availableAgents = [] }) {
       if (!localToScoped.has(dependency))
         throw new Error(`Task ${task.id} has an unknown dependency.`);
     }
-    const allowedToolIds = [...task.allowedToolIds];
+    const normalizedAllowedToolIds = [
+      ...new Set(task.allowedToolIds.map(normalizeToolId)),
+    ];
     const publishDescriptor = toolRegistry.get("knowledge.publish");
     const shouldAddPublishTool = Boolean(
       allowWrites &&
@@ -970,9 +1069,20 @@ function validatePlan(rawPlan, { run, agent, availableAgents = [] }) {
         publishDescriptor &&
         legacySelectionAllows(configuredTools, publishDescriptor)
     );
-    if (shouldAddPublishTool && !allowedToolIds.includes(publishDescriptor.id))
-      allowedToolIds.push(publishDescriptor.id);
-    for (const toolId of allowedToolIds) {
+    if (
+      shouldAddPublishTool &&
+      !normalizedAllowedToolIds.includes(publishDescriptor.id)
+    )
+      normalizedAllowedToolIds.push(publishDescriptor.id);
+    for (const toolId of normalizedAllowedToolIds) {
+      if (toolId === "skill.activate")
+        throw new Error(
+          "Skill activation must complete before create_plan and cannot be a plan task."
+        );
+      if (activeSkillTools && !activeSkillTools.has(toolId))
+        throw new Error(
+          `Task ${task.id} selected tool ${toolId}, which is not declared by the activated Skills.`
+        );
       if (!registryIds.has(toolId))
         throw new Error(`Task ${task.id} selected unknown tool ${toolId}.`);
       const descriptor =
@@ -985,7 +1095,7 @@ function validatePlan(rawPlan, { run, agent, availableAgents = [] }) {
       )
         throw new Error(`Task ${task.id} selected disallowed tool ${toolId}.`);
     }
-    const hasWriteTool = taskHasWriteTool(allowedToolIds);
+    const hasWriteTool = taskHasWriteTool(normalizedAllowedToolIds);
     const effectiveWriteIntent = Boolean(
       (task.writeIntent || shouldAddPublishTool) && allowWrites
     );
@@ -1009,7 +1119,7 @@ function validatePlan(rawPlan, { run, agent, availableAgents = [] }) {
       throw new Error("Final answer synthesis cannot be a worker task.");
     return {
       ...task,
-      allowedToolIds,
+      allowedToolIds: normalizedAllowedToolIds,
       id: localToScoped.get(task.id),
       dependsOn: task.dependsOn.map((id) => localToScoped.get(id)),
       assignedAgentId: task.assignedAgentId || null,
@@ -1077,6 +1187,68 @@ function askUserTool() {
         ),
     }),
   });
+}
+
+function activateSkillControlTool(skills = []) {
+  const names = skills.map((skill) => skill.name);
+  return tool(async () => "Skill selection accepted.", {
+    name: "activate_skill",
+    description: `Activate one relevant Skill before planning so its complete instructions are available. Use the exact name from this list: ${names.join(", ") || "none"}. Never represent Skill activation as a plan task.`,
+    schema: z.object({
+      name: z
+        .string()
+        .trim()
+        .min(1)
+        .refine((name) => names.includes(name), {
+          message: "Select an available Skill by its exact name.",
+        }),
+    }),
+  });
+}
+
+async function activateSkillBeforePlanning({
+  name,
+  skills,
+  run,
+  workspace,
+  user,
+  agent,
+  emit,
+  signal,
+  budget,
+  visibleToolIds,
+  activatedSkillScope = null,
+}) {
+  const selected = skills.find((skill) => skill.name === name);
+  if (!selected) throw new Error(`Skill "${name}" is not available.`);
+  const context = new AgentToolContext({
+    run,
+    workspace,
+    user,
+    agent,
+    emit,
+    signal,
+    approvalMode: "always_allow",
+    budget,
+    maxLocalToolCalls: 1,
+    taskId: null,
+    taskTitle: null,
+    visibleToolIds,
+    activatedSkillScope,
+  });
+  const descriptor = toolRegistry.get("skill.activate");
+  const result = JSON.parse(
+    await toLangChainTool(descriptor, context).func({ name }, undefined, {
+      toolCall: {
+        id: `${run.id}:preplan:activate:${name}:${selected.revision}`,
+      },
+    })
+  );
+  if (!result?.ok)
+    throw new Error(result?.summary || `Unable to activate Skill "${name}".`);
+  const activated = context.activatedSkill(name) || selected;
+  context.activateSkill(activated);
+  return activatedSkillSnapshot(activated);
 }
 
 async function invokeStructured({
@@ -1164,14 +1336,40 @@ function createGovernedGraph(context) {
     actionTail: Promise.resolve(),
     operationCounts: new Map(),
   };
+  if (!sharedBudget.activatedSkills) sharedBudget.activatedSkills = new Map();
+  const activatedSkillScope =
+    context.activatedSkillScope || sharedBudget.activatedSkills;
 
   const prepareContext = async (state) => {
+    if (is3gppMarkdownConversionAgent(agent)) {
+      await emit("activity.updated", {
+        phase: "context",
+        summaryKey: "preparing",
+      });
+      await emit("context.used", { taskId: null, items: [] });
+      return { contextItems: [], controllerAttachments: [] };
+    }
+    const recallMemory = shouldRecallPersonalMemory(state.request, {
+      autoRecall: run.configuration?.autoRecall,
+      userId: user?.id,
+    });
+    const recallWorkspace = shouldRetrieveWorkspaceContext(state.request, {
+      autoRecall: run.configuration?.autoRecall,
+      mode: run.mode,
+    });
+    const summaryKey = recallMemory
+      ? recallWorkspace
+        ? "recalling_workspace_and_memory"
+        : "recalling_memory"
+      : recallWorkspace
+        ? "recalling_workspace"
+        : "preparing";
     await emit("activity.updated", {
       phase: "context",
-      summary: "Recalling relevant workspace knowledge and memory",
+      summaryKey,
     });
     const items = [];
-    if (run.configuration?.autoRecall !== false && user?.id) {
+    if (recallMemory) {
       const [global, workspaceMemories] = await Promise.all([
         Memory.globalForUser(user.id),
         Memory.forUserWorkspace(user.id, workspace.id),
@@ -1200,10 +1398,7 @@ function createGovernedGraph(context) {
       }
     }
 
-    if (
-      run.configuration?.autoRecall !== false ||
-      ["query", "chat"].includes(run.mode)
-    ) {
+    if (recallWorkspace) {
       try {
         const retrieved = await withRetrieverTrace(
           "retrieve-workspace-context",
@@ -1353,12 +1548,72 @@ function createGovernedGraph(context) {
             request: state.request.replace(/\s+/g, " ").slice(0, 120),
           },
         });
+        const conversionArgs = is3gppMarkdownConversionAgent(agent)
+          ? parse3gppConversionRequest(state.request, run.attachments)
+          : null;
+        if (conversionArgs) {
+          await emit("request.classified", {
+            kind: "3gpp_markdown_conversion",
+            execution: "deterministic",
+          });
+          const converted = await execute3gppMarkdownConversion({
+            args: conversionArgs,
+            run,
+            workspace,
+            user,
+            agent,
+            emit,
+            signal,
+            budget: sharedBudget,
+            activatedSkillScope,
+          });
+          await onToken(converted.text);
+          return {
+            control: { kind: "direct", streamed: true },
+            finalResponse: converted.text,
+            sources: converted.sources,
+            review: converted.partial ? { status: "partial" } : null,
+          };
+        }
         const agents = await agentListForPrompt(agent.id);
+        const allControllerToolDescriptors = visibleToolDescriptorsForAgent(
+          agent,
+          {
+            allowActions:
+              !["query", "chat"].includes(run.mode) && run.source !== "embed",
+          }
+        );
+        await restoreActivatedSkills(
+          state.activatedSkills,
+          workspace,
+          activatedSkillScope
+        );
+        const controllerToolDescriptors = descriptorsForActivatedSkills(
+          allControllerToolDescriptors,
+          state.activatedSkills
+        );
+        const controllerVisibleToolIds = new Set(
+          controllerToolDescriptors.map((descriptor) => descriptor.id)
+        );
+        const knowledgeGuidance = knowledgeToolGuidance(
+          controllerVisibleToolIds
+        );
         const skills = await availableSkills(agent, workspace);
+        const activatedNames = new Set(
+          state.activatedSkills.map((skill) => skill.name)
+        );
+        const selectableSkills = skills.filter(
+          (skill) => !activatedNames.has(skill.name)
+        );
         const currentSkillCatalog = await skillCatalogPrompt(
           agent,
           workspace,
-          skills
+          selectableSkills,
+          { visibleToolIds: controllerVisibleToolIds }
+        );
+        const activatedSkillContext = activatedSkillsPrompt(
+          state.activatedSkills,
+          controllerVisibleToolIds
         );
         const lookupSkill = skills.find(
           (skill) => skill.name === "3gpp-lookup"
@@ -1381,6 +1636,7 @@ function createGovernedGraph(context) {
             emit,
             signal,
             budget: sharedBudget,
+            activatedSkillScope,
           });
           if (quickResult) {
             await onToken(quickResult.text);
@@ -1393,9 +1649,12 @@ function createGovernedGraph(context) {
           const configuredTools = Array.isArray(agent?.tools)
             ? new Set(agent.tools)
             : null;
-          const lookupToolIds = new Set(["skill.activate"]);
+          const lookupSnapshot = activatedSkillScope.get(lookupSkill.name)
+            ? activatedSkillSnapshot(activatedSkillScope.get(lookupSkill.name))
+            : null;
+          const lookupToolIds = new Set();
           for (const toolId of skillAllowedToolIds(lookupSkill)) {
-            const descriptor = toolRegistry.get(toolId);
+            const descriptor = toolRegistry.get(normalizeToolId(toolId));
             if (
               descriptor &&
               (descriptor.id.startsWith("skill.") ||
@@ -1405,7 +1664,12 @@ function createGovernedGraph(context) {
           }
           const plan = validatePlan(
             normalized3gppLookupPlan(state.request, lookupToolIds),
-            { run, agent, availableAgents: agents }
+            {
+              run,
+              agent,
+              availableAgents: agents,
+              activatedSkills: lookupSnapshot ? [lookupSnapshot] : [],
+            }
           );
           await AgentRunTask.upsertPlan(run.id, plan.tasks);
           await emit("request.classified", {
@@ -1419,10 +1683,13 @@ function createGovernedGraph(context) {
           });
           for (const taskItem of plan.tasks)
             await emit("task.created", { task: taskItem });
-          return { control: { kind: "plan" }, plan };
+          return {
+            control: { kind: "plan" },
+            plan,
+            activatedSkills: lookupSnapshot ? [lookupSnapshot] : [],
+          };
         }
-        const toolList = toolRegistry
-          .list()
+        const toolList = controllerToolDescriptors
           .map(
             (item) =>
               `${item.id} (${item.effect || (item.action ? "write" : "read")}): ${item.description}`
@@ -1437,11 +1704,18 @@ function createGovernedGraph(context) {
             model: roleModel(run, "controller"),
             temperature: run.configuration?.temperature ?? 0.2,
             thinking,
-          }).bindTools([planTool(), askUserTool()], {
-            parallel_tool_calls: false,
-          });
+          }).bindTools(
+            [
+              ...(selectableSkills.length
+                ? [activateSkillControlTool(selectableSkills)]
+                : []),
+              planTool(),
+              askUserTool(),
+            ],
+            { parallel_tool_calls: false }
+          );
         const messages = modelMessages(
-          `${basePrompt}${currentSkillCatalog ? `\n\n${currentSkillCatalog}` : ""}\n\nYou are the controller for a governed Agent runtime. Answer ordinary questions directly. Call create_plan only when tools, independent work, delegation, or verification are genuinely useful. Call ask_user only when a missing answer materially changes the work. Every ask_user call must contain exactly three concise, mutually exclusive choices with the recommended choice first; the client supplies the fourth custom-answer option and notes field. Never combine normal answer text with a control tool call. Plans must contain concrete evidence or action tasks, not a final-answer task. Give each worker the smallest relevant allowedToolIds set. Use web.search for public internet searches and rag.search only for knowledge already stored in the workspace. For a long Skill workflow, split discovery and manifest creation, acquisition and processing, validation, and final publication into dependency tasks; allow knowledge.publish only in the final task. A dedicated activation-only task may contain only skill.activate and skill.read_resource; otherwise include the Skill tools needed by that task. For read-only requests, exclude unrelated state-changing tools, but retain skill-declared execution or file tools required to create the workflow's cache and requested artifacts. Direct answers using context evidence must cite it as [C1], [C2], and so on.\n\nAvailable tools:\n${toolList || "None"}\n\nAvailable specialist Agents:\n${agentList || "None"}`,
+          `${basePrompt}${currentSkillCatalog ? `\n\n${currentSkillCatalog}` : ""}${activatedSkillContext ? `\n\n${activatedSkillContext}` : ""}\n\nYou are the controller for a governed Agent runtime. Before creating a plan, call activate_skill for every relevant available Skill whose full instructions are not already present above. Skill activation is a pre-planning control action: never include skill.activate or a Skill activation/bootstrap task in create_plan. After all relevant Skills are activated, create the actual work plan from their complete instructions. Answer ordinary questions directly. Call create_plan only when tools, independent work, delegation, or verification are genuinely useful. Call ask_user only when a missing answer materially changes the work. Every ask_user call must contain exactly three concise, mutually exclusive choices with the recommended choice first; the client supplies the fourth custom-answer option and notes field. Never combine normal answer text with a control tool call. Plans must contain concrete evidence or action tasks, not a final-answer task. Give each worker the smallest relevant allowedToolIds set. A task that must create, update, save, or publish an artifact must set writeIntent=true and include the exact write-capable tool. A read-only task must return its analysis in the worker JSON result; never tell it to complete, write, or update a report, ledger, manifest, Markdown file, or other artifact. The Available tools section is the complete tool boundary for this run: use only those exact tool IDs and never invent or infer another tool. ${knowledgeGuidance} For a long Skill workflow, split discovery and manifest creation, acquisition and processing, validation, and final publication into dependency tasks; allow a final-report publication tool only when it appears in Available tools, and only in the final task. For read-only requests, exclude unrelated state-changing tools, but retain Skill-declared execution or file tools required to create the workflow's cache and requested artifacts. Direct answers using context evidence must cite it as [C1], [C2], and so on.${state.planningFeedback ? `\n\nPrevious planning attempt was rejected: ${state.planningFeedback}` : ""}\n\nAvailable tools:\n${toolList || "None"}\n\nAvailable specialist Agents:\n${agentList || "None"}`,
           state,
           `${state.request}${state.clarification ? `\n\nUser clarification:\n${state.clarification}` : ""}${contextPrompt(state.contextItems)}`,
           state.controllerAttachments
@@ -1454,10 +1728,12 @@ function createGovernedGraph(context) {
           runName: "govern-request",
           signal,
         };
+        const controllerThinking =
+          run.configuration?.thinking ??
+          run.runtimeSnapshot?.runtimeConfig?.thinking ??
+          true;
         const decision = await controllerDecisionWithFallback({
-          primaryModel: createControlModel(
-            run.configuration?.thinking !== false
-          ),
+          primaryModel: createControlModel(controllerThinking !== false),
           createFallbackModel: () => createControlModel(false),
           messages,
           onToken,
@@ -1492,6 +1768,42 @@ function createGovernedGraph(context) {
           };
         }
         const call = calls[0];
+        if (call.name === "activate_skill") {
+          if (activatedNames.has(call.args?.name))
+            return {
+              control: { kind: "retry_planning" },
+              planningFeedback: `Skill "${call.args?.name}" is already activated. Create the actual work plan now.`,
+              planningAttempts: state.planningAttempts + 1,
+            };
+          await emit("activity.updated", {
+            phase: "skill",
+            summary: `正在加载 ${call.args?.name} 的说明`,
+          });
+          const snapshot = await activateSkillBeforePlanning({
+            name: call.args?.name,
+            skills,
+            run,
+            workspace,
+            user,
+            agent,
+            emit,
+            signal,
+            budget: sharedBudget,
+            visibleToolIds: new Set(
+              allControllerToolDescriptors.map((descriptor) => descriptor.id)
+            ),
+            activatedSkillScope,
+          });
+          await emit("activity.updated", {
+            phase: "planning",
+            summary: `${snapshot.name} 已加载，正在制定任务计划`,
+          });
+          return {
+            control: { kind: "skill_activated" },
+            activatedSkills: [snapshot],
+            planningFeedback: "",
+          };
+        }
         if (call.name === "ask_user")
           return {
             control: {
@@ -1500,33 +1812,32 @@ function createGovernedGraph(context) {
               choices: call.args?.choices || [],
             },
           };
-        let rawPlan = call.args;
-        if (call.name !== "create_plan") {
-          const descriptor = toolRegistry
-            .list()
-            .find(
-              (candidate) =>
-                candidate.id === call.name || candidate.name === call.name
-            );
-          if (!descriptor)
-            throw new Error(`Unsupported controller action: ${call.name}`);
-          await emit("controller.action_normalized", {
-            requestedAction: call.name,
-            toolId: descriptor.id,
-          });
-          rawPlan = normalizedActionPlan({
-            descriptor,
-            args: call.args,
-            request: state.request,
+        if (call.name !== "create_plan")
+          throw new Error(`Unsupported controller action: ${call.name}`);
+        let plan;
+        try {
+          plan = validatePlan(call.args, {
+            run,
             agent,
-            skills,
+            availableAgents: agents,
+            activatedSkills: state.activatedSkills,
           });
+        } catch (error) {
+          if (
+            state.planningAttempts < 1 &&
+            /Skill activation must complete before create_plan/.test(
+              error.message
+            )
+          ) {
+            await emit("plan.rejected", { reason: error.message });
+            return {
+              control: { kind: "retry_planning" },
+              planningFeedback: error.message,
+              planningAttempts: state.planningAttempts + 1,
+            };
+          }
+          throw error;
         }
-        const plan = validatePlan(rawPlan, {
-          run,
-          agent,
-          availableAgents: agents,
-        });
         await AgentRunTask.upsertPlan(run.id, plan.tasks);
         await emit("plan.created", {
           goal: plan.goal,
@@ -1535,7 +1846,11 @@ function createGovernedGraph(context) {
         });
         for (const taskItem of plan.tasks)
           await emit("task.created", { task: taskItem });
-        return { control: { kind: "plan" }, plan };
+        return {
+          control: { kind: "plan" },
+          plan,
+          planningFeedback: "",
+        };
       }
     );
 
@@ -1590,8 +1905,7 @@ function createGovernedGraph(context) {
     const results = new Map(state.taskResults.map((item) => [item.id, item]));
     const ready = (state.plan?.tasks || []).filter(
       (taskItem) =>
-        !results.has(taskItem.id) &&
-        taskCanDispatch(taskItem, results)
+        !results.has(taskItem.id) && taskCanDispatch(taskItem, results)
     );
     if (!ready.length) return "review_results";
     return ready.slice(0, DEFAULTS.maxConcurrency).map(
@@ -1638,27 +1952,62 @@ function createGovernedGraph(context) {
       phase: "working",
       summary: taskItem.title,
     });
+    try {
+      await restoreActivatedSkills(
+        state.activatedSkills,
+        workspace,
+        activatedSkillScope
+      );
+    } catch (error) {
+      const failed = {
+        id: taskItem.id,
+        status: "failed",
+        summary: `Could not start ${taskItem.title}.`,
+        error: error.message,
+        evidence: [],
+        unresolved: [error.message],
+        durationMs: Date.now() - startedAt,
+        agent: { id: workerAgent.id, name: workerAgent.name },
+      };
+      await AgentRunTask.update(taskItem.id, {
+        status: "failed",
+        error: failed.error,
+        resultSummary: failed.summary,
+        progress: null,
+        completedAt: new Date(),
+      });
+      await emit("task.failed", { taskId: taskItem.id, error: failed.error });
+      return { taskResults: [failed] };
+    }
     const dependencyResults = state.taskResults.filter((item) =>
       taskItem.dependsOn.includes(item.id)
     );
-    const readOnlyTools = toolRegistry
-      .list()
-      .filter((item) => item.effect === "read" || item.action === false)
-      .map((item) => item.id);
-    const allowedToolIds = taskItem.allowedToolIds.length
+    const readOnlyTools = visibleToolDescriptorsForAgent(workerAgent, {
+      allowActions: false,
+    }).map((item) => item.id);
+    const requestedToolIds = taskItem.allowedToolIds.length
       ? taskItem.allowedToolIds
       : readOnlyTools;
+    const allowedToolIds = effectiveTaskToolIds(
+      requestedToolIds,
+      workerAgent,
+      state.activatedSkills
+    );
     const requiredToolIds = taskRequiredCompletionTools(
       run,
       allowedToolIds,
       taskItem
     );
-    const skillBootstrapTask = isSkillBootstrapTask(taskItem);
     const quick3gppLookupTask = isQuick3gppLookupTask(taskItem);
     const workerRun = {
       ...run,
       configuration: {
         ...run.configuration,
+        thinking:
+          run.configuration?.thinking ??
+          workerAgent.runtimeConfig?.thinking ??
+          run.runtimeSnapshot?.runtimeConfig?.thinking ??
+          true,
         model: roleModel(run, "worker"),
         toolOverrides: allowedToolIds,
         maxModelCallsPerTask:
@@ -1720,18 +2069,22 @@ function createGovernedGraph(context) {
           onNoProgress: (error) => taskController.abort(error),
           budget: sharedBudget,
           depth: context.depth || 0,
-          maxLocalToolCalls: skillBootstrapTask
-            ? 16
-            : quick3gppLookupTask
-              ? DEFAULTS.maxQuickLookupToolCalls
-              : DEFAULTS.maxTaskToolCalls,
+          maxLocalToolCalls: quick3gppLookupTask
+            ? DEFAULTS.maxQuickLookupToolCalls
+            : DEFAULTS.maxTaskToolCalls,
           systemPromptOverride: workerSystemPrompt({
-            basePrompt,
+            basePrompt: workerAgent.systemPrompt || basePrompt,
             taskItem,
             allowedToolIds,
             requiredToolIds,
             dependencyResults,
+            activatedSkillContext: activatedSkillsPrompt(
+              state.activatedSkills,
+              new Set(allowedToolIds)
+            ),
           }),
+          includeSkillCatalog: false,
+          activatedSkillScope,
           checkpointerOverride: getCheckpointer(),
           taskId: taskItem.id,
           taskTitle: taskItem.title,
@@ -1795,6 +2148,12 @@ function createGovernedGraph(context) {
           missingToolIds = requiredToolIds.filter(
             (toolId) => !completedToolIds.has(toolId)
           );
+          if (!parsed) {
+            parsed = workerResultFromPlainText(resultState, missingToolIds);
+          }
+          if (parsed) {
+            parseError = null;
+          }
           if (parsed && !missingToolIds.length) break;
           if (continuation === 2) break;
 
@@ -1820,6 +2179,9 @@ function createGovernedGraph(context) {
           });
           invocationInput = {
             messages: [
+              ...(Array.isArray(resultState?.messages)
+                ? resultState.messages
+                : []),
               {
                 role: "user",
                 content: continuationInstruction,
@@ -1896,74 +2258,6 @@ function createGovernedGraph(context) {
           : error;
         lastError = taskError;
         if (signal?.aborted) throw taskError;
-        if (skillBootstrapTask) {
-          const bootstrap = skillBootstrapCompletion(
-            taskItem,
-            await availableSkills(workerAgent, workspace),
-            await AgentToolExecution.listForTask(run.id, taskItem.id)
-          );
-          if (bootstrap?.complete) {
-            const result = {
-              id: taskItem.id,
-              status: "completed",
-              summary: `Activated ${bootstrap.expectedSkills.map((skill) => skill.name).join(", ")} and completely read ${bootstrap.expectedResources.map((resource) => resource.path).join(", ") || "the requested Skill resources"}.`,
-              unresolved: [],
-              evidence: [],
-              durationMs: Date.now() - startedAt,
-              agent: { id: workerAgent.id, name: workerAgent.name },
-            };
-            await AgentRunTask.update(taskItem.id, {
-              status: "completed",
-              resultSummary: result.summary,
-              progress: null,
-              completedAt: new Date(),
-              attempt,
-            });
-            await emit("task.completed", {
-              taskId: taskItem.id,
-              result,
-              deterministic: true,
-            });
-            return { taskResults: [result] };
-          }
-        }
-        const recovered = recoverTerminalWorkerResult({
-          taskItem,
-          requiredToolIds,
-          executions: await AgentToolExecution.listForTask(
-            run.id,
-            taskItem.id
-          ),
-          error: taskError,
-        });
-        if (recovered) {
-          const evidence = normalizeEvidence(recovered.evidence, {
-            id: taskItem.id,
-          });
-          await AgentRunEvidence.upsertMany(run.id, taskItem.id, evidence);
-          const result = {
-            id: taskItem.id,
-            status: "completed",
-            summary: recovered.summary,
-            unresolved: recovered.unresolved,
-            evidence,
-            durationMs: Date.now() - startedAt,
-            agent: { id: workerAgent.id, name: workerAgent.name },
-          };
-          await AgentRunTask.update(taskItem.id, {
-            status: "completed",
-            resultSummary: result.summary,
-            progress: null,
-            completedAt: new Date(),
-            attempt,
-          });
-          await emit("task.completed", {
-            taskId: taskItem.id,
-            result,
-            recovered: true,
-          });
-          return { taskResults: [result], evidence };
-        }
         if (isTerminalTaskError(taskError)) break;
         if (attempt < maxWorkerAttempts) {
           await AgentRunTask.update(taskItem.id, {
@@ -2008,13 +2302,16 @@ function createGovernedGraph(context) {
       summary: `检查 ${state.taskResults.length} 个任务结果`,
     });
     try {
+      const activatedSkillContext = activatedSkillsPrompt(
+        state.activatedSkills
+      );
       const decision = await invokeStructured({
         run,
         workspace,
         role: "reviewer",
         schema: reviewSchema,
         name: "review-agent-work",
-        system: `${basePrompt}\n\nReview completed and failed tasks against the user's request. Accept when supported, partial when the best possible answer should be returned with explicit gaps, or revise only for a material repair that can succeed with a different task. Do not repeat failed work unchanged.`,
+        system: `${basePrompt}${activatedSkillContext ? `\n\n${activatedSkillContext}` : ""}\n\nReview completed and failed tasks against the user's request and the activated Skill instructions. Accept when supported, partial when the best possible answer should be returned with explicit gaps, or revise only for a material repair that can succeed with a different task. Do not repeat failed work unchanged.`,
         user: `Request:\n${state.request}\n\nPlan:\n${JSON.stringify(state.plan)}\n\nResults:\n${JSON.stringify(state.taskResults)}\n\nEvidence:\n${JSON.stringify(state.evidence)}`,
         runnableConfig,
       });
@@ -2051,7 +2348,12 @@ function createGovernedGraph(context) {
           dependsOn: [],
         })),
       },
-      { run, agent, availableAgents }
+      {
+        run,
+        agent,
+        availableAgents,
+        activatedSkills: state.activatedSkills,
+      }
     );
     const plan = {
       ...state.plan,
@@ -2088,6 +2390,9 @@ function createGovernedGraph(context) {
           citation: `E${index + 1}`,
           ...item,
         }));
+        const activatedSkillContext = activatedSkillsPrompt(
+          state.activatedSkills
+        );
         const model = createChatModel({
           workspace,
           model: roleModel(run, "controller"),
@@ -2100,7 +2405,7 @@ function createGovernedGraph(context) {
             [
               {
                 role: "system",
-                content: `${basePrompt}\n\nWrite the final user response from the task results. Preserve successful work when some tasks failed. State material gaps plainly. Cite evidence inline as [E1], [E2], and so on. Do not expose internal plans or JSON. You have no tools in this step.`,
+                content: `${basePrompt}${activatedSkillContext ? `\n\n${activatedSkillContext}` : ""}\n\nWrite the final user response from the task results while following the activated Skill instructions. Preserve successful work when some tasks failed. State material gaps plainly. Cite evidence inline as [E1], [E2], and so on. Do not expose internal plans or JSON. You have no tools in this step.`,
               },
               {
                 role: "user",
@@ -2159,6 +2464,8 @@ function createGovernedGraph(context) {
 
   const routeControl = (state) => {
     if (state.control?.kind === "input") return "request_input";
+    if (["skill_activated", "retry_planning"].includes(state.control?.kind))
+      return "controller";
     if (state.control?.kind === "plan") return "schedule";
     return END;
   };
@@ -2201,6 +2508,9 @@ async function executeSegment(context) {
           taskResults: [],
           evidence: [],
           contextItems: [],
+          activatedSkills: context.inheritedSkills || [],
+          planningFeedback: "",
+          planningAttempts: 0,
         };
   const graphRun = await graph.stream(graphInput, {
     ...runnableConfig,
@@ -2225,30 +2535,38 @@ async function executeSegment(context) {
 module.exports = {
   DEFAULTS,
   GovernedState,
+  activateSkillBeforePlanning,
+  activateSkillControlTool,
+  activatedSkillToolIds,
   askUserTool,
   blockedTaskResults,
   controllerDecisionWithFallback,
   createGovernedGraph,
   classify3gppRequest,
+  execute3gppMarkdownConversion,
   executeQuick3gppLookup,
   executeSegment,
+  effectiveTaskToolIds,
   groundWorkerResultInToolExecutions,
   isQuick3gppLookupTask,
+  is3gppMarkdownConversionAgent,
   mergeById,
   normalizedActionPlan,
   normalized3gppLookupPlan,
   parse3gppInvitationFacts,
+  parse3gppConversionRequest,
   parse3gppMeetingRequest,
   quick3gppResponse,
-  recoverTerminalWorkerResult,
   rethrowWorkerInterrupt,
   normalized3gppReviewPlan,
   requestAllowsWrite,
   resolvedTaskDependencies,
   scopedTaskId,
+  shouldRetrieveWorkspaceContext,
+  shouldRecallPersonalMemory,
   streamControllerDecision,
-  isSkillBootstrapTask,
-  skillBootstrapCompletion,
+  isKnowledgeIngestionRequest,
+  knowledgeToolGuidance,
   taskHasWriteTool,
   taskCanDispatch,
   taskRequestsArtifactWrite,

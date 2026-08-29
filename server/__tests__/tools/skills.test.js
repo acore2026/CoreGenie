@@ -1,17 +1,23 @@
 /* eslint-env jest, node */
 jest.mock("../../agent-skills/registry", () => ({
+  allowedToolIds: jest.fn((skill) => skill.allowedToolIds || []),
+  resolveActivatedSkillSnapshot: jest.fn(),
   resolveAvailableSkill: jest.fn(),
 }));
 jest.mock("../../agent-skills/package", () => ({
   readPackageResource: jest.fn(),
 }));
 
-const { resolveAvailableSkill } = require("../../agent-skills/registry");
+const {
+  resolveActivatedSkillSnapshot,
+  resolveAvailableSkill,
+} = require("../../agent-skills/registry");
 const { readPackageResource } = require("../../agent-skills/package");
 const {
   activateSkill,
   readSkillResource,
   runtimeInstructions,
+  runtimeSkillBody,
 } = require("../../tools/skills");
 
 describe("governed Agent Skill activation", () => {
@@ -56,6 +62,22 @@ describe("governed Agent Skill activation", () => {
     ).toMatch(/skill:\/\/example[\s\S]*Do the work\.$/);
   });
 
+  it("removes disallowed tool IDs from activated Skill instructions", () => {
+    const body = runtimeSkillBody(
+      {
+        instructions:
+          "Use rag.search, knowledge.ingest, and memory.store when needed.",
+        allowedToolIds: ["rag.search", "knowledge.ingest", "memory.store"],
+      },
+      new Set(["knowledge.search"])
+    );
+
+    expect(body).toContain("knowledge.search");
+    expect(body).not.toContain("rag.search");
+    expect(body).not.toContain("knowledge.ingest");
+    expect(body).not.toContain("memory.store");
+  });
+
   it("reads SKILL.md when it is advertised in the activated package", async () => {
     const skill = {
       name: "3gpp-review",
@@ -64,6 +86,7 @@ describe("governed Agent Skill activation", () => {
       root: "/private/package/root",
       files: [{ path: "SKILL.md" }, { path: "scripts/3gpp_tdocs.py" }],
     };
+    resolveActivatedSkillSnapshot.mockResolvedValue(skill);
     resolveAvailableSkill.mockResolvedValue(skill);
     readPackageResource.mockResolvedValue({
       path: "SKILL.md",
@@ -89,11 +112,40 @@ describe("governed Agent Skill activation", () => {
       code: "SKILL_RESOURCE_READ",
       summary: "Read SKILL.md.",
     });
-    expect(readPackageResource).toHaveBeenCalledWith(
-      skill.root,
-      "SKILL.md",
-      0
+    expect(readPackageResource).toHaveBeenCalledWith(skill.root, "SKILL.md", 0);
+  });
+
+  it("removes disallowed tool IDs from text Skill resources", async () => {
+    const skill = {
+      name: "safe-skill",
+      scope: "global",
+      revision: "sha256:safe",
+      root: "/private/package/root",
+      allowedToolIds: ["knowledge.search", "memory.store"],
+      files: [{ path: "SKILL.md" }],
+    };
+    resolveActivatedSkillSnapshot.mockResolvedValue(skill);
+    resolveAvailableSkill.mockResolvedValue(skill);
+    readPackageResource.mockResolvedValue({
+      path: "SKILL.md",
+      binary: false,
+      content: "Use knowledge.search or memory.store.",
+    });
+    const context = {
+      agent: { id: 6 },
+      workspace: { id: 1 },
+      visibleToolIds: new Set(["knowledge.search"]),
+      activatedSkill: jest.fn().mockReturnValue({ revision: "sha256:safe" }),
+      emit: jest.fn().mockResolvedValue(undefined),
+    };
+
+    const result = await readSkillResource.execute(
+      { name: "safe-skill", path: "SKILL.md", offset: 0 },
+      context
     );
+
+    expect(result.data.content).toContain("knowledge.search");
+    expect(result.data.content).not.toContain("memory.store");
   });
 
   it("resolves a unique resource basename instead of probing guessed paths", async () => {
@@ -108,6 +160,7 @@ describe("governed Agent Skill activation", () => {
         { path: "references/company-aliases.json" },
       ],
     };
+    resolveActivatedSkillSnapshot.mockResolvedValue(skill);
     resolveAvailableSkill.mockResolvedValue(skill);
     readPackageResource.mockResolvedValue({
       path: "references/status-semantics.md",
@@ -158,6 +211,7 @@ describe("governed Agent Skill activation", () => {
         { path: "scripts/3gpp_evolution.py" },
       ],
     };
+    resolveActivatedSkillSnapshot.mockResolvedValue(skill);
     resolveAvailableSkill.mockResolvedValue(skill);
     const context = {
       agent: { id: 6 },
