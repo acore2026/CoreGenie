@@ -14,6 +14,7 @@ const {
   isQuick3gppLookupTask,
   knowledgeToolGuidance,
   mergeById,
+  normalizeControllerAction,
   normalized3gppLookupPlan,
   normalizedActionPlan,
   parse3gppInvitationFacts,
@@ -344,12 +345,18 @@ describe("Governed Agent runtime", () => {
   });
 
   it("requires a controller-normalized action to execute its selected tool", () => {
-    const plan = normalizedActionPlan({
-      descriptor: toolRegistry.get(normalizeToolId("rag.search")),
-      args: { query: "Agent Connecting Network ACN" },
-      request: "尝试在线搜索",
-      agent: { id: 1 },
-    });
+    const descriptor = toolRegistry.get(normalizeToolId("rag.search"));
+    const normalized = normalizeControllerAction(
+      {
+        name: "knowledge.search",
+        args: { query: "Agent Connecting Network ACN" },
+      },
+      [descriptor],
+      "尝试在线搜索"
+    );
+    const plan = normalized.plan;
+
+    expect(normalized.descriptor).toBe(descriptor);
 
     expect(
       taskRequiredCompletionTools(
@@ -358,6 +365,16 @@ describe("Governed Agent runtime", () => {
         plan.tasks[0]
       )
     ).toEqual(["knowledge.search"]);
+  });
+
+  it("does not normalize a controller action outside its visible tools", () => {
+    expect(
+      normalizeControllerAction(
+        { name: "knowledge.search", args: { query: "KI#18" } },
+        [],
+        "搜索 KI#18"
+      )
+    ).toBeNull();
   });
 
   it("grounds a worker result in the durable search execution", () => {

@@ -994,6 +994,25 @@ function normalizedActionPlan({ descriptor, args = {}, request }) {
   };
 }
 
+function normalizeControllerAction(call, descriptors = [], request = "") {
+  const requestedAction = String(call?.name || "").trim();
+  const normalizedAction = normalizeToolId(requestedAction);
+  const descriptor = descriptors.find(
+    (candidate) =>
+      normalizeToolId(candidate.id) === normalizedAction ||
+      candidate.name === requestedAction
+  );
+  if (!descriptor) return null;
+  return {
+    descriptor,
+    plan: normalizedActionPlan({
+      descriptor,
+      args: call?.args,
+      request,
+    }),
+  };
+}
+
 function activatedSkillToolIds(skills = []) {
   if (!skills.length) return null;
   return new Set(
@@ -1816,11 +1835,24 @@ function createGovernedGraph(context) {
               choices: call.args?.choices || [],
             },
           };
-        if (call.name !== "create_plan")
-          throw new Error(`Unsupported controller action: ${call.name}`);
+        let rawPlan = call.args;
+        if (call.name !== "create_plan") {
+          const normalizedAction = normalizeControllerAction(
+            call,
+            controllerToolDescriptors,
+            state.request
+          );
+          if (!normalizedAction)
+            throw new Error(`Unsupported controller action: ${call.name}`);
+          await emit("controller.action_normalized", {
+            requestedAction: call.name,
+            toolId: normalizedAction.descriptor.id,
+          });
+          rawPlan = normalizedAction.plan;
+        }
         let plan;
         try {
-          plan = validatePlan(call.args, {
+          plan = validatePlan(rawPlan, {
             run,
             agent,
             availableAgents: agents,
@@ -2566,6 +2598,7 @@ module.exports = {
   isQuick3gppLookupTask,
   is3gppMarkdownConversionAgent,
   mergeById,
+  normalizeControllerAction,
   normalizedActionPlan,
   normalized3gppLookupPlan,
   parse3gppInvitationFacts,
