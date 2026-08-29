@@ -365,6 +365,34 @@ function groundWorkerResultInToolExecutions(
   };
 }
 
+function recoverTerminalWorkerResult({
+  taskItem,
+  requiredToolIds = [],
+  executions = [],
+  error = null,
+}) {
+  if (!isTerminalTaskError(error)) return null;
+  const completed = executions.filter(
+    (item) => item.status === "completed" && item.result?.ok !== false
+  );
+  if (!completed.length) return null;
+  const completedIds = [...new Set(completed.map((item) => item.tool_id))];
+  if (requiredToolIds.some((toolId) => !completedIds.includes(toolId)))
+    return null;
+  return groundWorkerResultInToolExecutions(
+    {
+      summary: `已保留 ${completed.length} 次成功工具调用的结果。模型在整理结果时停止：${error.message}`,
+      evidence: [],
+      unresolved: [
+        "当前步骤未逐项确认所有成功标准，后续任务应直接使用这些工具结果。",
+      ],
+    },
+    taskItem,
+    completedIds,
+    executions
+  );
+}
+
 function isSkillBootstrapTask(taskItem) {
   const allowed = taskItem.allowedToolIds || [];
   return (
@@ -1899,6 +1927,43 @@ function createGovernedGraph(context) {
             return { taskResults: [result] };
           }
         }
+        const recovered = recoverTerminalWorkerResult({
+          taskItem,
+          requiredToolIds,
+          executions: await AgentToolExecution.listForTask(
+            run.id,
+            taskItem.id
+          ),
+          error: taskError,
+        });
+        if (recovered) {
+          const evidence = normalizeEvidence(recovered.evidence, {
+            id: taskItem.id,
+          });
+          await AgentRunEvidence.upsertMany(run.id, taskItem.id, evidence);
+          const result = {
+            id: taskItem.id,
+            status: "completed",
+            summary: recovered.summary,
+            unresolved: recovered.unresolved,
+            evidence,
+            durationMs: Date.now() - startedAt,
+            agent: { id: workerAgent.id, name: workerAgent.name },
+          };
+          await AgentRunTask.update(taskItem.id, {
+            status: "completed",
+            resultSummary: result.summary,
+            progress: null,
+            completedAt: new Date(),
+            attempt,
+          });
+          await emit("task.completed", {
+            taskId: taskItem.id,
+            result,
+            recovered: true,
+          });
+          return { taskResults: [result], evidence };
+        }
         if (isTerminalTaskError(taskError)) break;
         if (attempt < maxWorkerAttempts) {
           await AgentRunTask.update(taskItem.id, {
@@ -2175,6 +2240,7 @@ module.exports = {
   parse3gppInvitationFacts,
   parse3gppMeetingRequest,
   quick3gppResponse,
+  recoverTerminalWorkerResult,
   rethrowWorkerInterrupt,
   normalized3gppReviewPlan,
   requestAllowsWrite,
