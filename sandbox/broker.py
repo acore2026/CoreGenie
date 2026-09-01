@@ -24,6 +24,7 @@ MAX_OUTPUT_BYTES = 1024 * 1024
 DEFAULT_TIMEOUT_SECONDS = 300
 MAX_TIMEOUT_SECONDS = 1800
 SKILL_NAME_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+RUNNER_MEMORY_PATTERN = re.compile(r"^[1-9][0-9]*(?:[bkmg])?$")
 
 
 class BrokerError(Exception):
@@ -162,6 +163,7 @@ class SandboxBroker:
         workspace_gid: int,
         network: str,
         proxy_url: str | None,
+        runner_memory: str = "256m",
     ):
         self.token = token
         self.workspace_root = workspace_root.resolve()
@@ -177,6 +179,9 @@ class SandboxBroker:
         self.capacity = threading.BoundedSemaphore(max_concurrency)
         self.workspace_uid = workspace_uid
         self.workspace_gid = workspace_gid
+        if not RUNNER_MEMORY_PATTERN.fullmatch(runner_memory.lower()):
+            raise BrokerError("runner memory must be a positive Docker memory value")
+        self.runner_memory = runner_memory.lower()
         if network not in {"bridge", "none"}:
             raise BrokerError("sandbox network must be bridge or none")
         if proxy_url and ("\n" in proxy_url or "\r" in proxy_url):
@@ -266,9 +271,9 @@ class SandboxBroker:
             "--pids-limit",
             "64",
             "--memory",
-            "256m",
+            self.runner_memory,
             "--memory-swap",
-            "256m",
+            self.runner_memory,
             "--cpus",
             "0.5",
             "--ulimit",
@@ -473,6 +478,7 @@ def main() -> None:
     parser.add_argument("--image", default="anythingllm-sandbox:local")
     parser.add_argument("--docker-binary", default="docker")
     parser.add_argument("--max-concurrency", type=int, default=6)
+    parser.add_argument("--runner-memory", default="256m")
     parser.add_argument("--socket-uid", type=int, default=os.getuid())
     parser.add_argument("--socket-gid", type=int, default=os.getgid())
     parser.add_argument("--workspace-uid", type=int, default=1000)
@@ -498,6 +504,7 @@ def main() -> None:
         image=args.image,
         docker_binary=args.docker_binary,
         max_concurrency=args.max_concurrency,
+        runner_memory=args.runner_memory,
         workspace_uid=args.workspace_uid,
         workspace_gid=args.workspace_gid,
         network=args.network,

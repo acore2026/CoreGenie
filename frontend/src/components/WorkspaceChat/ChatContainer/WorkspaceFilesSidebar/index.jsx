@@ -11,8 +11,10 @@ import {
   FileZip,
   House,
   Image as ImageIcon,
+  UploadSimple,
   X,
 } from "@phosphor-icons/react";
+import { useDropzone } from "react-dropzone";
 import { saveAs } from "file-saver";
 import Workspace from "@/models/workspace";
 import { AGENT_SESSION_END } from "@/utils/chat/agent";
@@ -44,7 +46,7 @@ function fileIcon(entry) {
   return <File size={20} className="text-zinc-400 light:text-slate-500" />;
 }
 
-function WorkspaceFilesPanel({
+export function WorkspaceFilesPanel({
   workspace,
   onClose = null,
   reserveUserControl = false,
@@ -56,6 +58,8 @@ function WorkspaceFilesPanel({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [downloadingPath, setDownloadingPath] = useState(null);
+  const [uploadingCount, setUploadingCount] = useState(0);
+  const [uploadMessage, setUploadMessage] = useState(null);
 
   const loadDirectory = useCallback(
     async (targetPath = "", { quiet = false } = {}) => {
@@ -144,8 +148,79 @@ function WorkspaceFilesPanel({
     else loadDirectory(currentPath);
   }
 
+  const uploadFiles = useCallback(
+    async (selectedFiles = []) => {
+      if (!selectedFiles.length || uploadingCount > 0 || !workspace?.slug)
+        return;
+      setUploadingCount(selectedFiles.length);
+      setUploadMessage(null);
+      setError(null);
+      const failures = [];
+      for (const file of selectedFiles) {
+        const formData = new FormData();
+        formData.append("file", file, file.name);
+        formData.append("path", currentPath || ".");
+        try {
+          const { response, data } = await Workspace.uploadWorkspaceFile(
+            workspace.slug,
+            formData
+          );
+          if (!response.ok) failures.push(data?.error || file.name);
+        } catch (uploadError) {
+          failures.push(uploadError.message || file.name);
+        }
+      }
+      setUploadingCount(0);
+      if (failures.length) setError(failures.join(" "));
+      else
+        setUploadMessage(
+          t("chat_window.workspace_files.upload_complete", {
+            count: selectedFiles.length,
+          })
+        );
+      await loadDirectory(currentPath, { quiet: true });
+    },
+    [currentPath, loadDirectory, t, uploadingCount, workspace?.slug]
+  );
+
+  const {
+    getRootProps,
+    getInputProps,
+    open: openUploadPicker,
+    isDragActive,
+  } = useDropzone({
+    onDropAccepted: uploadFiles,
+    noClick: true,
+    noKeyboard: true,
+    noDragEventsBubbling: true,
+    disabled: uploadingCount > 0,
+  });
+
   return (
-    <div className="h-full min-h-0 bg-zinc-900 light:bg-white light:border-2 light:border-slate-300 md:rounded-[16px] flex flex-col overflow-hidden text-white light:text-slate-900">
+    <div
+      {...getRootProps()}
+      className="relative h-full min-h-0 bg-zinc-900 light:bg-white light:border-2 light:border-slate-300 md:rounded-[16px] flex flex-col overflow-hidden text-white light:text-slate-900"
+    >
+      <input {...getInputProps()} />
+      {isDragActive && (
+        <div className="pointer-events-none absolute inset-2 z-50 flex items-center justify-center rounded-xl border border-cyan-300/50 bg-zinc-950/90 light:bg-white/95">
+          <div className="flex flex-col items-center gap-2 text-center">
+            <UploadSimple
+              size={28}
+              weight="duotone"
+              className="text-cyan-300 light:text-cyan-700"
+            />
+            <p className="text-sm font-semibold">
+              {t("chat_window.workspace_files.drop_title")}
+            </p>
+            <p className="max-w-[260px] text-xs text-zinc-400 light:text-slate-500">
+              {t("chat_window.workspace_files.drop_description", {
+                path: currentPath || "/",
+              })}
+            </p>
+          </div>
+        </div>
+      )}
       <div
         className={`pl-4 ${reserveUserControl ? "pr-14" : "pr-4"} pt-4 pb-3 border-b border-zinc-700/70 light:border-slate-200 bg-zinc-900 light:bg-white`}
       >
@@ -159,6 +234,17 @@ function WorkspaceFilesPanel({
             </p>
           </div>
           <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={openUploadPicker}
+              disabled={uploadingCount > 0}
+              title={t("chat_window.workspace_files.upload")}
+              aria-label={t("chat_window.workspace_files.upload")}
+              className="flex h-8 items-center gap-1.5 rounded-lg border-none bg-cyan-300/10 px-2.5 text-xs font-medium text-cyan-300 transition-colors hover:bg-cyan-300/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70 disabled:cursor-wait disabled:opacity-40 light:text-cyan-700"
+            >
+              <UploadSimple size={16} weight="bold" />
+              <span>{t("chat_window.workspace_files.upload")}</span>
+            </button>
             <button
               type="button"
               onClick={refresh}
@@ -184,6 +270,19 @@ function WorkspaceFilesPanel({
           </div>
         </div>
       </div>
+
+      {(uploadingCount > 0 || uploadMessage) && (
+        <div
+          aria-live="polite"
+          className="border-b border-zinc-800 bg-cyan-300/[0.05] px-4 py-2 text-xs text-cyan-200 light:border-slate-200 light:text-cyan-800"
+        >
+          {uploadingCount > 0
+            ? t("chat_window.workspace_files.uploading", {
+                count: uploadingCount,
+              })
+            : uploadMessage}
+        </div>
+      )}
 
       {selectedFile ? (
         <div className="flex-1 min-h-0 flex flex-col">

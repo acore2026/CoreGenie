@@ -115,7 +115,7 @@ async function skillCatalogPrompt(
   agent,
   workspace,
   providedSkills = null,
-  { visibleToolIds = null } = {}
+  { visibleToolIds = null, enforceAllowedTools = false } = {}
 ) {
   const skills = providedSkills || (await availableSkills(agent, workspace));
   if (!skills.length) return "";
@@ -125,7 +125,10 @@ async function skillCatalogPrompt(
       const allowedTools = [
         ...new Set(allowedToolIds(skill).map(canonicalSkillToolId)),
       ].filter((toolId) => !visible || visible.has(toolId));
-      return `<skill name="${skill.name}" scope="${skill.scope}" revision="${skill.revision}" allowed-tools="${allowedTools.join(" ")}">\n${visibleSkillText(skill.description, skill, visible)}\n</skill>`;
+      const toolPolicy = enforceAllowedTools
+        ? ` allowed-tools="${allowedTools.join(" ")}"`
+        : "";
+      return `<skill name="${skill.name}" scope="${skill.scope}" revision="${skill.revision}"${toolPolicy}>\n${visibleSkillText(skill.description, skill, visible)}\n</skill>`;
     })
     .join("\n");
   return `<available_agent_skills>\n${catalog}\n</available_agent_skills>\nThese descriptions are only for pre-planning selection. When a Skill is relevant, call activate_skill before create_plan. Activation loads its complete instructions and file list. Never put Skill activation in a plan task.`;

@@ -5,8 +5,10 @@ const {
   activatedSkillToolIds,
   askUserTool,
   controllerDecisionWithFallback,
+  controllerDirectActionsEnabled,
   classify3gppRequest,
   createGovernedGraph,
+  delegatedControllerActionPlan,
   effectiveTaskToolIds,
   groundWorkerResultInToolExecutions,
   isKnowledgeIngestionRequest,
@@ -14,18 +16,21 @@ const {
   isQuick3gppLookupTask,
   knowledgeToolGuidance,
   mergeById,
+  normalizeReviewDecision,
   normalizeControllerAction,
   normalized3gppLookupPlan,
   normalizedActionPlan,
   parse3gppInvitationFacts,
   parse3gppConversionRequest,
   parse3gppMeetingRequest,
+  priorToolResultsContext,
   quick3gppResponse,
   rethrowWorkerInterrupt,
   requestAllowsWrite,
   resolvedTaskDependencies,
   scopedTaskId,
   shouldRecallPersonalMemory,
+  shouldRetryNoProgressTask,
   shouldRetrieveWorkspaceContext,
   streamControllerDecision,
   taskHasWriteTool,
@@ -69,6 +74,113 @@ describe("Governed Agent runtime", () => {
     expect(DEFAULTS.maxConsecutiveNoProgress).toBe(3);
     expect(DEFAULTS.maxQuickLookupToolCalls).toBe(12);
     expect(DEFAULTS.maxQuickLookupModelCalls).toBe(8);
+  });
+
+  it("keeps direct controller actions disabled unless explicitly enabled", () => {
+    expect(controllerDirectActionsEnabled({})).toBe(false);
+    expect(
+      controllerDirectActionsEnabled({
+        ENABLE_CONTROLLER_DIRECT_ACTIONS: "false",
+      })
+    ).toBe(false);
+    expect(
+      controllerDirectActionsEnabled({
+        ENABLE_CONTROLLER_DIRECT_ACTIONS: "true",
+      })
+    ).toBe(true);
+  });
+
+  it("accepts a gap-free partial review when every task completed", () => {
+    expect(
+      normalizeReviewDecision(
+        { status: "partial", gaps: [], replacementTasks: [] },
+        [
+          { status: "completed", unresolved: [] },
+          { status: "completed", unresolved: [] },
+        ]
+      )
+    ).toEqual({ status: "accept", gaps: [], replacementTasks: [] });
+  });
+
+  it("preserves partial review status when a real gap remains", () => {
+    expect(
+      normalizeReviewDecision(
+        {
+          status: "partial",
+          gaps: ["One output could not be verified."],
+          replacementTasks: [],
+        },
+        [{ status: "completed", unresolved: [] }]
+      ).status
+    ).toBe("partial");
+  });
+
+  it("recognizes document splitting and exported output as write requests", () => {
+    expect(
+      requestAllowsWrite(
+        "请按三级标题拆分上传的TR文件，拆分后输出到源文件同目录的同名文件夹中。"
+      )
+    ).toBe(true);
+    expect(requestAllowsWrite("Export the converted document")).toBe(true);
+  });
+
+  it("retries a no-progress task once when earlier tool calls produced results", () => {
+    const executions = [
+      {
+        status: "completed",
+        result: { ok: true, code: "OK", data: "Missing count: 44" },
+      },
+    ];
+
+    expect(
+      shouldRetryNoProgressTask({
+        error: { code: "TASK_NO_PROGRESS" },
+        attempt: 1,
+        maxAttempts: 2,
+        executions,
+      })
+    ).toBe(true);
+    expect(
+      shouldRetryNoProgressTask({
+        error: { code: "TASK_NO_PROGRESS" },
+        attempt: 2,
+        maxAttempts: 2,
+        executions,
+      })
+    ).toBe(false);
+    expect(
+      shouldRetryNoProgressTask({
+        error: { code: "TASK_TIME_BUDGET_EXHAUSTED" },
+        attempt: 1,
+        maxAttempts: 2,
+        executions,
+      })
+    ).toBe(false);
+  });
+
+  it("passes successful tool output to the recovery worker without duplicates", () => {
+    const executions = [
+      {
+        id: "one",
+        operation_key: "same-command",
+        tool_id: "bash",
+        status: "completed",
+        result: { ok: true, code: "OK", data: "Missing count: 44" },
+      },
+      {
+        id: "two",
+        operation_key: "same-command",
+        tool_id: "bash",
+        status: "completed",
+        result: { ok: true, code: "OK", data: "Missing count: 44" },
+      },
+    ];
+
+    const context = priorToolResultsContext(executions);
+
+    expect(context).toContain("Missing count: 44");
+    expect(context).toContain("do not run the same command again");
+    expect(context.match(/Missing count: 44/g)).toHaveLength(1);
   });
 
   it("does not preload workspace RAG for a public-web-only request", () => {
@@ -250,6 +362,28 @@ describe("Governed Agent runtime", () => {
     expect(continuation).not.toMatch(/filesystem\.write chunks/);
   });
 
+  it("keeps requested list fields in the worker handoff", () => {
+    const prompt = workerSystemPrompt({
+      basePrompt: "Base prompt",
+      userRequest: "列出每个 TDoc 的编号、标题、Source 和状态。",
+      taskItem: {
+        title: "筛选提案",
+        objective: "生成并检查提案清单",
+        successCriteria: ["清单已验证"],
+        writeIntent: true,
+      },
+      allowedToolIds: ["bash"],
+      requiredToolIds: [],
+      dependencyResults: [],
+    });
+
+    expect(prompt).toContain(
+      "Original user request: 列出每个 TDoc 的编号、标题、Source 和状态。"
+    );
+    expect(prompt).toMatch(/include every requested row and field/i);
+    expect(prompt).toMatch(/count or file path alone is not sufficient/i);
+  });
+
   it("validates artifact-writing requirements against task tools", () => {
     const readOnlyTask = {
       title: "跨会议比较",
@@ -285,6 +419,57 @@ describe("Governed Agent runtime", () => {
     ).toThrow(/requires an artifact write/);
   });
 
+  it("recognizes downloaded and extracted 3GPP files as artifact writes", () => {
+    expect(
+      taskRequestsArtifactWrite({
+        title: "下载并提取 Word 原文",
+        objective: "下载 KI #18 TDoc ZIP，解压并保存 DOCX 原文",
+        successCriteria: ["TDoc 原文可从工作区下载"],
+      })
+    ).toBe(true);
+    expect(
+      taskRequestsArtifactWrite({
+        title: "下载会议 Index",
+        objective: "下载 SA2 会议 Index XLSX 文件并生成 proposals.json 清单",
+      })
+    ).toBe(true);
+    expect(
+      taskRequestsArtifactWrite({
+        title: "比较提案",
+        objective: "分析并比较三个 TDoc 的技术路线",
+        successCriteria: ["返回比较结果"],
+      })
+    ).toBe(false);
+  });
+
+  it("promotes artifact-producing tasks when a write-capable tool is present", () => {
+    const plan = validatePlan(
+      {
+        goal: "拆分并验证文档",
+        tasks: [
+          {
+            id: "validate-output",
+            title: "验证输出质量",
+            objective: "统计结果并生成文件清单和质量报告",
+            allowedToolIds: ["python", "filesystem-list"],
+            successCriteria: ["质量报告已生成"],
+            writeIntent: false,
+          },
+        ],
+      },
+      {
+        ...context,
+        run: { id: "run-1", prompt: "拆分文档并生成质量报告" },
+        agent: { id: 1, tools: null },
+      }
+    );
+
+    expect(plan.tasks[0]).toMatchObject({
+      allowedToolIds: ["python", "filesystem.list"],
+      writeIntent: true,
+    });
+  });
+
   it("accepts a plain worker summary after all required tools succeeded", () => {
     expect(
       workerResultFromPlainText(
@@ -312,12 +497,11 @@ describe("Governed Agent runtime", () => {
       parse3gppConversionRequest("请转换这个文件。", [
         {
           mime: "application/anythingllm-workspace-file",
-          contentString:
-            "/workspace/3gpp-markdown/inbox/upload-1/proposal.docx",
+          contentString: "/workspace/uploads/upload-1/proposal.docx",
         },
       ])
     ).toEqual({
-      input_path: "/workspace/3gpp-markdown/inbox/upload-1/proposal.docx",
+      input_path: "/workspace/uploads/upload-1/proposal.docx",
     });
     expect(
       is3gppMarkdownConversionAgent({
@@ -357,6 +541,7 @@ describe("Governed Agent runtime", () => {
     const plan = normalized.plan;
 
     expect(normalized.descriptor).toBe(descriptor);
+    expect(plan.tasks[0].allowedToolIds).toEqual(["knowledge.search"]);
 
     expect(
       taskRequiredCompletionTools(
@@ -365,6 +550,83 @@ describe("Governed Agent runtime", () => {
         plan.tasks[0]
       )
     ).toEqual(["knowledge.search"]);
+  });
+
+  it("scopes normalized read actions to the selected tool", () => {
+    const descriptor = toolRegistry.get("knowledge.search");
+    const plan = normalizedActionPlan({
+      descriptor,
+      args: { query: "SA2 Key Issues KI list" },
+      request: "SA2 会议有哪些 KI",
+    });
+
+    expect(plan.tasks[0]).toMatchObject({
+      allowedToolIds: ["knowledge.search"],
+      writeIntent: false,
+    });
+    expect(
+      taskRequiredCompletionTools(
+        { runtimeSnapshot: { runtimeConfig: {} } },
+        plan.tasks[0].allowedToolIds,
+        plan.tasks[0]
+      )
+    ).toEqual(["knowledge.search"]);
+  });
+
+  it("delegates a repeated direct controller action as a writable worker plan", () => {
+    const descriptor = toolRegistry.get("filesystem.search");
+    const plan = delegatedControllerActionPlan({
+      call: {
+        name: "filesystem.search",
+        args: { path: "/workspace", pattern: "**/*23801*.docx" },
+      },
+      descriptor,
+      descriptors: [
+        descriptor,
+        toolRegistry.get("filesystem.read"),
+        toolRegistry.get("filesystem.write"),
+        toolRegistry.get("python"),
+        toolRegistry.get("memory.delete"),
+        toolRegistry.get("knowledge.publish"),
+      ],
+      request:
+        "请按三级标题拆分上传的TR文件，拆分后输出到源文件同目录的同名文件夹中。",
+      hasAvailableAgents: true,
+    });
+
+    expect(plan.tasks[0]).toMatchObject({
+      id: "complete-request-with-inherited-tools",
+      writeIntent: true,
+      allowedToolIds: [
+        "filesystem.search",
+        "filesystem.read",
+        "filesystem.write",
+        "python",
+        "agent.call",
+      ],
+    });
+    expect(plan.tasks[0].allowedToolIds).not.toContain("memory.delete");
+    expect(plan.tasks[0].allowedToolIds).not.toContain("knowledge.publish");
+    expect(plan.tasks[0].objective).toContain(
+      "这只是一条定位线索，不是任务的完成条件"
+    );
+  });
+
+  it("keeps a delegated read request read-only", () => {
+    const descriptor = toolRegistry.get("filesystem.search");
+    const plan = delegatedControllerActionPlan({
+      call: { name: "filesystem.search", args: { pattern: "**/*.md" } },
+      descriptor,
+      descriptors: [
+        descriptor,
+        toolRegistry.get("filesystem.write"),
+        toolRegistry.get("python"),
+      ],
+      request: "有哪些 Markdown 文件？",
+    });
+
+    expect(plan.tasks[0].writeIntent).toBe(false);
+    expect(plan.tasks[0].allowedToolIds).toEqual(["filesystem.search"]);
   });
 
   it("does not normalize a controller action outside its visible tools", () => {
@@ -658,16 +920,14 @@ describe("Governed Agent runtime", () => {
     ).toThrow(/pre-planning controller action/);
   });
 
-  it("intersects task tools with the activated Skill declaration", () => {
+  it("ignores activated Skill tool declarations by default", () => {
     const skills = [
       {
         name: "3gpp-review",
         allowedTools: "skill.read_resource bash web.fetch",
       },
     ];
-    expect(activatedSkillToolIds(skills)).toEqual(
-      new Set(["skill.read_resource", "bash", "web.fetch"])
-    );
+    expect(activatedSkillToolIds(skills)).toBeNull();
     expect(
       effectiveTaskToolIds(
         [
@@ -680,6 +940,32 @@ describe("Governed Agent runtime", () => {
         { tools: ["bash", "python", "web-browsing"] },
         skills
       )
+    ).toEqual(["skill.read_resource", "bash", "python", "web.fetch"]);
+  });
+
+  it("intersects task tools with Skill declarations when configured", () => {
+    const skills = [
+      {
+        name: "3gpp-review",
+        allowedTools: "skill.read_resource bash web.fetch",
+      },
+    ];
+    expect(activatedSkillToolIds(skills, true)).toEqual(
+      new Set(["skill.read_resource", "bash", "web.fetch"])
+    );
+    expect(
+      effectiveTaskToolIds(
+        [
+          "skill.activate",
+          "skill.read_resource",
+          "bash",
+          "python",
+          "web.fetch",
+        ],
+        { tools: ["bash", "python", "web-browsing"] },
+        skills,
+        true
+      )
     ).toEqual(["skill.read_resource", "bash", "web.fetch"]);
   });
 
@@ -688,7 +974,8 @@ describe("Governed Agent runtime", () => {
       effectiveTaskToolIds(
         ["bash", "python", "web.fetch"],
         { id: 1, tools: ["web-browsing"] },
-        [{ name: "3gpp-review", allowedTools: "bash python web.fetch" }]
+        [{ name: "3gpp-review", allowedTools: "bash python web.fetch" }],
+        true
       )
     ).toEqual(["web.fetch"]);
   });

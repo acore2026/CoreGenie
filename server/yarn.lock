@@ -833,32 +833,41 @@
   dependencies:
     js-tiktoken "^1.0.12"
 
-"@langfuse/core@^5.10.1":
-  version "5.10.1"
-  resolved "https://repo.huaweicloud.com/repository/npm/@langfuse/core/-/core-5.10.1.tgz#dc35d85147715aee254c903f7af1f2a4e05baefd"
-  integrity sha512-W8UArizWSy1DdeLGTsTwJwl7bkA7OQQcGZW8RtoopXyJZ93O0rwG7wzzeiZjhjpj5OtWOUTEaJuNkwOrF31UDw==
-
-"@langfuse/langchain@5.10.1":
-  version "5.10.1"
-  resolved "https://repo.huaweicloud.com/repository/npm/@langfuse/langchain/-/langchain-5.10.1.tgz#921e17dfe46ab6206e9d5bc203a44c1e1848c628"
-  integrity sha512-roKCdlyTmBVw1mT91yz3TUy+7xnvuBD1FaQqb6eR4H7/U8l40UGThP3c1wPKUOfIO57EGa9A/YwjGoc7YC2AIw==
+"@langfuse/client@5.11.0":
+  version "5.11.0"
+  resolved "https://registry.npmjs.org/@langfuse/client/-/client-5.11.0.tgz#2ad2bff70cd826f77c46cc04ec9d111bbf999be3"
+  integrity sha512-3Bf8xI1y8Dc71iLbfBV/CDM6Z5EgRpMPR+m+SQoChVXlzXQATs3MkBR8lLQlU/ag+9Pa1vf1OYTfPX4gf0iJQw==
   dependencies:
-    "@langfuse/core" "^5.10.1"
-    "@langfuse/tracing" "^5.10.1"
+    "@langfuse/core" "^5.11.0"
+    "@langfuse/tracing" "^5.11.0"
+    mustache "^4.2.0"
 
-"@langfuse/otel@5.10.1":
-  version "5.10.1"
-  resolved "https://repo.huaweicloud.com/repository/npm/@langfuse/otel/-/otel-5.10.1.tgz#f77ea0a485a335aa6e430aa69b903d6e99777dfc"
-  integrity sha512-F2153e4PoJ1cN+5tM/xnsS44aQCQwK3p0nPk4NEpITV5pMTqiQVyvpkAvly8GKQ5Qjjr7heJ1dFtghW43ysyPQ==
-  dependencies:
-    "@langfuse/core" "^5.10.1"
+"@langfuse/core@^5.11.0":
+  version "5.11.0"
+  resolved "https://registry.npmjs.org/@langfuse/core/-/core-5.11.0.tgz#30f2b22a0d3326bc64925438291ddfd20272973f"
+  integrity sha512-Y5nBcrd8k0bEazb+lcOaEm6ICxxJJLGDkTax7dY4NyiYoO1LlTIFhkfwSOcneQRjpl7EvgL4Dy+9fzDXBDuVaA==
 
-"@langfuse/tracing@5.10.1", "@langfuse/tracing@^5.10.1":
-  version "5.10.1"
-  resolved "https://repo.huaweicloud.com/repository/npm/@langfuse/tracing/-/tracing-5.10.1.tgz#da0524a4805ef920beadca56207522be0631faab"
-  integrity sha512-m2kK4D0MsH8g4Og6KpnlYk8NLdQTYe0JR5M4KKpfNj99XXLlbdpXE/g3uJSqkcrWFhpiIb+3cyS9+uV6wQ6WtA==
+"@langfuse/langchain@5.11.0":
+  version "5.11.0"
+  resolved "https://registry.npmjs.org/@langfuse/langchain/-/langchain-5.11.0.tgz#0e42382f0302b4717c22cad850e5255c4bf555da"
+  integrity sha512-HNTm8CPD8R10qSOgDqed5syd9QPMYwrapRrcV3qETbJjivBlVjBmU7CQvgHGiNh/vdoNCnzvQdcqXKKqqSyr9w==
   dependencies:
-    "@langfuse/core" "^5.10.1"
+    "@langfuse/core" "^5.11.0"
+    "@langfuse/tracing" "^5.11.0"
+
+"@langfuse/otel@5.11.0":
+  version "5.11.0"
+  resolved "https://registry.npmjs.org/@langfuse/otel/-/otel-5.11.0.tgz#af81a2d0b85ba12de2a26b7e6e7a4a6449818526"
+  integrity sha512-O3UYiH2Y0gDVUV42ZQD5NjdySoQ9F49UJxTGZiBMR1OCcrQDJZkz90Wg5OO2j1+NYWvIRbxJzMYNU8l/CqV00g==
+  dependencies:
+    "@langfuse/core" "^5.11.0"
+
+"@langfuse/tracing@5.11.0", "@langfuse/tracing@^5.11.0":
+  version "5.11.0"
+  resolved "https://registry.npmjs.org/@langfuse/tracing/-/tracing-5.11.0.tgz#511585b7e42c331312440ccef1ce1209b69522c7"
+  integrity sha512-RrAradZuRVYnr7TLv1tHwLzyYxli96E8ujPmrt5LXLsEYsqUlfAhweW8khE1wqwj7uooLFg2FVvw1+IAIQx/+Q==
+  dependencies:
+    "@langfuse/core" "^5.11.0"
 
 "@mintplex-labs/bree@^9.2.6":
   version "9.2.6"

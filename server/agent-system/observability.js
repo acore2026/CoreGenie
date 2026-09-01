@@ -267,6 +267,36 @@ function compactIdentifier(value, prefix) {
   return `${prefix}:sha256:${crypto.createHash("sha256").update(candidate).digest("hex")}`;
 }
 
+function stableSerialize(value) {
+  if (Array.isArray(value)) return value.map(stableSerialize);
+  if (value && typeof value === "object")
+    return Object.fromEntries(
+      Object.keys(value)
+        .sort()
+        .map((key) => [key, stableSerialize(value[key])])
+    );
+  return value;
+}
+
+function agentConfigRevision(runtimeSnapshot = {}) {
+  const comparable = {
+    agent: runtimeSnapshot.agent || null,
+    provider: runtimeSnapshot.provider || null,
+    roleModels: runtimeSnapshot.roleModels || {},
+    runtimeConfig: runtimeSnapshot.runtimeConfig || {},
+    selectedModel: runtimeSnapshot.selectedModel || null,
+  };
+  return crypto
+    .createHash("sha256")
+    .update(JSON.stringify(stableSerialize(comparable)))
+    .digest("hex");
+}
+
+async function agentTraceId(runId) {
+  const { createTraceId } = require("@langfuse/tracing");
+  return createTraceId(`anythingllm-agent-run:${runId}`);
+}
+
 function traceAttributes(run) {
   const apiSessionId = run.configuration?.apiSessionId;
   const conversation = apiSessionId
@@ -284,6 +314,8 @@ function traceAttributes(run) {
     .map((skill) => String(skill?.name || "").trim())
     .filter(Boolean);
   const is3gppReview = skillNames.includes("3gpp-review");
+  const configRevision = agentConfigRevision(run.runtimeSnapshot);
+  const evaluation = run.configuration?.evaluation || null;
   return {
     userId: compactIdentifier(run.user_id || "anonymous", "user"),
     sessionId: compactIdentifier(conversation, "conversation"),
@@ -293,6 +325,7 @@ function traceAttributes(run) {
       `source:${run.source}`,
       `runtime:${run.runtimeKey || "default-react"}`,
       segment,
+      ...(evaluation ? ["evaluation"] : []),
       ...(is3gppReview ? ["feature:3gpp-review", "skill:3gpp-review"] : []),
     ],
     metadata: {
@@ -307,17 +340,30 @@ function traceAttributes(run) {
       model: String(run.configuration?.model || "workspace-default"),
       runtimeKey: String(run.runtimeKey || "default-react"),
       runtimeVersion: String(run.runtimeVersion || 1),
-      ...(skillNames.length ? { skillNames } : {}),
+      agentConfigRevision: configRevision,
+      ...(evaluation
+        ? {
+            evaluationId: String(evaluation.evaluationId || "unknown"),
+            evaluationSuiteId: String(evaluation.suiteId || "unknown"),
+            evaluationCaseId: String(evaluation.caseId || "unknown"),
+            evaluationAttempt: String(evaluation.attempt || 1),
+          }
+        : {}),
+      ...(skillNames.length ? { skillNames: skillNames.join(",") } : {}),
       ...(skills.length
         ? {
-            skillRevisions: skills.map((skill) => ({
-              name: String(skill?.name || "unknown"),
-              revision: String(skill?.revision || "unversioned"),
-            })),
+            skillRevisions: skills
+              .map(
+                (skill) =>
+                  `${String(skill?.name || "unknown")}@${String(
+                    skill?.revision || "unversioned"
+                  )}`
+              )
+              .join(","),
           }
         : {}),
     },
-    version: `${run.runtimeKey || "default-react"}@${run.runtimeVersion || 1}`,
+    version: `${run.runtimeKey || "default-react"}@${run.runtimeVersion || 1}+agent-${configRevision.slice(0, 12)}`,
     segment,
   };
 }
@@ -619,12 +665,11 @@ async function withAgentTrace(run, operation) {
   let operationError;
   try {
     const {
-      createTraceId,
       propagateAttributes,
       startActiveObservation,
     } = require("@langfuse/tracing");
     const attributes = traceAttributes(run);
-    const traceId = await createTraceId(`anythingllm-agent-run:${run.id}`);
+    const traceId = await agentTraceId(run.id);
     const parentSpanContext = {
       traceId,
       spanId: crypto.randomBytes(8).toString("hex"),
@@ -812,6 +857,8 @@ async function shutdownLangfuse() {
 }
 
 module.exports = {
+  agentConfigRevision,
+  agentTraceId,
   childRunnableConfig,
   compactIdentifier,
   compactAgentToolOutput,

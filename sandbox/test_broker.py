@@ -98,6 +98,7 @@ class BrokerValidationTests(unittest.TestCase):
                 request, broker.workspace_path(request["workspace_id"])
             )
             self.assertEqual(command[command.index("--network") + 1], "bridge")
+            self.assertEqual(command[command.index("--memory") + 1], "256m")
             self.assertIn("host.docker.internal:host-gateway", command)
             self.assertIn("HTTP_PROXY=http://172.17.0.1:7890", command)
             self.assertIn("HTTPS_PROXY=http://172.17.0.1:7890", command)
@@ -106,6 +107,30 @@ class BrokerValidationTests(unittest.TestCase):
             self.assertIn("PYTHONUSERBASE=/workspace/.python", command)
             self.assertIn("PIP_USER=1", command)
             self.assertIn("XDG_CACHE_HOME=/workspace/.agent/cache", command)
+
+    def test_runner_uses_configured_memory_limit(self):
+        with tempfile.TemporaryDirectory() as root:
+            broker = SandboxBroker(
+                token=self.token,
+                workspace_root=Path(root),
+                docker_workspace_root=Path(root),
+                global_skills_root=Path(root) / "global-skills",
+                docker_global_skills_root=Path(root) / "global-skills",
+                image="anythingllm-sandbox:local",
+                docker_binary="docker",
+                max_concurrency=1,
+                workspace_uid=1000,
+                workspace_gid=1000,
+                network="bridge",
+                proxy_url=None,
+                runner_memory="1g",
+            )
+            request = validate_request(self.payload, self.token)
+            command, _ = broker.docker_command(
+                request, broker.workspace_path(request["workspace_id"])
+            )
+            self.assertEqual(command[command.index("--memory") + 1], "1g")
+            self.assertEqual(command[command.index("--memory-swap") + 1], "1g")
 
     def test_validates_and_mounts_global_skill_read_only(self):
         with tempfile.TemporaryDirectory() as root:

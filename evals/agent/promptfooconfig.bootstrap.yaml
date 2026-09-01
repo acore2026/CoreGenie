@@ -1,0 +1,282 @@
+description: CoreGenie live Agent runtime and 3GPP evaluation v0
+
+prompts:
+  - label: Live Agent request
+    raw: "{{prompt}}"
+
+providers:
+  - id: file://providers/anythingllm-agent.js
+    label: CoreGenie live Agent
+
+defaultTest:
+  options:
+    provider:
+      id: file://providers/current-model-judge.js
+      label: Current production model
+  assert:
+    - type: javascript
+      value: file://assertions/runtime.js
+      metric: runtime-contract
+      config:
+        checks:
+          - terminal
+          - noRuntimeError
+
+tests:
+  - description: Direct answer does not create a plan or call tools
+    vars:
+      suiteId: runtime-3gpp-v0
+      caseId: direct-answer
+      agentName: 3GPP 提案分析助手
+      prompt: 请只回答“SA2”，不要调用工具：3GPP 中负责系统架构的工作组缩写是什么？
+      setup: {}
+    assert:
+      - type: javascript
+        value: file://assertions/runtime.js
+        metric: direct-answer
+        config:
+          checks: [direct]
+      - type: equals
+        value: SA2
+        metric: direct-answer-text
+
+  - description: Skill activation is a pre-planning action
+    vars:
+      suiteId: runtime-3gpp-v0
+      caseId: skill-before-plan
+      agentName: 3GPP 提案分析助手
+      prompt: "查找最近一次 SA2 会议中 KI #18 的 Huawei TDoc，先列出文档编号和标题，不需要下载正文。"
+      setup:
+        control: cancel-after-plan-and-rerun
+        rerunPrompt: 只回答 plan-rerun-ok，不要调用工具。
+    assert:
+      - type: javascript
+        value: file://assertions/runtime.js
+        metric: skill-before-plan
+        config:
+          checks: [skillPreplan, noSkillTask]
+      - type: equals
+        value: plan-rerun-ok
+        metric: planning-cancel-recovery
+
+  - description: Filesystem work is delegated to a worker
+    vars:
+      suiteId: runtime-3gpp-v0
+      caseId: filesystem-delegation
+      agentName: 3GPP 提案分析助手
+      prompt: 读取已上传的 S2-EVAL-FS.docx，告诉我 Source、KI 和方案名称，并注明文件路径。
+      setup:
+        files:
+          - generate: docx
+            name: S2-EVAL-FS.docx
+            destination: filesystem
+            title: S2-EVAL-FS
+            paragraphs:
+              - "Source: Example Networks"
+              - "KI: 18"
+              - "Solution: UE AI Agent registration"
+            table:
+              - [Field, Value]
+              - [Status, Company proposal]
+    assert:
+      - type: javascript
+        value: file://assertions/runtime.js
+        metric: worker-delegation
+        config:
+          checks: [workerTools, portablePaths]
+
+  - description: Artifact writes use writeIntent and write-capable tools
+    vars:
+      suiteId: runtime-3gpp-v0
+      caseId: artifact-write-intent
+      agentName: 3GPP 提案分析助手
+      prompt: 分析已上传的 S2-EVAL-WRITE.docx，把中文 Markdown 报告保存到工作区并发布。报告要列出所用 TDoc。
+      setup:
+        files:
+          - generate: docx
+            name: S2-EVAL-WRITE.docx
+            destination: filesystem
+            title: S2-EVAL-WRITE
+            paragraphs:
+              - "Source: Example Networks"
+              - "Proposal: expose network capability to a UE AI Agent."
+              - "Meeting result: Not agreed."
+    assert:
+      - type: javascript
+        value: file://assertions/runtime.js
+        metric: write-contract
+        config:
+          checks: [writeIntent, artifacts, portablePaths]
+
+  - description: Subagents inherit activated Skill revisions
+    vars:
+      suiteId: runtime-3gpp-v0
+      caseId: subagent-skill-propagation
+      agentName: 3GPP 提案分析助手
+      prompt: 先加载适用的 Skill，然后必须把已上传的 S2-EVAL-SUBAGENT.docx 交给“3GPP 提案转 Markdown 助手”这个子 Agent 转换。不要由你自己执行转换；最后只总结子 Agent 的返回结果。
+      setup:
+        files:
+          - generate: docx
+            name: S2-EVAL-SUBAGENT.docx
+            destination: filesystem
+            title: S2-EVAL-SUBAGENT
+            paragraphs:
+              - "Source: Example Networks"
+              - "KI: 18"
+              - "Proposal: UE AI Agent registration over NAS."
+    assert:
+      - type: javascript
+        value: file://assertions/runtime.js
+        metric: subagent-skill-propagation
+        config:
+          checks: [skillPreplan, subagentSkills]
+
+  - description: Cancellation terminates cleanly and an immediate rerun succeeds
+    vars:
+      suiteId: runtime-3gpp-v0
+      caseId: cancel-and-rerun
+      agentName: 3GPP 提案分析助手
+      prompt: "查找最近一次 SA2 会议 KI #18 的所有 TDoc，下载并逐篇分析。"
+      setup:
+        control: cancel-and-rerun
+        rerunPrompt: 只回答 rerun-ok，不要调用工具。
+        timeoutMs: 3600000
+    assert:
+      - type: javascript
+        value: file://assertions/runtime.js
+        metric: cancellation-recovery
+        config:
+          checks: [cancelRerun]
+
+  - description: RAG and workspace-file upload remain distinct
+    vars:
+      suiteId: runtime-3gpp-v0
+      caseId: rag-retrieval
+      agentName: 3GPP 提案分析助手
+      prompt: 根据工作区知识库回答：EVAL-RAG-001 提出的注册方式是什么？它是否已经成为 3GPP 结论？请引用资料编号。
+      setup:
+        files:
+          - path: rag-network-for-ai.txt
+            name: rag-network-for-ai.txt
+            destination: rag
+    assert:
+      - type: javascript
+        value: file://assertions/runtime.js
+        metric: rag-source-selection
+        config:
+          checks: [rag]
+      - type: contains
+        value: EVAL-RAG-001
+        metric: rag-citation
+
+  - description: Synthetic TDocs are compared against known facts
+    vars:
+      suiteId: runtime-3gpp-v0
+      caseId: synthetic-3gpp-comparison
+      agentName: 3GPP 提案分析助手
+      prompt: "比较已上传的三个 KI #18 TDoc。按公司说明注册路径、共同点、分歧和会议结果。每个结论注明 TDoc 编号，不要把公司提案写成 3GPP 已采纳结论。"
+      setup:
+        files:
+          - generate: docx
+            name: S2-EVAL-1001.docx
+            destination: filesystem
+            title: S2-EVAL-1001
+            paragraphs:
+              - "Source: Huawei"
+              - "KI: 18"
+              - "Proposal: UE AI Agent registration over NAS."
+              - "Meeting result: Not agreed."
+          - generate: docx
+            name: S2-EVAL-1002.docx
+            destination: filesystem
+            title: S2-EVAL-1002
+            paragraphs:
+              - "Source: Ericsson"
+              - "KI: 18"
+              - "Proposal: UE AI Agent registration over the user plane through an AF."
+              - "Meeting result: Not agreed."
+          - generate: docx
+            name: S2-EVAL-1003.docx
+            destination: filesystem
+            title: S2-EVAL-1003
+            paragraphs:
+              - "Source: Rapporteur"
+              - "KI: 18"
+              - "Meeting record: Both proposals were noted. No registration path was agreed."
+    assert:
+      - type: contains-all
+        value: [S2-EVAL-1001, S2-EVAL-1002, S2-EVAL-1003]
+        metric: synthetic-document-coverage
+      - type: llm-rubric
+        metric: 3gpp-scope
+        value: "The answer stays within KI #18 and the three supplied synthetic TDocs and attributes Huawei and Ericsson correctly."
+      - type: llm-rubric
+        metric: 3gpp-source-support
+        value: Every material technical claim identifies its supporting S2-EVAL TDoc.
+      - type: llm-rubric
+        metric: proposal-vs-agreement
+        value: The answer clearly states that the NAS and user-plane paths are company proposals and that no path was agreed.
+      - type: llm-rubric
+        metric: comparison-completeness
+        value: The answer covers registration paths, common points, disagreements, and meeting result.
+
+  - description: Structured DOCX conversion preserves tables and images
+    vars:
+      suiteId: runtime-3gpp-v0
+      caseId: structured-docx-conversion
+      agentName: 3GPP 提案转 Markdown 助手
+      prompt: 把已上传的 S2-EVAL-DOCX.docx 转换成 Markdown 和图片 ZIP。保留表格、原图和文档顺序，并检查 conversion-summary.json 和产物。
+      setup:
+        files:
+          - generate: docx
+            name: S2-EVAL-DOCX.docx
+            destination: filesystem
+            title: S2-EVAL-DOCX
+            paragraphs:
+              - "Source: Example Networks"
+              - "This paragraph precedes the table and embedded figure."
+            table:
+              - [Message, Direction]
+              - [AI Agent Register Request, UE to Network]
+              - [AI Agent Register Response, Network to UE]
+    assert:
+      - type: javascript
+        value: file://assertions/runtime.js
+        metric: docx-artifacts
+        config:
+          checks: [skillPreplan, writeIntent, artifacts, portablePaths]
+
+  - description: Live official SA2 KI 18 Huawei TDoc discovery and download
+    vars:
+      suiteId: runtime-3gpp-v0
+      caseId: live-sa2-ki18-huawei
+      agentName: 3GPP 提案分析助手
+      prompt: "查找最近一次 SA2 会议中 KI #18 由 Huawei 提交的 TDoc，下载 Word 原文，并列出会议号、TDoc 编号、标题、Source、状态和官方来源。资料不足时直接说明，不要猜测。"
+      setup:
+        timeoutMs: 3600000
+    assert:
+      - type: javascript
+        value: file://assertions/runtime.js
+        metric: official-source-download
+        config:
+          checks:
+            [
+              skillPreplan,
+              noSkillTask,
+              workerTools,
+              writeIntent,
+              official3gpp,
+              artifacts,
+            ]
+      - type: llm-rubric
+        metric: 3gpp-scope
+        value: "The answer uses the most recent SA2 meeting, KI #18, and Huawei source scope requested by the user."
+      - type: llm-rubric
+        metric: 3gpp-source-support
+        value: Each material claim is tied to a listed TDoc or official meeting material and includes an official source.
+      - type: llm-rubric
+        metric: proposal-vs-agreement
+        value: Huawei submissions are not presented as adopted 3GPP conclusions unless meeting material explicitly establishes agreement.
+      - type: llm-rubric
+        metric: requested-fields
+        value: The answer includes meeting number, TDoc number, title, Source, status, and missing-information notices where needed.

@@ -18,6 +18,7 @@ jest.mock("../../utils/agents/aibitat/plugins/filesystem/lib", () => ({
 const fs = require("fs/promises");
 const {
   readFile,
+  searchFiles,
   writeFile,
   listDirectory,
 } = require("../../tools/filesystem");
@@ -126,5 +127,25 @@ describe("filesystem.write", () => {
     );
     expect(mockManager.writeFileContent).not.toHaveBeenCalled();
     expect(result).toMatch(/^Appended /);
+  });
+});
+
+describe("filesystem.search", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockManager.validatePath.mockResolvedValue("/storage/workspace-2");
+  });
+
+  it("returns portable sandbox paths instead of server-internal paths", async () => {
+    mockManager.searchFilesWithGlob.mockResolvedValue([
+      "/storage/workspace-2/uploads/id/document.docx",
+    ]);
+
+    const result = await searchFiles.execute(
+      { root: "/workspace", pattern: "**/*.docx", max_results: 10 },
+      { workspace: { id: 2 } }
+    );
+
+    expect(result).toEqual(["/workspace/uploads/id/document.docx"]);
   });
 });

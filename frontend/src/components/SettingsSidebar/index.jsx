@@ -358,6 +358,12 @@ const SidebarOptions = ({ user = null, t }) => (
               roles: ["admin"],
             },
             {
+              btnText: t("settings.agent-feedback"),
+              href: paths.settings.agentFeedback(),
+              flex: true,
+              roles: ["admin"],
+            },
+            {
               btnText: t("settings.predefined-agent-skills"),
               href: paths.settings.predefinedAgentSkills(),
               flex: true,

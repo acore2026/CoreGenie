@@ -8,6 +8,21 @@ function manager(context) {
   return filesystem.forWorkspace(context.workspace.id);
 }
 
+function sandboxWorkspacePath(workspaceFs, filePath) {
+  const root = workspaceFs.getAllowedDirectories()[0];
+  if (!root) return filePath;
+  const relativePath = path.relative(root, filePath);
+  if (
+    relativePath === "" ||
+    (!relativePath.startsWith(`..${path.sep}`) && relativePath !== "..")
+  )
+    return path.posix.join(
+      "/workspace",
+      relativePath.split(path.sep).join("/")
+    );
+  return filePath;
+}
+
 function skillUriResult(requestedPath) {
   const raw = String(requestedPath || "")
     .trim()
@@ -163,7 +178,7 @@ const searchFiles = defineTool({
     const results = await workspaceFs.searchFilesWithGlob(target, pattern, {
       maxResults: max_results,
     });
-    return results;
+    return results.map((result) => sandboxWorkspacePath(workspaceFs, result));
   },
 });
 

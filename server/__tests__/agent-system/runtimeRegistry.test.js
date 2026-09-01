@@ -56,6 +56,20 @@ describe("Agent runtime registry", () => {
     });
   });
 
+  it("keeps the direct runtime model-call override", () => {
+    expect(
+      normalizeRuntimeConfig(LEGACY_DEFAULT_RUNTIME_KEY, {
+        maxRuntimeMs: 3_600_000,
+        disableModelCallLimit: true,
+        visionModel: "qwen3.7-plus",
+      })
+    ).toEqual({
+      maxRuntimeMs: 3_600_000,
+      disableModelCallLimit: true,
+      visionModel: "qwen3.7-plus",
+    });
+  });
+
   it("never silently changes a snapshotted runtime version", () => {
     expect(() => requireRuntime(DEFAULT_RUNTIME_KEY, 999)).toThrow(
       /version 999 is unavailable/

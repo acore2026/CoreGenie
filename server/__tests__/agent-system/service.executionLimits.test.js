@@ -34,10 +34,13 @@ jest.mock("../../agent-system/concurrency", () => ({
 jest.mock("../../models/systemSettings", () => ({
   SystemSettings: {
     agentExecutionLimitsDisabled: jest.fn().mockResolvedValue(true),
+    agentSkillToolRestrictionsEnabled: jest.fn().mockResolvedValue(false),
   },
 }));
 
 const { submitAgentRun } = require("../../agent-system/service");
+const { resolveAgent } = require("../../resources/agents");
+const { SystemSettings } = require("../../models/systemSettings");
 
 describe("submitAgentRun execution limit override", () => {
   beforeEach(() => {
@@ -59,16 +62,56 @@ describe("submitAgentRun execution limit override", () => {
       expect.objectContaining({
         configuration: expect.objectContaining({
           disableExecutionLimits: true,
+          enforceSkillToolRestrictions: false,
           maxRuntimeMs: null,
           maxModelCallsPerTask: null,
           maxToolCalls: null,
         }),
         policySnapshot: expect.objectContaining({
           disableExecutionLimits: true,
+          enforceSkillToolRestrictions: false,
           maxRuntimeMs: null,
           maxTaskModelCalls: null,
           maxTaskToolCalls: null,
           maxToolCalls: null,
+        }),
+      })
+    );
+  });
+
+  it("allows a single-context Agent to disable only the model call limit", async () => {
+    SystemSettings.agentExecutionLimitsDisabled.mockResolvedValueOnce(false);
+    resolveAgent.mockResolvedValueOnce({
+      id: 9,
+      runtimeConfig: {
+        maxRuntimeMs: 3_600_000,
+        disableModelCallLimit: true,
+      },
+    });
+
+    await submitAgentRun({
+      workspace: { id: 7, chatMode: "automatic" },
+      thread: { id: 105 },
+      user: { id: 2 },
+      agentId: 9,
+      prompt: "分析 KI#22",
+      source: "workspace",
+      configuration: { approvalMode: "always_allow" },
+    });
+
+    expect(mockCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        configuration: expect.objectContaining({
+          disableExecutionLimits: false,
+          disableModelCallLimit: true,
+          maxRuntimeMs: 3_600_000,
+          maxModelCallsPerTask: null,
+        }),
+        policySnapshot: expect.objectContaining({
+          disableExecutionLimits: false,
+          disableModelCallLimit: true,
+          maxRuntimeMs: 3_600_000,
+          maxTaskModelCalls: null,
         }),
       })
     );

@@ -16,7 +16,7 @@ Do not guess meeting directory names, agenda mappings, document metadata, or pro
 
 Use conversion mode when the active Agent or user asks to convert a proposal rather than analyze its technical position. Conversion mode is a faithful format conversion: do not add a proposal summary, infer missing diagram content, or publish the result to the knowledge base.
 
-The input is either an uploaded DOCX path under `/workspace/3gpp-markdown/inbox/` or a DOCX downloaded from an official 3GPP meeting directory. Only accept DOCX in this mode. If a TDoc number does not identify one official file, ask for the working group or meeting instead of guessing.
+The input is either an uploaded DOCX at the exact path supplied in `<workspace_files>` (normally `/workspace/uploads/<upload-id>/<proposal>.docx`) or a DOCX downloaded from an official 3GPP meeting directory. Copy that complete path into the conversion call; never remove its upload ID or move it to a guessed inbox. Only accept DOCX in this mode. If a TDoc number does not identify one official file, ask for the working group or meeting instead of guessing.
 
 When `3gpp.convert-markdown` is available, use it once with either the TDoc number or uploaded DOCX path. It searches the official yearly meeting directories, downloads the exact TDoc, runs the converter, checks the output files, and attaches the ZIP. Do not repeat the same work with Bash after this tool succeeds.
 
@@ -27,7 +27,7 @@ run_id="$(date -u +%Y%m%dT%H%M%SZ)"
 result="/workspace/3gpp-markdown/results/$run_id"
 mkdir -p "$result"
 python3 scripts/3gpp_tdocs.py convert-docx \
-  --input "/workspace/3gpp-markdown/inbox/<upload-id>/<proposal>.docx" \
+  --input "/workspace/uploads/<upload-id>/<proposal>.docx" \
   --output "$result"
 ```
 
@@ -112,7 +112,16 @@ The index often has duplicate or multi-row headings. The helper reads raw cells 
 
 Find the agenda item from the workbook content, meeting agenda, or explicit KI heading. Do not assume that `KI#22` always maps to `20.6.22`; mappings change between studies and meetings.
 
-Inspect candidate rows using `rg` on the `inspect-index` output or rerun it with a larger row limit. Then filter:
+When the user names a KI, search the complete selected meeting sheet directly instead of dumping successive row ranges:
+
+```bash
+"$PY" scripts/3gpp_tdocs.py inspect-index \
+  --excel "$meeting_cache/index/extracted/<index.xlsx>" \
+  --sheet '<sheet name>' \
+  --query 'KI #18'
+```
+
+Use the matching heading to identify the agenda item. If no row matches, inspect the meeting agenda or try the exact KI title; do not scan the workbook in repeated fixed-size row windows. Then filter:
 
 ```bash
 "$PY" scripts/3gpp_tdocs.py filter-index \

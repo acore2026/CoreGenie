@@ -210,7 +210,7 @@ function AttachmentItem({ attachment, onImageClick }) {
             {file.name}
           </p>
           <p className="text-[10px] font-medium leading-[14px] text-theme-attachment-text-secondary">
-            {t("chat_window.docx_ready")}
+            {t("chat_window.workspace_files.ready")}
           </p>
         </div>
       </div>

@@ -1,0 +1,6 @@
+Network for AI evaluation reference
+
+Document ID: EVAL-RAG-001
+Company: Example Networks
+Proposal: The UE AI Agent registers through a dedicated service operation. The proposal is company input and is not an adopted 3GPP conclusion.
+Meeting result: No agreement is recorded in this synthetic reference.

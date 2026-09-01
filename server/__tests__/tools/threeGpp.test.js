@@ -6,6 +6,7 @@ const path = require("path");
 const {
   DIRECTORY_BY_GROUP,
   downloadOfficialTdoc,
+  latestMeeting,
   meetingFolders,
   meetingFoldersForYear,
   officialPdfLinks,
@@ -73,6 +74,21 @@ describe("3GPP meeting resolver", () => {
       "TSGS2_176_Prague_2026-08",
       "TSGS2_175-AH-e_Electronic_2026-06",
     ]);
+  });
+
+  it("selects the latest regular meeting no later than the current month", () => {
+    const html = `
+      <a href="TSGS2_176_Prague_2026-08/">176</a>
+      <a href="TSGS2_177-AH-e_Online_2026-09/">177 AH</a>
+      <a href="TSGS2_177_Berlin_2026-10/">177</a>
+      <a href="TSGS2_175_Dalian_2026-05/">175</a>`;
+
+    expect(
+      latestMeeting(html, "SA2", new Date("2026-09-01T00:00:00Z"))
+    ).toEqual({
+      folder: "TSGS2_176_Prague_2026-08",
+      meetingNumber: 176,
+    });
   });
 
   it("downloads the exact official ZIP with a browser user agent and extracts its DOCX", async () => {
@@ -147,6 +163,27 @@ describe("3GPP meeting resolver", () => {
     ]);
     expect(result.relatedCandidates).toEqual([]);
     expect(result.officialDetails).toBeNull();
+  });
+
+  it("resolves the latest regular meeting directly from the official listing", async () => {
+    jest.spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      text: jest.fn().mockResolvedValue(`
+        <a href="TSGS2_175_Dalian_2026-05/">175</a>
+        <a href="TSGS2_176_Prague_2026-08/">176</a>`),
+    });
+
+    const result = await resolveMeeting.execute(
+      { group: "SA2", latest: true, include_invitation: false },
+      { signal: new AbortController().signal }
+    );
+
+    expect(result).toMatchObject({
+      group: "SA2",
+      meetingNumber: 176,
+      latest: true,
+      candidates: [{ folder: "TSGS2_176_Prague_2026-08" }],
+    });
   });
 
   it("accepts only same-origin PDF links under the official invitation path", () => {

@@ -121,6 +121,23 @@ const Workspace = {
       .catch(() => false);
     return result;
   },
+  agentFeedbackReasons: async function () {
+    return fetch(`${API_BASE}/agent-feedback/reasons`, {
+      method: "GET",
+      headers: baseHeaders(),
+    })
+      .then((res) => res.json())
+      .catch((error) => ({ reasons: [], error: error.message }));
+  },
+  updateAgentFeedback: async function (chatId, slug, feedback) {
+    return fetch(`${API_BASE}/workspace/${slug}/agent-feedback/${chatId}`, {
+      method: "PUT",
+      headers: baseHeaders(),
+      body: JSON.stringify(feedback),
+    })
+      .then((res) => res.json())
+      .catch((error) => ({ success: false, error: error.message }));
+  },
 
   deleteChats: async function (slug = "", chatIds = []) {
     return await fetch(`${API_BASE}/workspace/${slug}/delete-chats`, {

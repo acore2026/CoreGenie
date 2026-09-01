@@ -2,9 +2,9 @@
 const mockFileStats = { isFile: () => true, size: 1024 };
 const mockManager = {
   ensureInitialized: jest.fn().mockResolvedValue(undefined),
-  validatePath: jest.fn().mockResolvedValue(
-    "/tmp/workspace/3gpp-markdown/inbox/123/proposal.docx"
-  ),
+  validatePath: jest
+    .fn()
+    .mockResolvedValue("/tmp/workspace/3gpp-markdown/inbox/123/proposal.docx"),
 };
 
 jest.mock("fs/promises", () => ({ stat: jest.fn(() => mockFileStats) }));
@@ -22,16 +22,15 @@ describe("Agent workspace file attachments", () => {
   const attachment = {
     name: "proposal.docx",
     mime: WORKSPACE_FILE_MIME,
-    contentString:
-      "/workspace/3gpp-markdown/inbox/123/proposal.docx",
+    contentString: "/workspace/3gpp-markdown/inbox/123/proposal.docx",
   };
 
-  it("normalizes an isolated DOCX for the converter", async () => {
+  it("normalizes a raw workspace file for any Agent", async () => {
     await expect(
       normalizeAgentAttachments({
         attachments: [attachment],
         workspace: { id: 9 },
-        agent: { runtimeConfig: { attachmentMode: "workspace_file" } },
+        agent: { runtimeConfig: { attachmentMode: "parsed" } },
       })
     ).resolves.toEqual([attachment]);
     expect(mockManager.validatePath).toHaveBeenCalledWith(
@@ -39,18 +38,10 @@ describe("Agent workspace file attachments", () => {
     );
   });
 
-  it("rejects workspace files for other assistants", async () => {
-    await expect(
-      normalizeAgentAttachments({
-        attachments: [attachment],
-        workspace: { id: 9 },
-        agent: { runtimeConfig: { attachmentMode: "parsed" } },
-      })
-    ).rejects.toThrow("当前助手不能读取原始 DOCX");
-  });
-
-  it("rejects paths outside the converter inbox", () => {
-    expect(workspaceFileRelativePath("/workspace/other/file.docx")).toBeNull();
+  it("accepts normal workspace paths and rejects traversal", () => {
+    expect(workspaceFileRelativePath("/workspace/other/file.docx")).toBe(
+      "other/file.docx"
+    );
     expect(
       workspaceFileRelativePath(
         "/workspace/3gpp-markdown/inbox/123/../../file.docx"

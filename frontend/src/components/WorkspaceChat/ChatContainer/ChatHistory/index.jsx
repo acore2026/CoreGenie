@@ -411,7 +411,7 @@ function buildMessages({
           role={props.role}
           workspace={workspace}
           sources={props.sources}
-          feedbackScore={props.feedbackScore}
+          responseEvaluation={props.responseEvaluation}
           chatId={props.chatId}
           error={props.error}
           attachments={props.attachments}

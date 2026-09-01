@@ -1,7 +1,6 @@
-import React, { memo, useState } from "react";
+import React, { memo } from "react";
 import useCopyText from "@/hooks/useCopyText";
-import { Check, ThumbsUp, ArrowsClockwise, Copy } from "@phosphor-icons/react";
-import Workspace from "@/models/workspace";
+import { Check, ArrowsClockwise, Copy } from "@phosphor-icons/react";
 import { EditMessageAction } from "./EditMessage";
 import RenderMetrics from "./RenderMetrics";
 import ActionMenu from "./ActionMenu";
@@ -9,7 +8,6 @@ import { useTranslation } from "react-i18next";
 
 const Actions = ({
   message,
-  feedbackScore,
   chatId,
   slug,
   isLastMessage,
@@ -20,15 +18,6 @@ const Actions = ({
   metrics = {},
   readOnly = false,
 }) => {
-  const { t } = useTranslation();
-  const [selectedFeedback, setSelectedFeedback] = useState(feedbackScore);
-  const handleFeedback = async (newFeedback) => {
-    const updatedFeedback =
-      selectedFeedback === newFeedback ? null : newFeedback;
-    await Workspace.updateChatFeedback(chatId, slug, updatedFeedback);
-    setSelectedFeedback(updatedFeedback);
-  };
-
   return (
     <div
       className={`flex w-full flex-wrap items-center gap-y-1 ${role === "user" ? "justify-end" : "justify-between"}`}
@@ -54,15 +43,6 @@ const Actions = ({
               chatId={chatId}
             />
           )}
-          {!readOnly && chatId && role !== "user" && !isEditing && (
-            <FeedbackButton
-              isSelected={selectedFeedback === true}
-              handleFeedback={() => handleFeedback(true)}
-              tooltipId="feedback-button"
-              tooltipContent={t("chat_window.good_response")}
-              IconComponent={ThumbsUp}
-            />
-          )}
           <ActionMenu
             chatId={chatId}
             forkThread={forkThread}
@@ -76,31 +56,6 @@ const Actions = ({
     </div>
   );
 };
-
-function FeedbackButton({
-  isSelected,
-  handleFeedback,
-  tooltipContent,
-  IconComponent,
-}) {
-  return (
-    <div className="mt-3 relative">
-      <button
-        onClick={handleFeedback}
-        data-tooltip-id="feedback-button"
-        data-tooltip-content={tooltipContent}
-        className="text-zinc-300 light:text-slate-500"
-        aria-label={tooltipContent}
-      >
-        <IconComponent
-          size={20}
-          className="mb-1"
-          weight={isSelected ? "fill" : "regular"}
-        />
-      </button>
-    </div>
-  );
-}
 
 function CopyMessage({ message }) {
   const { copied, copyText } = useCopyText();

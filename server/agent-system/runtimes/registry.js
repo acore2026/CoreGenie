@@ -32,7 +32,14 @@ runtimeRegistry.register({
   experimental: false,
   hidden: true,
   modelRoles: [],
-  configSchema: z.object({}).strip(),
+  configSchema: z
+    .object({
+      maxRuntimeMs: z.number().int().min(60_000).max(3_600_000).optional(),
+      maxModelCallsPerTask: z.number().int().min(1).max(60).optional(),
+      disableModelCallLimit: z.boolean().optional(),
+      visionModel: z.string().trim().min(1).nullable().optional(),
+    })
+    .strip(),
   load: () => require("./default"),
 });
 

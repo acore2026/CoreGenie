@@ -1,0 +1,377 @@
+#!/usr/bin/env python3
+"""Linux helper for the 3gpp-review skill."""
+
+from __future__ import annotations
+
+import argparse
+import concurrent.futures
+import json
+import re
+import shutil
+import urllib.error
+import urllib.request
+import zipfile
+from io import BytesIO
+from pathlib import Path
+
+from lxml import etree
+from openpyxl import load_workbook
+
+
+DOC_RE = re.compile(r"\b([A-Z]\d-\d{6,8})\b", re.I)
+NS = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
+
+
+def cell_value(cell) -> str:
+    return "" if cell.value is None else str(cell.value).strip()
+
+
+def choose_sheet(workbook, requested: str | None):
+    if requested:
+        if requested not in workbook.sheetnames:
+            raise SystemExit(f"Sheet not found: {requested!r}; choices={workbook.sheetnames}")
+        return workbook[requested]
+    if len(workbook.sheetnames) != 1:
+        raise SystemExit(f"Specify --sheet; choices={workbook.sheetnames}")
+    return workbook[workbook.sheetnames[0]]
+
+
+def cmd_inspect(args) -> None:
+    workbook = load_workbook(args.excel, read_only=True, data_only=True)
+    print("Sheets:")
+    for sheet in workbook:
+        print(f"  {sheet.title}: rows={sheet.max_row}, columns={sheet.max_column}")
+    sheets = [choose_sheet(workbook, args.sheet)] if args.sheet else list(workbook)
+    normalized_query = (
+        re.sub(r"[^a-z0-9]+", "", args.query.casefold()) if args.query else ""
+    )
+    for sheet in sheets:
+        print(f"\n=== {sheet.title} ===")
+        max_row = sheet.max_row if normalized_query else min(args.rows, sheet.max_row)
+        matches = 0
+        for row_no, row in enumerate(
+            sheet.iter_rows(min_row=1, max_row=max_row), 1
+        ):
+            values = [cell_value(cell) for cell in row]
+            if normalized_query:
+                normalized_row = re.sub(
+                    r"[^a-z0-9]+", "", " ".join(values).casefold()
+                )
+                if normalized_query not in normalized_row:
+                    continue
+                matches += 1
+                if matches > args.rows:
+                    break
+            display_values = values[:10] if normalized_query else values
+            fields = [
+                f"C{i}={value}"
+                for i, value in enumerate(display_values, 1)
+                if value
+            ]
+            if fields:
+                print(f"R{row_no}: " + " | ".join(fields))
+        if normalized_query and not matches:
+            print(f"No rows matched query: {args.query}")
+        elif normalized_query and matches > args.rows:
+            print(f"Showing the first {args.rows} matching rows.")
+
+
+def detect_headers(rows: list[list[str]]) -> dict[str, tuple[int, int]]:
+    patterns = {
+        "status": ("status", "availability"),
+        "agenda": ("agenda item", "agenda", "ai"),
+        "document": ("tdoc", "document number", "doc number", "tdoc no"),
+        "title": ("title", "subject"),
+        "source": ("source", "company"),
+    }
+    found: dict[str, tuple[int, int]] = {}
+    for row_idx, row in enumerate(rows):
+        for col_idx, raw in enumerate(row):
+            text = re.sub(r"\s+", " ", raw.lower()).strip()
+            for field, labels in patterns.items():
+                if field not in found and any(
+                    text == label or text.startswith(label + " ") for label in labels
+                ):
+                    found[field] = (row_idx, col_idx)
+    return found
+
+
+def find_doc_column(rows: list[list[str]]) -> int | None:
+    scores: dict[int, int] = {}
+    for row in rows:
+        for idx, text in enumerate(row):
+            if DOC_RE.search(text):
+                scores[idx] = scores.get(idx, 0) + 1
+    return max(scores, key=scores.get) if scores else None
+
+
+def cmd_filter(args) -> None:
+    workbook = load_workbook(args.excel, read_only=True, data_only=True)
+    sheet = choose_sheet(workbook, args.sheet)
+    rows = [[cell_value(cell) for cell in row] for row in sheet.iter_rows()]
+    headers = detect_headers(rows[: min(30, len(rows))])
+    doc_col = headers.get("document", (0, find_doc_column(rows)))[1]
+    if doc_col is None:
+        raise SystemExit("Could not detect a document-number column; inspect the workbook first")
+    agenda_col = headers.get("agenda", (0, None))[1]
+    title_col = headers.get("title", (0, None))[1]
+    source_col = headers.get("source", (0, None))[1]
+    status_col = headers.get("status", (0, None))[1]
+    start_row = max((position[0] for position in headers.values()), default=0) + 1
+
+    def at(row, col):
+        return row[col].strip() if col is not None and col < len(row) else ""
+
+    proposals = []
+    seen = set()
+    for row in rows[start_row:]:
+        match = DOC_RE.search(at(row, doc_col))
+        if not match:
+            continue
+        if args.agenda and args.agenda.casefold() not in at(row, agenda_col).casefold():
+            continue
+        if args.source and args.source.casefold() not in at(row, source_col).casefold():
+            continue
+        doc = match.group(1).upper()
+        if doc in seen:
+            continue
+        seen.add(doc)
+        proposals.append(
+            {
+                "document": doc,
+                "agenda": at(row, agenda_col),
+                "title": at(row, title_col),
+                "source": at(row, source_col),
+                "status": at(row, status_col),
+            }
+        )
+    payload = {
+        "excel": str(Path(args.excel).resolve()),
+        "sheet": sheet.title,
+        "agenda_filter": args.agenda,
+        "source_filter": args.source,
+        "count": len(proposals),
+        "proposals": proposals,
+    }
+    output = Path(args.output)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    print(f"Saved {len(proposals)} proposals to {output}")
+    for item in proposals:
+        print(f"{item['document']}\t{item['source']}\t{item['title']}")
+
+
+def load_manifest(path: str) -> list[dict]:
+    payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    return payload["proposals"] if isinstance(payload, dict) else payload
+
+
+def download_one(item: dict, base_url: str, output: Path) -> tuple[str, str]:
+    doc = item["document"].upper()
+    archive = output / f"{doc}.zip"
+    existing = list(output.glob(f"{doc}*.docx"))
+    if existing:
+        return doc, f"cached {existing[0].name}"
+    url = f"{base_url.rstrip('/')}/{doc}.zip"
+    if not archive.exists() or not zipfile.is_zipfile(archive):
+        request = urllib.request.Request(url, headers={"User-Agent": "3gpp-review/1.0"})
+        try:
+            with urllib.request.urlopen(request, timeout=120) as response, archive.open("wb") as target:
+                shutil.copyfileobj(response, target)
+        except (OSError, urllib.error.URLError) as exc:
+            archive.unlink(missing_ok=True)
+            return doc, f"ERROR download {url}: {exc}"
+    if not zipfile.is_zipfile(archive):
+        archive.unlink(missing_ok=True)
+        return doc, "ERROR invalid ZIP"
+    with zipfile.ZipFile(archive) as bundle:
+        names = [name for name in bundle.namelist() if name.lower().endswith(".docx")]
+        if not names:
+            return doc, "ERROR ZIP contains no DOCX"
+        for index, name in enumerate(names, 1):
+            suffix = "" if len(names) == 1 else f"-{index}"
+            destination = output / f"{doc}{suffix}.docx"
+            with bundle.open(name) as source, destination.open("wb") as target:
+                shutil.copyfileobj(source, target)
+    return doc, "downloaded"
+
+
+def cmd_download(args) -> None:
+    output = Path(args.output)
+    output.mkdir(parents=True, exist_ok=True)
+    proposals = load_manifest(args.manifest)
+    failures = 0
+    with concurrent.futures.ThreadPoolExecutor(max_workers=args.workers) as pool:
+        futures = [pool.submit(download_one, item, args.base_url, output) for item in proposals]
+        for future in concurrent.futures.as_completed(futures):
+            doc, result = future.result()
+            print(f"{doc}: {result}")
+            failures += result.startswith("ERROR")
+    if failures:
+        raise SystemExit(f"{failures} download(s) failed")
+
+
+def xml_text(node) -> str:
+    return "".join(node.xpath(".//w:t/text()", namespaces=NS)).strip()
+
+
+def visio_text(data: bytes) -> list[str]:
+    texts = []
+    try:
+        with zipfile.ZipFile(BytesIO(data)) as visio:
+            pages = sorted(
+                name for name in visio.namelist()
+                if re.search(r"visio/pages/page\d+\.xml$", name)
+            )
+            for name in pages:
+                root = etree.fromstring(visio.read(name))
+                for node in root.xpath("//*[local-name()='Text']"):
+                    text = "".join(node.itertext()).strip()
+                    if text:
+                        texts.append(text)
+    except (zipfile.BadZipFile, etree.XMLSyntaxError):
+        pass
+    return texts
+
+
+def safe_name(name: str) -> str:
+    return re.sub(r"[^A-Za-z0-9._-]+", "_", Path(name).name)
+
+
+def extract_docx(docx: Path, texts: Path, figures: Path) -> tuple[str, str]:
+    doc_id = docx.stem
+    doc_figures = figures / doc_id
+    doc_figures.mkdir(parents=True, exist_ok=True)
+    lines = [f"[SOURCE DOCX: {docx.resolve()}]"]
+    try:
+        with zipfile.ZipFile(docx) as package:
+            root = etree.fromstring(package.read("word/document.xml"))
+            body = root.find("w:body", NS)
+            if body is not None:
+                for child in body:
+                    kind = etree.QName(child).localname
+                    if kind == "p":
+                        text = xml_text(child)
+                        if text:
+                            lines.append(text)
+                    elif kind == "tbl":
+                        lines.append("[TABLE START]")
+                        for row in child.xpath("./w:tr", namespaces=NS):
+                            cells = [xml_text(cell) for cell in row.xpath("./w:tc", namespaces=NS)]
+                            lines.append(" | ".join(cells))
+                        lines.append("[TABLE END]")
+
+            xml_root = etree.fromstring(package.read("word/document.xml"))
+            shape_text = []
+            for node in xml_root.xpath("//*[local-name()='textbox' or local-name()='txbx']"):
+                text = xml_text(node)
+                if text and text not in shape_text:
+                    shape_text.append(text)
+            if shape_text:
+                lines.extend(["[VML/WPS TEXT]", *shape_text, "[END VML/WPS TEXT]"])
+
+            for name in package.namelist():
+                lower = name.lower()
+                if lower.startswith("word/media/") and not lower.endswith("/"):
+                    destination = doc_figures / safe_name(name)
+                    destination.write_bytes(package.read(name))
+                    lines.append(f"[FIGURE: {destination.resolve()}]")
+                elif lower.startswith("word/embeddings/") and lower.endswith(".vsdx"):
+                    data = package.read(name)
+                    destination = doc_figures / safe_name(name)
+                    destination.write_bytes(data)
+                    extracted = visio_text(data)
+                    lines.append(f"[VISIO: {destination.resolve()}]")
+                    if extracted:
+                        lines.extend(["[VISIO TEXT]", *extracted, "[END VISIO TEXT]"])
+    except (KeyError, zipfile.BadZipFile, etree.XMLSyntaxError) as exc:
+        return doc_id, f"ERROR {exc}"
+    target = texts / f"{doc_id}.txt"
+    target.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return doc_id, f"{target.name}: {len(lines)} lines"
+
+
+def cmd_extract(args) -> None:
+    source = Path(args.input)
+    texts = Path(args.texts)
+    figures = Path(args.figures)
+    texts.mkdir(parents=True, exist_ok=True)
+    figures.mkdir(parents=True, exist_ok=True)
+    documents = sorted(source.glob("*.docx"))
+    if not documents:
+        raise SystemExit(f"No DOCX files found in {source}")
+    failures = 0
+    for docx in documents:
+        doc, result = extract_docx(docx, texts, figures)
+        print(f"{doc}: {result}")
+        failures += result.startswith("ERROR")
+    if failures:
+        raise SystemExit(f"{failures} extraction(s) failed")
+
+
+def cmd_coverage(args) -> None:
+    expected = {item["document"].upper() for item in load_manifest(args.manifest)}
+    extracted = set()
+    for path in Path(args.texts).glob("*.txt"):
+        match = DOC_RE.search(path.stem)
+        if match:
+            extracted.add(match.group(1).upper())
+    missing = sorted(expected - extracted)
+    extra = sorted(extracted - expected)
+    print(f"Expected: {len(expected)}")
+    print(f"Extracted: {len(expected & extracted)}")
+    print("Missing: " + (", ".join(missing) if missing else "none"))
+    print("Extra: " + (", ".join(extra) if extra else "none"))
+    if missing:
+        raise SystemExit(1)
+
+
+def make_parser() -> argparse.ArgumentParser:
+    root = argparse.ArgumentParser(description=__doc__)
+    commands = root.add_subparsers(dest="command", required=True)
+
+    inspect = commands.add_parser("inspect-index")
+    inspect.add_argument("--excel", required=True)
+    inspect.add_argument("--sheet")
+    inspect.add_argument("--rows", type=int, default=20)
+    inspect.add_argument(
+        "--query",
+        help="Search all rows for normalized text such as 'KI #18'; --rows limits matching rows",
+    )
+    inspect.set_defaults(func=cmd_inspect)
+
+    filtering = commands.add_parser("filter-index")
+    filtering.add_argument("--excel", required=True)
+    filtering.add_argument("--sheet")
+    filtering.add_argument("--agenda", required=True)
+    filtering.add_argument("--source")
+    filtering.add_argument("--output", required=True)
+    filtering.set_defaults(func=cmd_filter)
+
+    download = commands.add_parser("download")
+    download.add_argument("--manifest", required=True)
+    download.add_argument("--base-url", required=True)
+    download.add_argument("--output", required=True)
+    download.add_argument("--workers", type=int, default=5)
+    download.set_defaults(func=cmd_download)
+
+    extract = commands.add_parser("extract")
+    extract.add_argument("--input", required=True)
+    extract.add_argument("--texts", required=True)
+    extract.add_argument("--figures", required=True)
+    extract.set_defaults(func=cmd_extract)
+
+    coverage = commands.add_parser("coverage")
+    coverage.add_argument("--manifest", required=True)
+    coverage.add_argument("--texts", required=True)
+    coverage.set_defaults(func=cmd_coverage)
+    return root
+
+
+def main() -> None:
+    args = make_parser().parse_args()
+    args.func(args)
+
+
+if __name__ == "__main__":
+    main()

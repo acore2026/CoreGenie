@@ -373,6 +373,7 @@ export default function AgentExecutionRail({
     () => !!runState && !TERMINAL.has(runState.status)
   );
   const [expansionWasChosen, setExpansionWasChosen] = useState(false);
+  const [contextTraceExpanded, setContextTraceExpanded] = useState(false);
   const [doneToolsExpanded, setDoneToolsExpanded] = useState(false);
   const [snapshotState, setSnapshotState] = useState(null);
   const [now, setNow] = useState(() => Date.now());
@@ -514,8 +515,30 @@ export default function AgentExecutionRail({
       </button>
       {expanded && (
         <div className="border-t border-white/[0.07] px-3 py-2.5 light:border-slate-200">
+          {tasks.length > 0 && (
+            <div>
+              <p className="m-0 px-1 pb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-theme-text-secondary">
+                {t("chat_window.agent_invocation.tasks")}
+              </p>
+              <ol className="m-0 space-y-1 p-0">
+                {tasks.map((task) => (
+                  <TaskRow
+                    key={task.id}
+                    task={task}
+                    evidence={evidence}
+                    tools={tools}
+                    onCommand={sendCommand}
+                    runActive={runActive}
+                    t={t}
+                  />
+                ))}
+              </ol>
+            </div>
+          )}
           {recentActivities.length > 0 && (
-            <div className="mb-2 border-b border-white/[0.07] px-1 pb-2 light:border-slate-200">
+            <div
+              className={`px-1 ${tasks.length > 0 ? "mt-2 border-t border-white/[0.07] pt-2 light:border-slate-200" : ""}`}
+            >
               <p className="m-0 pb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-theme-text-secondary">
                 {t("chat_window.agent_invocation.activity_trace")}
               </p>
@@ -554,43 +577,41 @@ export default function AgentExecutionRail({
             </div>
           )}
           {resourceTraces.length > 0 && (
-            <div className="mb-2 border-b border-white/[0.07] pb-2 light:border-slate-200">
-              <p className="m-0 px-1 pb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-theme-text-secondary">
-                {t("chat_window.agent_invocation.context_trace")}
-              </p>
-              <ol className="m-0 space-y-1 p-0">
-                {resourceTraces.map((trace) => (
-                  <li key={trace.id}>
-                    <ContextTrace trace={trace} compact />
-                  </li>
-                ))}
-              </ol>
-            </div>
-          )}
-          {tasks.length > 0 && (
-            <div>
-              <p className="m-0 px-1 pb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-theme-text-secondary">
-                {t("chat_window.agent_invocation.tasks")}
-              </p>
-              <ol className="m-0 space-y-1 p-0">
-                {tasks.map((task) => (
-                  <TaskRow
-                    key={task.id}
-                    task={task}
-                    evidence={evidence}
-                    tools={tools}
-                    onCommand={sendCommand}
-                    runActive={runActive}
-                    t={t}
+            <div
+              className={`${tasks.length > 0 || recentActivities.length > 0 ? "mt-2 border-t border-white/[0.07] pt-1 light:border-slate-200" : ""}`}
+            >
+              <button
+                type="button"
+                onClick={() => setContextTraceExpanded((value) => !value)}
+                className="flex min-h-9 w-full items-center justify-between rounded-md px-1 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-theme-text-secondary outline-none hover:bg-white/[0.035] focus-visible:ring-2 focus-visible:ring-cyan-400/60 light:hover:bg-slate-100"
+                aria-expanded={contextTraceExpanded}
+              >
+                <span>{t("chat_window.agent_invocation.context_trace")}</span>
+                <span className="flex items-center gap-2 font-mono tabular-nums">
+                  {resourceTraces.length}
+                  <CaretDown
+                    size={12}
+                    className={`transition-transform duration-150 ${contextTraceExpanded ? "rotate-180" : ""}`}
                   />
-                ))}
-              </ol>
+                </span>
+              </button>
+              {contextTraceExpanded && (
+                <ol className="m-0 space-y-1 p-0">
+                  {resourceTraces.map((trace) => (
+                    <li key={trace.id}>
+                      <ContextTrace trace={trace} compact />
+                    </li>
+                  ))}
+                </ol>
+              )}
             </div>
           )}
           {tools.length > 0 && (
             <div
               className={
-                tasks.length > 0
+                tasks.length > 0 ||
+                recentActivities.length > 0 ||
+                resourceTraces.length > 0
                   ? "mt-2 border-t border-white/[0.07] pt-2 light:border-slate-200"
                   : ""
               }

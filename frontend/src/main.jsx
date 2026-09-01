@@ -180,6 +180,15 @@ const router = createBrowserRouter([
         },
       },
       {
+        path: "/settings/agents/feedback",
+        lazy: async () => {
+          const { default: AgentFeedbackSettings } = await import(
+            "@/pages/Admin/Agents/FeedbackSettings"
+          );
+          return { element: <AdminRoute Component={AgentFeedbackSettings} /> };
+        },
+      },
+      {
         path: "/settings/event-logs",
         lazy: async () => {
           const { default: AdminLogs } = await import("@/pages/Admin/Logging");

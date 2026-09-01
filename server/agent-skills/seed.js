@@ -4,8 +4,9 @@ const prisma = require("../utils/prisma");
 const { PredefinedAgentSkill } = require("../models/predefinedAgentSkill");
 const { PredefinedAgent } = require("../models/predefinedAgent");
 const { seed3gppPositionEvolution } = require("./positionEvolutionSeed");
+const { seedDirect3gppReview } = require("./directReviewSeed");
 
-const SEED_SETTING = "agent_skill_seed_3gpp_review_v15";
+const SEED_SETTING = "agent_skill_seed_3gpp_review_v17";
 const AGENT_NAME = "3GPP 提案分析助手";
 const LEGACY_AGENT_NAMES = ["3GPP 提案分析助手（Skill）"];
 const CONVERTER_AGENT_NAME = "3GPP 提案转 Markdown 助手";
@@ -249,6 +250,7 @@ async function seedBuiltinSkills() {
   if (!seedPromise) {
     seedPromise = (async () => {
       await seed3gppReview();
+      await seedDirect3gppReview();
       await seed3gppPositionEvolution();
     })().catch((error) => {
       seedPromise = null;

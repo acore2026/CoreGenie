@@ -10,15 +10,20 @@ import DocumentSettings from "./Documents";
 import DataConnectors from "./DataConnectors";
 import ModalWrapper from "@/components/ModalWrapper";
 import { EmbeddingProgressProvider } from "@/EmbeddingProgressContext";
+import { WorkspaceFilesPanel } from "@/components/WorkspaceChat/ChatContainer/WorkspaceFilesSidebar";
 
 const noop = () => {};
-const ManageWorkspace = ({ hideModal = noop, providedSlug = null }) => {
+const ManageWorkspace = ({
+  hideModal = noop,
+  providedSlug = null,
+  initialTab = "documents",
+}) => {
   const { t } = useTranslation();
   const { slug } = useParams();
   const { user } = useUser();
   const [workspace, setWorkspace] = useState(null);
   const [settings, setSettings] = useState({});
-  const [selectedTab, setSelectedTab] = useState("documents");
+  const [selectedTab, setSelectedTab] = useState(initialTab);
 
   useEffect(() => {
     async function getSettings() {
@@ -106,6 +111,10 @@ const ManageWorkspace = ({ hideModal = noop, providedSlug = null }) => {
             <EmbeddingProgressProvider>
               <DocumentSettings workspace={workspace} />
             </EmbeddingProgressProvider>
+          ) : selectedTab === "workspaceFiles" ? (
+            <div className="h-[620px] w-[min(960px,calc(100vw-64px))] px-8 pb-8">
+              <WorkspaceFilesPanel workspace={workspace} />
+            </div>
           ) : (
             <DataConnectors workspace={workspace} systemSettings={settings} />
           )}
@@ -123,21 +132,34 @@ const ModalTabSwitcher = ({ selectedTab, setSelectedTab }) => {
     <div className="w-full flex justify-center z-10 relative">
       <div className="gap-x-2 flex justify-center -mt-[68px] mb-10 bg-theme-bg-secondary p-1 rounded-xl shadow border-2 border-theme-modal-border w-fit">
         <button
+          type="button"
+          onClick={() => setSelectedTab("workspaceFiles")}
+          className={`border-none px-4 py-2 rounded-[8px] font-semibold hover:bg-theme-modal-border hover:bg-opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70 ${
+            selectedTab === "workspaceFiles"
+              ? "bg-theme-modal-border font-bold text-white light:bg-[#E0F2FE] light:text-[#026AA2]"
+              : "text-white/50 font-medium hover:text-white light:bg-white light:text-[#535862] light:hover:bg-[#E0F2FE]"
+          }`}
+        >
+          {t("connectors.manage.workspace-files")}
+        </button>
+        <button
+          type="button"
           onClick={() => setSelectedTab("documents")}
-          className={`border-none px-4 py-2 rounded-[8px] font-semibold hover:bg-theme-modal-border hover:bg-opacity-60 ${
+          className={`border-none px-4 py-2 rounded-[8px] font-semibold hover:bg-theme-modal-border hover:bg-opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70 ${
             selectedTab === "documents"
               ? "bg-theme-modal-border font-bold text-white light:bg-[#E0F2FE] light:text-[#026AA2]"
-              : "text-white/20 font-medium hover:text-white light:bg-white light:text-[#535862] light:hover:bg-[#E0F2FE]"
+              : "text-white/50 font-medium hover:text-white light:bg-white light:text-[#535862] light:hover:bg-[#E0F2FE]"
           }`}
         >
           {t("connectors.manage.documents")}
         </button>
         <button
+          type="button"
           onClick={() => setSelectedTab("dataConnectors")}
-          className={`border-none px-4 py-2 rounded-[8px] font-semibold hover:bg-theme-modal-border hover:bg-opacity-60 ${
+          className={`border-none px-4 py-2 rounded-[8px] font-semibold hover:bg-theme-modal-border hover:bg-opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70 ${
             selectedTab === "dataConnectors"
               ? "bg-theme-modal-border font-bold text-white light:bg-[#E0F2FE] light:text-[#026AA2]"
-              : "text-white/20 font-medium hover:text-white light:bg-white light:text-[#535862] light:hover:bg-[#E0F2FE]"
+              : "text-white/50 font-medium hover:text-white light:bg-white light:text-[#535862] light:hover:bg-[#E0F2FE]"
           }`}
         >
           {t("connectors.manage.data-connectors")}

@@ -78,7 +78,9 @@ describe("3GPP review seed", () => {
     expect(PredefinedAgentSkill.updatePackage).toHaveBeenCalledWith(
       10,
       expect.objectContaining({
-        skillMd: expect.stringContaining("name: 3gpp-review"),
+        skillMd: expect.stringContaining(
+          "/workspace/uploads/<upload-id>/<proposal>.docx"
+        ),
       })
     );
     expect(PredefinedAgent.update).toHaveBeenCalledWith(
@@ -125,7 +127,7 @@ describe("3GPP review seed", () => {
     });
     expect(prisma.system_settings.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { label: "agent_skill_seed_3gpp_review_v15" },
+        where: { label: "agent_skill_seed_3gpp_review_v17" },
       })
     );
   });

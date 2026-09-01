@@ -4,11 +4,14 @@ import { DownloadSimple, CircleNotch } from "@phosphor-icons/react";
 import { humanFileSize } from "@/utils/numbers";
 import StorageFiles from "@/models/files";
 import Workspace from "@/models/workspace";
+import showToast from "@/utils/toast";
+import { useTranslation } from "react-i18next";
 
 /**
  * @param {{content: {filename: string, storageFilename?: string, fileSize?: number}}} props
  */
 function FileDownloadCard({ props }) {
+  const { t } = useTranslation();
   const {
     filename,
     storageFilename,
@@ -16,7 +19,10 @@ function FileDownloadCard({ props }) {
     workspaceSlug,
     path: workspacePath,
   } = props.content || {};
-  const { badge, badgeBg, badgeText, fileType } = getFileDisplayInfo(filename);
+  const { badge, badgeBg, badgeText, fileType } = getFileDisplayInfo(
+    filename,
+    t
+  );
   const [downloading, setDownloading] = useState(false);
 
   const handleDownload = async () => {
@@ -32,7 +38,7 @@ function FileDownloadCard({ props }) {
       if (!blob) throw new Error("Failed to download file");
       saveAs(blob, filename || storageFilename || workspacePath);
     } catch {
-      console.error("Failed to download file");
+      showToast(t("chat_window.file_download.download_error"), "error");
     } finally {
       setDownloading(false);
     }
@@ -50,7 +56,7 @@ function FileDownloadCard({ props }) {
             </div>
             <div className="flex flex-col min-w-0">
               <p className="text-white light:text-slate-900 text-sm font-medium truncate leading-snug">
-                {filename || "Unknown file"}
+                {filename || t("chat_window.file_download.unknown")}
               </p>
               <p className="text-zinc-400 light:text-slate-500 text-xs leading-snug">
                 {humanFileSize(fileSize, true, 1)}
@@ -69,7 +75,11 @@ function FileDownloadCard({ props }) {
             ) : (
               <DownloadSimple size={16} weight="bold" />
             )}
-            <span>{downloading ? "Downloading..." : "Download"}</span>
+            <span>
+              {downloading
+                ? t("chat_window.file_download.downloading")
+                : t("chat_window.file_download.download")}
+            </span>
           </button>
         </div>
       </div>
@@ -80,9 +90,10 @@ function FileDownloadCard({ props }) {
 /**
  * Get display info for a file based on its extension
  * @param {string} filename
+ * @param {(key: string) => string} t
  * @returns {{badge: string, badgeBg: string, badgeText: string, fileType: string}}
  */
-function getFileDisplayInfo(filename) {
+function getFileDisplayInfo(filename, t) {
   const extension = filename?.split(".")?.pop()?.toLowerCase() ?? "txt";
   switch (extension) {
     case "pptx":
@@ -91,14 +102,14 @@ function getFileDisplayInfo(filename) {
         badge: "PPT",
         badgeBg: "bg-orange-100",
         badgeText: "text-orange-700",
-        fileType: "PowerPoint",
+        fileType: t("chat_window.file_download.types.powerpoint"),
       };
     case "pdf":
       return {
         badge: "PDF",
         badgeBg: "bg-red-100",
         badgeText: "text-red-700",
-        fileType: "PDF Document",
+        fileType: t("chat_window.file_download.types.pdf"),
       };
     case "doc":
     case "docx":
@@ -106,7 +117,7 @@ function getFileDisplayInfo(filename) {
         badge: "DOC",
         badgeBg: "bg-blue-100",
         badgeText: "text-blue-700",
-        fileType: "Word Document",
+        fileType: t("chat_window.file_download.types.word"),
       };
     case "xls":
     case "xlsx":
@@ -114,21 +125,28 @@ function getFileDisplayInfo(filename) {
         badge: "XLS",
         badgeBg: "bg-green-100",
         badgeText: "text-green-700",
-        fileType: "Spreadsheet",
+        fileType: t("chat_window.file_download.types.spreadsheet"),
       };
     case "csv":
       return {
         badge: "CSV",
         badgeBg: "bg-green-100",
         badgeText: "text-green-700",
-        fileType: "Spreadsheet",
+        fileType: t("chat_window.file_download.types.spreadsheet"),
+      };
+    case "zip":
+      return {
+        badge: "ZIP",
+        badgeBg: "bg-violet-100",
+        badgeText: "text-violet-700",
+        fileType: t("chat_window.file_download.types.zip"),
       };
     default:
       return {
         badge: extension.toUpperCase().slice(0, 4),
         badgeBg: "bg-slate-200",
         badgeText: "text-slate-700",
-        fileType: "File",
+        fileType: t("chat_window.file_download.types.generic"),
       };
   }
 }

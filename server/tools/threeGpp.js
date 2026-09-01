@@ -99,6 +99,29 @@ function meetingFoldersForYear(html, group, year) {
   return [...folders].sort((a, b) => sortValue(b) - sortValue(a));
 }
 
+function latestMeeting(html, group, asOf = new Date()) {
+  const year = asOf.getUTCFullYear();
+  const currentMonth = Number(
+    `${year}${String(asOf.getUTCMonth() + 1).padStart(2, "0")}`
+  );
+  const folders = [
+    ...meetingFoldersForYear(html, group, year),
+    ...meetingFoldersForYear(html, group, year - 1),
+  ].filter((folder) => {
+    const date = folder.match(/_(20\d{2})-(\d{2})(?:-(\d{2}))?$/);
+    return Number(`${date?.[1] || 0}${date?.[2] || "00"}`) <= currentMonth;
+  });
+  const primary = folders.filter((folder) => {
+    const prefix = groupFolderPrefix(group);
+    return new RegExp(`^${prefix}_(\\d+)_`, "i").test(folder);
+  });
+  const folder = primary[0] || folders[0] || null;
+  if (!folder) return null;
+  const prefix = groupFolderPrefix(group);
+  const meeting = folder.match(new RegExp(`^${prefix}[_-](\\d+)`, "i"));
+  return meeting ? { folder, meetingNumber: Number(meeting[1]) } : null;
+}
+
 function requestSignal(signal, timeoutMs = 30_000) {
   return AbortSignal.any([
     signal || new AbortController().signal,
@@ -379,29 +402,40 @@ const resolveMeeting = defineTool({
   id: "3gpp.resolve-meeting",
   name: "resolve_3gpp_meeting",
   description:
-    "Resolve an official 3GPP meeting directory from a supported working group and meeting number without guessing FTP paths.",
-  schema: z.object({
-    group: z
-      .string()
-      .trim()
-      .transform((value) => value.toUpperCase())
-      .refine((value) => Object.hasOwn(DIRECTORY_BY_GROUP, value), {
-        message: `Supported groups: ${Object.keys(DIRECTORY_BY_GROUP).join(", ")}`,
-      }),
-    meeting_number: z.number().int().positive(),
-    include_invitation: z
-      .boolean()
-      .default(true)
-      .describe(
-        "Extract the first two pages of the official meeting invitation when available. Keep enabled for exact date or venue questions."
-      ),
-  }),
+    "Resolve an official 3GPP meeting directory from a supported working group and either a meeting number or latest=true, without guessing FTP paths.",
+  schema: z
+    .object({
+      group: z
+        .string()
+        .trim()
+        .transform((value) => value.toUpperCase())
+        .refine((value) => Object.hasOwn(DIRECTORY_BY_GROUP, value), {
+          message: `Supported groups: ${Object.keys(DIRECTORY_BY_GROUP).join(", ")}`,
+        }),
+      meeting_number: z.number().int().positive().optional(),
+      latest: z
+        .boolean()
+        .default(false)
+        .describe(
+          "Set true to resolve the most recent regular meeting not later than the current month."
+        ),
+      include_invitation: z
+        .boolean()
+        .default(true)
+        .describe(
+          "Extract the first two pages of the official meeting invitation when available. Keep enabled for exact date or venue questions."
+        ),
+    })
+    .refine(
+      (value) => Boolean(value.meeting_number) !== Boolean(value.latest),
+      { message: "Provide either meeting_number or latest=true." }
+    ),
   action: false,
   retry: { maxAttempts: 1 },
-  activity: ({ group, meeting_number }) =>
-    `Resolving ${String(group).toUpperCase()}#${meeting_number} from the official 3GPP directory`,
+  activity: ({ group, meeting_number, latest }) =>
+    `Resolving ${String(group).toUpperCase()}${latest ? " latest meeting" : `#${meeting_number}`} from the official 3GPP directory`,
   execute: async (
-    { group, meeting_number, include_invitation = true },
+    { group, meeting_number, latest = false, include_invitation = true },
     context
   ) => {
     if (context.signal?.aborted) throw new Error("Agent run was cancelled.");
@@ -429,19 +463,26 @@ const resolveMeeting = defineTool({
         retryable: response.status === 429 || response.status >= 500,
       };
     }
+    const listing = await response.text();
+    const latestResult = latest
+      ? latestMeeting(listing, normalizedGroup)
+      : null;
+    const resolvedMeetingNumber = latestResult?.meetingNumber || meeting_number;
     const folders = meetingFolders(
-      await response.text(),
+      listing,
       normalizedGroup,
-      meeting_number
+      resolvedMeetingNumber
     );
     if (!folders.length) {
       return {
         ok: false,
         code: "MEETING_NOT_FOUND",
-        summary: `${normalizedGroup}#${meeting_number} was not found in the official working-group directory. Do not guess another directory name.`,
+        summary: latest
+          ? `No recent regular ${normalizedGroup} meeting was found in the official working-group directory.`
+          : `${normalizedGroup}#${meeting_number} was not found in the official working-group directory. Do not guess another directory name.`,
         data: {
           group: normalizedGroup,
-          meetingNumber: meeting_number,
+          meetingNumber: resolvedMeetingNumber || null,
           baseUrl,
         },
         retryable: false,
@@ -449,7 +490,7 @@ const resolveMeeting = defineTool({
     }
     const primaryPattern = primaryMeetingFolderPattern(
       normalizedGroup,
-      meeting_number
+      resolvedMeetingNumber
     );
     const primaryFolders = folders.filter((folder) =>
       primaryPattern.test(folder)
@@ -465,7 +506,8 @@ const resolveMeeting = defineTool({
     const candidates = candidateFolders.map(entry);
     return {
       group: normalizedGroup,
-      meetingNumber: meeting_number,
+      meetingNumber: resolvedMeetingNumber,
+      latest: Boolean(latest),
       baseUrl,
       candidates,
       relatedCandidates: relatedFolders.map(entry),
@@ -494,7 +536,7 @@ const convertMarkdown = defineTool({
         .trim()
         .optional()
         .describe(
-          "An uploaded DOCX path under /workspace/3gpp-markdown/inbox/."
+          "The exact uploaded DOCX path from <workspace_files>, such as /workspace/uploads/<id>/<file>.docx."
         ),
     })
     .superRefine((value, issue) => {
@@ -703,6 +745,7 @@ module.exports = {
   GROUP_BY_TDOC_PREFIX,
   convertMarkdown,
   downloadOfficialTdoc,
+  latestMeeting,
   meetingFolderPattern,
   meetingFolders,
   meetingFoldersForYear,

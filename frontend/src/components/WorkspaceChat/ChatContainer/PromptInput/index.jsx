@@ -390,11 +390,13 @@ function PromptInput({
               centered={centered}
               highlightedIndexRef={quickCommandsHighlightRef}
             />
-            <ExamplePromptShelf
-              prompts={examplePrompts}
-              onSelect={selectExamplePrompt}
-            />
-            <div className="bg-theme-bg-chat-input border border-theme-chat-input-border rounded-[20px] pwa:rounded-3xl flex flex-col px-5 overflow-hidden">
+            {centered && (
+              <ExamplePromptShelf
+                prompts={examplePrompts}
+                onSelect={selectExamplePrompt}
+              />
+            )}
+            <div className="bg-theme-bg-chat-input border border-theme-chat-input-border rounded-[20px] pwa:rounded-3xl flex flex-col px-5 overflow-visible">
               <AttachmentManager attachments={attachments} />
               <div className="flex items-center">
                 <textarea

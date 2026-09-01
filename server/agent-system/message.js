@@ -63,7 +63,7 @@ function userContent(prompt, attachments = []) {
     ? `\n\n<workspace_files>\n${workspaceFiles
         .map(
           (attachment) =>
-            `- ${attachment.name || "proposal.docx"}: ${attachment.contentString}`
+            `- ${attachment.name || "file"}: ${attachment.contentString}`
         )
         .join("\n")}\n</workspace_files>`
     : "";

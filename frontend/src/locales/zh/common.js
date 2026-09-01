@@ -93,6 +93,7 @@ const TRANSLATIONS = {
     "predefined-agent-skills": "Skills",
     "agent-tools": "Agent Tools",
     "agent-prompts": "提示词",
+    "agent-feedback": "评价设置",
     admin: "管理员",
     tools: "工具",
     "experimental-features": "实验功能",
@@ -128,6 +129,57 @@ const TRANSLATIONS = {
     layer_user_detail: "来自帐户设置的个人偏好。",
     saved: "全局系统提示词已保存。",
     save_error: "无法保存全局系统提示词。",
+  },
+  agent_feedback: {
+    title: "评价这条 Agent 回复",
+    question: "这条回复有帮助吗？",
+    question_help:
+      "反馈会用于 Agent 评测，非常重要！！请多多提供 🙏 尽管提差评，差评是重要的调优数据",
+    recorded: "已记录你的评价",
+    ratings: {
+      good: "很有帮助",
+      neutral: "有一些帮助",
+      bad: "没有帮助",
+    },
+    edit: "修改",
+    reason_label: "哪里需要改进？可多选",
+    reasons_loading: "正在读取评价原因…",
+    reasons_load_error: "评价原因没有加载成功，请稍后重试。",
+    reason_required: "请至少选择一个原因。",
+    other_comment_required: "选择“其他”时，请填写补充说明。",
+    comment_label: "补充说明（可选）",
+    comment_placeholder: "写下具体问题，方便后续改进…",
+    submit: "提交评价",
+    saving: "保存中…",
+    save_error: "评价没有保存，请重试。",
+    remove: "撤销评价",
+    cancel: "取消",
+  },
+  agent_feedback_settings: {
+    title: "Agent 回复评价",
+    description: "设置用户评价 Agent 回复时可以选择的原因。",
+    reasons_title: "评价原因",
+    reasons_help:
+      "“有一些帮助”和“没有帮助”必须选择原因。可以调整显示顺序或停用暂时不用的原因。",
+    add_title: "新增原因",
+    label: "显示名称",
+    label_placeholder: "例如：步骤不够清楚",
+    code: "原因代码",
+    code_placeholder: "steps-unclear",
+    code_help: "仅限小写字母、数字和连字符。创建后不能修改。",
+    add: "新增原因",
+    save: "保存",
+    enabled: "已启用",
+    disabled: "已停用",
+    move_up: "上移",
+    move_down: "下移",
+    sync_title: "Langfuse 同步",
+    sync_help:
+      "评价会先保存在本机。配置 Langfuse 后，系统会自动同步评分和原因；短暂失败会继续重试。",
+    created: "评价原因已新增。",
+    load_error: "无法读取评价原因。",
+    create_error: "无法新增评价原因。",
+    update_error: "无法更新评价原因。",
   },
   login: {
     "multi-user": {
@@ -197,6 +249,34 @@ const TRANSLATIONS = {
       examples_label: "可以直接使用的示例",
       select_agent: "选择一个助手以查看它的工作方式。",
     },
+    pain_points: {
+      eyebrow: "什么是 CoreGenie",
+      title: "省掉重复整理，把时间留给分析",
+      before: "以前",
+      after: "现在",
+      items: [
+        {
+          title: "整理提案",
+          before: "逐个查找、下载、解压，再复制给助手。",
+          after: "按会议或 TDoc 自动下载、转换并打包。",
+        },
+        {
+          title: "查找目标资料",
+          before: "在大量文档中翻找某家公司或技术方向。",
+          after: "按公司、会议、KI/WI 和内容快速查找。",
+        },
+        {
+          title: "团队共享",
+          before: "资料散落在个人电脑，其他人还要重新整理。",
+          after: "保存到共享知识库，之后可以直接查询和继续分析。",
+        },
+        {
+          title: "区分提案与结论",
+          before: "公司建议容易被误写成 3GPP 会议结论。",
+          after: "结合文档状态和会议材料分别说明。",
+        },
+      ],
+    },
     agent_profiles: {
       general: {
         label: "日常任务",
@@ -245,11 +325,11 @@ const TRANSLATIONS = {
     },
     saved_examples: {
       eyebrow: "真实运行示例",
-      title: "直接查看一次真实分析结果",
+      title: "直接查看保存好的分析结果",
       description:
-        "下面的内容保存自一次已完成的 KI #18 分析。展开后直接查看，不会再次调用模型，也不会创建新任务。",
+        "这里仅包含当前工作台已经完成的真实运行结果。展开查看不会再次调用模型，也不会创建新任务。",
       completed: "真实运行",
-      view: "查看完整结果",
+      view: "查看结果",
       view_short: "查看",
       table_hint: "左右滑动查看完整表格",
       prompt_label: "原始任务",
@@ -257,6 +337,7 @@ const TRANSLATIONS = {
       items: [
         {
           id: "huawei-ericsson-ki18",
+          badge: "真实运行",
           title: "Huawei 与 Ericsson 在 KI #18 上的架构分歧",
           description:
             "查看双方的核心路线、Ericsson 的保留意见、关键 TDoc 和会议状态。",
@@ -402,6 +483,190 @@ const TRANSLATIONS = {
             ],
           },
         },
+        {
+          id: "sa2-175-ahe-ki22",
+          badge: "真实运行",
+          title: "SA2#175-AH-e KI #22 全部提案分析",
+          description:
+            "查看 89 份 TDoc 的提取结果、华为与爱立信的路线分歧，以及正式会议结果。",
+          agent: "3GPP 提案分析助手 · 2026-08-28",
+          reading_time: "约 6 分钟",
+          disclaimer:
+            "内容来自 2026-08-28 完成并发布的一次真实复核运行。该运行重新生成官方清单，提取 89 份 TDoc，核对正式会议报告和 CC 记录，并通过最终覆盖率检查。展开本案例不会再次调用模型。",
+          prompt_label: "本次运行任务（节选）",
+          prompt:
+            "请再次完整执行 SA2#175-AH-e KI #22 分析，形成一条最终状态为“已完成”的真实运行记录。重新从官方 Index 生成清单，提取全部 TDoc，核对华为与爱立信等公司的技术路线及正式会议结果；通过最终覆盖率检查后，只发布一次报告。",
+          result_label: "真实运行结果",
+          result: {
+            title: "KI #22：89 份 TDoc 独立复核结果",
+            summary:
+              "本次运行最终状态为“已完成”。报告逐份核对 89 份 TDoc，并结合正式会议报告 S2-175AHE_Report_v003_rm 和 CC 记录复核公司路线与会议状态。最终覆盖率为 89/89，失败 0，报告已发布到 3GPP 工作区知识库。",
+            sections: [
+              {
+                title: "运行与资料范围",
+                table: {
+                  headers: ["项目", "内容"],
+                  rows: [
+                    ["运行状态", "已完成；最终报告已发布。"],
+                    [
+                      "会议范围",
+                      "SA2#175-AH-e，议程 20.6.22，KI #22，FS_6G_ARC / Rel-20。",
+                    ],
+                    [
+                      "所用材料",
+                      "官方 Index、89 份 TDoc、正式会议报告 v003、CC#1 至 CC#3 记录。",
+                    ],
+                    [
+                      "模型",
+                      "文字分析使用 GLM-5.2；图片检查使用 Qwen3.7 Plus。",
+                    ],
+                    ["最终报告", "583 行，35,031 字节，共 11 个章节。"],
+                  ],
+                },
+              },
+              {
+                title: "下载、提取和覆盖率",
+                table: {
+                  headers: ["检查项", "实际结果"],
+                  rows: [
+                    ["官方清单", "89 个唯一 TDoc，无重复。"],
+                    ["文档提取", "89/89 成功，失败 0。"],
+                    ["文本结果", "12,052 行，1,328,093 个字符。"],
+                    ["图示结果", "333 个文件：156 EMF、150 VSDX、27 PNG。"],
+                    [
+                      "最终覆盖率",
+                      "Expected 89，Extracted 89，Missing 0，Extra 0。",
+                    ],
+                  ],
+                },
+              },
+              {
+                title: "正式会议结果",
+                table: {
+                  headers: ["状态", "数量", "如何理解"],
+                  rows: [
+                    [
+                      "Approved",
+                      "35",
+                      "18 份直接批准，16 份 CC#3 修订版，另有 1 份跨 KI 引用。",
+                    ],
+                    [
+                      "Not Handled",
+                      "52",
+                      "表示会议没有处理该条目，不能直接写成反对或拒绝。",
+                    ],
+                    ["Noted", "1", "会议记录为 Noted。"],
+                    ["Postponed", "1", "会议记录为 Postponed。"],
+                  ],
+                },
+              },
+              {
+                title: "Huawei 与 Ericsson 的核心分歧",
+                paragraphs: [
+                  "Huawei 路线以 6G CN 内的 CMF 为核心，强调由核心网协调通信和计算、维护计算资源信息，并支持多种请求与用户面流程。S2-2606085 后续修订为 S2-2606645，会议状态为 Approved。",
+                  "Ericsson 路线更偏向由 AF 与 Edge Enablement Layer 协调，并复用 TS 23.558，尽量避免新增核心网功能。S2-2605964 后续修订为 S2-2606667，会议状态为 Approved。",
+                  "两条路线的实质分歧是协调控制放在 CN/CMF 还是 AF/EEL。两条路线都有修订稿获批，本次会议材料没有给出单一路线已经排他胜出的结论。",
+                ],
+              },
+              {
+                title: "结果中的问题和限制",
+                bullets: [
+                  "S2-2606670 的 TDoc 自身标注为 KI #7，但正式会议报告在 KI #22 条目中把它记作 S2-2606265 的修订版。报告将其列为来源材料内部矛盾，没有自行猜测归属。",
+                  "333 个图示中只对 Huawei S2-2606085 的 2 个 PNG 做了视觉抽查，其余 331 个图示没有逐图核验。Ericsson 提案中的 EMF 和 VSDX 图示未通过视觉工具独立检查。",
+                  "报告比较的是公司提案和技术路线。公司提案不等于 3GPP 已采纳结论，会议状态以正式报告和 CC 记录为准。",
+                  "本报告不覆盖 SA2#176 的后续讨论。",
+                ],
+              },
+            ],
+          },
+        },
+      ],
+    },
+    resources: {
+      eyebrow: "常用网站",
+      title: "快速查找标准和研究资料",
+      description:
+        "按用途整理常用入口。外部网站会在新标签页打开，当前工作不会中断。",
+      open: "打开网站",
+      groups: [
+        {
+          title: "3GPP 官方资料",
+          description: "查会议、TDoc、规范版本和官方归档。",
+          items: [
+            {
+              name: "3GPP Portal",
+              description: "查会议、TDoc、工作项和成员信息。",
+              url: "https://portal.3gpp.org/",
+            },
+            {
+              name: "3GPP 文件服务器",
+              description: "下载会议材料、规范归档和工作组文件。",
+              url: "https://www.3gpp.org/ftp/",
+            },
+            {
+              name: "3GPP 规范列表",
+              description: "按编号查规范标题、版本和责任工作组。",
+              url: "https://www.3gpp.org/dynareport/",
+            },
+            {
+              name: "3GPP Specifications",
+              description: "了解规范体系、版本和发布规则。",
+              url: "https://www.3gpp.org/specifications",
+            },
+          ],
+        },
+        {
+          title: "相关标准组织",
+          description: "补充查看通信、互联网和行业规范。",
+          items: [
+            {
+              name: "ETSI Standards",
+              description: "搜索 ETSI 标准、规范和技术报告。",
+              url: "https://www.etsi.org/standards",
+            },
+            {
+              name: "ITU-T Recommendations",
+              description: "查 ITU-T 建议书及其当前状态。",
+              url: "https://www.itu.int/rec/T-REC/en",
+            },
+            {
+              name: "IETF Datatracker",
+              description: "跟踪 RFC、Internet-Draft 和工作组进展。",
+              url: "https://datatracker.ietf.org/",
+            },
+            {
+              name: "GSMA Resources",
+              description: "查移动网络部署指南和行业资料。",
+              url: "https://www.gsma.com/solutions-and-impact/technologies/networks/gsma_resources/",
+            },
+          ],
+        },
+        {
+          title: "论文与技术解读",
+          description: "查论文、预印本和第三方技术笔记。",
+          items: [
+            {
+              name: "IEEE Xplore",
+              description: "搜索通信领域论文、会议和标准。",
+              url: "https://ieeexplore.ieee.org/",
+            },
+            {
+              name: "Google Scholar",
+              description: "跨出版平台搜索论文和引用关系。",
+              url: "https://scholar.google.com/",
+            },
+            {
+              name: "arXiv",
+              description: "查通信、网络和 AI 方向的最新预印本。",
+              url: "https://arxiv.org/",
+            },
+            {
+              name: "ShareTechnote",
+              description: "查看协议流程、信令字段和技术笔记。",
+              url: "https://www.sharetechnote.com/",
+            },
+          ],
+        },
       ],
     },
     capabilities: {
@@ -459,6 +724,13 @@ const TRANSLATIONS = {
             "对话会保存在当前工作区。需要长期使用的正式报告可以加入工作区知识库，之后继续搜索和引用。",
         },
       ],
+    },
+    contribute: {
+      eyebrow: "参与项目",
+      title: "想一起改进这个工作台？",
+      description:
+        "如果你发现问题，或想改进功能，可以前往 GitHub 查看代码并提交 Issue 或 Pull Request。",
+      action: "查看 GitHub 仓库",
     },
     concepts: {
       eyebrow: "关键概念",
@@ -1115,6 +1387,16 @@ const TRANSLATIONS = {
         "disabled-toast": "已恢复 Agent 执行限制。新任务将使用默认限制。",
         "error-toast": "没有保存 Agent 执行限制设置。",
       },
+      "skill-tool-restrictions": {
+        title: "按 Skill 限制工具",
+        description:
+          "默认关闭。关闭时，Skill 中的 allowed-tools 只作为说明，实际可用工具由 Agent 配置决定。开启后，新任务只能使用 Agent 与 Skill 同时允许的工具。",
+        "enabled-toast":
+          "已启用 Skill 工具限制。新任务会按 allowed-tools 缩小工具范围。",
+        "disabled-toast":
+          "已忽略 Skill 的 allowed-tools。新任务使用 Agent 配置的工具。",
+        "error-toast": "没有保存 Skill 工具限制设置。",
+      },
       "max-tool-calls": {
         title: "每个回复的最大请求次数",
         description:
@@ -1478,7 +1760,8 @@ const TRANSLATIONS = {
         "启用此选项以绕过对自托管 Confluence 实例的 SSL 证书验证，特别是使用自签名证书的情况。",
     },
     manage: {
-      documents: "文档",
+      documents: "RAG 知识库",
+      "workspace-files": "工作区文件",
       "data-connectors": "数据连接器",
       "desktop-only":
         "这些设置只能在桌面设备上编辑。请使用桌面访问此页面以继续操作。",
@@ -1561,10 +1844,48 @@ const TRANSLATIONS = {
     original_docx: "原始 DOCX",
     docx_only: "这个助手只接受 DOCX 文件。",
     docx_upload_failed: "DOCX 上传失败。",
+    workspace_upload_failed: "工作区文件上传失败。",
     drop_docx: "拖放 DOCX 到这里",
     drop_file: "拖放文件或图片到这里",
+    drop_rag_file: "拖放文件到 RAG",
+    drop_rag_file_description: "文件会被解析，并用于当前对话检索。",
     drop_docx_description: "文件会保留原始格式，供转换助手读取图片和嵌入对象。",
     drop_file_description: "文件会附加到当前对话。",
+    upload_menu: {
+      open: "上传文件",
+      close: "关闭上传菜单",
+      title: "选择上传位置",
+      description: "两种位置用途不同，上传前请先选择。",
+      rag_title: "上传到 RAG",
+      rag_description: "解析文件内容，用于当前对话检索。",
+      workspace_title: "上传到工作区",
+      workspace_description: "保留原始文件，Agent 可按路径读取和处理。",
+      current_context: "当前对话资料（{{count}} 个）",
+      context_limit_tooltip:
+        "当前资料已超过上下文长度，部分内容可能被截断或无法用于回复。",
+      context_limit_description:
+        "当前资料接近上下文上限。可以将这些文件加入工作区 RAG，供后续检索。",
+      embed: "加入工作区 RAG",
+      embedding: "正在处理 {{current}} / {{total}}…",
+      embed_complete: "已将 {{count}} 个文件加入工作区 RAG。",
+      embed_failed: "文件没有加入工作区 RAG，请重试。",
+      loading: "正在读取…",
+      no_files: "当前对话没有已解析文件",
+    },
+    file_download: {
+      unknown: "未知文件",
+      download: "下载",
+      downloading: "正在下载…",
+      download_error: "文件下载失败，请稍后重试。",
+      types: {
+        powerpoint: "演示文稿",
+        pdf: "PDF 文档",
+        word: "Word 文档",
+        spreadsheet: "电子表格",
+        zip: "ZIP 压缩包",
+        generic: "文件",
+      },
+    },
     text_size: "更改文字大小。",
     microphone: "语音输入你的提示。",
     send: "将提示消息发送到工作区",
@@ -1645,16 +1966,22 @@ const TRANSLATIONS = {
     },
     workspace_files: {
       title: "工作区文件",
-      description: "与Agent共享的持久化文件",
+      description: "查看、上传和下载 Agent 使用的原始文件",
       open: "打开工作区文件",
       close: "关闭工作区文件",
       refresh: "刷新文件",
+      upload: "上传",
+      ready: "工作区文件已就绪",
+      uploading: "正在上传 {{count}} 个文件…",
+      upload_complete: "已上传 {{count}} 个文件。",
+      drop_title: "上传到当前文件夹",
+      drop_description: "松开后保存到 {{path}}，不会加入 RAG。",
       download: "下载文件",
       download_folder: "将文件夹下载为 ZIP",
       download_error: "无法下载此文件。",
       folder_download_error: "无法将此文件夹下载为 ZIP。",
       empty: "工作区为空",
-      empty_description: "Bash、Python 或文件系统工具创建的文件将显示在这里。",
+      empty_description: "拖入文件或点击“上传”。这里的文件不会自动加入 RAG。",
       folder: "文件夹",
       binary: "无法预览此文件，但可以下载查看。",
       too_large: "文件过大，无法预览。请下载后查看。",
@@ -1721,6 +2048,9 @@ const TRANSLATIONS = {
         understanding: "正在理解：{{request}}",
         determining_approach: "正在确定“{{request}}”的最佳处理方式",
         retrying_visible_response: "正在重试并生成标准可见回复",
+        recalling_workspace_and_memory: "正在查找相关工作区资料和记忆",
+        recalling_workspace: "正在查找相关工作区资料",
+        recalling_memory: "正在查找相关记忆",
         plan_ready: "执行计划已就绪，共 {{count}} 项任务",
         task_started: "已开始：{{task}}",
         task_completed: "已完成：{{task}}",
@@ -1745,7 +2075,18 @@ const TRANSLATIONS = {
         memory_recalled: "已召回 {{count}} 条记忆",
         memory_updated: "记忆已更新",
         memory_deleted: "记忆已删除",
-        rag_recalled: "已召回 {{count}} 个 RAG 来源",
+        rag_recalled: "已找到 {{count}} 条工作区资料",
+      },
+      context_kind: {
+        skill: "技能",
+        memory: "记忆",
+        memory_saved: "已保存",
+        memory_deleted: "已删除",
+        workspace: "工作区",
+      },
+      context_scope: {
+        global: "全局",
+        workspace: "工作区",
       },
       model_wants_to_call: "模型希望调用工具：",
       approve: "允许",

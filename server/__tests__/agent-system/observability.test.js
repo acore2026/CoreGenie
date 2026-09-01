@@ -1,5 +1,6 @@
 /* eslint-env jest, node */
 const {
+  agentConfigRevision,
   compactAgentToolOutput,
   compactIdentifier,
   estimateTokenUsage,
@@ -106,10 +107,35 @@ describe("Langfuse Agent observability", () => {
         runtimeKey: "evidence-research",
         runtimeVersion: "1",
       },
-      version: "evidence-research@1",
+      version: expect.stringMatching(
+        /^evidence-research@1\+agent-[a-f0-9]{12}$/
+      ),
     });
     expect(compactIdentifier("x".repeat(500), "session")).toMatch(
       /^session:sha256:[a-f0-9]{64}$/
+    );
+  });
+
+  it("uses a stable Agent configuration revision without hashing composed prompts", () => {
+    const base = {
+      agent: { id: 1, name: "Research", prompt: "agent prompt" },
+      provider: { type: "openai" },
+      roleModels: { research: "model-a" },
+      runtimeConfig: { recursionLimit: 20 },
+      selectedModel: "model-a",
+    };
+    expect(agentConfigRevision(base)).toBe(
+      agentConfigRevision({
+        selectedModel: "model-a",
+        runtimeConfig: { recursionLimit: 20 },
+        roleModels: { research: "model-a" },
+        provider: { type: "openai" },
+        agent: { prompt: "agent prompt", name: "Research", id: 1 },
+        composedSystemPrompt: "workspace-specific content",
+      })
+    );
+    expect(agentConfigRevision(base)).not.toBe(
+      agentConfigRevision({ ...base, selectedModel: "model-b" })
     );
   });
 
@@ -133,9 +159,10 @@ describe("Langfuse Agent observability", () => {
     expect(attributes.tags).toEqual(
       expect.arrayContaining(["feature:3gpp-review", "skill:3gpp-review"])
     );
-    expect(attributes.metadata.skillRevisions).toEqual([
-      { name: "3gpp-review", revision: "sha256:abc" },
-    ]);
+    expect(attributes.metadata).toMatchObject({
+      skillNames: "3gpp-review",
+      skillRevisions: "3gpp-review@sha256:abc",
+    });
   });
 
   it("preserves provider usage and estimates it only when absent", () => {

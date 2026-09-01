@@ -181,19 +181,58 @@ model workspace_suggested_messages {
 }
 
 model workspace_chats {
-  id              Int      @id @default(autoincrement())
+  id              Int                      @id @default(autoincrement())
   workspaceId     Int
   prompt          String
   response        String
-  include         Boolean  @default(true)
+  include         Boolean                  @default(true)
   user_id         Int?
   thread_id       Int? // No relation to prevent whole table migration
   api_session_id  String? // String identifier for only the dev API to partition chats in any mode.
-  createdAt       DateTime @default(now())
-  lastUpdatedAt   DateTime @default(now())
+  createdAt       DateTime                 @default(now())
+  lastUpdatedAt   DateTime                 @default(now())
   feedbackScore   Boolean?
-  memoryProcessed Boolean? @map("memory_processed")
-  users           users?   @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  memoryProcessed Boolean?                 @map("memory_processed")
+  users           users?                   @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  agentFeedback   agent_response_feedback?
+}
+
+model agent_feedback_reasons {
+  id            Int      @id @default(autoincrement())
+  code          String   @unique
+  label         String
+  enabled       Boolean  @default(true)
+  sortOrder     Int      @default(0)
+  createdBy     Int?
+  createdAt     DateTime @default(now())
+  lastUpdatedAt DateTime @default(now())
+
+  @@index([enabled, sortOrder])
+}
+
+model agent_response_feedback {
+  id            String          @id
+  chat_id       Int             @unique
+  run_id        String
+  workspace_id  Int
+  user_id       Int?
+  agent_id      Int?
+  rating        String
+  reasons       String          @default("[]")
+  comment       String?
+  source        String          @default("user")
+  syncStatus    String          @default("pending")
+  syncAttempts  Int             @default(0)
+  syncError     String?
+  syncedAt      DateTime?
+  deletedAt     DateTime?
+  createdAt     DateTime        @default(now())
+  lastUpdatedAt DateTime        @default(now())
+  chat          workspace_chats @relation(fields: [chat_id], references: [id], onDelete: Cascade)
+
+  @@index([run_id])
+  @@index([workspace_id, agent_id, rating])
+  @@index([syncStatus, lastUpdatedAt])
 }
 
 model public_chat_shares {

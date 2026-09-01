@@ -5,6 +5,10 @@ const {
 } = require("../../agent-system/executor");
 
 describe("Agent run completion requirements", () => {
+  it("does not require publication for a direct answer without tasks", () => {
+    expect(applicableCompletionTools(["knowledge.publish"], [])).toEqual([]);
+  });
+
   it("does not require publication for a task that cannot publish", () => {
     expect(
       applicableCompletionTools(

@@ -67,14 +67,38 @@ def cmd_inspect(args) -> None:
     for sheet in workbook:
         print(f"  {sheet.title}: rows={sheet.max_row}, columns={sheet.max_column}")
     sheets = [choose_sheet(workbook, args.sheet)] if args.sheet else list(workbook)
+    normalized_query = (
+        re.sub(r"[^a-z0-9]+", "", args.query.casefold()) if args.query else ""
+    )
     for sheet in sheets:
         print(f"\n=== {sheet.title} ===")
+        max_row = sheet.max_row if normalized_query else min(args.rows, sheet.max_row)
+        matches = 0
         for row_no, row in enumerate(
-            sheet.iter_rows(min_row=1, max_row=min(args.rows, sheet.max_row)), 1
+            sheet.iter_rows(min_row=1, max_row=max_row), 1
         ):
-            fields = [f"C{i}={cell_value(cell)}" for i, cell in enumerate(row, 1) if cell_value(cell)]
+            values = [cell_value(cell) for cell in row]
+            if normalized_query:
+                normalized_row = re.sub(
+                    r"[^a-z0-9]+", "", " ".join(values).casefold()
+                )
+                if normalized_query not in normalized_row:
+                    continue
+                matches += 1
+                if matches > args.rows:
+                    break
+            display_values = values[:10] if normalized_query else values
+            fields = [
+                f"C{i}={value}"
+                for i, value in enumerate(display_values, 1)
+                if value
+            ]
             if fields:
                 print(f"R{row_no}: " + " | ".join(fields))
+        if normalized_query and not matches:
+            print(f"No rows matched query: {args.query}")
+        elif normalized_query and matches > args.rows:
+            print(f"Showing the first {args.rows} matching rows.")
 
 
 def detect_headers(rows: list[list[str]]) -> dict[str, tuple[int, int]]:
@@ -1053,6 +1077,10 @@ def make_parser() -> argparse.ArgumentParser:
     inspect.add_argument("--excel", required=True)
     inspect.add_argument("--sheet")
     inspect.add_argument("--rows", type=int, default=20)
+    inspect.add_argument(
+        "--query",
+        help="Search all rows for normalized text such as 'KI #18'; --rows limits matching rows",
+    )
     inspect.set_defaults(func=cmd_inspect)
 
     filtering = commands.add_parser("filter-index")

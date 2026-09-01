@@ -457,6 +457,9 @@ function adminEndpoints(app) {
             case "agent_execution_limits_disabled":
               requestedSettings[label] = setting?.value ?? "false";
               break;
+            case "agent_skill_tool_restrictions_enabled":
+              requestedSettings[label] = setting?.value ?? "false";
+              break;
             default:
               break;
           }

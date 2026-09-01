@@ -188,6 +188,33 @@ const Admin = {
       });
   },
 
+  agentFeedbackReasons: async function () {
+    return fetch(`${API_BASE}/admin/agent-feedback/reasons`, {
+      method: "GET",
+      headers: baseHeaders(),
+    })
+      .then((res) => res.json())
+      .catch((error) => ({ reasons: [], error: error.message }));
+  },
+  createAgentFeedbackReason: async function (data) {
+    return fetch(`${API_BASE}/admin/agent-feedback/reasons`, {
+      method: "POST",
+      headers: baseHeaders(),
+      body: JSON.stringify(data),
+    })
+      .then((res) => res.json())
+      .catch((error) => ({ reason: null, error: error.message }));
+  },
+  updateAgentFeedbackReason: async function (id, data) {
+    return fetch(`${API_BASE}/admin/agent-feedback/reasons/${id}`, {
+      method: "PATCH",
+      headers: baseHeaders(),
+      body: JSON.stringify(data),
+    })
+      .then((res) => res.json())
+      .catch((error) => ({ reason: null, error: error.message }));
+  },
+
   // API Keys
   getApiKeys: async function () {
     return fetch(`${API_BASE}/admin/api-keys`, {

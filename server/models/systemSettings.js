@@ -63,6 +63,7 @@ const SystemSettings = {
     "agent_clarifying_questions_enabled",
     "agent_clarifying_questions_max_per_turn",
     "agent_execution_limits_disabled",
+    "agent_skill_tool_restrictions_enabled",
     "custom_app_name",
     "feature_flags",
     "meta_page_title",
@@ -96,6 +97,7 @@ const SystemSettings = {
     "agent_clarifying_questions_enabled",
     "agent_clarifying_questions_max_per_turn",
     "agent_execution_limits_disabled",
+    "agent_skill_tool_restrictions_enabled",
     "custom_app_name",
     "default_predefined_agent_id",
     "global_system_prompt",
@@ -117,6 +119,8 @@ const SystemSettings = {
   ],
   validations: {
     agent_execution_limits_disabled: (update) =>
+      String(update) === "true" ? "true" : "false",
+    agent_skill_tool_restrictions_enabled: (update) =>
       String(update) === "true" ? "true" : "false",
     footer_data: (updates) => {
       try {
@@ -639,6 +643,8 @@ const SystemSettings = {
         )) || 3
       ),
       AgentExecutionLimitsDisabled: await this.agentExecutionLimitsDisabled(),
+      AgentSkillToolRestrictionsEnabled:
+        await this.agentSkillToolRestrictionsEnabled(),
     };
   },
 
@@ -768,6 +774,20 @@ const SystemSettings = {
       return (
         (await this.getValueOrFallback(
           { label: "agent_execution_limits_disabled" },
+          "false"
+        )) === "true"
+      );
+    } catch (error) {
+      console.error(error.message);
+      return false;
+    }
+  },
+
+  agentSkillToolRestrictionsEnabled: async function () {
+    try {
+      return (
+        (await this.getValueOrFallback(
+          { label: "agent_skill_tool_restrictions_enabled" },
           "false"
         )) === "true"
       );

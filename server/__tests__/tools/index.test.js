@@ -13,6 +13,18 @@ describe("Agent tool visibility", () => {
     expect(normalizeToolId("rag.search")).toBe("knowledge.search");
   });
 
+  it("normalizes registered names and legacy filesystem tool names", () => {
+    expect(normalizeToolId("filesystem_search")).toBe("filesystem.search");
+    expect(normalizeToolId("filesystem-search")).toBe("filesystem.search");
+    expect(normalizeToolId("filesystem-search-files")).toBe(
+      "filesystem.search"
+    );
+    expect(normalizeToolId("filesystem-read-text-file")).toBe(
+      "filesystem.read"
+    );
+    expect(normalizeToolId("filesystem-edit-file")).toBe("filesystem.write");
+  });
+
   it("registers the fixed 3GPP Markdown conversion tool", () => {
     expect(toolRegistry.get("3gpp.convert-markdown")).toMatchObject({
       id: "3gpp.convert-markdown",
@@ -68,7 +80,10 @@ describe("Agent tool visibility", () => {
             "rag.search knowledge.ingest memory.store filesystem.write",
         },
       ],
-      { visibleToolIds: new Set(["knowledge.search"]) }
+      {
+        visibleToolIds: new Set(["knowledge.search"]),
+        enforceAllowedTools: true,
+      }
     );
 
     expect(catalog).toContain('allowed-tools="knowledge.search"');
@@ -76,5 +91,24 @@ describe("Agent tool visibility", () => {
     expect(catalog).not.toContain("knowledge.ingest");
     expect(catalog).not.toContain("memory.store");
     expect(catalog).not.toContain("filesystem.write");
+  });
+
+  it("omits Skill allowed-tools metadata by default", async () => {
+    const catalog = await skillCatalogPrompt(
+      { tools: ["knowledge.search"] },
+      { id: 2 },
+      [
+        {
+          name: "test-skill",
+          scope: "global",
+          revision: "revision-1",
+          description: "Test skill",
+          allowedTools: "knowledge.search",
+        },
+      ],
+      { visibleToolIds: new Set(["knowledge.search"]) }
+    );
+
+    expect(catalog).not.toContain("allowed-tools=");
   });
 });

@@ -34,11 +34,33 @@ for (const descriptor of [
 const TOOL_ID_ALIASES = Object.freeze({
   "rag.search": "knowledge.search",
   rag_search: "knowledge.search",
+  "filesystem-search": "filesystem.search",
+  "filesystem-search-files": "filesystem.search",
+  filesystem_search_files: "filesystem.search",
+  "filesystem-read": "filesystem.read",
+  "filesystem-read-text-file": "filesystem.read",
+  "filesystem-read-multiple-files": "filesystem.read",
+  filesystem_read_text_file: "filesystem.read",
+  filesystem_read_multiple_files: "filesystem.read",
+  "filesystem-list": "filesystem.list",
+  "filesystem-list-directory": "filesystem.list",
+  filesystem_list_directory: "filesystem.list",
+  "filesystem-write": "filesystem.write",
+  "filesystem-edit-file": "filesystem.write",
+  filesystem_edit_file: "filesystem.write",
 });
 
 function normalizeToolId(toolId) {
   const value = String(toolId || "").trim();
-  return TOOL_ID_ALIASES[value] || value;
+  const normalized = TOOL_ID_ALIASES[value] || value;
+  return (
+    toolRegistry
+      .list()
+      .find(
+        (descriptor) =>
+          descriptor.id === normalized || descriptor.name === normalized
+      )?.id || normalized
+  );
 }
 
 function normalizedSelection(allowed) {

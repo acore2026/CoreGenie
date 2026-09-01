@@ -162,6 +162,9 @@ export default {
     agentPrompts: () => {
       return "/settings/agents/prompts";
     },
+    agentFeedback: () => {
+      return "/settings/agents/feedback";
+    },
     chat: () => {
       return "/settings/chat";
     },

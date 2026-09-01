@@ -1,0 +1,8 @@
+Evaluate only the requirements listed below. Return PASS only when every applicable requirement is satisfied; otherwise return FAIL with a short reason.
+
+1. The answer stays within the requested 3GPP meeting, KI, company, and document scope.
+2. Material claims identify the supporting TDoc or meeting material.
+3. Company proposals are clearly distinguished from adopted 3GPP conclusions or meeting agreements.
+4. The requested comparisons, results, disagreements, and missing-information notices are present.
+
+Do not grade style, helpfulness, fluency, or generic answer quality.

@@ -17,6 +17,7 @@ const { withAgentTrace } = require("./observability");
 const { requireRuntime } = require("./runtimes/registry");
 const { consumeGraphStream } = require("./runtimes/stream");
 const { deleteCheckpointThread } = require("./checkpointer");
+const { registerReferencedArtifacts } = require("./artifactRegistration");
 
 function historicalTrace(events = []) {
   const agentTrace = events
@@ -89,7 +90,9 @@ function snapshottedAgent(run) {
 }
 
 function applicableCompletionTools(requiredToolIds = [], tasks = []) {
-  if (!tasks.length) return requiredToolIds;
+  // Run-level completion tools apply only when the plan assigned them to a
+  // worker task. A direct controller answer has no publication obligation.
+  if (!tasks.length) return [];
   const allowed = new Set(tasks.flatMap((task) => task.allowedToolIds || []));
   return requiredToolIds.filter((toolId) => allowed.has(toolId));
 }
@@ -245,10 +248,17 @@ async function executeAgentRunSegment(initialRun, signal, runnableConfig = {}) {
     run.runtimeKey === "governed-agent"
       ? {}
       : historicalTrace(await AgentRunEvent.after(run.id, 0, 10_000));
-  const publicationRows = await AgentReportPublication.forRun(run.id);
-  const artifactRows = await AgentRunArtifact.forRun(run.id);
   const workspaceManager = filesystem.forWorkspace(workspace.id);
   await workspaceManager.ensureInitialized();
+  const publicationRows = await AgentReportPublication.forRun(run.id);
+  const tasks = await AgentRunTask.list(run.id);
+  await registerReferencedArtifacts({
+    runId: run.id,
+    tasks,
+    finalResponse: responseText,
+    workspaceManager,
+  });
+  const artifactRows = await AgentRunArtifact.forRun(run.id);
   const outputs = [];
   const outputPaths = new Set();
   for (const publication of publicationRows) {

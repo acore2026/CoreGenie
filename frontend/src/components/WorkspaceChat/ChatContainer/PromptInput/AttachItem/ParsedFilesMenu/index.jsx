@@ -3,9 +3,9 @@ import { X, CircleNotch, Warning } from "@phosphor-icons/react";
 import Workspace from "@/models/workspace";
 import { nFormatter } from "@/utils/numbers";
 import showToast from "@/utils/toast";
-import pluralize from "pluralize";
 import { PARSED_FILE_ATTACHMENT_REMOVED_EVENT } from "../../../DnDWrapper";
 import useUser from "@/hooks/useUser";
+import { useTranslation } from "react-i18next";
 
 export default function ParsedFilesMenu({
   onEmbeddingChange,
@@ -20,6 +20,7 @@ export default function ParsedFilesMenu({
   threadSlug = null,
 }) {
   const { user } = useUser();
+  const { t } = useTranslation();
   const canEmbed = !user || user.role !== "default";
   const initialContextWindowLimitExceeded =
     contextWindow &&
@@ -90,13 +91,13 @@ export default function ParsedFilesMenu({
           contextWindow * Workspace.maxContextWindowLimit
       );
       showToast(
-        `${files.length} ${pluralize("file", files.length)} embedded successfully`,
+        t("chat_window.upload_menu.embed_complete", { count: files.length }),
         "success"
       );
       tooltipRef?.current?.close();
     } catch (error) {
       console.error("Failed to embed files:", error);
-      showToast("Failed to embed files", "error");
+      showToast(t("chat_window.upload_menu.embed_failed"), "error");
     }
     setIsEmbedding(false);
     onEmbeddingChange?.(false);
@@ -107,15 +108,18 @@ export default function ParsedFilesMenu({
     <div className="flex flex-col gap-2 p-2">
       <div className="flex items-center justify-between">
         <div className="text-sm font-medium text-theme-text-primary">
-          Current Context ({files.length} files)
+          {t("chat_window.upload_menu.current_context", {
+            count: files.length,
+          })}
         </div>
         <div
           // If the user cannot see the embed CTA, show a tooltip
           {...(contextWindowLimitExceeded &&
             !canEmbed && {
               "data-tooltip-id": "context-window-limit-exceeded",
-              "data-tooltip-content":
-                "You have exceeded the context window limit. Some files may be truncated or excluded from chat responses. Responses may hallucinate or lack relevant information.",
+              "data-tooltip-content": t(
+                "chat_window.upload_menu.context_limit_tooltip"
+              ),
             })}
           className={`flex items-center gap-x-1 ${contextWindowLimitExceeded && !canEmbed ? "cursor-pointer" : ""}`}
         >
@@ -138,9 +142,7 @@ export default function ParsedFilesMenu({
               size={16}
             />
             <div className="text-xs text-theme-text-primary">
-              Your context window is getting full. Some files may be truncated
-              or excluded from chat responses. We recommend embedding these
-              files directly into your workspace for better results.
+              {t("chat_window.upload_menu.context_limit_description")}
             </div>
           </div>
           <button
@@ -151,10 +153,13 @@ export default function ParsedFilesMenu({
             {isEmbedding ? (
               <>
                 <CircleNotch size={14} className="animate-spin" />
-                Embedding {embedProgress} of {files.length} files...
+                {t("chat_window.upload_menu.embedding", {
+                  current: embedProgress,
+                  total: files.length,
+                })}
               </>
             ) : (
-              "Embed Files into Workspace"
+              t("chat_window.upload_menu.embed")
             )}
           </button>
         </div>
@@ -183,12 +188,12 @@ export default function ParsedFilesMenu({
         {isLoading && (
           <div className="flex items-center justify-center gap-2 text-xs text-theme-text-secondary text-center py-2">
             <CircleNotch size={16} className="animate-spin" />
-            Loading...
+            {t("chat_window.upload_menu.loading")}
           </div>
         )}
         {!isLoading && files.length === 0 && (
           <div className="text-xs text-theme-text-secondary text-center py-2">
-            No files found
+            {t("chat_window.upload_menu.no_files")}
           </div>
         )}
       </div>

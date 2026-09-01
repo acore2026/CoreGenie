@@ -444,11 +444,11 @@ export default function ActiveWorkspaces() {
                                         showModal();
                                       }}
                                       aria-label={t(
-                                        "workspace-invite.import-documents"
+                                        "chat_window.workspace_files.title"
                                       )}
                                       data-tooltip-id="upload-workspace"
                                       data-tooltip-content={t(
-                                        "workspace-invite.import-documents"
+                                        "chat_window.workspace_files.title"
                                       )}
                                       className={`group/upload border-none rounded-md flex items-center justify-center ml-auto p-[2px] ${isActive ? "hover:bg-zinc-500 light:hover:bg-sky-800/30" : "hover:bg-zinc-500 light:hover:bg-slate-400"}`}
                                     >
@@ -528,6 +528,7 @@ export default function ActiveWorkspaces() {
               <ManageWorkspace
                 hideModal={hideModal}
                 providedSlug={selectedWs ? selectedWs.slug : null}
+                initialTab="workspaceFiles"
               />
             )}
             {inviteWorkspace && (

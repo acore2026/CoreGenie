@@ -86,6 +86,9 @@ async function buildAgentGraph({
         includeSkillCatalog
           ? await skillCatalogPrompt(configuredAgent, workspace, null, {
               visibleToolIds,
+              enforceAllowedTools:
+                run?.configuration?.enforceSkillToolRestrictions === true ||
+                run?.policySnapshot?.enforceSkillToolRestrictions === true,
             })
           : null,
       ]
@@ -97,6 +100,9 @@ async function buildAgentGraph({
         workspace,
         runtimePrompt: run.configuration?.systemPrompt || null,
         visibleToolIds,
+        enforceSkillToolRestrictions:
+          run?.configuration?.enforceSkillToolRestrictions === true ||
+          run?.policySnapshot?.enforceSkillToolRestrictions === true,
       });
   const modelOptions = {
     workspace,
@@ -106,7 +112,10 @@ async function buildAgentGraph({
   };
   const model = createChatModel(modelOptions);
   const middleware = [];
-  if (!executionLimitsDisabled(run))
+  if (
+    !executionLimitsDisabled(run) &&
+    run.configuration?.disableModelCallLimit !== true
+  )
     middleware.push(
       modelCallLimitMiddleware({
         runLimit: Math.min(

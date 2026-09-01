@@ -59,6 +59,7 @@ const {
   withRetrieverTrace,
 } = require("../observability");
 const { consumeGraphStream } = require("./stream");
+const { workspaceFileRelativePath } = require("../attachments");
 const {
   evidenceSchema,
   normalizeEvidence,
@@ -78,6 +79,12 @@ const DEFAULTS = Object.freeze({
   maxQuickLookupToolCalls: 12,
   maxQuickLookupModelCalls: 8,
 });
+
+function controllerDirectActionsEnabled(env = process.env) {
+  return (
+    String(env.ENABLE_CONTROLLER_DIRECT_ACTIONS || "").toLowerCase() === "true"
+  );
+}
 
 const taskSchema = z.object({
   id: z.string().trim().min(1).max(80),
@@ -113,7 +120,7 @@ function taskRequestsArtifactWrite(task = {}) {
   const text = [task.title, task.objective, ...(task.successCriteria || [])]
     .filter(Boolean)
     .join("\n");
-  return /\b(?:write|create|edit|update|append|save|publish|generate|produce|complete)\b.{0,50}\b(?:report|file|ledger|manifest|markdown|zip|artifact)\b|(?:撰写|创建|写入|更新|编辑|追加|保存|发布|生成).{0,24}(?:报告|文件|台账|清单|Markdown|ZIP|ledger)|(?<!已)完成\s*(?:报告|文件|台账|清单|ledger)/i.test(
+  return /\b(?:write|create|edit|update|append|save|publish|generate|produce|complete|download|extract|unpack|convert|copy|move|archive)\b.{0,60}\b(?:report|file|document|source|original|index|tdoc|docx|xlsx|json|ledger|manifest|markdown|zip|artifact)\b|(?:撰写|创建|写入|更新|编辑|追加|保存|发布|生成|下载|解压|提取|转换|复制|移动|归档|打包).{0,30}(?:报告|文件|文档|原文|源文件|Index|TDoc|DOCX|XLSX|JSON|台账|清单|Markdown|ZIP|ledger|manifest)|(?<!已)完成\s*(?:报告|文件|台账|清单|ledger)/i.test(
     text
   );
 }
@@ -151,6 +158,23 @@ const reviewSchema = z.object({
   gaps: z.array(z.string().trim().min(1)).max(20).default([]),
   replacementTasks: z.array(taskSchema).max(6).default([]),
 });
+
+function normalizeReviewDecision(decision, taskResults = []) {
+  const allTasksComplete =
+    taskResults.length > 0 &&
+    taskResults.every(
+      (result) =>
+        result.status === "completed" &&
+        (!Array.isArray(result.unresolved) || result.unresolved.length === 0)
+    );
+  if (
+    decision?.status === "partial" &&
+    (!Array.isArray(decision.gaps) || decision.gaps.length === 0) &&
+    allTasksComplete
+  )
+    return { ...decision, status: "accept" };
+  return decision;
+}
 
 function mergeById(current = [], updates = []) {
   const merged = new Map(current.map((item) => [item.id, item]));
@@ -206,7 +230,9 @@ function normalizedActionToolId(taskItem = {}) {
   );
   const localizedMatch = objective.match(/^使用 ([a-z0-9._-]+) 完成此请求：/i);
   const toolId = normalizeToolId(match?.[1] || localizedMatch?.[1] || null);
-  return toolId && (taskItem?.allowedToolIds || []).includes(toolId)
+  const allowedToolIds = taskItem?.allowedToolIds || [];
+  return toolId &&
+    (allowedToolIds.length === 0 || allowedToolIds.includes(toolId))
     ? toolId
     : null;
 }
@@ -473,7 +499,7 @@ function scopedTaskId(runId, value) {
 }
 
 function requestAllowsWrite(request = "") {
-  return /\b(?:write|edit|delete|remove|create|save|store|upload|download|generate|send|execute|run|modify|ingest|embed|index|add)\b|(?:写入|编辑|删除|创建|保存|存储|上传|下载|生成|发送|执行|修改|加入|导入|入库|嵌入|索引)/i.test(
+  return /\b(?:write|edit|delete|remove|create|save|store|upload|download|generate|export|convert|split|extract|send|execute|run|modify|ingest|embed|index|add)\b|(?:写入|编辑|删除|创建|保存|存储|上传|下载|生成|输出|导出|转换|拆分|提取|发送|执行|修改|加入|导入|入库|嵌入|索引)/i.test(
     String(request)
   );
 }
@@ -570,12 +596,11 @@ function parse3gppConversionRequest(request = "", attachments = []) {
   const uploads = (attachments || [])
     .filter(
       (attachment) =>
-        attachment?.mime === "application/anythingllm-workspace-file" &&
-        /^\/workspace\/3gpp-markdown\/inbox\/[^/]+\/[^/]+\.docx$/i.test(
-          String(attachment.contentString || "")
-        )
+        attachment?.mime === "application/anythingllm-workspace-file"
     )
-    .map((attachment) => attachment.contentString);
+    .map((attachment) => workspaceFileRelativePath(attachment.contentString))
+    .filter((relative) => relative && relative.toLowerCase().endsWith(".docx"))
+    .map((relative) => `/workspace/${relative}`);
   if (tdocs.length === 1 && uploads.length === 0) return { tdoc: tdocs[0] };
   if (uploads.length === 1 && tdocs.length === 0)
     return { input_path: uploads[0] };
@@ -864,20 +889,67 @@ function workerContinuationInstruction({
   return `${reasons.join(" ")} Continue the same task now. Reuse the already downloaded, extracted, and analyzed workspace artifacts; do not restart meeting discovery or document analysis unless a specific required artifact is missing. ${completionGuidance} Return exactly one JSON object with summary, evidence, and unresolved. Completed tool IDs so far: ${completedToolIds.join(", ") || "none"}.`;
 }
 
+function priorToolResultsContext(executions = [], maxChars = 12_000) {
+  const completed = executions.filter(
+    (item) => item.status === "completed" && item.result?.ok !== false
+  );
+  if (!completed.length) return "";
+
+  const unique = new Map();
+  for (const execution of completed) {
+    const key =
+      execution.operation_key || execution.operationKey || execution.id;
+    unique.set(key, execution);
+  }
+
+  const entries = [];
+  let remaining = Math.max(1_000, Number(maxChars) || 12_000);
+  for (const execution of [...unique.values()].reverse()) {
+    const result = execution.result || {};
+    const value = String(result.data ?? result.summary ?? "").trim();
+    if (!value) continue;
+    const entry = `- ${execution.tool_id || execution.toolId} (${result.code || "OK"})\n${value}`;
+    if (entry.length > remaining && entries.length) break;
+    entries.push(entry.slice(0, remaining));
+    remaining -= Math.min(entry.length, remaining);
+    if (remaining <= 0) break;
+  }
+  if (!entries.length) return "";
+
+  return `\n\nA previous worker made useful progress before repeating an operation. Continue from the successful tool results below. Treat them as completed work, do not run the same command again, and move directly to the next unmet success criterion.\n\n${entries.reverse().join("\n\n")}`;
+}
+
+function shouldRetryNoProgressTask({
+  error,
+  attempt,
+  maxAttempts,
+  executions = [],
+}) {
+  return Boolean(
+    error?.code === "TASK_NO_PROGRESS" &&
+      attempt < maxAttempts &&
+      executions.some(
+        (item) => item.status === "completed" && item.result?.ok !== false
+      )
+  );
+}
+
 function workerSystemPrompt({
   basePrompt,
+  userRequest = "",
   taskItem,
   allowedToolIds,
   requiredToolIds,
   dependencyResults,
   activatedSkillContext = "",
+  priorToolResults = "",
 }) {
   const writeEnabled =
     taskItem.writeIntent === true && taskHasWriteTool(allowedToolIds);
   const artifactGuidance = writeEnabled
     ? "This task may write the requested artifact. Write long files incrementally: create the file with a first filesystem.write call of at most 3,000 characters, append each remaining section with append=true in chunks of at most 3,000 characters, and read the completed file back before publishing it. Do not place a complete long report in one tool argument."
     : "This is a read-only task. Return the completed analysis in the final worker JSON object. Do not create, update, save, or publish a report, ledger, manifest, Markdown file, or any other artifact. If the objective uses words such as complete a ledger or report, interpret that as completing the analysis fields in your JSON result, not modifying a file.";
-  return `${basePrompt}${activatedSkillContext ? `\n\n${activatedSkillContext}` : ""}\n\nYou are a bounded worker in a governed task graph. Complete only the assigned task. The relevant Skills were activated before planning and their complete instructions are included above. Follow them without calling activate_skill again. Use only allowed tools. The required completion tools for this task are: ${requiredToolIds.join(", ") || "none"}. When that list is none, do not publish, search for a publication tool, or try to satisfy the Agent's run-level publication rule; publication belongs only to a task whose allowed tool list explicitly includes that publication tool. Do not write the final user response. Stop after the success criteria and every required completion tool are satisfied, or when progress is genuinely blocked. Never end with future intent such as “I will create or publish the report.” ${artifactGuidance} Reuse existing workspace artifacts instead of repeating discovery, downloads, extraction, or visual analysis. Reuse the exact workspace paths returned in dependency results and tool outputs. Never reconstruct a directory from only a filename; when an exact path is unavailable, resolve it with filesystem.search or filesystem.list before reading. For Skill resources, use only exact paths from the activated Skill file lists above; never probe guessed directory or extension variants. Return one JSON object with summary, evidence, and unresolved. Evidence entries require kind, title, uri, excerpt, and metadata. Never invent sources.\n\nTask: ${taskItem.title}\nObjective: ${taskItem.objective}\nSuccess criteria: ${taskItem.successCriteria.join("; ") || "Satisfy the objective"}\nDependency results: ${JSON.stringify(dependencyResults)}`;
+  return `${basePrompt}${activatedSkillContext ? `\n\n${activatedSkillContext}` : ""}\n\nYou are a bounded worker in a governed task graph. Complete only the assigned task. The relevant Skills were activated before planning and their complete instructions are included above. Follow them without calling activate_skill again. Use only allowed tools. The required completion tools for this task are: ${requiredToolIds.join(", ") || "none"}. When that list is none, do not publish, search for a publication tool, or try to satisfy the Agent's run-level publication rule; publication belongs only to a task whose allowed tool list explicitly includes that publication tool. Do not write the final user response. Stop after the success criteria and every required completion tool are satisfied, or when progress is genuinely blocked. Never end with future intent such as “I will create or publish the report.” ${artifactGuidance} Reuse existing workspace artifacts instead of repeating discovery, downloads, extraction, or visual analysis. Reuse the exact workspace paths returned in dependency results and tool outputs. Never reconstruct a directory from only a filename; when an exact path is unavailable, resolve it with filesystem.search or filesystem.list before reading. For Skill resources, use only exact paths from the activated Skill file lists above; never probe guessed directory or extension variants. If the original request asks to list items or fields and this task creates or reads that dataset, include every requested row and field in the summary; a count or file path alone is not sufficient. Use a compact table when the list is long. Return one JSON object with summary, evidence, and unresolved. Evidence entries require kind, title, uri, excerpt, and metadata. Never invent sources.\n\nOriginal user request: ${userRequest}\n\nTask: ${taskItem.title}\nObjective: ${taskItem.objective}\nSuccess criteria: ${taskItem.successCriteria.join("; ") || "Satisfy the objective"}\nDependency results: ${JSON.stringify(dependencyResults)}${priorToolResults}`;
 }
 
 function workerResultFromPlainText(resultState, missingToolIds = []) {
@@ -1013,8 +1085,67 @@ function normalizeControllerAction(call, descriptors = [], request = "") {
   };
 }
 
-function activatedSkillToolIds(skills = []) {
-  if (!skills.length) return null;
+const DELEGATED_FALLBACK_WRITE_TOOLS = new Set([
+  "bash",
+  "python",
+  "filesystem.write",
+]);
+
+function delegatedControllerActionPlan({
+  call,
+  descriptor,
+  descriptors = [],
+  request = "",
+  hasAvailableAgents = false,
+}) {
+  const writeIntent = requestAllowsWrite(request);
+  const allowedToolIds = descriptors
+    .filter((candidate) => candidate.id !== "skill.activate")
+    .filter(
+      (candidate) =>
+        candidate.effect === "read" ||
+        (writeIntent &&
+          (DELEGATED_FALLBACK_WRITE_TOOLS.has(candidate.id) ||
+            candidate.id === descriptor.id))
+    )
+    .map((candidate) => candidate.id);
+  if (hasAvailableAgents) allowedToolIds.push("agent.call");
+
+  return {
+    goal: `完成用户请求：${request}`,
+    tasks: [
+      {
+        id: "complete-request-with-inherited-tools",
+        title: "执行并验证用户请求",
+        objective: [
+          `完整执行用户请求：${request}`,
+          `控制器曾尝试调用 ${descriptor.id}，参数为 ${JSON.stringify(call?.args || {})}。这只是一条定位线索，不是任务的完成条件。`,
+          "请自行选择已继承的工具或合适的专用 Agent，继续执行到用户要求的结果实际生成并完成验证。",
+        ].join("\n\n"),
+        dependsOn: [],
+        allowedToolIds: [...new Set(allowedToolIds)],
+        requiredCapabilities: [],
+        successCriteria: [
+          "完成用户的完整请求，而不是只返回初始搜索结果。",
+          "检查生成或修改的结果是否真实存在且可读取。",
+          "保留实际工具错误和仍未解决的问题。",
+        ],
+        acceptsPartialDependencies: false,
+        writeIntent,
+      },
+    ],
+  };
+}
+
+function skillToolRestrictionsEnabled(run = {}) {
+  return (
+    run?.policySnapshot?.enforceSkillToolRestrictions === true ||
+    run?.configuration?.enforceSkillToolRestrictions === true
+  );
+}
+
+function activatedSkillToolIds(skills = [], enforceRestrictions = false) {
+  if (!enforceRestrictions || !skills.length) return null;
   return new Set(
     skills.flatMap((skill) =>
       skillAllowedToolIds(skill).map((toolId) => normalizeToolId(toolId))
@@ -1022,8 +1153,12 @@ function activatedSkillToolIds(skills = []) {
   );
 }
 
-function descriptorsForActivatedSkills(descriptors = [], skills = []) {
-  const allowed = activatedSkillToolIds(skills);
+function descriptorsForActivatedSkills(
+  descriptors = [],
+  skills = [],
+  enforceRestrictions = false
+) {
+  const allowed = activatedSkillToolIds(skills, enforceRestrictions);
   if (!allowed) return descriptors;
   return descriptors.filter((descriptor) => allowed.has(descriptor.id));
 }
@@ -1031,12 +1166,16 @@ function descriptorsForActivatedSkills(descriptors = [], skills = []) {
 function effectiveTaskToolIds(
   requestedToolIds = [],
   workerAgent = {},
-  activatedSkills = []
+  activatedSkills = [],
+  enforceRestrictions = false
 ) {
   const configuredTools = Array.isArray(workerAgent?.tools)
     ? new Set(workerAgent.tools)
     : null;
-  const skillTools = activatedSkillToolIds(activatedSkills);
+  const skillTools = activatedSkillToolIds(
+    activatedSkills,
+    enforceRestrictions
+  );
   return [...new Set(requestedToolIds.map(normalizeToolId))].filter(
     (toolId) => {
       if (toolId === "skill.activate") return false;
@@ -1068,7 +1207,10 @@ function validatePlan(
   const configuredTools = Array.isArray(agent.tools)
     ? new Set(agent.tools)
     : null;
-  const activeSkillTools = activatedSkillToolIds(activatedSkills);
+  const activeSkillTools = activatedSkillToolIds(
+    activatedSkills,
+    skillToolRestrictionsEnabled(run)
+  );
   const localToScoped = new Map(
     parsed.tasks.map((task) => [task.id, scopedTaskId(run.id, task.id)])
   );
@@ -1119,18 +1261,20 @@ function validatePlan(
         throw new Error(`Task ${task.id} selected disallowed tool ${toolId}.`);
     }
     const hasWriteTool = taskHasWriteTool(normalizedAllowedToolIds);
+    const requestsArtifactWrite = Boolean(
+      allowWrites && taskRequestsArtifactWrite(task)
+    );
     const effectiveWriteIntent = Boolean(
-      (task.writeIntent || shouldAddPublishTool) && allowWrites
+      (task.writeIntent ||
+        shouldAddPublishTool ||
+        (requestsArtifactWrite && hasWriteTool)) &&
+        allowWrites
     );
     if (effectiveWriteIntent && !hasWriteTool)
       throw new Error(
         `Task ${task.id} declares writeIntent but has no write-capable tool.`
       );
-    if (
-      allowWrites &&
-      taskRequestsArtifactWrite(task) &&
-      (!effectiveWriteIntent || !hasWriteTool)
-    )
+    if (requestsArtifactWrite && (!effectiveWriteIntent || !hasWriteTool))
       throw new Error(
         `Task ${task.id} requires an artifact write but its writeIntent or allowed tools are read-only.`
       );
@@ -1613,7 +1757,8 @@ function createGovernedGraph(context) {
         );
         const controllerToolDescriptors = descriptorsForActivatedSkills(
           allControllerToolDescriptors,
-          state.activatedSkills
+          state.activatedSkills,
+          skillToolRestrictionsEnabled(run)
         );
         const controllerVisibleToolIds = new Set(
           controllerToolDescriptors.map((descriptor) => descriptor.id)
@@ -1632,7 +1777,10 @@ function createGovernedGraph(context) {
           agent,
           workspace,
           selectableSkills,
-          { visibleToolIds: controllerVisibleToolIds }
+          {
+            visibleToolIds: controllerVisibleToolIds,
+            enforceAllowedTools: skillToolRestrictionsEnabled(run),
+          }
         );
         const activatedSkillContext = activatedSkillsPrompt(
           state.activatedSkills,
@@ -1676,7 +1824,10 @@ function createGovernedGraph(context) {
             ? activatedSkillSnapshot(activatedSkillScope.get(lookupSkill.name))
             : null;
           const lookupToolIds = new Set();
-          for (const toolId of skillAllowedToolIds(lookupSkill)) {
+          const candidateLookupTools = skillToolRestrictionsEnabled(run)
+            ? skillAllowedToolIds(lookupSkill)
+            : [...controllerVisibleToolIds];
+          for (const toolId of candidateLookupTools) {
             const descriptor = toolRegistry.get(normalizeToolId(toolId));
             if (
               descriptor &&
@@ -1737,8 +1888,11 @@ function createGovernedGraph(context) {
             ],
             { parallel_tool_calls: false }
           );
+        const directActionGuidance = controllerDirectActionsEnabled()
+          ? ""
+          : " The controller API exposes only activate_skill, create_plan, and ask_user. The execution tools listed below belong to workers and cannot be called by the controller. When any execution tool is needed, call create_plan and put its exact ID in a worker task; never emit an execution-tool call directly.";
         const messages = modelMessages(
-          `${basePrompt}${currentSkillCatalog ? `\n\n${currentSkillCatalog}` : ""}${activatedSkillContext ? `\n\n${activatedSkillContext}` : ""}\n\nYou are the controller for a governed Agent runtime. Before creating a plan, call activate_skill for every relevant available Skill whose full instructions are not already present above. Skill activation is a pre-planning control action: never include skill.activate or a Skill activation/bootstrap task in create_plan. After all relevant Skills are activated, create the actual work plan from their complete instructions. Answer ordinary questions directly. Call create_plan only when tools, independent work, delegation, or verification are genuinely useful. Call ask_user only when a missing answer materially changes the work. Every ask_user call must contain exactly three concise, mutually exclusive choices with the recommended choice first; the client supplies the fourth custom-answer option and notes field. Never combine normal answer text with a control tool call. Plans must contain concrete evidence or action tasks, not a final-answer task. Give each worker the smallest relevant allowedToolIds set. A task that must create, update, save, or publish an artifact must set writeIntent=true and include the exact write-capable tool. A read-only task must return its analysis in the worker JSON result; never tell it to complete, write, or update a report, ledger, manifest, Markdown file, or other artifact. The Available tools section is the complete tool boundary for this run: use only those exact tool IDs and never invent or infer another tool. ${knowledgeGuidance} For a long Skill workflow, split discovery and manifest creation, acquisition and processing, validation, and final publication into dependency tasks; allow a final-report publication tool only when it appears in Available tools, and only in the final task. For read-only requests, exclude unrelated state-changing tools, but retain Skill-declared execution or file tools required to create the workflow's cache and requested artifacts. Direct answers using context evidence must cite it as [C1], [C2], and so on.${state.planningFeedback ? `\n\nPrevious planning attempt was rejected: ${state.planningFeedback}` : ""}\n\nAvailable tools:\n${toolList || "None"}\n\nAvailable specialist Agents:\n${agentList || "None"}`,
+          `${basePrompt}${currentSkillCatalog ? `\n\n${currentSkillCatalog}` : ""}${activatedSkillContext ? `\n\n${activatedSkillContext}` : ""}\n\nYou are the controller for a governed Agent runtime. Before creating a plan, call activate_skill for every relevant available Skill whose full instructions are not already present above. Skill activation is a pre-planning control action: never include skill.activate or a Skill activation/bootstrap task in create_plan. After all relevant Skills are activated, create the actual work plan from their complete instructions. Answer ordinary questions directly. Call create_plan only when tools, independent work, delegation, or verification are genuinely useful. Call ask_user only when a missing answer materially changes the work. Every ask_user call must contain exactly three concise, mutually exclusive choices with the recommended choice first; the client supplies the fourth custom-answer option and notes field. Never combine normal answer text with a control tool call. Plans must contain concrete evidence or action tasks, not a final-answer task. Give each worker the smallest relevant allowedToolIds set. An empty allowedToolIds list means that worker receives no tools. When the user requests a list or named fields, make the task that reads or creates the dataset require those complete rows and fields in its worker summary; storing them only in an artifact does not satisfy the request. A task that must create, update, save, or publish an artifact must set writeIntent=true and include the exact write-capable tool. A read-only task must return its analysis in the worker JSON result; never tell it to complete, write, or update a report, ledger, manifest, Markdown file, or other artifact. When the user explicitly limits the request to uploaded files, use only filesystem and document-processing tools; exclude Workspace knowledge, memory, and public-web tools unless the user asks for them. Worker tools below are the complete tool boundary for this run: refer to them only inside create_plan.allowedToolIds, use only those exact IDs, and never invent or infer another tool.${directActionGuidance} ${knowledgeGuidance} For a long Skill workflow, split discovery and manifest creation, acquisition and processing, validation, and final publication into dependency tasks; allow a final-report publication tool only when it appears in Available tools, and only in the final task. For read-only requests, exclude unrelated state-changing tools, but retain Skill-declared execution or file tools required to create the workflow's cache and requested artifacts. Direct answers using context evidence must cite it as [C1], [C2], and so on.${state.planningFeedback ? `\n\nPrevious planning attempt was rejected: ${state.planningFeedback}` : ""}\n\nWorker tools for create_plan (not controller-callable):\n${toolList || "None"}\n\nAvailable specialist Agents:\n${agentList || "None"}`,
           state,
           `${state.request}${state.clarification ? `\n\nUser clarification:\n${state.clarification}` : ""}${contextPrompt(state.contextItems)}`,
           state.controllerAttachments
@@ -1844,11 +1998,34 @@ function createGovernedGraph(context) {
           );
           if (!normalizedAction)
             throw new Error(`Unsupported controller action: ${call.name}`);
-          await emit("controller.action_normalized", {
-            requestedAction: call.name,
-            toolId: normalizedAction.descriptor.id,
-          });
-          rawPlan = normalizedAction.plan;
+          if (!controllerDirectActionsEnabled()) {
+            const reason = `Direct controller action "${normalizedAction.descriptor.id}" is disabled. Create a normal work plan and let the worker choose among its inherited tools.`;
+            await emit("plan.rejected", { reason });
+            if (state.planningAttempts < 1)
+              return {
+                control: { kind: "retry_planning" },
+                planningFeedback: reason,
+                planningAttempts: state.planningAttempts + 1,
+              };
+            rawPlan = delegatedControllerActionPlan({
+              call,
+              descriptor: normalizedAction.descriptor,
+              descriptors: controllerToolDescriptors,
+              request: state.request,
+              hasAvailableAgents: agents.length > 0,
+            });
+            await emit("controller.action_delegated", {
+              requestedAction: call.name,
+              toolId: normalizedAction.descriptor.id,
+              reason,
+            });
+          } else {
+            await emit("controller.action_normalized", {
+              requestedAction: call.name,
+              toolId: normalizedAction.descriptor.id,
+            });
+            rawPlan = normalizedAction.plan;
+          }
         }
         let plan;
         try {
@@ -1982,6 +2159,10 @@ function createGovernedGraph(context) {
       taskId: taskItem.id,
       title: taskItem.title,
       agent: { id: workerAgent.id, name: workerAgent.name },
+      activatedSkills: state.activatedSkills.map((skill) => ({
+        name: skill.name,
+        revision: skill.revision || null,
+      })),
     });
     await emit("task.progress", {
       taskId: taskItem.id,
@@ -2018,16 +2199,12 @@ function createGovernedGraph(context) {
     const dependencyResults = state.taskResults.filter((item) =>
       taskItem.dependsOn.includes(item.id)
     );
-    const readOnlyTools = visibleToolDescriptorsForAgent(workerAgent, {
-      allowActions: false,
-    }).map((item) => item.id);
-    const requestedToolIds = taskItem.allowedToolIds.length
-      ? taskItem.allowedToolIds
-      : readOnlyTools;
+    const requestedToolIds = taskItem.allowedToolIds;
     const allowedToolIds = effectiveTaskToolIds(
       requestedToolIds,
       workerAgent,
-      state.activatedSkills
+      state.activatedSkills,
+      skillToolRestrictionsEnabled(run)
     );
     const requiredToolIds = taskRequiredCompletionTools(
       run,
@@ -2100,6 +2277,10 @@ function createGovernedGraph(context) {
           };
           return { taskResults: [stopped] };
         }
+        const priorExecutions =
+          attempt > 1
+            ? await AgentToolExecution.listForTask(run.id, taskItem.id)
+            : [];
         const workerGraph = await buildAgentGraph({
           run: workerRun,
           workspace,
@@ -2118,6 +2299,7 @@ function createGovernedGraph(context) {
               : DEFAULTS.maxTaskToolCalls,
           systemPromptOverride: workerSystemPrompt({
             basePrompt: workerAgent.systemPrompt || basePrompt,
+            userRequest: state.request,
             taskItem,
             allowedToolIds,
             requiredToolIds,
@@ -2126,6 +2308,7 @@ function createGovernedGraph(context) {
               state.activatedSkills,
               new Set(allowedToolIds)
             ),
+            priorToolResults: priorToolResultsContext(priorExecutions),
           }),
           includeSkillCatalog: false,
           activatedSkillScope,
@@ -2305,12 +2488,24 @@ function createGovernedGraph(context) {
           : error;
         lastError = taskError;
         if (signal?.aborted) throw taskError;
-        if (isTerminalTaskError(taskError)) break;
+        const priorExecutions =
+          taskError?.code === "TASK_NO_PROGRESS"
+            ? await AgentToolExecution.listForTask(run.id, taskItem.id)
+            : [];
+        const retryNoProgress = shouldRetryNoProgressTask({
+          error: taskError,
+          attempt,
+          maxAttempts: maxWorkerAttempts,
+          executions: priorExecutions,
+        });
+        if (isTerminalTaskError(taskError) && !retryNoProgress) break;
         if (attempt < maxWorkerAttempts) {
           await AgentRunTask.update(taskItem.id, {
             status: "retrying",
             attempt: attempt + 1,
-            progress: `Retrying ${taskItem.title} with a fresh model call`,
+            progress: retryNoProgress
+              ? `Continuing ${taskItem.title} from completed tool results`
+              : `Retrying ${taskItem.title} with a fresh model call`,
           });
           await emit("task.retrying", {
             taskId: taskItem.id,
@@ -2358,11 +2553,13 @@ function createGovernedGraph(context) {
         role: "reviewer",
         schema: reviewSchema,
         name: "review-agent-work",
-        system: `${basePrompt}${activatedSkillContext ? `\n\n${activatedSkillContext}` : ""}\n\nReview completed and failed tasks against the user's request and the activated Skill instructions. Accept when supported, partial when the best possible answer should be returned with explicit gaps, or revise only for a material repair that can succeed with a different task. Do not repeat failed work unchanged.`,
+        system: `${basePrompt}${activatedSkillContext ? `\n\n${activatedSkillContext}` : ""}\n\nReview completed and failed tasks against the user's request and the activated Skill instructions. Accept when supported, partial when the best possible answer should be returned with explicit gaps, or revise only for a material repair that can succeed with a different task. If the user requested a list or named fields but task results contain only a count or artifact path, revise with a focused read task that returns the complete requested rows and fields. Do not accept a file path as a substitute for requested user-visible content. Do not repeat failed work unchanged.`,
         user: `Request:\n${state.request}\n\nPlan:\n${JSON.stringify(state.plan)}\n\nResults:\n${JSON.stringify(state.taskResults)}\n\nEvidence:\n${JSON.stringify(state.evidence)}`,
         runnableConfig,
       });
-      return { review: decision };
+      return {
+        review: normalizeReviewDecision(decision, state.taskResults),
+      };
     } catch (error) {
       return {
         review: {
@@ -2452,7 +2649,7 @@ function createGovernedGraph(context) {
             [
               {
                 role: "system",
-                content: `${basePrompt}${activatedSkillContext ? `\n\n${activatedSkillContext}` : ""}\n\nWrite the final user response from the task results while following the activated Skill instructions. Preserve successful work when some tasks failed. State material gaps plainly. Cite evidence inline as [E1], [E2], and so on. Do not expose internal plans or JSON. You have no tools in this step.`,
+                content: `${basePrompt}${activatedSkillContext ? `\n\n${activatedSkillContext}` : ""}\n\nWrite the final user response from the task results while following the activated Skill instructions. Preserve successful work when some tasks failed. State material gaps plainly. Cite evidence inline as [E1], [E2], and so on. When the user requested a list or named fields and task results contain them, include the complete rows in the answer; never replace requested user-visible content with only an artifact path or an offer to retrieve it later. Do not expose internal plans or JSON. You have no tools in this step.`,
               },
               {
                 role: "user",
@@ -2588,8 +2785,10 @@ module.exports = {
   askUserTool,
   blockedTaskResults,
   controllerDecisionWithFallback,
+  controllerDirectActionsEnabled,
   createGovernedGraph,
   classify3gppRequest,
+  delegatedControllerActionPlan,
   execute3gppMarkdownConversion,
   executeQuick3gppLookup,
   executeSegment,
@@ -2598,12 +2797,14 @@ module.exports = {
   isQuick3gppLookupTask,
   is3gppMarkdownConversionAgent,
   mergeById,
+  normalizeReviewDecision,
   normalizeControllerAction,
   normalizedActionPlan,
   normalized3gppLookupPlan,
   parse3gppInvitationFacts,
   parse3gppConversionRequest,
   parse3gppMeetingRequest,
+  priorToolResultsContext,
   quick3gppResponse,
   rethrowWorkerInterrupt,
   normalized3gppReviewPlan,
@@ -2611,7 +2812,9 @@ module.exports = {
   resolvedTaskDependencies,
   scopedTaskId,
   shouldRetrieveWorkspaceContext,
+  skillToolRestrictionsEnabled,
   shouldRecallPersonalMemory,
+  shouldRetryNoProgressTask,
   streamControllerDecision,
   isKnowledgeIngestionRequest,
   knowledgeToolGuidance,

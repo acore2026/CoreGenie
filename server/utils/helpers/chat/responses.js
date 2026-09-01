@@ -211,6 +211,15 @@ function convertToChatHistory(history = []) {
         chatId: id,
         sentAt: moment(createdAt).unix(),
         feedbackScore,
+        responseEvaluation:
+          data.responseEvaluation ||
+          (data.agentRunId && feedbackScore !== null
+            ? {
+                rating: feedbackScore ? "good" : "bad",
+                reasonCodes: [],
+                comment: "",
+              }
+            : null),
         metrics: data?.metrics || {},
         error: data?.error || false,
         ...(data?.agentRunId ? { agentRunId: data.agentRunId } : {}),

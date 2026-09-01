@@ -25,6 +25,7 @@ import { openImageLightbox } from "@/components/ImageLightbox";
 import SubagentRun from "../SubagentRun";
 import ContextTrace from "../ContextTrace";
 import AgentExecutionRail from "../AgentExecutionRail";
+import ResponseEvaluation from "./ResponseEvaluation";
 
 const HistoricalMessage = ({
   uuid: uuidProp,
@@ -34,7 +35,7 @@ const HistoricalMessage = ({
   sources = [],
   attachments = [],
   error = false,
-  feedbackScore = null,
+  responseEvaluation = null,
   chatId = null,
   isLastMessage = false,
   regenerateMessage,
@@ -126,7 +127,6 @@ const HistoricalMessage = ({
           </div>
           <Actions
             message={message}
-            feedbackScore={feedbackScore}
             chatId={chatId}
             slug={workspace?.slug}
             isLastMessage={isLastMessage}
@@ -208,6 +208,13 @@ const HistoricalMessage = ({
             <HistoricalOutputs outputs={outputs} />
           </div>
         )}
+        {agentRunId && !readOnly && !isEditing && (
+          <ResponseEvaluation
+            chatId={chatId}
+            slug={workspace?.slug}
+            initialFeedback={responseEvaluation}
+          />
+        )}
         <div className="flex items-start md:items-center gap-x-1">
           <TTSMessage
             slug={workspace?.slug}
@@ -216,7 +223,6 @@ const HistoricalMessage = ({
           />
           <Actions
             message={message}
-            feedbackScore={feedbackScore}
             chatId={chatId}
             slug={workspace?.slug}
             isLastMessage={isLastMessage}
@@ -255,6 +261,7 @@ export default memo(
       prevProps.contextTraces === nextProps.contextTraces &&
       prevProps.outputs === nextProps.outputs &&
       prevProps.agentRunId === nextProps.agentRunId &&
+      prevProps.responseEvaluation === nextProps.responseEvaluation &&
       prevProps.readOnly === nextProps.readOnly
     );
   }

@@ -1,6 +1,7 @@
 const prisma = require("../utils/prisma");
 const { safeJsonParse } = require("../utils/http");
 const { v4: uuidv4 } = require("uuid");
+const { withPrismaRetry } = require("../utils/prismaRetry");
 
 function normalizeCommand(row) {
   if (!row) return null;
@@ -20,30 +21,34 @@ const AgentRunCommand = {
     payload,
   }) {
     return normalizeCommand(
-      await prisma.agent_run_commands.upsert({
-        where: { id: String(id) },
-        create: {
-          id: String(id),
-          run_id: String(runId),
-          task_id: taskId || null,
-          type: String(type),
-          payload: JSON.stringify(payload || {}),
-        },
-        update: {},
-      })
+      await withPrismaRetry(() =>
+        prisma.agent_run_commands.upsert({
+          where: { id: String(id) },
+          create: {
+            id: String(id),
+            run_id: String(runId),
+            task_id: taskId || null,
+            type: String(type),
+            payload: JSON.stringify(payload || {}),
+          },
+          update: {},
+        })
+      )
     );
   },
 
   complete: async function (id, result = {}) {
     return normalizeCommand(
-      await prisma.agent_run_commands.update({
-        where: { id: String(id) },
-        data: {
-          status: "completed",
-          result: JSON.stringify(result || {}),
-          completedAt: new Date(),
-        },
-      })
+      await withPrismaRetry(() =>
+        prisma.agent_run_commands.update({
+          where: { id: String(id) },
+          data: {
+            status: "completed",
+            result: JSON.stringify(result || {}),
+            completedAt: new Date(),
+          },
+        })
+      )
     );
   },
 };

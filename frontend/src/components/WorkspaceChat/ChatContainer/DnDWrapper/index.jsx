@@ -1,4 +1,4 @@
-import { useState, useEffect, createContext, useContext, useRef } from "react";
+import { useState, useEffect, createContext, useContext } from "react";
 import { v4 } from "uuid";
 import System from "@/models/system";
 import { useDropzone } from "react-dropzone";
@@ -6,8 +6,6 @@ import DndIcon from "./dnd-icon.png";
 import Workspace from "@/models/workspace";
 import showToast from "@/utils/toast";
 import FileUploadWarningModal from "./FileUploadWarningModal";
-import pluralize from "pluralize";
-import usePredefinedAgent from "@/hooks/usePredefinedAgent";
 import { useTranslation } from "react-i18next";
 
 export const DndUploaderContext = createContext();
@@ -28,7 +26,7 @@ export const PARSED_FILE_ATTACHMENT_REMOVED_EVENT =
  * @property {('in_progress'|'failed'|'embedded'|'added_context')} status - the automatic upload status.
  * @property {string|null} error - Error message
  * @property {{id:string, location:string}|null} document - uploaded document details
- * @property {('attachment'|'upload'|'workspace_file')} type - The type of upload. Attachments are chat-specific, uploads go to the workspace, and workspace_file keeps an original DOCX for the converter.
+ * @property {('attachment'|'upload'|'workspace_file')} type - The upload type. Attachments are chat-specific, uploads use parsed RAG context, and workspace_file preserves the original file in the workspace filesystem.
  */
 
 /**
@@ -57,11 +55,6 @@ export function DnDFileUploaderProvider({
   const [pendingFiles, setPendingFiles] = useState([]);
   const [tokenCount, setTokenCount] = useState(0);
   const [maxTokens, setMaxTokens] = useState(Number.POSITIVE_INFINITY);
-  const { selectedAgent } = usePredefinedAgent();
-  const workspaceFileMode = selectedAgent?.attachmentMode === "workspace_file";
-  const workspaceFileModeRef = useRef(workspaceFileMode);
-  workspaceFileModeRef.current = workspaceFileMode;
-
   useEffect(() => {
     System.checkDocumentProcessorOnline().then((status) => setReady(status));
   }, []);
@@ -165,16 +158,19 @@ export function DnDFileUploaderProvider({
   async function handlePastedAttachment(event) {
     const { files = [] } = event.detail;
     if (!files.length) return;
+    await queueFiles(files, "rag");
+  }
+
+  async function queueFiles(inputFiles = [], destination = "rag") {
     const newAccepted = [];
-    for (const file of files) {
-      if (workspaceFileModeRef.current) {
-        const accepted = file.name.toLowerCase().endsWith(".docx");
+    for (const file of inputFiles) {
+      if (destination === "workspace") {
         newAccepted.push({
           uid: v4(),
           file,
           contentString: null,
-          status: accepted ? "in_progress" : "failed",
-          error: accepted ? null : t("chat_window.docx_only"),
+          status: "in_progress",
+          error: null,
           type: "workspace_file",
         });
       } else if (file.type.startsWith("image/")) {
@@ -208,53 +204,9 @@ export function DnDFileUploaderProvider({
    * @param {Attachment[]} acceptedFiles
    * @param {any[]} _rejections
    */
-  async function onDrop(acceptedFiles, _rejections) {
+  async function onDrop(acceptedFiles) {
     setDragging(false);
-
-    /** @type {Attachment[]} */
-    const newAccepted = [];
-    const droppedFiles = workspaceFileModeRef.current
-      ? [
-          ...acceptedFiles,
-          ..._rejections.map((rejection) => rejection.file).filter(Boolean),
-        ]
-      : acceptedFiles;
-    for (const file of droppedFiles) {
-      if (workspaceFileModeRef.current) {
-        const accepted = file.name.toLowerCase().endsWith(".docx");
-        newAccepted.push({
-          uid: v4(),
-          file,
-          contentString: null,
-          status: accepted ? "in_progress" : "failed",
-          error: accepted ? null : t("chat_window.docx_only"),
-          type: "workspace_file",
-        });
-      } else if (file.type.startsWith("image/")) {
-        newAccepted.push({
-          uid: v4(),
-          file,
-          contentString: await toBase64(file),
-          status: "success",
-          error: null,
-          type: "attachment",
-        });
-      } else {
-        newAccepted.push({
-          uid: v4(),
-          file,
-          contentString: null,
-          status: "in_progress",
-          error: null,
-          type: "upload",
-        });
-      }
-    }
-
-    setFiles((prev) => [...prev, ...newAccepted]);
-    embedEligibleAttachments(
-      newAccepted.filter((attachment) => attachment.status === "in_progress")
-    );
+    await queueFiles(acceptedFiles, "rag");
   }
 
   /**
@@ -265,14 +217,18 @@ export function DnDFileUploaderProvider({
     window.dispatchEvent(new CustomEvent(ATTACHMENTS_PROCESSING_EVENT));
     const promises = [];
 
-    const { currentContextTokenCount, contextWindow } =
-      await Workspace.getParsedFiles(workspace.slug, threadSlug);
-    const workspaceContextWindow = contextWindow
-      ? Math.floor(contextWindow * Workspace.maxContextWindowLimit)
+    const hasRagUploads = newAttachments.some(
+      (attachment) => attachment.type === "upload"
+    );
+    const parsedFiles = hasRagUploads
+      ? await Workspace.getParsedFiles(workspace.slug, threadSlug)
+      : {};
+    const workspaceContextWindow = parsedFiles.contextWindow
+      ? Math.floor(parsedFiles.contextWindow * Workspace.maxContextWindowLimit)
       : Number.POSITIVE_INFINITY;
     setMaxTokens(workspaceContextWindow);
 
-    let totalTokenCount = currentContextTokenCount;
+    let totalTokenCount = parsedFiles.currentContextTokenCount || 0;
     let batchPendingFiles = [];
 
     for (const attachment of newAttachments) {
@@ -282,6 +238,7 @@ export function DnDFileUploaderProvider({
       if (attachment.type === "workspace_file") {
         const formData = new FormData();
         formData.append("file", attachment.file, attachment.file.name);
+        formData.append("destination", "attachment");
         promises.push(
           Workspace.uploadWorkspaceFile(workspace.slug, formData)
             .then(({ response, data }) => {
@@ -296,7 +253,8 @@ export function DnDFileUploaderProvider({
                   }
                 : {
                     status: "failed",
-                    error: data?.error || t("chat_window.docx_upload_failed"),
+                    error:
+                      data?.error || t("chat_window.workspace_upload_failed"),
                   };
               setFiles((prev) =>
                 prev.map((prevFile) =>
@@ -314,7 +272,8 @@ export function DnDFileUploaderProvider({
                         ...prevFile,
                         status: "failed",
                         error:
-                          error.message || t("chat_window.docx_upload_failed"),
+                          error.message ||
+                          t("chat_window.workspace_upload_failed"),
                       }
                     : prevFile
                 )
@@ -489,7 +448,9 @@ export function DnDFileUploaderProvider({
     setIsEmbedding(false);
     window.dispatchEvent(new CustomEvent(ATTACHMENTS_PROCESSED_EVENT));
     showToast(
-      `${pendingFiles.length} ${pluralize("file", pendingFiles.length)} embedded successfully`,
+      t("chat_window.upload_menu.embed_complete", {
+        count: pendingFiles.length,
+      }),
       "success"
     );
   };
@@ -498,12 +459,13 @@ export function DnDFileUploaderProvider({
     <DndUploaderContext.Provider
       value={{
         files,
-        ready: ready || workspaceFileMode,
+        ready,
         dragging,
         setDragging,
         onDrop,
         parseAttachments,
-        workspaceFileMode,
+        queueWorkspaceFiles: (workspaceFiles) =>
+          queueFiles(workspaceFiles, "workspace"),
       }}
     >
       <FileUploadWarningModal
@@ -524,17 +486,11 @@ export function DnDFileUploaderProvider({
 
 export default function DnDFileUploaderWrapper({ children }) {
   const { t } = useTranslation();
-  const { onDrop, ready, dragging, setDragging, workspaceFileMode } =
+  const { onDrop, ready, dragging, setDragging } =
     useContext(DndUploaderContext);
   const { getRootProps, getInputProps } = useDropzone({
     onDrop,
     disabled: !ready,
-    accept: workspaceFileMode
-      ? {
-          "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-            [".docx"],
-        }
-      : undefined,
     noClick: true,
     noKeyboard: true,
     onDragEnter: () => setDragging(true),
@@ -559,14 +515,10 @@ export default function DnDFileUploaderWrapper({ children }) {
               alt="Drag and drop icon"
             />
             <p className="text-white text-[24px] font-semibold">
-              {workspaceFileMode
-                ? t("chat_window.drop_docx")
-                : t("chat_window.drop_file")}
+              {t("chat_window.drop_rag_file")}
             </p>
             <p className="text-white text-[16px] text-center">
-              {workspaceFileMode
-                ? t("chat_window.drop_docx_description")
-                : t("chat_window.drop_file_description")}
+              {t("chat_window.drop_rag_file_description")}
             </p>
           </div>
         </div>
