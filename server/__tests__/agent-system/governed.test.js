@@ -382,6 +382,8 @@ describe("Governed Agent runtime", () => {
     );
     expect(prompt).toMatch(/include every requested row and field/i);
     expect(prompt).toMatch(/count or file path alone is not sufficient/i);
+    expect(prompt).toMatch(/state it once outside the table/i);
+    expect(prompt).toMatch(/Never omit a requested row or field/i);
   });
 
   it("validates artifact-writing requirements against task tools", () => {

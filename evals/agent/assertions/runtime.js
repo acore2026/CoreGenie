@@ -256,6 +256,35 @@ function checkOfficial3gpp(metadata) {
   return null;
 }
 
+function checkCompleteRequestedFields(output) {
+  const corpus = text(output);
+  const truncation =
+    /(?:报告|输出|结果).{0,12}(?:截断|被截断)|(?:标题|source|字段).{0,12}(?:未返回|因截断.*未获取)|(?:完整|全部).{0,20}(?:清单|内容).{0,40}(?:当前.{0,8})?无法(?:读取|展开)|仅列出.{0,30}(?:摘要|部分)|output.{0,12}truncat/i;
+  if (truncation.test(corpus))
+    return "requested rows or fields were omitted because output was truncated";
+
+  const declared = [
+    ...corpus.matchAll(
+      /(?:匹配\s*TDoc\s*数|提案数|文档数)\D{0,12}(\d+)\s*(?:条|个)?/gi
+    ),
+    ...corpus.matchAll(
+      /(?:共|合计|总计)\s*\**(\d+)\s*\**\s*(?:条|个)(?:\s*(?:提案|TDoc|文档))?/gi
+    ),
+  ]
+    .map((match) => Number(match[1]))
+    .filter(Number.isFinite);
+  const expected = declared.length ? Math.max(...declared) : 0;
+  if (!expected) return null;
+  const tableIds = new Set(
+    [...corpus.matchAll(/^\|\s*\d+\s*\|\s*(S\d-\d{7})\s*\|/gim)].map(
+      (match) => match[1].toUpperCase()
+    )
+  );
+  return tableIds.size >= expected
+    ? null
+    : `listed ${tableIds.size} complete TDoc rows but declared ${expected}`;
+}
+
 const CHECKS = {
   terminal: (_output, metadata) => checkTerminal(metadata),
   noRuntimeError: checkNoRuntimeError,
@@ -270,6 +299,7 @@ const CHECKS = {
   cancelRerun: (_output, metadata) => checkCancelRerun(metadata),
   rag: (_output, metadata) => checkRag(metadata),
   official3gpp: (_output, metadata) => checkOfficial3gpp(metadata),
+  completeRequestedFields: checkCompleteRequestedFields,
 };
 
 module.exports = function runtimeAssertion(output, context = {}) {

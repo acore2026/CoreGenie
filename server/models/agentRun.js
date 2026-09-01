@@ -129,6 +129,15 @@ const AgentRun = {
     return rows.map(normalizeRun);
   },
 
+  deleteForWorkspace: async function (workspaceId) {
+    const parsed = Number(workspaceId);
+    if (!Number.isInteger(parsed) || parsed < 1) return 0;
+    const result = await withPrismaRetry(() =>
+      prisma.agent_runs.deleteMany({ where: { workspace_id: parsed } })
+    );
+    return result.count;
+  },
+
   claim: async function (id, owner, leaseMs = 30_000) {
     const now = new Date();
     const leaseExpiresAt = new Date(now.getTime() + leaseMs);

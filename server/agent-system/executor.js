@@ -17,7 +17,10 @@ const { withAgentTrace } = require("./observability");
 const { requireRuntime } = require("./runtimes/registry");
 const { consumeGraphStream } = require("./runtimes/stream");
 const { deleteCheckpointThread } = require("./checkpointer");
-const { registerReferencedArtifacts } = require("./artifactRegistration");
+const {
+  completeInlineDatasetResponse,
+  registerReferencedArtifacts,
+} = require("./artifactRegistration");
 
 function historicalTrace(events = []) {
   const agentTrace = events
@@ -242,8 +245,6 @@ async function executeAgentRunSegment(initialRun, signal, runnableConfig = {}) {
   const sources = Array.isArray(result.sources) ? result.sources : [];
   if (!responseText.trim())
     throw new Error("The Agent returned an empty response.");
-  if (!streamedText)
-    await emit("message.delta", { messageId, delta: responseText });
   const traces =
     run.runtimeKey === "governed-agent"
       ? {}
@@ -259,6 +260,20 @@ async function executeAgentRunSegment(initialRun, signal, runnableConfig = {}) {
     workspaceManager,
   });
   const artifactRows = await AgentRunArtifact.forRun(run.id);
+  const completedResponse = await completeInlineDatasetResponse({
+    request: run.prompt,
+    responseText,
+    artifacts: artifactRows,
+    workspaceManager,
+  });
+  responseText = completedResponse.text;
+  if (streamedText && completedResponse.addition)
+    await emit("message.delta", {
+      messageId,
+      delta: completedResponse.addition,
+    });
+  if (!streamedText)
+    await emit("message.delta", { messageId, delta: responseText });
   const outputs = [];
   const outputPaths = new Set();
   for (const publication of publicationRows) {

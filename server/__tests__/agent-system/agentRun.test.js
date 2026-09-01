@@ -1,14 +1,18 @@
 /* eslint-env jest, node */
 const mockFindFirst = jest.fn();
+const mockDeleteMany = jest.fn();
 
 jest.mock("../../utils/prisma", () => ({
-  agent_runs: { findFirst: mockFindFirst },
+  agent_runs: { findFirst: mockFindFirst, deleteMany: mockDeleteMany },
 }));
 
 const { AgentRun } = require("../../models/agentRun");
 
 describe("AgentRun.activeForConversation", () => {
-  beforeEach(() => mockFindFirst.mockReset());
+  beforeEach(() => {
+    mockFindFirst.mockReset();
+    mockDeleteMany.mockReset();
+  });
 
   it("finds a threaded run without filtering by the current viewer", async () => {
     mockFindFirst.mockResolvedValue(null);
@@ -48,5 +52,20 @@ describe("AgentRun.activeForConversation", () => {
         }),
       })
     );
+  });
+
+  it("deletes all Agent runs for a purged workspace", async () => {
+    mockDeleteMany.mockResolvedValue({ count: 4 });
+
+    await expect(AgentRun.deleteForWorkspace(7)).resolves.toBe(4);
+
+    expect(mockDeleteMany).toHaveBeenCalledWith({
+      where: { workspace_id: 7 },
+    });
+  });
+
+  it("does not issue a broad delete for an invalid workspace id", async () => {
+    await expect(AgentRun.deleteForWorkspace("invalid")).resolves.toBe(0);
+    expect(mockDeleteMany).not.toHaveBeenCalled();
   });
 });

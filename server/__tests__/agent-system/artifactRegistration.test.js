@@ -4,13 +4,14 @@ const mockArtifact = {
   create: jest.fn(),
 };
 
-jest.mock("fs/promises", () => ({ stat: jest.fn() }));
+jest.mock("fs/promises", () => ({ stat: jest.fn(), readFile: jest.fn() }));
 jest.mock("../../models/agentRunArtifact", () => ({
   AgentRunArtifact: mockArtifact,
 }));
 
 const fs = require("fs/promises");
 const {
+  completeInlineDatasetResponse,
   referencedWorkspacePaths,
   registerReferencedArtifacts,
 } = require("../../agent-system/artifactRegistration");
@@ -24,6 +25,7 @@ describe("Agent artifact registration", () => {
       ...artifact,
     }));
     fs.stat.mockResolvedValue({ isFile: () => true, size: 321 });
+    fs.readFile.mockResolvedValue("");
   });
 
   it("extracts concrete workspace paths but ignores globs", () => {
@@ -84,5 +86,45 @@ describe("Agent artifact registration", () => {
       })
     ).resolves.toEqual([]);
     expect(mockArtifact.forRun).not.toHaveBeenCalled();
+  });
+
+  it("appends a more complete text report for an explicitly requested list", async () => {
+    const report = [
+      "| # | 编号 | 标题 |",
+      "|---|---|---|",
+      "| 1 | A | Alpha |",
+      "| 2 | B | Beta |",
+      "| 3 | C | Gamma |",
+    ].join("\n");
+    fs.stat.mockResolvedValue({ isFile: () => true, size: report.length });
+    fs.readFile.mockResolvedValue(report);
+    const workspaceManager = {
+      validatePath: jest.fn((relative) => `/storage/workspace-2/${relative}`),
+    };
+
+    const completed = await completeInlineDatasetResponse({
+      request: "列出每个文档的编号和标题",
+      responseText: "已生成 3 条记录。",
+      artifacts: [{ storagePath: "reports/result.md" }],
+      workspaceManager,
+    });
+
+    expect(completed.addition).toContain("工作区报告中的完整清单");
+    expect(completed.text).toContain("| 3 | C | Gamma |");
+  });
+
+  it("does not duplicate a report when the response already has its rows", async () => {
+    const report = "| # | 编号 |\n|---|---|\n| 1 | A |";
+    fs.stat.mockResolvedValue({ isFile: () => true, size: report.length });
+    fs.readFile.mockResolvedValue(report);
+
+    await expect(
+      completeInlineDatasetResponse({
+        request: "list each document",
+        responseText: report,
+        artifacts: [{ storagePath: "reports/result.md" }],
+        workspaceManager: { validatePath: jest.fn((value) => value) },
+      })
+    ).resolves.toEqual({ text: report, addition: "" });
   });
 });

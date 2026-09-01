@@ -17,6 +17,39 @@ function workspaceFilesystemRoot(workspaceId) {
   );
 }
 
+async function deleteWorkspaceFilesystemRoot(workspaceId) {
+  const parsed = Number(workspaceId);
+  const root = workspaceFilesystemRoot(parsed);
+  if (!root) return false;
+
+  const expectedParent = path.resolve(
+    process.env.STORAGE_DIR || path.resolve(__dirname, "../storage"),
+    "anythingllm-fs",
+    "workspaces"
+  );
+  const resolvedRoot = path.resolve(root);
+  if (
+    path.dirname(resolvedRoot) !== expectedParent ||
+    path.basename(resolvedRoot) !== `workspace-${parsed}`
+  )
+    throw new Error("Refusing to delete an invalid workspace filesystem root.");
+
+  try {
+    const stats = await fs.lstat(resolvedRoot);
+    if (stats.isSymbolicLink()) {
+      await fs.unlink(resolvedRoot);
+      return true;
+    }
+    if (!stats.isDirectory())
+      throw new Error("Workspace filesystem root is not a directory.");
+    await fs.rm(resolvedRoot, { recursive: true, force: false });
+    return true;
+  } catch (error) {
+    if (error.code === "ENOENT") return false;
+    throw error;
+  }
+}
+
 async function loadWorkspaceAgentInstructions(workspace) {
   const root = workspaceFilesystemRoot(workspace?.id);
   if (!root) return "";
@@ -52,6 +85,7 @@ async function loadWorkspaceAgentInstructions(workspace) {
 }
 
 module.exports = {
+  deleteWorkspaceFilesystemRoot,
   MAX_WORKSPACE_AGENT_BYTES,
   WORKSPACE_AGENT_FILENAME,
   loadWorkspaceAgentInstructions,

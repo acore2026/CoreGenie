@@ -267,6 +267,7 @@ tests:
               writeIntent,
               official3gpp,
               artifacts,
+              completeRequestedFields,
             ]
       - type: llm-rubric
         metric: 3gpp-scope

@@ -24,6 +24,10 @@ async function apiRequest(baseUrl, apiKey, route, options = {}) {
   return response.json().catch(() => null);
 }
 
+function workspaceDeletionRoute(workspace) {
+  return `/v1/workspace/${encodeURIComponent(workspace.slug)}?purge=true`;
+}
+
 async function main() {
   const fs = require("fs/promises");
   const secretFile =
@@ -52,12 +56,9 @@ async function main() {
     return Number.isFinite(createdAt) && createdAt < cutoff;
   });
   for (const workspace of targets) {
-    await apiRequest(
-      baseUrl,
-      apiKey,
-      `/v1/workspace/${encodeURIComponent(workspace.slug)}`,
-      { method: "DELETE" }
-    );
+    await apiRequest(baseUrl, apiKey, workspaceDeletionRoute(workspace), {
+      method: "DELETE",
+    });
   }
   process.stdout.write(`Removed ${targets.length} evaluation workspace(s).\n`);
 }
@@ -68,4 +69,4 @@ if (require.main === module)
     process.exitCode = 1;
   });
 
-module.exports = { RETENTION_MS, loadEnvFile };
+module.exports = { RETENTION_MS, loadEnvFile, workspaceDeletionRoute };

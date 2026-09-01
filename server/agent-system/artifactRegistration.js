@@ -5,6 +5,25 @@ const { AgentRunArtifact } = require("../models/agentRunArtifact");
 const { workspaceFileRelativePath } = require("./attachments");
 
 const MAX_REFERENCED_ARTIFACTS = 500;
+const MAX_INLINE_REPORT_BYTES = 64 * 1024;
+const INLINE_REPORT_EXTENSIONS = new Set([".md", ".txt", ".csv"]);
+
+function requestNeedsInlineDataset(value) {
+  return /(?:列出|列明|逐项|每(?:个|篇|条)|完整清单|list(?:\s+all)?|each|every|rows?|fields?)/i.test(
+    String(value || "")
+  );
+}
+
+function tabularRowCount(value) {
+  const lines = String(value || "").split(/\r?\n/);
+  const markdownRows = lines.filter(
+    (line) =>
+      /^\s*\|.*\|\s*$/.test(line) &&
+      !/^\s*\|(?:\s*:?-{3,}:?\s*\|)+\s*$/.test(line)
+  ).length;
+  const csvRows = lines.filter((line) => /,/.test(line)).length;
+  return Math.max(markdownRows, csvRows);
+}
 
 function referencedWorkspacePaths(value) {
   const paths = new Set();
@@ -86,8 +105,42 @@ async function registerReferencedArtifacts({
   return [...byPath.values()];
 }
 
+async function completeInlineDatasetResponse({
+  request,
+  responseText,
+  artifacts = [],
+  workspaceManager,
+}) {
+  if (!requestNeedsInlineDataset(request))
+    return { text: responseText, addition: "" };
+  const currentRows = tabularRowCount(responseText);
+  let best = null;
+  for (const artifact of artifacts) {
+    const relative = workspaceFileRelativePath(artifact.storagePath);
+    if (!relative || !INLINE_REPORT_EXTENSIONS.has(path.extname(relative)))
+      continue;
+    try {
+      const absolute = await workspaceManager.validatePath(relative);
+      const stats = await fs.stat(absolute);
+      if (!stats.isFile() || stats.size > MAX_INLINE_REPORT_BYTES) continue;
+      const content = await fs.readFile(absolute, "utf8");
+      const rows = tabularRowCount(content);
+      if (rows <= currentRows + 2 || (best && rows <= best.rows)) continue;
+      best = { content, rows };
+    } catch {
+      // Ignore an unavailable or non-text report candidate.
+    }
+  }
+  if (!best) return { text: responseText, addition: "" };
+  const addition = `\n\n---\n\n以下是工作区报告中的完整清单：\n\n${best.content.trim()}`;
+  return { text: `${responseText.trimEnd()}${addition}`, addition };
+}
+
 module.exports = {
+  completeInlineDatasetResponse,
   MAX_REFERENCED_ARTIFACTS,
   referencedWorkspacePaths,
+  requestNeedsInlineDataset,
   registerReferencedArtifacts,
+  tabularRowCount,
 };

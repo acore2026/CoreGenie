@@ -292,6 +292,24 @@ describe("AnythingLLM Promptfoo provider", () => {
       },
     });
     expect(publishedArtifact.pass).toBe(true);
+
+    const truncatedList = runtimeAssertion(
+      "匹配 TDoc 数：47 条。第 47 条标题未返回（报告输出截断）。",
+      {
+        config: { checks: ["completeRequestedFields"] },
+        metadata: {},
+      }
+    );
+    expect(truncatedList).toMatchObject({ pass: false, score: 0 });
+
+    const deferredList = runtimeAssertion(
+      "共 **47 条**提案。完整 47 行清单已写入报告文件，但当前回复步骤无法读取该文件内容，以下仅列出任务结果摘要。\n| TDoc 编号 | 标题 |\n|---|---|\n| S2-2606968 | Example |",
+      {
+        config: { checks: ["completeRequestedFields"] },
+        metadata: {},
+      }
+    );
+    expect(deferredList).toMatchObject({ pass: false, score: 0 });
   });
 
   it("normalizes OpenAI-compatible judge URLs", () => {

@@ -4,6 +4,7 @@ const { Telemetry } = require("../../../models/telemetry");
 const { DocumentVectors } = require("../../../models/vectors");
 const { Workspace } = require("../../../models/workspace");
 const { WorkspaceChats } = require("../../../models/workspaceChats");
+const { AgentRun } = require("../../../models/agentRun");
 const {
   getVectorDbClass,
   resolveProviderConnector,
@@ -21,6 +22,9 @@ const { getModelTag } = require("../../utils");
 const {
   workspaceDeletionProtection,
 } = require("../../../utils/middleware/workspaceDeletionProtection");
+const {
+  deleteWorkspaceFilesystemRoot,
+} = require("../../../utils/workspaceAgentInstructions");
 
 function apiWorkspaceEndpoints(app) {
   if (!app) return;
@@ -255,9 +259,15 @@ function apiWorkspaceEndpoints(app) {
         }
 
         const workspaceId = Number(workspace.id);
+        const purge =
+          String(request.query?.purge || "").toLowerCase() === "true";
         await WorkspaceChats.delete({ workspaceId: workspaceId });
         await DocumentVectors.deleteForWorkspace(workspaceId);
         await Document.delete({ workspaceId: workspaceId });
+        if (purge) {
+          await deleteWorkspaceFilesystemRoot(workspaceId);
+          await AgentRun.deleteForWorkspace(workspaceId);
+        }
         await Workspace.delete({ id: workspaceId });
 
         await EventLogs.logEvent("api_workspace_deleted", {
