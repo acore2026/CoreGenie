@@ -30,7 +30,7 @@ describe("AnythingLLM Promptfoo provider", () => {
     const { server, port } = await listen((request, response) => {
       if (request.url === "/api/v1/agents")
         return json(response, 200, {
-          agents: [{ id: 1, name: "通用助手" }],
+          agents: [{ id: 1, name: "3GPP 提案分析助手" }],
           defaultAgentId: 1,
         });
       if (request.url === "/api/v1/workspace/new")
@@ -66,7 +66,7 @@ describe("AnythingLLM Promptfoo provider", () => {
         evaluationId: "eval-1",
         repeatIndex: 0,
         vars: {
-          agentName: "通用助手",
+          agentName: "3GPP 提案分析助手",
           caseId: "direct-answer",
           setup: {},
         },
@@ -78,6 +78,70 @@ describe("AnythingLLM Promptfoo provider", () => {
         evaluation: { evaluationId: "eval-1", attempt: 1 },
         snapshot: { run: { id: "run-1", status: "completed" } },
       });
+    } finally {
+      await new Promise((resolve) => server.close(resolve));
+    }
+  });
+
+  it("maps the disabled legacy general Agent to the enabled analysis Agent", async () => {
+    const { server, port } = await listen((request, response) => {
+      if (request.url === "/api/v1/agents")
+        return json(response, 200, {
+          agents: [
+            { id: 6, name: "3GPP 提案分析助手" },
+            { id: 8, name: "3GPP 提案转 Markdown 助手" },
+          ],
+          defaultAgentId: null,
+        });
+      return json(response, 404, { error: "not found" });
+    });
+    const provider = new AnythingLLMAgentProvider({
+      config: {
+        baseUrl: `http://127.0.0.1:${port}/api`,
+        apiKey: "test-key",
+      },
+    });
+
+    try {
+      await expect(provider.resolveAgent(null, "通用助手")).resolves.toEqual({
+        id: 6,
+        name: "3GPP 提案分析助手",
+      });
+      await expect(provider.resolveAgent()).resolves.toEqual({
+        id: 6,
+        name: "3GPP 提案分析助手",
+      });
+    } finally {
+      await new Promise((resolve) => server.close(resolve));
+    }
+  });
+
+  it("does not create a workspace when an evaluation Agent is unavailable", async () => {
+    let workspaceRequests = 0;
+    const { server, port } = await listen((request, response) => {
+      if (request.url === "/api/v1/agents")
+        return json(response, 200, {
+          agents: [{ id: 6, name: "3GPP 提案分析助手" }],
+          defaultAgentId: null,
+        });
+      if (request.url === "/api/v1/workspace/new") workspaceRequests += 1;
+      return json(response, 404, { error: "not found" });
+    });
+    const provider = new AnythingLLMAgentProvider({
+      config: {
+        baseUrl: `http://127.0.0.1:${port}/api`,
+        apiKey: "test-key",
+      },
+    });
+
+    try {
+      const result = await provider.callApi("test", {
+        evaluationId: "eval-missing-agent",
+        vars: { agentName: "不存在的助手", setup: {} },
+      });
+      expect(result.error).toContain("Evaluation Agent is unavailable");
+      expect(result.error).toContain("3GPP 提案分析助手");
+      expect(workspaceRequests).toBe(0);
     } finally {
       await new Promise((resolve) => server.close(resolve));
     }
@@ -129,8 +193,7 @@ describe("AnythingLLM Promptfoo provider", () => {
         run: { finalResponse: "下载完成" },
         tasks: [
           {
-            resultSummary:
-              "原文：/workspace/3gpp-review/docs/S2-260001.docx",
+            resultSummary: "原文：/workspace/3gpp-review/docs/S2-260001.docx",
           },
         ],
       })

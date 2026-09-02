@@ -4,6 +4,10 @@ const { fixtureBuffer } = require("./fixtures");
 
 const TERMINAL = new Set(["completed", "partial", "failed", "cancelled"]);
 const DEFAULT_TIMEOUT_MS = 60 * 60 * 1_000;
+const DEFAULT_EVALUATION_AGENT_NAME = "3GPP 提案分析助手";
+const LEGACY_AGENT_ALIASES = new Map([
+  ["通用助手", DEFAULT_EVALUATION_AGENT_NAME],
+]);
 
 function parseObject(value, fallback = {}) {
   if (!value) return fallback;
@@ -123,14 +127,21 @@ class AnythingLLMAgentProvider {
 
   async resolveAgent(agentId, agentName) {
     const { agents, defaultAgentId } = await this.request("/v1/agents");
+    const requestedName = String(agentName || "").trim();
+    const resolvedName =
+      LEGACY_AGENT_ALIASES.get(requestedName) || requestedName;
     const selected = agentId
       ? agents.find((agent) => agent.id === Number(agentId))
-      : agentName
-        ? agents.find((agent) => agent.name === String(agentName))
-        : agents.find((agent) => agent.id === defaultAgentId);
+      : resolvedName
+        ? agents.find((agent) => agent.name === resolvedName)
+        : agents.find((agent) => agent.id === defaultAgentId) ||
+          agents.find(
+            (agent) => agent.name === DEFAULT_EVALUATION_AGENT_NAME
+          ) ||
+          agents[0];
     if (!selected)
       throw new Error(
-        `Evaluation Agent not found: ${agentName || agentId || "default"}`
+        `Evaluation Agent is unavailable: ${requestedName || agentId || "default"}. Enabled Agents: ${agents.map((agent) => agent.name).join(", ") || "none"}`
       );
     return selected;
   }
@@ -376,10 +387,10 @@ class AnythingLLMAgentProvider {
       0,
       90
     );
-    const [agent, workspace] = await Promise.all([
-      this.resolveAgent(vars.agentId, vars.agentName),
-      this.createWorkspace(workspaceName),
-    ]);
+    // Resolve first so a stale or disabled Agent reference cannot leave an
+    // empty evaluation workspace behind.
+    const agent = await this.resolveAgent(vars.agentId, vars.agentName);
+    const workspace = await this.createWorkspace(workspaceName);
     const thread = await this.createThread(workspace, `${caseId}-${attempt}`);
     const uploads = [];
     for (const fixture of setup.files || [])
@@ -524,6 +535,7 @@ class AnythingLLMAgentProvider {
 }
 
 module.exports = AnythingLLMAgentProvider;
+module.exports.DEFAULT_EVALUATION_AGENT_NAME = DEFAULT_EVALUATION_AGENT_NAME;
 module.exports.parseObject = parseObject;
 module.exports.reportedWorkspaceFiles = reportedWorkspaceFiles;
 module.exports.safeId = safeId;
