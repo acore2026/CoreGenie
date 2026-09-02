@@ -152,10 +152,11 @@ describe("AnythingLLM Promptfoo provider", () => {
       name: "test.docx",
       text: "Source: Example",
       table: [["Field", "Value"]],
+      image: true,
     });
-    const entries = new AdmZip(buffer)
-      .getEntries()
-      .map((entry) => entry.entryName);
+    const archive = new AdmZip(buffer);
+    const archiveEntries = archive.getEntries();
+    const entries = archiveEntries.map((entry) => entry.entryName);
     expect(entries).toEqual(
       expect.arrayContaining([
         "[Content_Types].xml",
@@ -163,7 +164,14 @@ describe("AnythingLLM Promptfoo provider", () => {
         "word/_rels/document.xml.rels",
       ])
     );
-    expect(entries.some((entry) => entry.startsWith("word/media/"))).toBe(true);
+    const embeddedImage = archiveEntries.find((entry) =>
+      entry.entryName.startsWith("word/media/") && !entry.isDirectory
+    );
+    expect(embeddedImage).toBeDefined();
+    const imageBuffer = embeddedImage.getData();
+    expect(imageBuffer.subarray(0, 2).toString("ascii")).toBe("BM");
+    expect(imageBuffer.readInt32LE(18)).toBeGreaterThan(10);
+    expect(imageBuffer.readInt32LE(22)).toBeGreaterThan(10);
   });
 
   it("discovers concrete workspace files reported by an Agent", () => {

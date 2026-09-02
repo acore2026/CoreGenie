@@ -75,6 +75,7 @@
     "fix-path": "^4.0.0",
     "graphql": "^16.7.1",
     "https-proxy-agent": "9.1.0",
+    "image-size": "1.2.1",
     "ip": "^2.0.1",
     "joi": "^17.11.0",
     "joi-password-complexity": "^5.2.0",

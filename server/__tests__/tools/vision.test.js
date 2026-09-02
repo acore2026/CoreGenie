@@ -4,12 +4,14 @@ const mockManager = {
   readImageAsAttachment: jest.fn(),
   getAllowedDirectories: jest.fn(() => ["/storage/workspace-2"]),
 };
+const mockImageSize = jest.fn();
 
 jest.mock("../../models/agentToolExecution", () => ({
   AgentToolExecution: {},
 }));
 
-jest.mock("fs/promises", () => ({ stat: jest.fn() }));
+jest.mock("fs/promises", () => ({ stat: jest.fn(), readFile: jest.fn() }));
+jest.mock("image-size", () => ({ imageSize: mockImageSize }));
 jest.mock("../../utils/agents/aibitat/plugins/filesystem/lib", () => ({
   forWorkspace: jest.fn(() => mockManager),
 }));
@@ -56,6 +58,8 @@ describe("vision.inspect", () => {
       contentString: "data:image/png;base64,AAAA",
     });
     fs.stat.mockResolvedValue({ isFile: () => true, size: 1024 });
+    fs.readFile.mockResolvedValue(Buffer.from("image"));
+    mockImageSize.mockReturnValue({ width: 640, height: 480, type: "png" });
     ModelCapability.get.mockResolvedValue({ vision: true });
     createChatModel.mockReturnValue({
       invoke: jest.fn().mockResolvedValue({ content: "实体 A → 实体 B。" }),
@@ -75,7 +79,8 @@ describe("vision.inspect", () => {
       code: "VISION_ANALYZED",
       data: { model: "qwen3.7-plus", path: "figure.png" },
     });
-    const invocation = createChatModel.mock.results[0].value.invoke.mock.calls[0];
+    const invocation =
+      createChatModel.mock.results[0].value.invoke.mock.calls[0];
     expect(JSON.stringify(invocation[1])).not.toContain("base64");
     expect(ctx.emit).toHaveBeenCalledWith(
       "model.routed",
@@ -96,5 +101,27 @@ describe("vision.inspect", () => {
       inspectImage.execute({ path: "figure.png" }, context(), {})
     ).rejects.toThrow("10 MiB");
     expect(createChatModel).not.toHaveBeenCalled();
+  });
+
+  it("skips an image that is too small without invoking the vision model", async () => {
+    mockImageSize.mockReturnValue({ width: 1, height: 1, type: "png" });
+    const ctx = context();
+
+    await expect(
+      inspectImage.execute({ path: "tracking-pixel.png" }, ctx, {})
+    ).resolves.toMatchObject({
+      ok: true,
+      code: "VISION_SKIPPED_TOO_SMALL",
+      data: { width: 1, height: 1 },
+    });
+    expect(createChatModel).not.toHaveBeenCalled();
+    expect(ctx.emit).toHaveBeenCalledWith(
+      "vision.skipped",
+      expect.objectContaining({
+        reason: "image_too_small",
+        width: 1,
+        height: 1,
+      })
+    );
   });
 });

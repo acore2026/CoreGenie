@@ -1,6 +1,7 @@
 const fs = require("fs/promises");
 const path = require("path");
 const { z } = require("zod");
+const { imageSize } = require("image-size");
 const { defineTool } = require("./descriptor");
 const filesystem = require("../utils/agents/aibitat/plugins/filesystem/lib");
 const { ModelCapability } = require("../models/modelCapability");
@@ -8,6 +9,7 @@ const { createChatModel, selectedProvider } = require("../resources/models");
 const { contentText, userContent } = require("../agent-system/message");
 
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+const MIN_IMAGE_DIMENSION = 11;
 const SUPPORTED_IMAGE_TYPES = new Set([
   "image/png",
   "image/jpeg",
@@ -56,6 +58,39 @@ const inspectImage = defineTool({
         "Unsupported image type. Use PNG, JPEG, WEBP, GIF, or BMP."
       );
 
+    let dimensions;
+    try {
+      dimensions = imageSize(await fs.readFile(target));
+    } catch (error) {
+      throw new Error(`无法读取图像尺寸：${error.message}`);
+    }
+    const width = Number(dimensions.width) || 0;
+    const height = Number(dimensions.height) || 0;
+    if (width < MIN_IMAGE_DIMENSION || height < MIN_IMAGE_DIMENSION) {
+      const summary = `已跳过 ${path.basename(target)}：图像实际尺寸为 ${width}×${height} 像素，过小，不能可靠分析。`;
+      await context.emit("vision.skipped", {
+        sourcePath: imagePath,
+        reason: "image_too_small",
+        width,
+        height,
+      });
+      return {
+        ok: true,
+        code: "VISION_SKIPPED_TOO_SMALL",
+        summary,
+        data: {
+          path: imagePath,
+          mimeType: attachment.mime,
+          width,
+          height,
+          analysis: summary,
+        },
+        evidenceIds: [],
+        artifactIds: [],
+        retryable: false,
+      };
+    }
+
     await ModelCapability.seedBuiltins();
     const provider = selectedProvider(context.workspace);
     const model = visionModel(context);
@@ -100,6 +135,8 @@ const inspectImage = defineTool({
           sourcePath: path.relative(manager.getAllowedDirectories()[0], target),
           mimeType: attachment.mime,
           byteSize: stats.size,
+          width,
+          height,
         },
         runName: "inspect-3gpp-visual",
         signal: context.signal,
@@ -130,4 +167,9 @@ const inspectImage = defineTool({
   },
 });
 
-module.exports = { inspectImage, MAX_IMAGE_BYTES, SUPPORTED_IMAGE_TYPES };
+module.exports = {
+  inspectImage,
+  MAX_IMAGE_BYTES,
+  MIN_IMAGE_DIMENSION,
+  SUPPORTED_IMAGE_TYPES,
+};

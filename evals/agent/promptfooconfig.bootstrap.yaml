@@ -232,6 +232,7 @@ tests:
             name: S2-EVAL-DOCX.docx
             destination: filesystem
             title: S2-EVAL-DOCX
+            image: true
             paragraphs:
               - "Source: Example Networks"
               - "This paragraph precedes the table and embedded figure."

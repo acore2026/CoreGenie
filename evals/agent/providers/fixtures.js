@@ -12,10 +12,34 @@ const {
   TextRun,
 } = require("docx");
 
-const PIXEL_PNG = Buffer.from(
-  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
-  "base64"
-);
+function evaluationBmp(width = 24, height = 24) {
+  const rowSize = Math.ceil((width * 3) / 4) * 4;
+  const pixelBytes = rowSize * height;
+  const buffer = Buffer.alloc(54 + pixelBytes);
+  buffer.write("BM", 0, "ascii");
+  buffer.writeUInt32LE(buffer.length, 2);
+  buffer.writeUInt32LE(54, 10);
+  buffer.writeUInt32LE(40, 14);
+  buffer.writeInt32LE(width, 18);
+  buffer.writeInt32LE(height, 22);
+  buffer.writeUInt16LE(1, 26);
+  buffer.writeUInt16LE(24, 28);
+  buffer.writeUInt32LE(pixelBytes, 34);
+  buffer.writeInt32LE(3_780, 38);
+  buffer.writeInt32LE(3_780, 42);
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const offset = 54 + y * rowSize + x * 3;
+      const accent = x === y || x === width - y - 1;
+      buffer[offset] = accent ? 220 : 245;
+      buffer[offset + 1] = accent ? 100 : 245;
+      buffer[offset + 2] = accent ? 40 : 245;
+    }
+  }
+  return buffer;
+}
+
+const EVALUATION_BMP = evaluationBmp();
 
 async function generatedDocx(spec = {}) {
   const title = String(spec.title || spec.name || "Evaluation TDoc");
@@ -45,15 +69,15 @@ async function generatedDocx(spec = {}) {
       })
     );
   }
-  if (spec.image !== false) {
+  if (spec.image === true) {
     children.push(new Paragraph("Original embedded figure:"));
     children.push(
       new Paragraph({
         children: [
           new ImageRun({
-            data: PIXEL_PNG,
+            data: EVALUATION_BMP,
             transformation: { width: 24, height: 24 },
-            type: "png",
+            type: "bmp",
           }),
         ],
       })
@@ -79,4 +103,4 @@ async function fixtureBuffer(spec = {}, root = "/opt/anythingllm-evals") {
   return fs.readFile(candidate);
 }
 
-module.exports = { fixtureBuffer, generatedDocx };
+module.exports = { evaluationBmp, fixtureBuffer, generatedDocx };
