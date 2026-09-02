@@ -119,7 +119,11 @@ function taskHasWriteTool(allowedToolIds = []) {
 function taskRequestsArtifactWrite(task = {}) {
   const text = [task.title, task.objective, ...(task.successCriteria || [])]
     .filter(Boolean)
-    .join("\n");
+    .join("\n")
+    .replace(
+      /\bwrite\b.{0,50}\bworker\s+json\b(?:\s+(?:result|response))?|写入.{0,30}worker\s*JSON(?:\s*(?:结果|返回))?/gi,
+      "return the analysis"
+    );
   const explicitOutputWrite =
     /\b(?:write|create|edit|update|append|save|publish|generate|produce|complete|copy|move|archive)\b.{0,60}\b(?:report|file|document|source|original|index|tdoc|docx|xlsx|json|ledger|manifest|markdown|zip|artifact)\b|(?:撰写|创建|写入|更新|编辑|追加|保存|发布|生成|复制|移动|归档|打包).{0,30}(?:报告|文件|文档|原文|源文件|Index|TDoc|DOCX|XLSX|JSON|台账|清单|Markdown|ZIP|ledger|manifest)|(?<!已)完成\s*(?:报告|文件|台账|清单|ledger)/i;
   const artifactAcquisition =
@@ -1105,6 +1109,7 @@ function delegatedControllerActionPlan({
   descriptors = [],
   request = "",
   hasAvailableAgents = false,
+  agentTools = null,
 }) {
   const writeIntent = requestAllowsWrite(request);
   const allowedToolIds = descriptors
@@ -1117,7 +1122,17 @@ function delegatedControllerActionPlan({
             candidate.id === descriptor.id))
     )
     .map((candidate) => candidate.id);
-  if (hasAvailableAgents) allowedToolIds.push("agent.call");
+  const configuredTools = Array.isArray(agentTools)
+    ? new Set(agentTools)
+    : agentTools;
+  if (
+    hasAvailableAgents &&
+    legacySelectionAllows(configuredTools, {
+      id: "agent.call",
+      name: "call_agent",
+    })
+  )
+    allowedToolIds.push("agent.call");
 
   return {
     goal: `完成用户请求：${request}`,
@@ -2030,6 +2045,7 @@ function createGovernedGraph(context) {
               descriptors: controllerToolDescriptors,
               request: state.request,
               hasAvailableAgents: agents.length > 0,
+              agentTools: agent.tools,
             });
             await emit("controller.action_delegated", {
               requestedAction: call.name,

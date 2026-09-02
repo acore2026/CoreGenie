@@ -450,7 +450,7 @@ describe("Governed Agent runtime", () => {
       id: "analyze",
       title: "逐篇分析三个 TDoc 的注册路径提案",
       objective:
-        "阅读三个转换后的 Markdown 文件，逐篇提取：TDoc 编号、标题、提案方、状态、目标 KI、注册路径架构、新增/变更网络功能与接口、流程步骤与信令图。使用 vision.inspect 核验关键流程图。",
+        "阅读三个转换后的 Markdown 文件，逐篇提取：TDoc 编号、标题、提案方、状态、目标 KI、注册路径架构、新增/变更网络功能与接口、流程步骤与信令图。使用 vision.inspect 核验关键流程图。将完整分析结果写入 worker JSON 返回。",
       allowedToolIds: [
         "filesystem.read",
         "vision.inspect",
@@ -679,6 +679,24 @@ describe("Governed Agent runtime", () => {
 
     expect(plan.tasks[0].writeIntent).toBe(false);
     expect(plan.tasks[0].allowedToolIds).toEqual(["filesystem.search"]);
+  });
+
+  it("does not add agent.call when the selected Agent policy disallows it", () => {
+    const descriptor = toolRegistry.get("filesystem.search");
+    const plan = delegatedControllerActionPlan({
+      call: { name: "filesystem.search", args: { path: "/workspace" } },
+      descriptor,
+      descriptors: [descriptor, toolRegistry.get("filesystem.read")],
+      request: "比较三个已上传的 TDoc。",
+      hasAvailableAgents: true,
+      agentTools: ["filesystem.search", "filesystem.read"],
+    });
+
+    expect(plan.tasks[0].allowedToolIds).toEqual([
+      "filesystem.search",
+      "filesystem.read",
+    ]);
+    expect(plan.tasks[0].allowedToolIds).not.toContain("agent.call");
   });
 
   it("does not normalize a controller action outside its visible tools", () => {
