@@ -1322,6 +1322,15 @@ function validatePlan(
   return { goal: parsed.goal, tasks };
 }
 
+function planValidationRetry(error, planningAttempts = 0) {
+  if (planningAttempts >= 1) return null;
+  return {
+    control: { kind: "retry_planning" },
+    planningFeedback: String(error?.message || error),
+    planningAttempts: planningAttempts + 1,
+  };
+}
+
 function roleModel(run, role) {
   return (
     run.runtimeSnapshot?.roleModels?.[role] ||
@@ -2044,19 +2053,9 @@ function createGovernedGraph(context) {
             activatedSkills: state.activatedSkills,
           });
         } catch (error) {
-          if (
-            state.planningAttempts < 1 &&
-            /Skill activation must complete before create_plan/.test(
-              error.message
-            )
-          ) {
-            await emit("plan.rejected", { reason: error.message });
-            return {
-              control: { kind: "retry_planning" },
-              planningFeedback: error.message,
-              planningAttempts: state.planningAttempts + 1,
-            };
-          }
+          const retry = planValidationRetry(error, state.planningAttempts);
+          await emit("plan.rejected", { reason: error.message });
+          if (retry) return retry;
           throw error;
         }
         await AgentRunTask.upsertPlan(run.id, plan.tasks);
@@ -2812,6 +2811,7 @@ module.exports = {
   parse3gppInvitationFacts,
   parse3gppConversionRequest,
   parse3gppMeetingRequest,
+  planValidationRetry,
   priorToolResultsContext,
   quick3gppResponse,
   rethrowWorkerInterrupt,

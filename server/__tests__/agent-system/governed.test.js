@@ -23,6 +23,7 @@ const {
   parse3gppInvitationFacts,
   parse3gppConversionRequest,
   parse3gppMeetingRequest,
+  planValidationRetry,
   priorToolResultsContext,
   quick3gppResponse,
   rethrowWorkerInterrupt,
@@ -480,6 +481,17 @@ describe("Governed Agent runtime", () => {
         }
       )
     ).not.toThrow();
+  });
+
+  it("returns malformed plans to the controller once with validation feedback", () => {
+    const error = new Error("Task task-2 has an unknown dependency.");
+
+    expect(planValidationRetry(error, 0)).toEqual({
+      control: { kind: "retry_planning" },
+      planningFeedback: "Task task-2 has an unknown dependency.",
+      planningAttempts: 1,
+    });
+    expect(planValidationRetry(error, 1)).toBeNull();
   });
 
   it("promotes artifact-producing tasks when a write-capable tool is present", () => {
