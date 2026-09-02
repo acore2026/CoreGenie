@@ -444,6 +444,44 @@ describe("Governed Agent runtime", () => {
     ).toBe(false);
   });
 
+  it("does not confuse reading converted files and extracting fields with an artifact write", () => {
+    const task = {
+      id: "analyze",
+      title: "逐篇分析三个 TDoc 的注册路径提案",
+      objective:
+        "阅读三个转换后的 Markdown 文件，逐篇提取：TDoc 编号、标题、提案方、状态、目标 KI、注册路径架构、新增/变更网络功能与接口、流程步骤与信令图。使用 vision.inspect 核验关键流程图。",
+      allowedToolIds: [
+        "filesystem.read",
+        "vision.inspect",
+        "knowledge.search",
+      ],
+      successCriteria: [
+        "每个 TDoc 均有完整分析，包含注册路径、网络功能、流程步骤",
+        "关键流程图已视觉核验或标注不确定",
+      ],
+      writeIntent: false,
+    };
+
+    expect(taskRequestsArtifactWrite(task)).toBe(false);
+    expect(() =>
+      validatePlan(
+        { goal: "比较三个 KI #18 TDoc", tasks: [task] },
+        {
+          ...context,
+          run: { id: "run-1", prompt: "比较三个 KI #18 TDoc 并生成报告" },
+          agent: {
+            id: 1,
+            tools: [
+              "filesystem.read",
+              "vision.inspect",
+              "knowledge.search",
+            ],
+          },
+        }
+      )
+    ).not.toThrow();
+  });
+
   it("promotes artifact-producing tasks when a write-capable tool is present", () => {
     const plan = validatePlan(
       {

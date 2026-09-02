@@ -120,8 +120,16 @@ function taskRequestsArtifactWrite(task = {}) {
   const text = [task.title, task.objective, ...(task.successCriteria || [])]
     .filter(Boolean)
     .join("\n");
-  return /\b(?:write|create|edit|update|append|save|publish|generate|produce|complete|download|extract|unpack|convert|copy|move|archive)\b.{0,60}\b(?:report|file|document|source|original|index|tdoc|docx|xlsx|json|ledger|manifest|markdown|zip|artifact)\b|(?:撰写|创建|写入|更新|编辑|追加|保存|发布|生成|下载|解压|提取|转换|复制|移动|归档|打包).{0,30}(?:报告|文件|文档|原文|源文件|Index|TDoc|DOCX|XLSX|JSON|台账|清单|Markdown|ZIP|ledger|manifest)|(?<!已)完成\s*(?:报告|文件|台账|清单|ledger)/i.test(
-    text
+  const explicitOutputWrite =
+    /\b(?:write|create|edit|update|append|save|publish|generate|produce|complete|copy|move|archive)\b.{0,60}\b(?:report|file|document|source|original|index|tdoc|docx|xlsx|json|ledger|manifest|markdown|zip|artifact)\b|(?:撰写|创建|写入|更新|编辑|追加|保存|发布|生成|复制|移动|归档|打包).{0,30}(?:报告|文件|文档|原文|源文件|Index|TDoc|DOCX|XLSX|JSON|台账|清单|Markdown|ZIP|ledger|manifest)|(?<!已)完成\s*(?:报告|文件|台账|清单|ledger)/i;
+  const artifactAcquisition =
+    /\b(?:download|unpack|convert)\b.{0,60}\b(?:file|document|source|original|index|tdoc|docx|xlsx|json|manifest|markdown|zip|artifact)\b|(?:下载|解压).{0,30}(?:报告|文件|文档|原文|源文件|Index|TDoc|DOCX|XLSX|JSON|清单|Markdown|ZIP|manifest)|转换(?!后).{0,30}(?:文件|文档|原文|源文件|DOCX|XLSX|JSON|Markdown|ZIP)/i;
+  const artifactExtraction =
+    /\bextract\b.{0,60}\b(?:file|document|source|original|docx|xlsx|zip|attachment|image|media|object|artifact)\b|提取(?!后).{0,30}(?:文件|文档|原文|源文件|DOCX|XLSX|ZIP|压缩包|附件|图片|图像|媒体|对象)/i;
+  return (
+    explicitOutputWrite.test(text) ||
+    artifactAcquisition.test(text) ||
+    artifactExtraction.test(text)
   );
 }
 
