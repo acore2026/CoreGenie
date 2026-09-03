@@ -209,7 +209,9 @@ async function activeRun(request, response) {
 async function snapshotRun(request, response) {
   const run = await authorizedRun(request, response);
   if (!run) return response.status(404).json({ error: "Agent run not found." });
-  const fullEvents = response.locals.apiKey && request.query.events === "full";
+  const railView = request.query.view === "rail";
+  const fullEvents =
+    !railView && response.locals.apiKey && request.query.events === "full";
   const [tasks, evidence, toolExecutions, events, artifacts, traceId] =
     await Promise.all([
       AgentRunTask.list(run.id),
@@ -218,8 +220,32 @@ async function snapshotRun(request, response) {
         .findMany({
           where: { run_id: run.id },
           orderBy: { createdAt: "asc" },
+          ...(railView
+            ? {
+                select: {
+                  id: true,
+                  run_id: true,
+                  call_id: true,
+                  parent_id: true,
+                  task_id: true,
+                  tool_id: true,
+                  agent_id: true,
+                  status: true,
+                  operation_key: true,
+                  attempt: true,
+                  error: true,
+                  outcome_code: true,
+                  retryable: true,
+                  result_summary: true,
+                  startedAt: true,
+                  completedAt: true,
+                  createdAt: true,
+                  lastUpdatedAt: true,
+                },
+              }
+            : {}),
         })
-        .then((rows) => rows.map(normalizeExecution)),
+        .then((rows) => (railView ? rows : rows.map(normalizeExecution))),
       fullEvents
         ? AgentRunEvent.after(run.id, 0, 50_000)
         : AgentRunEvent.traceSnapshot(run.id),

@@ -382,7 +382,7 @@ export default function AgentExecutionRail({
   useEffect(() => {
     if (runState || !runId) return;
     const controller = new AbortController();
-    fetch(`${API_BASE}/agent-runs/${runId}/snapshot`, {
+    fetch(`${API_BASE}/agent-runs/${runId}/snapshot?view=rail`, {
       headers: baseHeaders(),
       signal: controller.signal,
     })

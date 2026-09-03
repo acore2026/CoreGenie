@@ -154,4 +154,46 @@ describe("developer Agent runs", () => {
       })
     );
   });
+
+  it("omits raw tool arguments and results from compact rail snapshots", async () => {
+    const run = { id: "run-1", status: "completed" };
+    const compactExecution = {
+      id: "execution-1",
+      call_id: "call-1",
+      tool_id: "filesystem.read",
+      status: "completed",
+      result_summary: "Read one file",
+    };
+    AgentRun.get.mockResolvedValue(run);
+    AgentRunTask.list.mockResolvedValue([]);
+    AgentRunEvidence.list.mockResolvedValue([]);
+    prisma.agent_tool_executions.findMany.mockResolvedValue([
+      compactExecution,
+    ]);
+    AgentRunEvent.traceSnapshot.mockResolvedValue([]);
+    AgentRunArtifact.forRun.mockResolvedValue([]);
+    AgentRunEvent.latestSequence.mockResolvedValue(2);
+    agentTraceId.mockResolvedValue("trace-1");
+    const { response, json } = responseWithLocals({ apiKey: { id: 9 } });
+
+    await snapshotRun(
+      {
+        params: { runId: "run-1" },
+        query: { view: "rail", events: "full" },
+      },
+      response
+    );
+
+    const query = prisma.agent_tool_executions.findMany.mock.calls[0][0];
+    expect(query.select).toEqual(
+      expect.objectContaining({ result_summary: true })
+    );
+    expect(query.select).not.toHaveProperty("arguments");
+    expect(query.select).not.toHaveProperty("result");
+    expect(AgentRunEvent.traceSnapshot).toHaveBeenCalledWith("run-1");
+    expect(AgentRunEvent.after).not.toHaveBeenCalled();
+    expect(json).toHaveBeenCalledWith(
+      expect.objectContaining({ toolExecutions: [compactExecution] })
+    );
+  });
 });
