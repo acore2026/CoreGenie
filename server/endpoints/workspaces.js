@@ -451,7 +451,15 @@ function workspaceEndpoints(app) {
           ? await Workspace.getWithUser(user, { slug })
           : await Workspace.get({ slug });
 
-        response.status(200).json({ workspace });
+        response.status(200).json({
+          workspace: workspace
+            ? {
+                ...workspace,
+                showAgentCommand:
+                  await Workspace.isAgentCommandAvailable(workspace),
+              }
+            : null,
+        });
       } catch (e) {
         console.error(e.message, e);
         response.sendStatus(500).end();
