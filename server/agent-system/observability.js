@@ -301,7 +301,9 @@ function traceAttributes(run) {
   const apiSessionId = run.configuration?.apiSessionId;
   const conversation = apiSessionId
     ? `api:${apiSessionId}:workspace:${run.workspace_id}:user:${run.user_id || "anonymous"}`
-    : `workspace:${run.workspace_id}:thread:${run.thread_id || "root"}:user:${run.user_id || "anonymous"}`;
+    : run.configuration?.conversationId
+      ? `thread:${run.configuration.conversationId}`
+      : `workspace:${run.workspace_id}:thread:${run.thread_id || "root"}:user:${run.user_id || "anonymous"}`;
   const segment = run.configuration?.recover
     ? "recovery"
     : run.configuration?.resume
@@ -332,6 +334,9 @@ function traceAttributes(run) {
       runId: String(run.id),
       workspaceId: String(run.workspace_id),
       threadId: String(run.thread_id || "root"),
+      ...(run.configuration?.conversationId
+        ? { conversationId: String(run.configuration.conversationId) }
+        : {}),
       agentId: String(run.agent_id || "default"),
       mode: String(run.mode),
       source: String(run.source),

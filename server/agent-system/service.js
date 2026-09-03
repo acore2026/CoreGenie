@@ -90,6 +90,7 @@ async function submitAgentRun({
     attachments,
     configuration: {
       ...configuration,
+      conversationId: thread?.slug || null,
       approvalMode,
       disableExecutionLimits,
       disableModelCallLimit,

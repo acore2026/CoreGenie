@@ -33,6 +33,9 @@ function mockLangfuse(reasons) {
   ];
   return {
     api: {
+      observations: {
+        getMany: jest.fn(async () => ({ data: [{ id: "observation-1" }] })),
+      },
       scoreConfigs: {
         get: jest.fn(async () => ({ data: configs })),
         create: jest.fn(),
@@ -72,10 +75,10 @@ describe("Langfuse Agent feedback sync", () => {
 
   afterEach(() => jest.restoreAllMocks());
 
-  it("writes one categorical rating and a boolean score for every reason", async () => {
+  it("writes one categorical rating and boolean scores only for selected reasons", async () => {
     const langfuse = mockLangfuse(reasons);
     await expect(syncFeedbackRecord(record, { langfuse })).resolves.toBe(true);
-    expect(langfuse.score.create).toHaveBeenCalledTimes(3);
+    expect(langfuse.score.create).toHaveBeenCalledTimes(2);
     expect(langfuse.score.create).toHaveBeenCalledWith(
       expect.objectContaining({
         id: scoreId(record.id, RATING_SCORE_NAME),
@@ -93,8 +96,8 @@ describe("Langfuse Agent feedback sync", () => {
         dataType: "BOOLEAN",
       })
     );
-    expect(langfuse.score.create).toHaveBeenCalledWith(
-      expect.objectContaining({ name: "user-reason-other", value: 0 })
+    expect(langfuse.api.legacy.scoreV1.delete).toHaveBeenCalledWith(
+      scoreId(record.id, "user-reason-other")
     );
     expect(mockAgentResponseFeedback.markSynced).toHaveBeenCalledWith(
       record.id
@@ -115,7 +118,7 @@ describe("Langfuse Agent feedback sync", () => {
     langfuse.api.scoreConfigs.get.mockRejectedValue(new Error("forbidden"));
     jest.spyOn(console, "warn").mockImplementation(() => {});
     await expect(syncFeedbackRecord(record, { langfuse })).resolves.toBe(true);
-    expect(langfuse.score.create).toHaveBeenCalledTimes(3);
+    expect(langfuse.score.create).toHaveBeenCalledTimes(2);
     expect(langfuse.score.create).toHaveBeenCalledWith(
       expect.objectContaining({
         name: RATING_SCORE_NAME,
@@ -136,5 +139,38 @@ describe("Langfuse Agent feedback sync", () => {
       record.id,
       "network unavailable"
     );
+  });
+
+  it("removes orphan scores instead of linking feedback to a missing old trace", async () => {
+    const langfuse = mockLangfuse(reasons);
+    langfuse.api.observations.getMany.mockResolvedValue({ data: [] });
+    jest.spyOn(console, "warn").mockImplementation(() => {});
+
+    await expect(syncFeedbackRecord(record, { langfuse })).resolves.toBe(true);
+
+    expect(langfuse.api.legacy.scoreV1.delete).toHaveBeenCalledTimes(3);
+    expect(langfuse.score.create).not.toHaveBeenCalled();
+    expect(mockAgentResponseFeedback.markSynced).toHaveBeenCalledWith(
+      record.id
+    );
+  });
+
+  it("retries briefly while a new trace may still be ingesting", async () => {
+    const langfuse = mockLangfuse(reasons);
+    langfuse.api.observations.getMany.mockResolvedValue({ data: [] });
+
+    await expect(
+      syncFeedbackRecord(
+        { ...record, createdAt: new Date(Date.now() - 1_000) },
+        { langfuse }
+      )
+    ).resolves.toBe(false);
+
+    expect(mockAgentResponseFeedback.markSyncError).toHaveBeenCalledWith(
+      record.id,
+      "Langfuse trace is not available yet."
+    );
+    expect(langfuse.api.legacy.scoreV1.delete).not.toHaveBeenCalled();
+    expect(langfuse.score.create).not.toHaveBeenCalled();
   });
 });

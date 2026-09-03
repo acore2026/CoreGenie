@@ -9,6 +9,7 @@ const { agentTraceId, langfuseConfiguration } = require("./observability");
 const LOG_PREFIX = "\x1b[36m[Langfuse feedback]\x1b[0m";
 const RATING_SCORE_NAME = "user-response-rating";
 const SYNC_INTERVAL_MS = 60_000;
+const TRACE_INGESTION_GRACE_MS = 5 * 60_000;
 const SCORE_NAMESPACE = uuidv5.URL;
 
 let client = null;
@@ -107,11 +108,7 @@ async function ensureScoreConfigs(langfuse, reasons) {
   return configuredScoreIds;
 }
 
-async function deleteRemoteScores(langfuse, record, reasons) {
-  const names = [
-    RATING_SCORE_NAME,
-    ...reasons.map(({ code }) => scoreNameForReason(code)),
-  ];
+async function deleteRemoteScoresByName(langfuse, record, names) {
   await Promise.all(
     names.map(async (name) => {
       try {
@@ -120,6 +117,29 @@ async function deleteRemoteScores(langfuse, record, reasons) {
         if (error?.statusCode !== 404 && error?.status !== 404) throw error;
       }
     })
+  );
+}
+
+async function deleteRemoteScores(langfuse, record, reasons) {
+  return deleteRemoteScoresByName(langfuse, record, [
+    RATING_SCORE_NAME,
+    ...reasons.map(({ code }) => scoreNameForReason(code)),
+  ]);
+}
+
+async function remoteTraceExists(langfuse, traceId) {
+  const response = await langfuse.api.observations.getMany({
+    traceId,
+    limit: 1,
+  });
+  return Boolean(response.data?.length);
+}
+
+function traceMayStillBeIngesting(record) {
+  const createdAt = new Date(record.createdAt).getTime();
+  return (
+    Number.isFinite(createdAt) &&
+    Date.now() - createdAt < TRACE_INGESTION_GRACE_MS
   );
 }
 
@@ -133,6 +153,23 @@ async function syncFeedbackRecord(record, { langfuse = getClient() } = {}) {
       return true;
     }
 
+    const traceId = await agentTraceId(record.run_id);
+    if (!(await remoteTraceExists(langfuse, traceId))) {
+      if (traceMayStillBeIngesting(record)) {
+        await AgentResponseFeedback.markSyncError(
+          record.id,
+          "Langfuse trace is not available yet."
+        );
+        return false;
+      }
+      await deleteRemoteScores(langfuse, record, reasons);
+      await AgentResponseFeedback.markSynced(record.id);
+      console.warn(
+        `${LOG_PREFIX} Skipped feedback ${record.id}: trace ${traceId} does not exist.`
+      );
+      return true;
+    }
+
     let configs = new Map();
     try {
       configs = await ensureScoreConfigs(langfuse, reasons);
@@ -141,7 +178,6 @@ async function syncFeedbackRecord(record, { langfuse = getClient() } = {}) {
         `${LOG_PREFIX} Score configs unavailable; syncing without config IDs: ${error.message}`
       );
     }
-    const traceId = await agentTraceId(record.run_id);
     const comment = feedbackComment(record);
     langfuse.score.create({
       id: scoreId(record.id, RATING_SCORE_NAME),
@@ -162,13 +198,20 @@ async function syncFeedbackRecord(record, { langfuse = getClient() } = {}) {
     const selectedCodes = new Set(
       JSON.parse(record.reasons || "[]").map((reason) => reason.code)
     );
-    for (const reason of reasons) {
+    const selectedReasons = reasons.filter((reason) =>
+      selectedCodes.has(reason.code)
+    );
+    const unselectedNames = reasons
+      .filter((reason) => !selectedCodes.has(reason.code))
+      .map((reason) => scoreNameForReason(reason.code));
+    await deleteRemoteScoresByName(langfuse, record, unselectedNames);
+    for (const reason of selectedReasons) {
       const name = scoreNameForReason(reason.code);
       langfuse.score.create({
         id: scoreId(record.id, name),
         traceId,
         name,
-        value: selectedCodes.has(reason.code) ? 1 : 0,
+        value: 1,
         dataType: "BOOLEAN",
         configId: configs.get(name),
       });

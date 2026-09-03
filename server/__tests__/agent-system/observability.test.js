@@ -116,6 +116,29 @@ describe("Langfuse Agent observability", () => {
     );
   });
 
+  it("uses the conversation UUID as the Langfuse session identifier", () => {
+    const attributes = traceAttributes({
+      id: "run-1",
+      workspace_id: 2,
+      thread_id: 3,
+      user_id: 4,
+      mode: "automatic",
+      source: "workspace",
+      runtimeKey: "default-react",
+      runtimeVersion: 1,
+      configuration: {
+        conversationId: "0ebbd82a-b9f9-4ff4-8668-4a8eeafb847c",
+      },
+    });
+
+    expect(attributes.sessionId).toBe(
+      "conversation:thread:0ebbd82a-b9f9-4ff4-8668-4a8eeafb847c"
+    );
+    expect(attributes.metadata.conversationId).toBe(
+      "0ebbd82a-b9f9-4ff4-8668-4a8eeafb847c"
+    );
+  });
+
   it("uses a stable Agent configuration revision without hashing composed prompts", () => {
     const base = {
       agent: { id: 1, name: "Research", prompt: "agent prompt" },
