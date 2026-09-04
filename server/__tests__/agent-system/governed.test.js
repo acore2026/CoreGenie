@@ -798,8 +798,8 @@ describe("Governed Agent runtime", () => {
     expect(control.schema.safeParse({ name: "unknown" }).success).toBe(false);
   });
 
-  it("compiles without state-channel and node-name collisions", () => {
-    expect(() =>
+  it("compiles without state-channel and node-name collisions", async () => {
+    await expect(
       createGovernedGraph({
         run: { id: "run-compile", configuration: {}, runtimeSnapshot: {} },
         workspace: { id: 1 },
@@ -811,7 +811,7 @@ describe("Governed Agent runtime", () => {
         runnableConfig: {},
         onToken: jest.fn(),
       })
-    ).not.toThrow();
+    ).resolves.toBeDefined();
   });
 
   it("validates and scopes a dependency-aware plan", () => {

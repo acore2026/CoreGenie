@@ -58,8 +58,8 @@ describe("Evidence Research runtime", () => {
     );
   });
 
-  it("compiles a raw StateGraph with the planned research stages", () => {
-    const graph = createResearchGraph({
+  it("compiles a raw StateGraph with the planned research stages", async () => {
+    const graph = await createResearchGraph({
       run: {
         id: "compile-test",
         mode: "automatic",

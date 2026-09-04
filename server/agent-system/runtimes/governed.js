@@ -1515,7 +1515,7 @@ function usedContextSources(text, items = []) {
   return [...used].map((index) => items[index]?.source).filter(Boolean);
 }
 
-function createGovernedGraph(context) {
+async function createGovernedGraph(context) {
   const {
     run,
     workspace,
@@ -2335,7 +2335,7 @@ function createGovernedGraph(context) {
           }),
           includeSkillCatalog: false,
           activatedSkillScope,
-          checkpointerOverride: getCheckpointer(),
+          checkpointerOverride: await getCheckpointer(),
           taskId: taskItem.id,
           taskTitle: taskItem.title,
         });
@@ -2755,12 +2755,12 @@ function createGovernedGraph(context) {
     .addConditionalEdges("review_results", afterReview)
     .addEdge("apply_revision", "schedule")
     .addEdge("synthesize", END)
-    .compile({ checkpointer: getCheckpointer() });
+    .compile({ checkpointer: await getCheckpointer() });
 }
 
 async function executeSegment(context) {
   const { run, history, signal, runnableConfig } = context;
-  const graph = createGovernedGraph(context);
+  const graph = await createGovernedGraph(context);
   const resume = run.configuration?.resume || null;
   const graphInput = run.configuration?.recover
     ? null

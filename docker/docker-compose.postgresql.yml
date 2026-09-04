@@ -1,0 +1,37 @@
+name: anythingllm
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-anythingllm}
+      POSTGRES_USER: ${POSTGRES_USER:-anythingllm}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?请在 docker/.env 中设置 POSTGRES_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - anything-llm
+
+  anything-llm:
+    environment:
+      DATABASE_PROVIDER: postgresql
+      DATABASE_URL: ${DATABASE_URL:?请在 docker/.env 中设置 DATABASE_URL}
+      LANGGRAPH_CHECKPOINT_BACKEND: postgresql
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres-data:

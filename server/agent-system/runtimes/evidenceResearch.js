@@ -238,7 +238,7 @@ function workerPrompt(basePrompt, state, toolsDisabled) {
   return `${basePrompt}\n\nYou are one evidence worker in a larger research graph. Work only on the assigned objective. ${sourcePolicy} Do not write the final user answer. Return one JSON object with keys summary, evidence, and unresolved. Every evidence item must contain kind, title, uri, excerpt, and metadata. Allowed evidence kinds are user, rag, memory, web, file, tool, and agent. Never invent a URI or claim that was not present in a tool result or in user-supplied evidence.\n\n<research_request>\n${state.request}\n</research_request>\n\n<assigned_workstream id="${state.workItem.id}">\n${state.workItem.objective}\nPreferred sources: ${(state.workItem.preferredSources || []).join(", ") || "best available evidence"}\n</assigned_workstream>`;
 }
 
-function createResearchGraph(context) {
+async function createResearchGraph(context) {
   const { run, workspace, user, agent, emit, signal, runnableConfig, onToken } =
     context;
   const basePrompt =
@@ -308,7 +308,7 @@ function createResearchGraph(context) {
           depth: context.depth || 0,
           maxLocalToolCalls: context.maxLocalToolCalls || 500,
           systemPromptOverride: workerPrompt(basePrompt, state, toolsDisabled),
-          checkpointerOverride: getCustomCheckpointer(),
+          checkpointerOverride: await getCustomCheckpointer(),
           excludeToolIds: ["user.ask"],
           disableTools: toolsDisabled,
         });
@@ -573,12 +573,12 @@ function createResearchGraph(context) {
     .addEdge("request_input", "plan_research")
     .addConditionalEdges("revise_plan", dispatchWorkers)
     .addEdge("synthesize", END)
-    .compile({ checkpointer: getCustomCheckpointer() });
+    .compile({ checkpointer: await getCustomCheckpointer() });
 }
 
 async function executeSegment(context) {
   const { run, history, signal, runnableConfig } = context;
-  const graph = createResearchGraph(context);
+  const graph = await createResearchGraph(context);
   const resume = run.configuration?.resume || null;
   const graphInput = run.configuration?.recover
     ? null

@@ -16,3 +16,4 @@ yarn.lock
 /.playwright-cli/
 /test-results/
 /anythingllm.db
+/server/prisma-postgresql/schema.prisma

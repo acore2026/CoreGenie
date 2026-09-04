@@ -174,7 +174,7 @@ async function buildAgentGraph({
     model,
     tools,
     systemPrompt,
-    checkpointer: checkpointerOverride || getCheckpointer(),
+    checkpointer: checkpointerOverride || (await getCheckpointer()),
     middleware,
   });
 }
