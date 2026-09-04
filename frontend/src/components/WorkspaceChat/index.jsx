@@ -10,14 +10,28 @@ import {
   DndUploaderContext,
   PASTE_ATTACHMENT_EVENT,
 } from "./ChatContainer/DnDWrapper";
-import { WarningCircle } from "@phosphor-icons/react";
+import {
+  ArrowClockwise,
+  CircleNotch,
+  WarningCircle,
+} from "@phosphor-icons/react";
 import {
   TTSProvider,
   useWatchForAutoPlayAssistantTTSResponse,
 } from "../contexts/TTSProvider";
 import { PENDING_HOME_MESSAGE } from "@/utils/constants";
+import { useTranslation } from "react-i18next";
+import { getConversationRuntime } from "@/utils/chat/conversationRuntime";
 
-export default function WorkspaceChat({ loading, workspace }) {
+const conversationCache = new Map();
+const CONVERSATION_LOAD_TIMEOUT_MS = 15_000;
+
+export default function WorkspaceChat({
+  loading,
+  workspace,
+  requestedWorkspaceSlug = workspace?.slug,
+}) {
+  const { t } = useTranslation();
   useWatchForAutoPlayAssistantTTSResponse();
   const { threadSlug = null } = useParams();
   const navigate = useNavigate();
@@ -25,8 +39,13 @@ export default function WorkspaceChat({ loading, workspace }) {
   // the previous chat stays mounted until the next one's history is ready,
   // avoiding a skeleton/loader flash on workspace/thread switches.
   const [loaded, setLoaded] = useState(null);
+  const [loadError, setLoadError] = useState(null);
+  const [retryVersion, setRetryVersion] = useState(0);
   const [dragging, setDragging] = useState(false);
   const pendingFilesRef = useRef([]);
+  const requestedKey = requestedWorkspaceSlug
+    ? `${requestedWorkspaceSlug}:${threadSlug ?? "default"}`
+    : "none";
 
   // When the thread becomes available and we have pending files, trigger upload
   useEffect(() => {
@@ -47,31 +66,81 @@ export default function WorkspaceChat({ loading, workspace }) {
   }
 
   useEffect(() => {
+    let active = true;
+    const controller = new AbortController();
+    const timeout = setTimeout(
+      () => controller.abort(),
+      CONVERSATION_LOAD_TIMEOUT_MS
+    );
+
     async function getHistory() {
       if (loading) return;
       if (!workspace?.slug) {
         setLoaded({ key: "none", workspace: null, history: [] });
+        setLoadError(null);
         return false;
       }
 
-      const result = threadSlug
-        ? await Workspace.threads.chatHistory(workspace.slug, threadSlug)
-        : await Workspace.chatHistory(workspace.slug);
-      const chatHistory = threadSlug ? result.history : result;
+      const key = `${workspace.slug}:${threadSlug ?? "default"}`;
+      setLoadError(null);
 
-      setLoaded({
-        key: `${workspace.slug}:${threadSlug ?? "default"}`,
-        workspace,
-        threadSlug,
-        thread: threadSlug ? result.thread : null,
-        history: chatHistory,
-      });
+      const cached = conversationCache.get(key);
+      if (cached) {
+        const runtime = getConversationRuntime(key);
+        setLoaded({
+          ...cached,
+          workspace,
+          history: runtime?.history || cached.history,
+        });
+      }
+
+      try {
+        const result = threadSlug
+          ? await Workspace.threads.chatHistory(workspace.slug, threadSlug, {
+              signal: controller.signal,
+              throwOnError: true,
+            })
+          : await Workspace.chatHistory(workspace.slug, {
+              signal: controller.signal,
+              throwOnError: true,
+            });
+        if (!active) return;
+        const chatHistory = threadSlug ? result.history : result;
+        const next = {
+          key,
+          workspace,
+          threadSlug,
+          thread: threadSlug ? result.thread : null,
+          history: chatHistory,
+        };
+        conversationCache.set(key, next);
+        const runtime = getConversationRuntime(key);
+        setLoaded({
+          ...next,
+          history: runtime?.history || next.history,
+        });
+      } catch (error) {
+        if (!active) return;
+        setLoadError({ key, message: error.message });
+      }
     }
     getHistory();
-  }, [workspace, loading, threadSlug]);
+    return () => {
+      active = false;
+      clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [workspace, loading, threadSlug, retryVersion]);
 
   const hasPendingMessage = !!sessionStorage.getItem(PENDING_HOME_MESSAGE);
   if (loaded === null) {
+    if (loadError?.key === requestedKey)
+      return (
+        <ConversationLoadState
+          failed
+          onRetry={() => setRetryVersion((value) => value + 1)}
+        />
+      );
     if (hasPendingMessage) {
       return (
         <div className="transition-all duration-500 relative md:ml-[2px] md:mr-[16px] md:my-[16px] md:rounded-[16px] bg-theme-bg-secondary w-full h-full" />
@@ -120,40 +189,114 @@ export default function WorkspaceChat({ loading, workspace }) {
 
   setEventDelegatorForCodeSnippets();
 
+  const switchingConversation = loaded.key !== requestedKey;
+  const currentLoadFailed =
+    switchingConversation && loadError?.key === requestedKey;
+
   return (
-    <TTSProvider>
-      <DnDWrapper
-        loaded={loaded}
-        opts={{
-          files: [],
-          ready: true,
-          dragging,
-          setDragging,
-          onDrop: handleDropWithoutThread,
-          parseAttachments: () => [],
-        }}
-      >
-        <ChatContainer
-          key={loaded.key}
-          workspace={loaded.workspace}
-          threadSlug={loaded.threadSlug}
-          thread={loaded.thread}
-          knownHistory={loaded.history}
+    <div
+      className="relative h-full min-w-0 flex-1"
+      aria-busy={switchingConversation && !currentLoadFailed}
+    >
+      <TTSProvider>
+        <DnDWrapper
+          loaded={loaded}
+          opts={{
+            files: [],
+            ready: true,
+            dragging,
+            setDragging,
+            onDrop: handleDropWithoutThread,
+            parseAttachments: () => [],
+          }}
+        >
+          <ChatContainer
+            key={loaded.key}
+            workspace={loaded.workspace}
+            threadSlug={loaded.threadSlug}
+            thread={loaded.thread}
+            knownHistory={loaded.history}
+          />
+        </DnDWrapper>
+      </TTSProvider>
+      {switchingConversation && (
+        <div className="absolute inset-0 z-[80] flex items-center justify-center bg-theme-bg-secondary/35 px-4 backdrop-blur-[1px]">
+          <ConversationLoadStatus
+            failed={currentLoadFailed}
+            onRetry={() => setRetryVersion((value) => value + 1)}
+            t={t}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ConversationLoadState({ failed = false, onRetry }) {
+  const { t } = useTranslation();
+  return (
+    <div className="relative flex h-full min-w-0 flex-1 items-center justify-center bg-theme-bg-secondary px-4">
+      <ConversationLoadStatus failed={failed} onRetry={onRetry} t={t} />
+    </div>
+  );
+}
+
+function ConversationLoadStatus({ failed = false, onRetry, t }) {
+  return (
+    <div
+      role={failed ? "alert" : "status"}
+      aria-live="polite"
+      className="flex min-h-12 max-w-sm items-center gap-3 rounded-lg border border-white/10 bg-theme-bg-primary/95 px-4 py-3 text-theme-text-primary light:border-slate-200"
+    >
+      {failed ? (
+        <WarningCircle
+          size={18}
+          weight="fill"
+          className="shrink-0 text-red-400 light:text-red-700"
         />
-      </DnDWrapper>
-    </TTSProvider>
+      ) : (
+        <CircleNotch
+          size={18}
+          weight="bold"
+          className="shrink-0 animate-spin text-cyan-300 motion-reduce:animate-none light:text-cyan-700"
+        />
+      )}
+      <div className="min-w-0 flex-1">
+        <p className="m-0 text-sm font-semibold">
+          {t(
+            failed
+              ? "chat_window.conversation_load_failed"
+              : "chat_window.conversation_loading"
+          )}
+        </p>
+        {failed && (
+          <p className="m-0 mt-0.5 text-xs text-theme-text-secondary">
+            {t("chat_window.conversation_load_failed_description")}
+          </p>
+        )}
+      </div>
+      {failed && (
+        <button
+          type="button"
+          onClick={onRetry}
+          className="flex min-h-10 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-xs font-semibold text-cyan-300 outline-none transition-[background-color,transform] duration-150 hover:bg-cyan-300/10 active:scale-[0.97] focus-visible:ring-2 focus-visible:ring-cyan-300/60 light:text-cyan-700"
+        >
+          <ArrowClockwise size={14} weight="bold" />
+          {t("chat_window.conversation_retry")}
+        </button>
+      )}
+    </div>
   );
 }
 
 function DnDWrapper({ children, loaded, opts }) {
-  if (!loaded?.threadSlug || loaded.thread?.canModify === false) {
+  const readOnly =
+    loaded?.workspace?.viewerAccess === "public_readonly" ||
+    loaded?.thread?.canModify === false;
+  if (!loaded?.threadSlug || readOnly) {
     return (
       <DndUploaderContext.Provider
-        value={
-          loaded.thread?.canModify === false
-            ? { ...opts, ready: false, onDrop: () => {} }
-            : opts
-        }
+        value={readOnly ? { ...opts, ready: false, onDrop: () => {} } : opts}
       >
         {children}
       </DndUploaderContext.Provider>

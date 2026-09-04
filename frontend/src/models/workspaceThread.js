@@ -74,20 +74,31 @@ const WorkspaceThread = {
       .then((res) => res.ok)
       .catch(() => false);
   },
-  chatHistory: async function (workspaceSlug, threadSlug) {
-    return await fetch(
-      `${API_BASE}/workspace/${workspaceSlug}/thread/${threadSlug}/chats`,
-      {
-        method: "GET",
-        headers: baseHeaders(),
-      }
-    )
-      .then((res) => res.json())
-      .then((res) => ({
-        history: res.history || [],
-        thread: res.thread || null,
-      }))
-      .catch(() => ({ history: [], thread: null }));
+  chatHistory: async function (
+    workspaceSlug,
+    threadSlug,
+    { signal = undefined, throwOnError = false } = {}
+  ) {
+    try {
+      const response = await fetch(
+        `${API_BASE}/workspace/${workspaceSlug}/thread/${threadSlug}/chats`,
+        {
+          method: "GET",
+          headers: baseHeaders(),
+          signal,
+        }
+      );
+      if (!response.ok)
+        throw new Error(`Unable to load conversation (${response.status}).`);
+      const result = await response.json();
+      return {
+        history: result.history || [],
+        thread: result.thread || null,
+      };
+    } catch (error) {
+      if (throwOnError) throw error;
+      return { history: [], thread: null };
+    }
   },
   streamChat: async function (
     { workspaceSlug, threadSlug },

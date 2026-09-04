@@ -34,9 +34,11 @@ function ShowWorkspaceChat() {
   const [loadedSlug, setLoadedSlug] = useState(null);
 
   useEffect(() => {
+    let active = true;
     async function getWorkspace() {
       if (!slug) return;
       const _workspace = await Workspace.bySlug(slug);
+      if (!active) return;
       if (!_workspace) {
         setWorkspace(null);
         setLoadedSlug(slug);
@@ -44,6 +46,7 @@ function ShowWorkspaceChat() {
       }
 
       const suggestedMessages = await Workspace.getSuggestedMessages(slug);
+      if (!active) return;
       setWorkspace({
         ..._workspace,
         suggestedMessages,
@@ -58,6 +61,9 @@ function ShowWorkspaceChat() {
       );
     }
     getWorkspace();
+    return () => {
+      active = false;
+    };
   }, [slug]);
 
   useEffect(() => {
@@ -75,6 +81,7 @@ function ShowWorkspaceChat() {
     <WorkspaceChatContainer
       loading={loadedSlug !== slug}
       workspace={workspace}
+      requestedWorkspaceSlug={slug}
     />
   );
 }

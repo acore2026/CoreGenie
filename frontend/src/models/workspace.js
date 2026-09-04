@@ -80,15 +80,24 @@ const Workspace = {
       .then((res) => res.json())
       .catch(() => ({ success: false }));
   },
-  chatHistory: async function (slug) {
-    const history = await fetch(`${API_BASE}/workspace/${slug}/chats`, {
-      method: "GET",
-      headers: baseHeaders(),
-    })
-      .then((res) => res.json())
-      .then((res) => res.history || [])
-      .catch(() => []);
-    return history;
+  chatHistory: async function (
+    slug,
+    { signal = undefined, throwOnError = false } = {}
+  ) {
+    try {
+      const response = await fetch(`${API_BASE}/workspace/${slug}/chats`, {
+        method: "GET",
+        headers: baseHeaders(),
+        signal,
+      });
+      if (!response.ok)
+        throw new Error(`Unable to load conversation (${response.status}).`);
+      const result = await response.json();
+      return result.history || [];
+    } catch (error) {
+      if (throwOnError) throw error;
+      return [];
+    }
   },
   /**
    * Export a workspace or thread's chat as a server-generated branded PDF.
