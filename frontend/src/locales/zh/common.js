@@ -65,6 +65,13 @@ const TRANSLATIONS = {
     loading: "正在加载…",
     refresh: "重新开始；更新",
   },
+  networkAuth: {
+    unavailable: "无法连接服务，可能需要重新认证网络。",
+    offline: "网络连接已断开，恢复后会自动重试。",
+    open: "前往网络认证",
+    retry: "重新检测",
+    checking: "检测中…",
+  },
   settings: {
     title: "设置",
     "back-to-chat": "返回聊天",

@@ -16,6 +16,7 @@ import ImageLightbox from "@/components/ImageLightbox";
 import { ErrorBoundary } from "react-error-boundary";
 import ErrorBoundaryFallback from "./components/ErrorBoundaryFallback";
 import { SETTINGS_RETURN_PATH } from "@/utils/constants";
+import NetworkAuthGuard from "@/components/NetworkAuthGuard";
 
 export default function App() {
   const location = useLocation();
@@ -44,6 +45,7 @@ export default function App() {
             <LogoProvider>
               <PfpProvider>
                 <I18nextProvider i18n={i18n}>
+                  <NetworkAuthGuard />
                   <Suspense fallback={<FullScreenLoader />}>
                     <StableOutlet />
                   </Suspense>
