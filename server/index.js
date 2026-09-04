@@ -53,9 +53,12 @@ const { predefinedAgentEndpoints } = require("./endpoints/predefinedAgents");
 const { workspaceSkillEndpoints } = require("./endpoints/agentSkills");
 const { agentFeedbackEndpoints } = require("./endpoints/agentFeedback");
 const { httpLogger } = require("./middleware/httpLogger");
+const { requestDiagnostics } = require("./middleware/requestDiagnostics");
 const app = express();
 const apiRouter = express.Router();
 const FILE_LIMIT = "3GB";
+
+app.use("/api", requestDiagnostics());
 
 // Only log HTTP requests in development mode and if the ENABLE_HTTP_LOGGER environment variable is set to true
 if (
@@ -68,7 +71,12 @@ if (
     })
   );
 }
-app.use(cors({ origin: true }));
+app.use(
+  cors({
+    origin: true,
+    exposedHeaders: ["X-Request-ID", "Server-Timing"],
+  })
+);
 app.use(bodyParser.text({ limit: FILE_LIMIT }));
 app.use(bodyParser.json({ limit: FILE_LIMIT }));
 app.use(
