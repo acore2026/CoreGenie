@@ -22,6 +22,12 @@ function createSubagentTool(context, availableAgents = []) {
     id: "agent.call",
     name: "call_agent",
     description: `Delegate a bounded task to a specialized Agent. Available Agents:\n${roster || "No other Agents are available."}`,
+    // Delegation can cause writes, but it must not hold the shared action lock
+    // while awaiting the child Agent. Child write tools acquire that same lock
+    // individually; locking the outer call would deadlock the first child write.
+    action: false,
+    effect: "write",
+    idempotency: "none",
     schema: z.object({
       agent_id: z.number().int().positive(),
       task: z.string().min(1),
