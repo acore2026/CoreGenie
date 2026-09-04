@@ -5,6 +5,17 @@ import LiveDocumentSync from "./experimental/liveSync";
 import AgentPlugins from "./experimental/agentPlugins";
 import SystemPromptVariable from "./systemPromptVariable";
 
+const SYSTEM_KEYS_CACHE_TTL_MS = 1_000;
+let systemKeysCache = null;
+let pendingSystemKeys = null;
+let systemKeysCacheGeneration = 0;
+
+export function clearSystemKeysCache() {
+  systemKeysCache = null;
+  pendingSystemKeys = null;
+  systemKeysCacheGeneration += 1;
+}
+
 const System = {
   cacheKeys: {
     footerIcons: "anythingllm_footer_links",
@@ -59,13 +70,33 @@ const System = {
       .catch(() => false);
   },
   keys: async function () {
-    return await fetch(`${API_BASE}/setup-complete`)
+    if (
+      systemKeysCache &&
+      Date.now() - systemKeysCache.fetchedAt < SYSTEM_KEYS_CACHE_TTL_MS
+    ) {
+      return systemKeysCache.value;
+    }
+    if (pendingSystemKeys) return pendingSystemKeys;
+
+    const cacheGeneration = systemKeysCacheGeneration;
+    const request = fetch(`${API_BASE}/setup-complete`)
       .then((res) => {
         if (!res.ok) throw new Error("Could not find setup information.");
         return res.json();
       })
       .then((res) => res.results)
-      .catch(() => null);
+      .then((value) => {
+        if (cacheGeneration === systemKeysCacheGeneration) {
+          systemKeysCache = { value, fetchedAt: Date.now() };
+        }
+        return value;
+      })
+      .catch(() => null)
+      .finally(() => {
+        if (pendingSystemKeys === request) pendingSystemKeys = null;
+      });
+    pendingSystemKeys = request;
+    return pendingSystemKeys;
   },
   localFiles: async function () {
     return await fetch(`${API_BASE}/system/local-files`, {
@@ -178,6 +209,7 @@ const System = {
       .catch(() => null);
   },
   updateSystem: async (data) => {
+    clearSystemKeysCache();
     return await fetch(`${API_BASE}/system/update-env`, {
       method: "POST",
       headers: baseHeaders(),
@@ -190,6 +222,7 @@ const System = {
       });
   },
   updateSystemPassword: async (data) => {
+    clearSystemKeysCache();
     return await fetch(`${API_BASE}/system/update-password`, {
       method: "POST",
       headers: baseHeaders(),
@@ -202,6 +235,7 @@ const System = {
       });
   },
   setupMultiUser: async (data) => {
+    clearSystemKeysCache();
     return await fetch(`${API_BASE}/system/enable-multi-user`, {
       method: "POST",
       headers: baseHeaders(),
@@ -428,10 +462,7 @@ const System = {
   },
   fetchLogo: async function () {
     const url = new URL(`${fullApiUrl()}/system/logo`);
-    url.searchParams.append(
-      "theme",
-      localStorage.getItem("theme") || "default"
-    );
+    url.searchParams.append("theme", localStorage.getItem("theme") || "system");
 
     return await fetch(url, {
       method: "GET",

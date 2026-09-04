@@ -6,7 +6,13 @@ import System from "./models/system";
 export const REFETCH_LOGO_EVENT = "refetch-logo";
 
 function isLightMode() {
-  return document.documentElement.getAttribute("data-theme") === "light";
+  const appliedTheme = document.documentElement.getAttribute("data-theme");
+  if (appliedTheme) return appliedTheme === "light";
+
+  const savedTheme = localStorage.getItem("theme");
+  if (savedTheme === "light") return true;
+  if (savedTheme === "dark" || savedTheme === "default") return false;
+  return window.matchMedia?.("(prefers-color-scheme: light)").matches ?? false;
 }
 export const LogoContext = createContext();
 

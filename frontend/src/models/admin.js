@@ -1,5 +1,6 @@
 import { API_BASE } from "@/utils/constants";
 import { baseHeaders } from "@/utils/request";
+import { clearSystemKeysCache } from "./system";
 
 const Admin = {
   // User Management
@@ -176,6 +177,7 @@ const Admin = {
       });
   },
   updateSystemPreferences: async (updates = {}) => {
+    clearSystemKeysCache();
     return await fetch(`${API_BASE}/admin/system-preferences`, {
       method: "POST",
       headers: baseHeaders(),
