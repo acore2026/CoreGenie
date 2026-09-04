@@ -6,8 +6,11 @@ import WorkspaceName from "./WorkspaceName";
 import SuggestedChatMessages from "./SuggestedChatMessages";
 import DeleteWorkspace from "./DeleteWorkspace";
 import CTAButton from "@/components/lib/CTAButton";
+import WorkspaceAccess from "./WorkspaceAccess";
+import { useTranslation } from "react-i18next";
 
 export default function GeneralInfo({ slug, deletionProtected = false }) {
+  const { t } = useTranslation();
   const [workspace, setWorkspace] = useState(null);
   const [hasChanges, setHasChanges] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -34,9 +37,13 @@ export default function GeneralInfo({ slug, deletionProtected = false }) {
       data
     );
     if (!!updatedWorkspace) {
-      showToast("Workspace updated!", "success", { clear: true });
+      showToast(t("general.access.saved"), "success", { clear: true });
     } else {
-      showToast(`Error: ${message}`, "error", { clear: true });
+      showToast(
+        t("general.access.saveError", { message: message || "" }),
+        "error",
+        { clear: true }
+      );
     }
     setSaving(false);
     setHasChanges(false);
@@ -48,12 +55,12 @@ export default function GeneralInfo({ slug, deletionProtected = false }) {
       <form
         ref={formEl}
         onSubmit={handleUpdate}
-        className="w-1/2 flex flex-col"
+        className="w-full max-w-3xl flex flex-col"
       >
         {hasChanges && (
           <div className="absolute top-0 right-0">
             <CTAButton type="submit">
-              {saving ? "Updating..." : "Update Workspace"}
+              {saving ? t("common.saving") : t("common.save")}
             </CTAButton>
           </div>
         )}
@@ -62,6 +69,12 @@ export default function GeneralInfo({ slug, deletionProtected = false }) {
           workspace={workspace}
           setHasChanges={setHasChanges}
         />
+        <div className="mt-8">
+          <WorkspaceAccess
+            workspace={workspace}
+            setHasChanges={setHasChanges}
+          />
+        </div>
       </form>
       <SuggestedChatMessages slug={workspace.slug} />
       <DeleteWorkspace workspace={workspace} visible={!deletionProtected} />

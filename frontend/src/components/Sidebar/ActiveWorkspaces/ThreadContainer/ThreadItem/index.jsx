@@ -12,7 +12,10 @@ import {
 } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { THREAD_RENAME_EVENT } from "../../../events";
+import {
+  CLOSE_MOBILE_SIDEBAR_EVENT,
+  THREAD_RENAME_EVENT,
+} from "../../../events";
 import {
   conversationRuntimeKey,
   subscribeConversationRuntime,
@@ -207,6 +210,7 @@ export default function ThreadItem({
             ref={ref}
             to={linkTo}
             onClick={(event) => {
+              window.dispatchEvent(new Event(CLOSE_MOBILE_SIDEBAR_EVENT));
               if (!canModify || !isActive || !thread.slug || thread.virtual)
                 return;
               event.preventDefault();

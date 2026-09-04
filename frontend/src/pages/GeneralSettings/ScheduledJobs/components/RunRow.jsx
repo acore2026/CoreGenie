@@ -30,7 +30,7 @@ function formatRunDuration(run) {
  * @param {function} onKilled - Callback when a run is killed (to refresh the list).
  * @returns {React.ReactNode} The rendered row.
  */
-export default function RunRow({ run, jobId, onKilled }) {
+export default function RunRow({ run, jobId, workspaceSlug = null, onKilled }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [killing, setKilling] = useState(false);
@@ -41,7 +41,14 @@ export default function RunRow({ run, jobId, onKilled }) {
   const handleKill = async (e) => {
     e.stopPropagation();
     setKilling(true);
-    const { success, error } = await ScheduledJobs.killRun(run.id);
+    const { success, error } = workspaceSlug
+      ? await ScheduledJobs.workspace.runAction(
+          workspaceSlug,
+          jobId,
+          run.id,
+          "kill"
+        )
+      : await ScheduledJobs.killRun(run.id);
     setKilling(false);
 
     if (!success) {
@@ -57,7 +64,11 @@ export default function RunRow({ run, jobId, onKilled }) {
     <button
       type="button"
       onClick={() =>
-        navigate(paths.settings.scheduledJobRunDetail(jobId, run.id))
+        navigate(
+          workspaceSlug
+            ? paths.workspace.jobRunDetail(workspaceSlug, jobId, run.id)
+            : paths.settings.scheduledJobRunDetail(jobId, run.id)
+        )
       }
       className="border-none flex items-center px-4 h-14 hover:bg-white/5 light:hover:bg-slate-200 transition-colors text-left w-full"
     >

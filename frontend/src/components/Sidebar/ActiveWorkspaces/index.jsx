@@ -9,8 +9,7 @@ import paths from "@/utils/paths";
 import { Link, useParams, useNavigate, useMatch } from "react-router-dom";
 import {
   CaretDown,
-  ChatCircleText,
-  CircleNotch,
+  CalendarDots,
   DotsSixVertical,
   FilePlus,
   GearSix,
@@ -24,7 +23,7 @@ import showToast from "@/utils/toast";
 import { LAST_VISITED_WORKSPACE } from "@/utils/constants";
 import { safeJsonParse } from "@/utils/request";
 import {
-  THREAD_CREATED_EVENT,
+  CLOSE_MOBILE_SIDEBAR_EVENT,
   WORKSPACE_CREATED_EVENT,
   WORKSPACE_RENAMED_EVENT,
 } from "../events";
@@ -33,7 +32,6 @@ import WorkspaceInviteModal from "@/components/Modals/WorkspaceInvite";
 let cachedWorkspaces = null;
 
 export default function ActiveWorkspaces() {
-  const { t } = useTranslation();
   const navigate = useNavigate();
   const { slug } = useParams();
   const [loading, setLoading] = useState(() => cachedWorkspaces === null);
@@ -43,7 +41,6 @@ export default function ActiveWorkspaces() {
   const [selectedWs, setSelectedWs] = useState(null);
   const [inviteWorkspace, setInviteWorkspace] = useState(null);
   const [collapsedSlugs, setCollapsedSlugs] = useState(() => new Set());
-  const [creatingThreadSlug, setCreatingThreadSlug] = useState(null);
   const renameInputRef = useRef(null);
   const renameSavingRef = useRef(false);
   const renameCancelledRef = useRef(false);
@@ -168,6 +165,7 @@ export default function ActiveWorkspaces() {
 
   function handleWorkspaceClick(event, workspace, isActive) {
     event.preventDefault();
+    window.dispatchEvent(new Event(CLOSE_MOBILE_SIDEBAR_EVENT));
     if (workspaceClickTimerRef.current)
       clearTimeout(workspaceClickTimerRef.current);
     workspaceClickTimerRef.current = setTimeout(() => {
@@ -193,37 +191,6 @@ export default function ActiveWorkspaces() {
       workspaceClickTimerRef.current = null;
     }
     startWorkspaceRename(workspace);
-  }
-
-  async function createWorkspaceThread(event, workspace) {
-    event.preventDefault();
-    event.stopPropagation();
-    if (creatingThreadSlug) return;
-
-    setCreatingThreadSlug(workspace.slug);
-    try {
-      const { thread, error } = await Workspace.threads.new(workspace.slug);
-      if (!thread) {
-        showToast(error || t("sidebar-create.thread-failed"), "error", {
-          clear: true,
-        });
-        return;
-      }
-
-      window.dispatchEvent(
-        new CustomEvent(THREAD_CREATED_EVENT, {
-          detail: { workspaceSlug: workspace.slug, thread },
-        })
-      );
-      setCollapsedSlugs((current) => {
-        const next = new Set(current);
-        next.delete(workspace.slug);
-        return next;
-      });
-      navigate(paths.workspace.thread(workspace.slug, thread.slug));
-    } finally {
-      setCreatingThreadSlug(null);
-    }
   }
 
   async function commitWorkspaceRename(workspace) {
@@ -303,6 +270,8 @@ export default function ActiveWorkspaces() {
               const isActive = workspace.slug === slug || isVirtuallyActive;
               const isExpanded =
                 isActive && !collapsedSlugs.has(workspace.slug);
+              const canParticipate =
+                workspace.viewerAccess !== "public_readonly";
               return (
                 <Draggable
                   key={workspace.id}
@@ -409,115 +378,30 @@ export default function ActiveWorkspaces() {
                                 aria-hidden="true"
                                 className={`shrink-0 text-zinc-500 transition-transform duration-150 light:text-slate-500 ${isExpanded ? "rotate-0" : "-rotate-90"}`}
                               />
-                              <div
-                                className={`flex items-center gap-x-[2px] transition-opacity duration-200 ${isActive ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
-                              >
-                                {user && (
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.preventDefault();
-                                      e.stopPropagation();
-                                      setInviteWorkspace(workspace);
-                                    }}
-                                    aria-label={t("workspace-invite.action")}
-                                    data-tooltip-id="invite-workspace"
-                                    data-tooltip-content={t(
-                                      "workspace-invite.action"
-                                    )}
-                                    className={`group/invite border-none rounded-md flex items-center justify-center ml-auto p-[2px] ${isActive ? "hover:bg-zinc-500 light:hover:bg-sky-800/30" : "hover:bg-zinc-500 light:hover:bg-slate-400"}`}
-                                  >
-                                    <UserPlus
-                                      weight="bold"
-                                      className={`h-[20px] w-[20px] ${isActive ? "text-zinc-400 hover:text-white light:text-blue-700 light:group-hover/invite:text-blue-900" : "text-zinc-400 hover:text-white light:text-slate-600 light:group-hover/invite:text-slate-950"}`}
-                                    />
-                                  </button>
-                                )}
-                                {user?.role !== "default" && (
-                                  <>
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        setSelectedWs(workspace);
-                                        showModal();
-                                      }}
-                                      aria-label={t(
-                                        "chat_window.workspace_files.title"
-                                      )}
-                                      data-tooltip-id="upload-workspace"
-                                      data-tooltip-content={t(
-                                        "chat_window.workspace_files.title"
-                                      )}
-                                      className={`group/upload border-none rounded-md flex items-center justify-center ml-auto p-[2px] ${isActive ? "hover:bg-zinc-500 light:hover:bg-sky-800/30" : "hover:bg-zinc-500 light:hover:bg-slate-400"}`}
-                                    >
-                                      <FilePlus
-                                        weight="bold"
-                                        className={`h-[20px] w-[20px] ${isActive ? "text-zinc-400 hover:text-white light:text-blue-700 light:group-hover/upload:text-blue-900" : "text-zinc-400 hover:text-white light:text-slate-600 light:group-hover/upload:text-slate-950"}`}
-                                      />
-                                    </button>
-                                    <button
-                                      onClick={(e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        navigate(
-                                          isInWorkspaceSettings
-                                            ? paths.workspace.chat(
-                                                workspace.slug
-                                              )
-                                            : paths.workspace.settings.generalAppearance(
-                                                workspace.slug
-                                              )
-                                        );
-                                      }}
-                                      className={`group/gear rounded-md flex items-center justify-center ml-auto p-[2px] ${isActive ? "hover:bg-zinc-500 light:hover:bg-sky-800/30" : "hover:bg-zinc-500 light:hover:bg-slate-400"}`}
-                                      aria-label="General appearance settings"
-                                      data-tooltip-id="gear-workspace"
-                                      data-tooltip-content="General appearance settings"
-                                    >
-                                      <GearSix
-                                        color={
-                                          isInWorkspaceSettings &&
-                                          workspace.slug === slug
-                                            ? "#46C8FF"
-                                            : undefined
-                                        }
-                                        className={`h-[20px] w-[20px] ${isActive ? "text-zinc-400 hover:text-white light:text-blue-700 light:group-hover/gear:text-blue-900" : "text-zinc-400 hover:text-white light:text-slate-600 light:group-hover/gear:text-slate-950"}`}
-                                      />
-                                    </button>
-                                  </>
-                                )}
-                              </div>
                             </div>
                           </Link>
                         )}
                         {renamingSlug !== workspace.slug && (
-                          <button
-                            type="button"
-                            onClick={(event) =>
-                              createWorkspaceThread(event, workspace)
-                            }
-                            disabled={creatingThreadSlug !== null}
-                            aria-label={t("sidebar-create.thread")}
-                            aria-busy={creatingThreadSlug === workspace.slug}
-                            data-tooltip-id="workspace-new-thread"
-                            data-tooltip-content={t("sidebar-create.thread")}
-                            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-white/[0.08] bg-theme-sidebar-item-default text-zinc-400 transition-[background-color,border-color,color,transform] duration-150 hover:border-cyan-300/30 hover:bg-cyan-300/10 hover:text-cyan-200 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/50 disabled:cursor-not-allowed disabled:opacity-50 light:border-slate-300 light:text-slate-600 light:hover:border-cyan-500/35 light:hover:bg-cyan-50 light:hover:text-cyan-800 ${isActive ? "border-cyan-300/20 text-cyan-300 light:border-cyan-500/25 light:text-cyan-700" : ""}`}
-                          >
-                            {creatingThreadSlug === workspace.slug ? (
-                              <CircleNotch
-                                size={17}
-                                weight="bold"
-                                className="animate-spin"
-                              />
-                            ) : (
-                              <ChatCircleText size={17} weight="bold" />
-                            )}
-                          </button>
+                          <WorkspaceActionsMenu
+                            workspace={workspace}
+                            isActive={isActive}
+                            isInWorkspaceSettings={isInWorkspaceSettings}
+                            canParticipate={canParticipate}
+                            canManage={user?.role !== "default"}
+                            onInvite={() => setInviteWorkspace(workspace)}
+                            onOpenFiles={() => {
+                              setSelectedWs(workspace);
+                              showModal();
+                            }}
+                          />
                         )}
                       </div>
-                      {isExpanded && <ThreadContainer workspace={workspace} />}
+                      {isExpanded && (
+                        <ThreadContainer
+                          workspace={workspace}
+                          canCreate={canParticipate}
+                        />
+                      )}
                     </div>
                   )}
                 </Draggable>
@@ -541,5 +425,112 @@ export default function ActiveWorkspaces() {
         )}
       </Droppable>
     </DragDropContext>
+  );
+}
+
+function WorkspaceActionsMenu({
+  workspace,
+  isActive,
+  isInWorkspaceSettings,
+  canParticipate,
+  canManage,
+  onInvite,
+  onOpenFiles,
+}) {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const menuRef = useRef(null);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    const closeOnOutsideClick = (event) => {
+      if (!menuRef.current?.contains(event.target)) setOpen(false);
+    };
+    const closeOnEscape = (event) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", closeOnOutsideClick);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("mousedown", closeOnOutsideClick);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [open]);
+
+  const runAction = (action) => {
+    setOpen(false);
+    action();
+  };
+
+  const actions = [
+    canManage && {
+      key: "settings",
+      label: t("sidebar-workspace-menu.settings"),
+      icon: GearSix,
+      action: () =>
+        navigate(paths.workspace.settings.generalAppearance(workspace.slug)),
+    },
+    canManage && {
+      key: "files",
+      label: t("chat_window.workspace_files.title"),
+      icon: FilePlus,
+      action: onOpenFiles,
+    },
+    canParticipate && {
+      key: "jobs",
+      label: t("scheduledJobs.workspaceAction"),
+      icon: CalendarDots,
+      action: () => navigate(paths.workspace.jobs(workspace.slug)),
+    },
+    canParticipate && {
+      key: "invite",
+      label: t("workspace-invite.action"),
+      icon: UserPlus,
+      action: onInvite,
+    },
+  ].filter(Boolean);
+
+  if (actions.length === 0) return null;
+
+  return (
+    <div ref={menuRef} className="relative shrink-0">
+      <button
+        type="button"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={t("sidebar-workspace-menu.title")}
+        data-tooltip-id="gear-workspace"
+        data-tooltip-content={t("sidebar-workspace-menu.title")}
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          setOpen((current) => !current);
+        }}
+        className={`flex h-8 w-8 items-center justify-center rounded-md border border-white/[0.08] bg-theme-sidebar-item-default text-zinc-400 transition-[background-color,border-color,color,transform] duration-150 hover:border-cyan-300/30 hover:bg-cyan-300/10 hover:text-cyan-200 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/50 light:border-slate-300 light:text-slate-600 light:hover:border-cyan-500/35 light:hover:bg-cyan-50 light:hover:text-cyan-800 ${open || (isActive && isInWorkspaceSettings) ? "border-cyan-300/20 text-cyan-300 light:border-cyan-500/25 light:text-cyan-700" : ""}`}
+      >
+        <GearSix size={18} weight={open ? "fill" : "regular"} />
+      </button>
+      {open && (
+        <div
+          role="menu"
+          aria-label={t("sidebar-workspace-menu.title")}
+          className="absolute right-0 top-9 z-[70] w-[190px] rounded-lg border border-white/10 bg-zinc-900 p-1.5 light:border-slate-300 light:bg-white"
+        >
+          {actions.map(({ key, label, icon: Icon, action }) => (
+            <button
+              key={key}
+              type="button"
+              role="menuitem"
+              onClick={() => runAction(action)}
+              className="flex min-h-10 w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-sm font-medium text-zinc-200 transition-[background-color,color] duration-150 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan-300/50 light:text-slate-700 light:hover:bg-slate-100 light:hover:text-slate-950"
+            >
+              <Icon size={17} weight="bold" className="shrink-0" />
+              <span>{label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

@@ -2,14 +2,8 @@ generator client {
   provider = "prisma-client-js"
 }
 
-// Uncomment the following lines and comment out the SQLite datasource block above to use PostgreSQL
-// Make sure to set the correct DATABASE_URL in your .env file
-// After swapping run `yarn prisma:setup` from the root directory to migrate the database
-//
-// datasource db {
-//   provider = "postgresql"
-//   url      = env("DATABASE_URL")
-// }
+// PostgreSQL uses the generated schema and migration history in prisma-postgresql/.
+// See docs/postgresql-migration.md before switching an existing installation.
 datasource db {
   provider = "sqlite"
   url      = "file:../storage/anythingllm.db"
@@ -141,6 +135,7 @@ model workspaces {
   queryRefusalResponse         String?
   vectorSearchMode             String?                        @default("default")
   router_id                    Int? // No relation to prevent whole table migration (SQLite limitation)
+  accessMode                   String                          @default("private")
   workspace_users              workspace_users[]
   documents                    workspace_documents[]
   workspace_suggested_messages workspace_suggested_messages[]
@@ -726,6 +721,10 @@ model scheduled_jobs {
   agent_id     Int?
   tools        String? // JSON array of tool identifiers (null = use all enabled agent skills)
   schedule     String // Cron expression
+  scheduleType String                 @default("recurring")
+  scheduleConfig String               @default("{}")
+  timezone     String                 @default("UTC")
+  created_by   Int?
   enabled      Boolean              @default(true)
   lastRunAt    DateTime?
   nextRunAt    DateTime?
@@ -734,6 +733,7 @@ model scheduled_jobs {
   runs         scheduled_job_runs[]
 
   @@index([workspace_id])
+  @@index([created_by])
 }
 
 model scheduled_job_runs {

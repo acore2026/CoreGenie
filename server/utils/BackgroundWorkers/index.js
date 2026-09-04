@@ -4,6 +4,7 @@ const Bree = require("@mintplex-labs/bree");
 const later = require("@breejs/later");
 const PQueue = require("p-queue").default;
 const setLogger = require("../logger");
+const { safeJsonParse } = require("../http");
 
 // Use UTC time for cron interpretation. This ensures consistent behavior
 // regardless of server timezone (e.g., when running in containers).
@@ -271,7 +272,8 @@ class BackgroundService {
 
     for (const job of enabledJobs) {
       await ScheduledJob.recomputeNextRunAt(job.id);
-      this.addScheduledJob(job);
+      const current = await ScheduledJob.get({ id: job.id });
+      if (current?.enabled) this.addScheduledJob(current);
     }
 
     if (enabledJobs.length > 0) {
@@ -288,7 +290,33 @@ class BackgroundService {
    * @param {object} job - scheduled_jobs DB record
    */
   addScheduledJob(job) {
-    this.removeScheduledJob(job.id);
+    this.removeScheduledJob(job.id, { killWorkers: false });
+    const visualConfig = safeJsonParse(job.scheduleConfig, null);
+    if (visualConfig?.type) {
+      const target = job.nextRunAt ? new Date(job.nextRunAt).getTime() : 0;
+      const delay = Math.min(Math.max(target - Date.now(), 0), 2_147_000_000);
+      const timeout = setTimeout(async () => {
+        const { ScheduledJob } = require("../../models/scheduledJob");
+        const claimed = await ScheduledJob.claimScheduledTrigger(job.id);
+        if (claimed) {
+          const run = await this.enqueueScheduledJob(job.id);
+          if (!run && claimed.scheduleType === "once") {
+            const deferred = await ScheduledJob.deferOneTimeTrigger(job.id);
+            if (deferred) this.addScheduledJob(deferred);
+            else this.#scheduledJobTimers.delete(job.id);
+            return;
+          }
+          if (claimed.enabled) this.addScheduledJob(claimed);
+          else this.#scheduledJobTimers.delete(job.id);
+          return;
+        }
+        await this.syncScheduledJob(job.id);
+      }, delay);
+      this.#scheduledJobTimers.set(job.id, {
+        clear: () => clearTimeout(timeout),
+      });
+      return;
+    }
     const sched = later.parse.cron(job.schedule);
     const timer = later.setInterval(() => {
       this.enqueueScheduledJob(job.id);
@@ -303,11 +331,12 @@ class BackgroundService {
    * a subsequent ScheduledJob.delete) is about to remove.
    * @param {number} jobId - scheduled_jobs.id
    */
-  removeScheduledJob(jobId) {
+  removeScheduledJob(jobId, { killWorkers = true } = {}) {
     const timer = this.#scheduledJobTimers.get(jobId);
     if (timer) timer.clear();
     this.#scheduledJobTimers.delete(jobId);
 
+    if (!killWorkers) return;
     const workers = this.#scheduledJobWorkers.get(jobId);
     if (workers) {
       for (const worker of workers) {
@@ -328,7 +357,7 @@ class BackgroundService {
    */
   async syncScheduledJob(jobId) {
     const { ScheduledJob } = require("../../models/scheduledJob");
-    this.removeScheduledJob(jobId);
+    this.removeScheduledJob(jobId, { killWorkers: false });
     const job = await ScheduledJob.get({ id: Number(jobId) });
     if (job && job.enabled) {
       this.addScheduledJob(job);

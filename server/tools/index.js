@@ -10,6 +10,7 @@ const skills = require("./skills");
 const vision = require("./vision");
 const knowledge = require("./knowledge");
 const threeGpp = require("./threeGpp");
+const schedule = require("./schedule");
 
 const toolRegistry = new ResourceRegistry("tool");
 for (const descriptor of [
@@ -27,6 +28,7 @@ for (const descriptor of [
   knowledge.publishReport,
   threeGpp.resolveMeeting,
   threeGpp.convertMarkdown,
+  schedule.createScheduledJob,
 ]) {
   toolRegistry.register(descriptor);
 }
@@ -94,7 +96,11 @@ function legacySelectionAllows(allowed, descriptor) {
 }
 
 function taskSelectionAllows(allowed, descriptor, strictSelection = false) {
-  if (!strictSelection && descriptor.id.startsWith("skill.")) return true;
+  if (
+    !strictSelection &&
+    (descriptor.id.startsWith("skill.") || descriptor.id === "schedule.create")
+  )
+    return true;
   return legacySelectionAllows(allowed, descriptor);
 }
 

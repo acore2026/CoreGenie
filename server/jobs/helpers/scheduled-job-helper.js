@@ -89,13 +89,22 @@ async function sendWebPushNotification(job, runId, textResponse, logFn) {
     // if the response is longer than 100 characters.
     let notificationBody = stripThinkingFromText(textResponse);
     notificationBody = truncateNotificationBody(notificationBody);
+    const { SystemSettings } = require("../../models/systemSettings");
+    const { Workspace } = require("../../models/workspace");
+    const multiUserMode = await SystemSettings.isMultiUserMode();
+    const workspace = job.workspace_id
+      ? await Workspace.get({ id: job.workspace_id })
+      : null;
+    const onClickUrl = workspace
+      ? `/workspace/${workspace.slug}/jobs/${job.id}/runs/${runId}`
+      : `/settings/scheduled-jobs/${job.id}/runs/${runId}`;
     await pushNotificationService.sendNotification({
-      to: "primary",
+      to: multiUserMode ? job.created_by || "primary" : "primary",
       payload: {
         title: `${job.name} completed`,
         body: notificationBody,
         data: {
-          onClickUrl: `/settings/scheduled-jobs/${job.id}/runs/${runId}`,
+          onClickUrl,
         },
       },
     });

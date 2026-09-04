@@ -1,17 +1,20 @@
 import Workspace from "@/models/workspace";
-import { Trash } from "@phosphor-icons/react";
+import { ChatCircleText, CircleNotch, Trash } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import ThreadItem from "./ThreadItem";
 import { useNavigate, useParams } from "react-router-dom";
 import useHoverMetaKey from "./hooks";
 import { THREAD_CREATED_EVENT, THREAD_RENAME_EVENT } from "../../events";
 import paths from "@/utils/paths";
+import showToast from "@/utils/toast";
+import { useTranslation } from "react-i18next";
 
 export { THREAD_CREATED_EVENT, THREAD_RENAME_EVENT } from "../../events";
 
 const threadCache = new Map();
 
-export default function ThreadContainer({ workspace }) {
+export default function ThreadContainer({ workspace, canCreate = true }) {
+  const { t } = useTranslation();
   const { threadSlug = null } = useParams();
   const navigate = useNavigate();
   const cached = threadCache.get(workspace.slug);
@@ -20,6 +23,7 @@ export default function ThreadContainer({ workspace }) {
     () => cached?.defaultThreadHasChats || false
   );
   const [loading, setLoading] = useState(() => !cached);
+  const [creatingThread, setCreatingThread] = useState(false);
 
   function updateThreads(updater) {
     setThreads((current) => {
@@ -118,6 +122,28 @@ export default function ThreadContainer({ workspace }) {
     return -1;
   }
 
+  async function createThread() {
+    if (creatingThread) return;
+    setCreatingThread(true);
+    try {
+      const { thread, error } = await Workspace.threads.new(workspace.slug);
+      if (!thread) {
+        showToast(error || t("sidebar-create.thread-failed"), "error", {
+          clear: true,
+        });
+        return;
+      }
+      window.dispatchEvent(
+        new CustomEvent(THREAD_CREATED_EVENT, {
+          detail: { workspaceSlug: workspace.slug, thread },
+        })
+      );
+      navigate(paths.workspace.thread(workspace.slug, thread.slug));
+    } finally {
+      setCreatingThread(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex flex-col bg-pulse w-full h-10 items-center justify-center">
@@ -135,6 +161,29 @@ export default function ThreadContainer({ workspace }) {
       role="list"
       aria-label="Threads"
     >
+      {canCreate && (
+        <div role="listitem" className="flex h-[38px] w-full items-center">
+          <div className="w-[34px] shrink-0" aria-hidden="true" />
+          <button
+            type="button"
+            onClick={createThread}
+            disabled={creatingThread}
+            aria-busy={creatingThread}
+            className="group flex min-h-8 min-w-0 flex-1 items-center gap-2 rounded-[4px] px-2 text-left text-sm font-semibold text-cyan-300 transition-[background-color,color,transform] duration-150 hover:bg-cyan-300/10 hover:text-cyan-200 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan-300/50 disabled:cursor-not-allowed disabled:opacity-50 light:text-cyan-700 light:hover:bg-cyan-50 light:hover:text-cyan-800"
+          >
+            {creatingThread ? (
+              <CircleNotch size={16} weight="bold" className="animate-spin" />
+            ) : (
+              <ChatCircleText size={16} weight="bold" />
+            )}
+            <span className="truncate">
+              {creatingThread
+                ? t("sidebar-create.creating-thread")
+                : t("sidebar-create.thread")}
+            </span>
+          </button>
+        </div>
+      )}
       {defaultThreadHasChats && (
         <ThreadItem
           idx={0}

@@ -2,11 +2,19 @@ import { useNavigate } from "react-router-dom";
 import { Play, PencilSimple, X } from "@phosphor-icons/react";
 import paths from "@/utils/paths";
 import { humanizeCron } from "../utils/cron";
+import { scheduleSummary } from "../JobFormModal/VisualSchedule";
 import { useTranslation } from "react-i18next";
 
 // One row of the scheduled-jobs list. Clicking the name navigates to the
 // run history; CRUD callbacks come from the parent.
-export default function JobRow({ job, onTrigger, onToggle, onEdit, onDelete }) {
+export default function JobRow({
+  job,
+  workspaceSlug = null,
+  onTrigger,
+  onToggle,
+  onEdit,
+  onDelete,
+}) {
   const navigate = useNavigate();
   const { t, i18n } = useTranslation();
   // A job has at most one in-flight run; disable "Run now" while it's queued
@@ -23,26 +31,39 @@ export default function JobRow({ job, onTrigger, onToggle, onEdit, onDelete }) {
     e.stopPropagation();
     handler();
   };
+  const runsPath = workspaceSlug
+    ? paths.workspace.jobRuns(workspaceSlug, job.id)
+    : paths.settings.scheduledJobRuns(job.id);
 
   return (
     <div
       role="button"
       tabIndex={0}
-      onClick={() => navigate(paths.settings.scheduledJobRuns(job.id))}
+      onClick={() => navigate(runsPath)}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
-          navigate(paths.settings.scheduledJobRuns(job.id));
+          navigate(runsPath);
         }
       }}
       className="flex items-center justify-between px-4 h-14 hover:bg-white/5 light:hover:bg-slate-200 transition-colors cursor-pointer"
       title={t("scheduledJobs.row.viewRuns")}
     >
-      <span className="w-[150px] text-sm font-medium text-white light:text-slate-950 truncate">
-        {job.name}
+      <span className="w-[150px] min-w-0">
+        <span className="block truncate text-sm font-medium text-white light:text-slate-950">
+          {job.name}
+        </span>
+        {workspaceSlug && (
+          <span className="block truncate text-[11px] text-theme-text-secondary">
+            {job.agent?.name || "—"}
+            {job.creator?.username ? ` · ${job.creator.username}` : ""}
+          </span>
+        )}
       </span>
       <span className="w-[180px] text-sm text-zinc-400 light:text-slate-600 truncate">
-        {humanizeCron(job.schedule, i18n.language)}
+        {workspaceSlug
+          ? scheduleSummary(job.scheduleConfig, t)
+          : humanizeCron(job.schedule, i18n.language)}
       </span>
       <span className="w-[120px] text-sm text-zinc-400 light:text-slate-600 truncate">
         {statusText}

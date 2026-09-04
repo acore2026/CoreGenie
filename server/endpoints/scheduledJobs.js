@@ -116,12 +116,17 @@ function scheduledJobEndpoints(app) {
     [validatedRequest, isSingleUserMode],
     async (_request, response) => {
       try {
-        const jobs = await ScheduledJob.where({}, null, null, {
-          runs: {
-            take: 1,
-            orderBy: { startedAt: "desc" },
-          },
-        });
+        const jobs = await ScheduledJob.where(
+          { scheduleConfig: "{}" },
+          null,
+          null,
+          {
+            runs: {
+              take: 1,
+              orderBy: { startedAt: "desc" },
+            },
+          }
+        );
 
         const jobsWithStatus = jobs.map(({ runs, ...job }) => ({
           ...job,
@@ -204,6 +209,7 @@ function scheduledJobEndpoints(app) {
       try {
         const job = await ScheduledJob.get({
           id: Number(request.params.id),
+          scheduleConfig: "{}",
         });
         if (!job) {
           return response
@@ -224,6 +230,14 @@ function scheduledJobEndpoints(app) {
     [validatedRequest, isSingleUserMode],
     async (request, response) => {
       try {
+        const existing = await ScheduledJob.get({
+          id: Number(request.params.id),
+          scheduleConfig: "{}",
+        });
+        if (!existing)
+          return response
+            .status(404)
+            .json({ job: null, error: "Job not found" });
         const { name, prompt, tools, schedule, enabled, workspaceId, agentId } =
           reqBody(request);
         const updates = {};
@@ -285,6 +299,11 @@ function scheduledJobEndpoints(app) {
     [validatedRequest, isSingleUserMode],
     async (request, response) => {
       try {
+        const job = await ScheduledJob.get({
+          id: Number(request.params.id),
+          scheduleConfig: "{}",
+        });
+        if (!job) return response.status(404).json({ error: "Job not found" });
         backgroundService.removeScheduledJob(Number(request.params.id));
 
         const success = await ScheduledJob.delete(Number(request.params.id));
@@ -304,6 +323,7 @@ function scheduledJobEndpoints(app) {
       try {
         const job = await ScheduledJob.get({
           id: Number(request.params.id),
+          scheduleConfig: "{}",
         });
         if (!job) {
           return response.status(404).json({ error: "Job not found" });
@@ -345,6 +365,7 @@ function scheduledJobEndpoints(app) {
       try {
         const job = await ScheduledJob.get({
           id: Number(request.params.id),
+          scheduleConfig: "{}",
         });
         if (!job) {
           return response.status(404).json({ error: "Job not found" });
@@ -367,6 +388,11 @@ function scheduledJobEndpoints(app) {
     [validatedRequest, isSingleUserMode],
     async (request, response) => {
       try {
+        const job = await ScheduledJob.get({
+          id: Number(request.params.id),
+          scheduleConfig: "{}",
+        });
+        if (!job) return response.status(404).json({ error: "Job not found" });
         const runs = await ScheduledJobRun.where(
           { jobId: Number(request.params.id) },
           50,

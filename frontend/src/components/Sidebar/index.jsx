@@ -6,13 +6,14 @@ import NewWorkspaceModal, {
 import ActiveWorkspaces from "./ActiveWorkspaces";
 import useLogo from "@/hooks/useLogo";
 import Footer from "../Footer";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import paths from "@/utils/paths";
 import { useSidebarToggle, ToggleSidebarButton } from "./SidebarToggle";
 import SearchBox from "./SearchBox";
 import { Tooltip } from "react-tooltip";
 import { createPortal } from "react-dom";
 import HelpShortcut from "./HelpShortcut";
+import { CLOSE_MOBILE_SIDEBAR_EVENT } from "./events";
 
 export default function Sidebar() {
   const { logo } = useLogo();
@@ -80,6 +81,7 @@ export default function Sidebar() {
 
 export function SidebarMobileHeader() {
   const { logo } = useLogo();
+  const { pathname } = useLocation();
   const sidebarRef = useRef(null);
   const [showSidebar, setShowSidebar] = useState(false);
   const [showBgOverlay, setShowBgOverlay] = useState(false);
@@ -90,19 +92,19 @@ export function SidebarMobileHeader() {
   } = useNewWorkspaceModal();
 
   useEffect(() => {
-    // Darkens the rest of the screen
-    // when sidebar is open.
-    function handleBg() {
-      if (showSidebar) {
-        setTimeout(() => {
-          setShowBgOverlay(true);
-        }, 300);
-      } else {
-        setShowBgOverlay(false);
-      }
-    }
-    handleBg();
+    setShowBgOverlay(showSidebar);
   }, [showSidebar]);
+
+  useEffect(() => {
+    setShowSidebar(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    const closeSidebar = () => setShowSidebar(false);
+    window.addEventListener(CLOSE_MOBILE_SIDEBAR_EVENT, closeSidebar);
+    return () =>
+      window.removeEventListener(CLOSE_MOBILE_SIDEBAR_EVENT, closeSidebar);
+  }, []);
 
   return (
     <>
@@ -133,14 +135,14 @@ export function SidebarMobileHeader() {
         style={{
           transform: showSidebar ? `translateX(0vw)` : `translateX(-100vw)`,
         }}
-        className={`z-99 fixed top-0 left-0 transition-all duration-500 w-[100vw] h-[100vh]`}
+        className="z-99 fixed left-0 top-0 h-[100vh] w-[100vw] transition-transform duration-200"
       >
         <div
           className={`${
             showBgOverlay
-              ? "transition-all opacity-1"
+              ? "transition-opacity opacity-1"
               : "transition-none opacity-0"
-          }  duration-500 fixed top-0 left-0 bg-theme-bg-secondary bg-opacity-75 w-screen h-screen`}
+          } fixed left-0 top-0 h-screen w-screen bg-theme-bg-secondary bg-opacity-75 duration-200`}
           onClick={() => setShowSidebar(false)}
         />
         <div
@@ -199,31 +201,7 @@ function WorkspaceAndThreadTooltips() {
         className="tooltip !text-xs z-99"
       />
       <Tooltip
-        id="upload-workspace"
-        place="top"
-        delayShow={300}
-        positionStrategy="fixed"
-        style={{ zIndex: 1000 }}
-        className="tooltip !z-[1000] !text-xs"
-      />
-      <Tooltip
-        id="invite-workspace"
-        place="top"
-        delayShow={300}
-        positionStrategy="fixed"
-        style={{ zIndex: 1000 }}
-        className="tooltip !z-[1000] !text-xs"
-      />
-      <Tooltip
         id="gear-workspace"
-        place="top"
-        delayShow={300}
-        positionStrategy="fixed"
-        style={{ zIndex: 1000 }}
-        className="tooltip !z-[1000] !text-xs"
-      />
-      <Tooltip
-        id="workspace-new-thread"
         place="top"
         delayShow={300}
         positionStrategy="fixed"

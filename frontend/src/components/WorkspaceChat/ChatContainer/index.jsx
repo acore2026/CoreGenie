@@ -91,7 +91,10 @@ export default function ChatContainer({
   const { chatHistoryRef } = useChatContainerQuickScroll();
   const pendingMessageChecked = useRef(false);
   const activeThreadSlug = threadSlug;
-  const readOnly = Boolean(threadSlug && thread?.canModify === false);
+  const workspaceReadOnly = workspace.viewerAccess === "public_readonly";
+  const readOnly = Boolean(
+    workspaceReadOnly || (threadSlug && thread?.canModify === false)
+  );
   const { selectedAgent, selectedAgentId } = usePredefinedAgent();
 
   const setChatHistory = useCallback(
@@ -522,7 +525,11 @@ export default function ChatContainer({
                 <div className="flex flex-col h-full w-full items-center justify-center">
                   <div className="flex flex-col items-center w-full max-w-[750px]">
                     {readOnly ? (
-                      <ReadOnlyThreadNotice thread={thread} centered />
+                      <ReadOnlyThreadNotice
+                        thread={thread}
+                        workspaceReadOnly={workspaceReadOnly}
+                        centered
+                      />
                     ) : (
                       <>
                         <h1 className="text-white light:text-slate-900 text-xl md:text-2xl mb-7 text-center">
@@ -552,9 +559,11 @@ export default function ChatContainer({
               </DnDFileUploaderWrapper>
               <ChatTooltips />
             </div>
-            <MemoriesSidebar workspace={workspace} />
+            {!workspaceReadOnly && <MemoriesSidebar workspace={workspace} />}
           </div>
-          <WorkspaceFilesSidebar workspace={workspace} />
+          {!workspaceReadOnly && (
+            <WorkspaceFilesSidebar workspace={workspace} />
+          )}
         </div>
       </ChatSidebarProvider>
     );
@@ -590,7 +599,10 @@ export default function ChatContainer({
                     />
                   </MetricsProvider>
                   {readOnly ? (
-                    <ReadOnlyThreadNotice thread={thread} />
+                    <ReadOnlyThreadNotice
+                      thread={thread}
+                      workspaceReadOnly={workspaceReadOnly}
+                    />
                   ) : (
                     <PromptInput
                       workspace={workspace}
@@ -608,15 +620,19 @@ export default function ChatContainer({
             <ChatTooltips />
           </div>
           <SourcesSidebar />
-          <MemoriesSidebar workspace={workspace} />
+          {!workspaceReadOnly && <MemoriesSidebar workspace={workspace} />}
         </div>
-        <WorkspaceFilesSidebar workspace={workspace} />
+        {!workspaceReadOnly && <WorkspaceFilesSidebar workspace={workspace} />}
       </div>
     </ChatSidebarProvider>
   );
 }
 
-function ReadOnlyThreadNotice({ thread, centered = false }) {
+function ReadOnlyThreadNotice({
+  thread,
+  workspaceReadOnly = false,
+  centered = false,
+}) {
   const { t } = useTranslation();
   return (
     <div
@@ -631,13 +647,17 @@ function ReadOnlyThreadNotice({ thread, centered = false }) {
         />
         <div className="min-w-0">
           <p className="m-0 text-sm font-semibold text-theme-text-primary">
-            {t("chat_window.shared_thread_read_only")}
+            {workspaceReadOnly
+              ? t("chat_window.public_workspace_read_only")
+              : t("chat_window.shared_thread_read_only")}
           </p>
           <p className="m-0 truncate text-xs text-theme-text-secondary">
-            {t("chat_window.shared_thread_owner", {
-              username:
-                thread?.owner?.username || t("chat_window.unknown_user"),
-            })}
+            {workspaceReadOnly
+              ? t("chat_window.public_workspace_read_only_description")
+              : t("chat_window.shared_thread_owner", {
+                  username:
+                    thread?.owner?.username || t("chat_window.unknown_user"),
+                })}
           </p>
         </div>
       </div>

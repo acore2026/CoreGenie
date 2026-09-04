@@ -33,6 +33,28 @@ describe("Agent tool visibility", () => {
     });
   });
 
+  it("registers the structured workspace scheduling tool", () => {
+    expect(toolRegistry.get("schedule.create")).toMatchObject({
+      id: "schedule.create",
+      action: true,
+      effect: "write",
+    });
+  });
+
+  it("offers workspace scheduling to regular chat Agents", () => {
+    const visible = visibleToolDescriptorsForAgent({ tools: [] }).map(
+      (descriptor) => descriptor.id
+    );
+
+    expect(visible).toContain("schedule.create");
+    expect(
+      visibleToolDescriptorsForAgent(
+        { tools: [] },
+        { strictSelection: true }
+      ).map((descriptor) => descriptor.id)
+    ).not.toContain("schedule.create");
+  });
+
   it("never exposes tools that are not allowed for the Agent", () => {
     const visible = visibleToolDescriptorsForAgent(
       { tools: ["knowledge.search"] },

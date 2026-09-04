@@ -2,6 +2,113 @@ import { API_BASE } from "@/utils/constants";
 import { baseHeaders } from "@/utils/request";
 
 const ScheduledJobs = {
+  workspaceBase: (workspaceSlug) =>
+    `${API_BASE}/workspace/${encodeURIComponent(workspaceSlug)}/jobs`,
+  workspace: {
+    list: async function (workspaceSlug) {
+      return await fetch(ScheduledJobs.workspaceBase(workspaceSlug), {
+        headers: baseHeaders(),
+      })
+        .then((res) => res.json())
+        .catch(() => ({ jobs: [] }));
+    },
+    options: async function (workspaceSlug) {
+      return await fetch(
+        `${ScheduledJobs.workspaceBase(workspaceSlug)}/options`,
+        { headers: baseHeaders() }
+      )
+        .then((res) => res.json())
+        .catch(() => ({ agents: [], tools: [] }));
+    },
+    create: async function (workspaceSlug, data) {
+      return await fetch(ScheduledJobs.workspaceBase(workspaceSlug), {
+        method: "POST",
+        headers: baseHeaders(),
+        body: JSON.stringify(data),
+      })
+        .then(async (res) => {
+          const data = await res.json();
+          return res.ok ? data : { job: null, error: data.error };
+        })
+        .catch((error) => ({ job: null, error: error.message }));
+    },
+    get: async function (workspaceSlug, jobId) {
+      return await fetch(
+        `${ScheduledJobs.workspaceBase(workspaceSlug)}/${jobId}`,
+        { headers: baseHeaders() }
+      )
+        .then((res) => res.json())
+        .catch(() => ({ job: null }));
+    },
+    update: async function (workspaceSlug, jobId, data) {
+      return await fetch(
+        `${ScheduledJobs.workspaceBase(workspaceSlug)}/${jobId}`,
+        { method: "PUT", headers: baseHeaders(), body: JSON.stringify(data) }
+      )
+        .then(async (res) => {
+          const data = await res.json();
+          return res.ok ? data : { job: null, error: data.error };
+        })
+        .catch((error) => ({ job: null, error: error.message }));
+    },
+    delete: async function (workspaceSlug, jobId) {
+      return await fetch(
+        `${ScheduledJobs.workspaceBase(workspaceSlug)}/${jobId}`,
+        { method: "DELETE", headers: baseHeaders() }
+      )
+        .then((res) => res.json())
+        .catch(() => ({ success: false }));
+    },
+    toggle: async function (workspaceSlug, jobId) {
+      return await fetch(
+        `${ScheduledJobs.workspaceBase(workspaceSlug)}/${jobId}/toggle`,
+        { method: "POST", headers: baseHeaders() }
+      )
+        .then(async (res) => {
+          const data = await res.json();
+          return res.ok ? data : { job: null, error: data.error };
+        })
+        .catch((error) => ({ job: null, error: error.message }));
+    },
+    trigger: async function (workspaceSlug, jobId) {
+      return await fetch(
+        `${ScheduledJobs.workspaceBase(workspaceSlug)}/${jobId}/trigger`,
+        { method: "POST", headers: baseHeaders() }
+      )
+        .then(async (res) => {
+          const data = await res.json();
+          return res.ok ? data : { success: false, error: data.error };
+        })
+        .catch((error) => ({ success: false, error: error.message }));
+    },
+    runs: async function (workspaceSlug, jobId) {
+      return await fetch(
+        `${ScheduledJobs.workspaceBase(workspaceSlug)}/${jobId}/runs`,
+        { headers: baseHeaders() }
+      )
+        .then((res) => res.json())
+        .catch(() => ({ job: null, runs: [] }));
+    },
+    getRun: async function (workspaceSlug, jobId, runId) {
+      return await fetch(
+        `${ScheduledJobs.workspaceBase(workspaceSlug)}/${jobId}/runs/${runId}`,
+        { headers: baseHeaders() }
+      )
+        .then((res) => res.json())
+        .catch(() => ({ job: null, run: null }));
+    },
+    runAction: async function (workspaceSlug, jobId, runId, action) {
+      return await fetch(
+        `${ScheduledJobs.workspaceBase(workspaceSlug)}/${jobId}/runs/${runId}/${action}`,
+        { method: "POST", headers: baseHeaders() }
+      )
+        .then(async (res) => {
+          const data = await res.json();
+          return res.ok ? data : { success: false, error: data.error };
+        })
+        .catch((error) => ({ success: false, error: error.message }));
+    },
+  },
   list: async function () {
     return await fetch(`${API_BASE}/scheduled-jobs`, {
       headers: baseHeaders(),

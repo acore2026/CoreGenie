@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import Sidebar from "@/components/SettingsSidebar";
+import SettingsSidebar from "@/components/SettingsSidebar";
+import WorkspaceSidebar from "@/components/Sidebar";
 import { isMobile } from "react-device-detect";
 import ScheduledJobs from "@/models/scheduledJobs";
 import { subscribeToPushNotifications } from "@/hooks/useWebPushNotifications";
@@ -13,6 +14,7 @@ import showToast from "@/utils/toast";
 import JobRow from "./components/JobRow";
 import { Bell } from "@phosphor-icons/react";
 import { Tooltip } from "react-tooltip";
+import { useParams } from "react-router-dom";
 
 export default function ScheduledJobsPage() {
   const { t } = useTranslation();
@@ -21,35 +23,43 @@ export default function ScheduledJobsPage() {
   const [loading, setLoading] = useState(true);
   const [jobs, setJobs] = useState([]);
   const [editingJob, setEditingJob] = useState(null);
+  const { slug: workspaceSlug = null } = useParams();
 
   const fetchJobs = async () => {
-    const { jobs: foundJobs } = await ScheduledJobs.list();
+    const { jobs: foundJobs } = workspaceSlug
+      ? await ScheduledJobs.workspace.list(workspaceSlug)
+      : await ScheduledJobs.list();
     setJobs(foundJobs || []);
     setLoading(false);
   };
 
   useEffect(() => {
     fetchJobs();
-  }, []);
+  }, [workspaceSlug]);
 
   // Poll every 5s while tab is visible so status badges and run timestamps stay in sync.
   usePolling(fetchJobs, 5000);
 
   const handleDelete = async (id) => {
     if (!window.confirm(t("scheduledJobs.confirmDelete"))) return;
-    await ScheduledJobs.delete(id);
+    if (workspaceSlug) await ScheduledJobs.workspace.delete(workspaceSlug, id);
+    else await ScheduledJobs.delete(id);
     showToast(t("scheduledJobs.toast.deleted"), "success", { clear: true });
     fetchJobs();
   };
 
   const handleToggle = async (id) => {
-    const result = await ScheduledJobs.toggle(id);
+    const result = workspaceSlug
+      ? await ScheduledJobs.workspace.toggle(workspaceSlug, id)
+      : await ScheduledJobs.toggle(id);
     if (result?.error) showToast(result.error, "error", { clear: true });
     fetchJobs();
   };
 
   const handleTrigger = async (id) => {
-    const { success, skipped, error } = await ScheduledJobs.trigger(id);
+    const { success, skipped, error } = workspaceSlug
+      ? await ScheduledJobs.workspace.trigger(workspaceSlug, id)
+      : await ScheduledJobs.trigger(id);
     if (!success) {
       showToast(error || t("scheduledJobs.toast.triggerFailed"), "error", {
         clear: true,
@@ -81,7 +91,11 @@ export default function ScheduledJobsPage() {
 
   if (loading) {
     return (
-      <BaseLayout showNewJobButton={false} handleCreate={handleCreate}>
+      <BaseLayout
+        workspaceSlug={workspaceSlug}
+        showNewJobButton={false}
+        handleCreate={handleCreate}
+      >
         <div className="w-full flex items-center justify-center text-zinc-400 light:text-slate-600 text-sm pt-8">
           {t("scheduledJobs.loading")}
         </div>
@@ -91,59 +105,70 @@ export default function ScheduledJobsPage() {
 
   return (
     <BaseLayout
+      workspaceSlug={workspaceSlug}
       showNewJobButton={jobs.length !== 0}
       handleCreate={handleCreate}
     >
-      <div className="pt-8">
-        <div className="flex items-center justify-between px-4 pb-[18px] text-xs font-semibold uppercase tracking-[1.4px] text-zinc-400 light:text-slate-600">
-          <span className="w-[150px]">{t("scheduledJobs.table.name")}</span>
-          <span className="w-[180px]">{t("scheduledJobs.table.schedule")}</span>
-          <span className="w-[120px]">{t("scheduledJobs.table.status")}</span>
-          <span className="w-[180px]">{t("scheduledJobs.table.lastRun")}</span>
-          <span className="w-[180px]">{t("scheduledJobs.table.nextRun")}</span>
-          <span className="w-[140px] text-right">
-            {t("scheduledJobs.table.actions")}
-          </span>
-        </div>
-        <div className="h-px w-full bg-white/10 light:bg-slate-300" />
+      <div className="overflow-x-auto pt-8">
+        <div className="min-w-[950px]">
+          <div className="flex items-center justify-between px-4 pb-[18px] text-xs font-semibold uppercase tracking-[1.4px] text-zinc-400 light:text-slate-600">
+            <span className="w-[150px]">{t("scheduledJobs.table.name")}</span>
+            <span className="w-[180px]">
+              {t("scheduledJobs.table.schedule")}
+            </span>
+            <span className="w-[120px]">{t("scheduledJobs.table.status")}</span>
+            <span className="w-[180px]">
+              {t("scheduledJobs.table.lastRun")}
+            </span>
+            <span className="w-[180px]">
+              {t("scheduledJobs.table.nextRun")}
+            </span>
+            <span className="w-[140px] text-right">
+              {t("scheduledJobs.table.actions")}
+            </span>
+          </div>
+          <div className="h-px w-full bg-white/10 light:bg-slate-300" />
 
-        {jobs.length === 0 ? (
-          <div className="flex flex-col items-center justify-center gap-8 py-24 text-center">
-            <div className="flex flex-col gap-1.5">
-              <p className="text-base font-semibold text-zinc-50 light:text-slate-950">
-                {t("scheduledJobs.emptyTitle")}
-              </p>
-              <p className="text-sm font-medium text-zinc-400 light:text-slate-600">
-                {t("scheduledJobs.emptySubtitle")}
-              </p>
+          {jobs.length === 0 ? (
+            <div className="flex flex-col items-center justify-center gap-8 py-24 text-center">
+              <div className="flex flex-col gap-1.5">
+                <p className="text-base font-semibold text-zinc-50 light:text-slate-950">
+                  {t("scheduledJobs.emptyTitle")}
+                </p>
+                <p className="text-sm font-medium text-zinc-400 light:text-slate-600">
+                  {t("scheduledJobs.emptySubtitle")}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleCreate}
+                className="h-9 rounded-lg border-none bg-zinc-50 px-5 text-sm font-medium text-zinc-950 transition-colors hover:bg-zinc-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/50 light:bg-slate-900 light:text-white light:hover:bg-slate-800"
+              >
+                {t("scheduledJobs.newJob")}
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={handleCreate}
-              className="border-none h-9 px-5 rounded-lg bg-zinc-50 text-zinc-950 light:bg-slate-900 light:text-white text-sm font-medium hover:bg-zinc-200 light:hover:bg-slate-800 transition-colors"
-            >
-              {t("scheduledJobs.newJob")}
-            </button>
-          </div>
-        ) : (
-          <div className="flex flex-col divide-y divide-white/5 light:divide-slate-300">
-            {jobs.map((job) => (
-              <JobRow
-                key={job.id}
-                job={job}
-                onTrigger={handleTrigger}
-                onToggle={handleToggle}
-                onEdit={handleEdit}
-                onDelete={handleDelete}
-              />
-            ))}
-          </div>
-        )}
+          ) : (
+            <div className="flex flex-col divide-y divide-white/5 light:divide-slate-300">
+              {jobs.map((job) => (
+                <JobRow
+                  key={job.id}
+                  job={job}
+                  workspaceSlug={workspaceSlug}
+                  onTrigger={handleTrigger}
+                  onToggle={handleToggle}
+                  onEdit={handleEdit}
+                  onDelete={handleDelete}
+                />
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       <ModalWrapper isOpen={isOpen}>
         <JobFormModal
           job={editingJob}
+          workspaceSlug={workspaceSlug}
           onClose={closeModal}
           onSaved={() => {
             closeModal();
@@ -156,6 +181,7 @@ export default function ScheduledJobsPage() {
 }
 
 function BaseLayout({
+  workspaceSlug = null,
   showNewJobButton = false,
   handleCreate = () => {},
   children,
@@ -164,7 +190,7 @@ function BaseLayout({
 
   return (
     <div className="w-screen h-screen overflow-hidden bg-theme-bg-container flex">
-      <Sidebar />
+      {workspaceSlug ? <WorkspaceSidebar /> : <SettingsSidebar />}
       <div
         style={{ height: isMobile ? "100%" : "calc(100% - 32px)" }}
         className="relative md:ml-[2px] md:mr-[16px] md:my-[16px] md:rounded-[16px] bg-theme-bg-secondary w-full h-full overflow-y-scroll p-4 md:p-0"
@@ -185,7 +211,7 @@ function BaseLayout({
                 <button
                   type="button"
                   onClick={handleCreate}
-                  className="border-none h-9 px-5 rounded-lg bg-zinc-50 text-zinc-950 light:bg-slate-900 light:text-white text-sm font-medium hover:bg-zinc-200 light:hover:bg-slate-800 transition-colors"
+                  className="h-9 rounded-lg border-none bg-zinc-50 px-5 text-sm font-medium text-zinc-950 transition-colors hover:bg-zinc-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/50 light:bg-slate-900 light:text-white light:hover:bg-slate-800"
                 >
                   {t("scheduledJobs.newJob")}
                 </button>
@@ -223,12 +249,13 @@ function NotificationBellButton() {
       <button
         type="button"
         onClick={handleClick}
+        aria-label={t("scheduledJobs.enableNotifications")}
         data-tooltip-id="notification-bell-tooltip"
         data-tooltip-content={t(
           "scheduledJobs.enableNotifications",
           "Enable browser notifications for job results"
         )}
-        className="flex items-center justify-center w-9 h-9 rounded-lg hover:bg-white/10 light:hover:bg-slate-200 transition-colors"
+        className="flex h-9 w-9 items-center justify-center rounded-lg transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/50 light:hover:bg-slate-200"
       >
         <Bell size={20} className="text-orange-400" />
       </button>

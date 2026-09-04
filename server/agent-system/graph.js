@@ -35,6 +35,14 @@ async function buildAgentGraph({
   includeSkillCatalog = true,
   activatedSkillScope = null,
 }) {
+  const effectiveExcludedToolIds = [
+    ...new Set([
+      ...excludeToolIds,
+      ...(Array.isArray(run.configuration?.excludeToolIds)
+        ? run.configuration.excludeToolIds
+        : []),
+    ]),
+  ];
   const configuredAgent = Array.isArray(run.configuration?.toolOverrides)
     ? { ...agent, tools: run.configuration.toolOverrides }
     : agent;
@@ -49,7 +57,7 @@ async function buildAgentGraph({
       ? []
       : visibleToolDescriptorsForAgent(configuredAgent, {
           allowActions,
-          excludeToolIds,
+          excludeToolIds: effectiveExcludedToolIds,
           strictSelection,
         })
     ).map((descriptor) => descriptor.id)
@@ -77,7 +85,7 @@ async function buildAgentGraph({
     : await toolsForAgent(configuredAgent, context, {
         allowActions,
         availableAgents,
-        excludeToolIds,
+        excludeToolIds: effectiveExcludedToolIds,
         strictSelection,
       });
   const systemPrompt = systemPromptOverride

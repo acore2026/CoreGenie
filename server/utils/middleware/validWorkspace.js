@@ -7,7 +7,7 @@ async function validWorkspaceSlug(request, response, next) {
   const { slug } = request.params;
   const user = await userFromSession(request, response);
   const workspace = multiUserMode(response)
-    ? await Workspace.getWithUser(user, { slug })
+    ? await Workspace.getAccessibleWithUser(user, { slug })
     : await Workspace.get({ slug });
 
   if (!workspace) {
@@ -15,7 +15,20 @@ async function validWorkspaceSlug(request, response, next) {
     return;
   }
 
+  if (
+    multiUserMode(response) &&
+    workspace.viewerAccess === "public_readonly" &&
+    !readonlyWorkspaceRequestAllowed(request)
+  ) {
+    response.status(403).json({
+      error: "该工作区当前为只读公开，只有正式成员可以执行此操作。",
+    });
+    return;
+  }
+
   response.locals.workspace = workspace;
+  response.locals.workspaceAccess =
+    workspace.viewerAccess || (multiUserMode(response) ? "member" : "manager");
   next();
 }
 
@@ -24,11 +37,22 @@ async function validWorkspaceAndThreadSlug(request, response, next) {
   const { slug, threadSlug } = request.params;
   const user = await userFromSession(request, response);
   const workspace = multiUserMode(response)
-    ? await Workspace.getWithUser(user, { slug })
+    ? await Workspace.getAccessibleWithUser(user, { slug })
     : await Workspace.get({ slug });
 
   if (!workspace) {
     response.status(404).send("Workspace does not exist.");
+    return;
+  }
+
+  if (
+    multiUserMode(response) &&
+    workspace.viewerAccess === "public_readonly" &&
+    !readonlyWorkspaceRequestAllowed(request)
+  ) {
+    response.status(403).json({
+      error: "该工作区当前为只读公开，只有正式成员可以执行此操作。",
+    });
     return;
   }
 
@@ -42,7 +66,27 @@ async function validWorkspaceAndThreadSlug(request, response, next) {
   }
 
   response.locals.workspace = workspace;
+  response.locals.workspaceAccess =
+    workspace.viewerAccess || (multiUserMode(response) ? "member" : "manager");
   response.locals.thread = thread;
+  next();
+}
+
+function readonlyWorkspaceRequestAllowed(request) {
+  if (request.method !== "GET") return false;
+  const path = String(request.path || request.originalUrl || "");
+  return (
+    /\/workspace\/[^/]+\/pfp\/?$/.test(path) ||
+    /\/workspace\/[^/]+\/threads\/?$/.test(path) ||
+    /\/workspace\/[^/]+\/thread\/[^/]+\/chats\/?$/.test(path)
+  );
+}
+
+function requireWorkspaceParticipant(_request, response, next) {
+  if (response.locals.workspaceAccess === "public_readonly")
+    return response.status(403).json({
+      error: "只有工作区成员可以查看和管理计划任务。",
+    });
   next();
 }
 
@@ -71,4 +115,5 @@ module.exports = {
   validWorkspaceAndThreadSlug,
   canManageWorkspaceThread,
   manageWorkspaceThread,
+  requireWorkspaceParticipant,
 };

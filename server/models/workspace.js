@@ -30,10 +30,12 @@ function isNullOrNaN(value) {
  * @property {string} agentModel - The agent model of the workspace
  * @property {string} queryRefusalResponse - The query refusal response of the workspace
  * @property {string} vectorSearchMode - The vector search mode of the workspace
+ * @property {string} accessMode - private, public_readonly, or public_collaborative
  */
 
 const Workspace = {
   VALID_CHAT_MODES: ["chat", "query", "automatic"],
+  VALID_ACCESS_MODES: ["private", "public_readonly", "public_collaborative"],
   defaultPrompt: SystemSettings.saneDefaultSystemPrompt,
 
   // Used for generic updates so we can validate keys in request body
@@ -55,6 +57,7 @@ const Workspace = {
     "agentModel",
     "queryRefusalResponse",
     "vectorSearchMode",
+    "accessMode",
   ],
 
   validations: {
@@ -132,6 +135,10 @@ const Workspace = {
         !["default", "rerank"].includes(value)
       )
         return "default";
+      return value;
+    },
+    accessMode: (value) => {
+      if (!Workspace.VALID_ACCESS_MODES.includes(value)) return "private";
       return value;
     },
   },
@@ -304,6 +311,35 @@ const Workspace = {
     }
   },
 
+  accessForUser: async function (user = null, workspace = null) {
+    if (!workspace || !user) return null;
+    if ([ROLES.admin, ROLES.manager].includes(user.role)) return "manager";
+    const membership = await WorkspaceUser.get({
+      user_id: Number(user.id),
+      workspace_id: Number(workspace.id),
+    });
+    if (membership) return "member";
+    if (workspace.accessMode === "public_collaborative")
+      return "public_collaborator";
+    if (workspace.accessMode === "public_readonly") return "public_readonly";
+    return null;
+  },
+
+  getAccessibleWithUser: async function (user = null, clause = {}) {
+    const workspace = await this.get(clause);
+    const viewerAccess = await this.accessForUser(user, workspace);
+    if (!viewerAccess) return null;
+    if (viewerAccess === "public_readonly") {
+      return {
+        ...workspace,
+        documents: [],
+        currentContextTokenCount: 0,
+        viewerAccess,
+      };
+    }
+    return { ...workspace, viewerAccess };
+  },
+
   /**
    * Get the total token count of all parsed files in a workspace/thread
    * @param {number} workspaceId - The ID of the workspace
@@ -412,6 +448,54 @@ const Workspace = {
         ...(orderBy !== null ? { orderBy } : {}),
       });
       return workspaces;
+    } catch (error) {
+      console.error(error.message);
+      return [];
+    }
+  },
+
+  whereAccessibleWithUser: async function (
+    user,
+    clause = {},
+    limit = null,
+    orderBy = null
+  ) {
+    if ([ROLES.admin, ROLES.manager].includes(user?.role)) {
+      const workspaces = await this.where(clause, limit, orderBy);
+      return workspaces.map((workspace) => ({
+        ...workspace,
+        viewerAccess: "manager",
+      }));
+    }
+    if (!user?.id) return [];
+    try {
+      const workspaces = await prisma.workspaces.findMany({
+        where: {
+          ...clause,
+          OR: [
+            { accessMode: { in: ["public_readonly", "public_collaborative"] } },
+            { workspace_users: { some: { user_id: Number(user.id) } } },
+          ],
+        },
+        ...(limit !== null ? { take: limit } : {}),
+        ...(orderBy !== null ? { orderBy } : {}),
+        include: { workspace_users: true },
+      });
+      return workspaces.map(
+        ({ workspace_users: memberships, ...workspace }) => {
+          const member = memberships.some(
+            (membership) => membership.user_id === Number(user.id)
+          );
+          return {
+            ...workspace,
+            viewerAccess: member
+              ? "member"
+              : workspace.accessMode === "public_collaborative"
+                ? "public_collaborator"
+                : "public_readonly",
+          };
+        }
+      );
     } catch (error) {
       console.error(error.message);
       return [];

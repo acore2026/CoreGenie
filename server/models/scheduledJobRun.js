@@ -357,6 +357,40 @@ const ScheduledJobRun = {
       };
     }
   },
+
+  continueInWorkspace: async function (runId, workspace, user = null) {
+    try {
+      const { WorkspaceThread } = require("./workspaceThread");
+      const { WorkspaceChats } = require("./workspaceChats");
+      const { safeJsonParse } = require("../utils/http");
+      const run = await this.get({ id: Number(runId) }, { job: true });
+      if (!run || run.job.workspace_id !== workspace.id)
+        throw new Error("Run not found");
+      const result = safeJsonParse(run.result, {});
+      const { thread, message } = await WorkspaceThread.new(
+        workspace,
+        user?.id || null,
+        { name: run.job.name }
+      );
+      if (!thread) throw new Error(message || "Failed to create thread");
+      await WorkspaceChats.new({
+        workspaceId: workspace.id,
+        prompt: run.job.prompt,
+        response: {
+          text: result?.text || "这次运行没有生成可保存的回复。",
+          sources: result?.sources || [],
+          outputs: result?.outputs || [],
+          type: "chat",
+        },
+        user: user || null,
+        threadId: thread.id,
+        include: true,
+      });
+      return { workspace, thread, error: null };
+    } catch (error) {
+      return { workspace: null, thread: null, error: error.message };
+    }
+  },
 };
 
 module.exports = { ScheduledJobRun };

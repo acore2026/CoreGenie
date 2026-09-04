@@ -54,7 +54,7 @@ process.on("message", async (payload) => {
     log(
       `Starting scheduled job: "${job.name}" (id=${job.id}) with timeout ${SCHEDULED_JOB_TIMEOUT_MS}ms`
     );
-    await ScheduledJob.updateRunTimestamps(job.id);
+    await ScheduledJob.markRunStarted(job.id);
     const workspace = job.workspace_id
       ? await Workspace.get({ id: job.workspace_id })
       : (await Workspace.where({}, 1, { id: "asc" }))[0];
@@ -76,6 +76,7 @@ process.on("message", async (payload) => {
           toolOverrides: job.tools === null ? undefined : toolOverrides,
           persistChat: false,
           autoTitle: false,
+          excludeToolIds: ["schedule.create"],
         },
       },
       { timeoutMs: SCHEDULED_JOB_TIMEOUT_MS }

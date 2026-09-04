@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import Sidebar from "@/components/SettingsSidebar";
+import SettingsSidebar from "@/components/SettingsSidebar";
+import WorkspaceSidebar from "@/components/Sidebar";
 import { isMobile } from "react-device-detect";
 import {
   ArrowLeft,
@@ -30,7 +31,7 @@ import {
 
 export default function RunDetailPage() {
   const { t } = useTranslation();
-  const { id, runId } = useParams();
+  const { id, runId, slug: workspaceSlug = null } = useParams();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [run, setRun] = useState(null);
@@ -40,16 +41,20 @@ export default function RunDetailPage() {
 
   useEffect(() => {
     fetchRun();
-  }, [runId]);
+  }, [id, runId, workspaceSlug]);
 
   const fetchRun = async () => {
-    const data = await ScheduledJobs.getRun(runId);
+    const data = workspaceSlug
+      ? await ScheduledJobs.workspace.getRun(workspaceSlug, id, runId)
+      : await ScheduledJobs.getRun(runId);
     setRun(data.run);
     setJob(data.job);
     setLoading(false);
 
     if (data.run && !data.run.readAt) {
-      ScheduledJobs.markRunRead(runId);
+      if (workspaceSlug)
+        ScheduledJobs.workspace.runAction(workspaceSlug, id, runId, "read");
+      else ScheduledJobs.markRunRead(runId);
     }
   };
 
@@ -60,21 +65,39 @@ export default function RunDetailPage() {
 
   const handleContinueInThread = async () => {
     setContinuing(true);
-    const { workspaceSlug, threadSlug, error } =
-      await ScheduledJobs.continueInThread(runId);
+    const result = workspaceSlug
+      ? await ScheduledJobs.workspace.runAction(
+          workspaceSlug,
+          id,
+          runId,
+          "continue"
+        )
+      : await ScheduledJobs.continueInThread(runId);
+    const {
+      workspaceSlug: destinationWorkspaceSlug,
+      threadSlug,
+      error,
+    } = result;
 
-    if (error || !workspaceSlug || !threadSlug) {
+    if (error || !destinationWorkspaceSlug || !threadSlug) {
       showToast(error || t("scheduledJobs.runDetail.threadFailed"), "error");
       setContinuing(false);
       return;
     }
 
-    navigate(paths.workspace.thread(workspaceSlug, threadSlug));
+    navigate(paths.workspace.thread(destinationWorkspaceSlug, threadSlug));
   };
 
   const handleKillRun = async () => {
     setKilling(true);
-    const { success, error } = await ScheduledJobs.killRun(runId);
+    const { success, error } = workspaceSlug
+      ? await ScheduledJobs.workspace.runAction(
+          workspaceSlug,
+          id,
+          runId,
+          "kill"
+        )
+      : await ScheduledJobs.killRun(runId);
     setKilling(false);
 
     if (!success) {
@@ -88,7 +111,7 @@ export default function RunDetailPage() {
 
   if (loading) {
     return (
-      <RunDetailLayout>
+      <RunDetailLayout workspaceSlug={workspaceSlug}>
         <p className="text-zinc-400 light:text-slate-600 text-sm">
           {t("scheduledJobs.runDetail.loading")}
         </p>
@@ -98,7 +121,7 @@ export default function RunDetailPage() {
 
   if (!run) {
     return (
-      <RunDetailLayout>
+      <RunDetailLayout workspaceSlug={workspaceSlug}>
         <p className="text-zinc-400 light:text-slate-600 text-sm">
           {t("scheduledJobs.runDetail.notFound")}
         </p>
@@ -108,7 +131,7 @@ export default function RunDetailPage() {
 
   const result = run.result || {};
   return (
-    <RunDetailLayout>
+    <RunDetailLayout workspaceSlug={workspaceSlug}>
       <RunHeader
         t={t}
         job={job}
@@ -116,7 +139,13 @@ export default function RunDetailPage() {
         result={result}
         continuing={continuing}
         killing={killing}
-        onBack={() => navigate(paths.settings.scheduledJobRuns(id))}
+        onBack={() =>
+          navigate(
+            workspaceSlug
+              ? paths.workspace.jobRuns(workspaceSlug, id)
+              : paths.settings.scheduledJobRuns(id)
+          )
+        }
         onContinueInThread={handleContinueInThread}
         onKillRun={handleKillRun}
       />
@@ -134,10 +163,10 @@ export default function RunDetailPage() {
   );
 }
 
-function RunDetailLayout({ children }) {
+function RunDetailLayout({ workspaceSlug = null, children }) {
   return (
     <div className="w-screen h-screen overflow-hidden bg-theme-bg-container flex">
-      <Sidebar />
+      {workspaceSlug ? <WorkspaceSidebar /> : <SettingsSidebar />}
       <div
         style={{ height: isMobile ? "100%" : "calc(100% - 32px)" }}
         className="relative md:ml-[2px] md:mr-[16px] md:my-[16px] md:rounded-[16px] bg-theme-bg-secondary w-full h-full overflow-y-scroll p-4 md:p-0"

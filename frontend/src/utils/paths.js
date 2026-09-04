@@ -102,6 +102,10 @@ export default {
     thread: (wsSlug, threadSlug) => {
       return `/workspace/${wsSlug}/t/${threadSlug}`;
     },
+    jobs: (slug) => `/workspace/${slug}/jobs`,
+    jobRuns: (slug, jobId) => `/workspace/${slug}/jobs/${jobId}/runs`,
+    jobRunDetail: (slug, jobId, runId) =>
+      `/workspace/${slug}/jobs/${jobId}/runs/${runId}`,
   },
   apiDocs: () => {
     return `${API_BASE}/docs`;

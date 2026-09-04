@@ -78,6 +78,35 @@ const router = createBrowserRouter([
         children: [{ path: "t/:threadSlug" }],
       },
       {
+        path: "/workspace/:slug/jobs",
+        lazy: async () => {
+          const { default: ScheduledJobs } = await import(
+            "@/pages/GeneralSettings/ScheduledJobs"
+          );
+          return { element: <PrivateRoute Component={ScheduledJobs} /> };
+        },
+      },
+      {
+        path: "/workspace/:slug/jobs/:id/runs",
+        lazy: async () => {
+          const { default: ScheduledJobRuns } = await import(
+            "@/pages/GeneralSettings/ScheduledJobs/RunHistoryPage"
+          );
+          return { element: <PrivateRoute Component={ScheduledJobRuns} /> };
+        },
+      },
+      {
+        path: "/workspace/:slug/jobs/:id/runs/:runId",
+        lazy: async () => {
+          const { default: ScheduledJobRunDetail } = await import(
+            "@/pages/GeneralSettings/ScheduledJobs/RunDetailPage"
+          );
+          return {
+            element: <PrivateRoute Component={ScheduledJobRunDetail} />,
+          };
+        },
+      },
+      {
         path: "/accept-invite/:code",
         lazy: async () => {
           const { default: InvitePage } = await import("@/pages/Invite");

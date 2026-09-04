@@ -429,7 +429,7 @@ function workspaceEndpoints(app) {
       try {
         const user = await userFromSession(request, response);
         const workspaces = multiUserMode(response)
-          ? await Workspace.whereWithUser(user)
+          ? await Workspace.whereAccessibleWithUser(user)
           : await Workspace.where();
 
         response.status(200).json({ workspaces });
@@ -448,7 +448,7 @@ function workspaceEndpoints(app) {
         const { slug } = request.params;
         const user = await userFromSession(request, response);
         const workspace = multiUserMode(response)
-          ? await Workspace.getWithUser(user, { slug })
+          ? await Workspace.getAccessibleWithUser(user, { slug })
           : await Workspace.get({ slug });
 
         response.status(200).json({
@@ -475,7 +475,7 @@ function workspaceEndpoints(app) {
         const { slug } = request.params;
         const user = await userFromSession(request, response);
         const workspace = multiUserMode(response)
-          ? await Workspace.getWithUser(user, { slug })
+          ? await Workspace.getAccessibleWithUser(user, { slug })
           : await Workspace.get({ slug });
 
         if (!workspace) {
@@ -484,7 +484,9 @@ function workspaceEndpoints(app) {
         }
 
         const history = multiUserMode(response)
-          ? await WorkspaceChats.forWorkspaceByUser(workspace.id, user.id)
+          ? workspace.viewerAccess === "public_readonly"
+            ? []
+            : await WorkspaceChats.forWorkspaceByUser(workspace.id, user.id)
           : await WorkspaceChats.forWorkspace(workspace.id);
         response.status(200).json({ history: convertToChatHistory(history) });
       } catch (e) {
@@ -584,6 +586,7 @@ function workspaceEndpoints(app) {
             response: JSON.stringify({
               ...chatResponse,
               text: String(newText),
+              parts: undefined,
             }),
           });
         }

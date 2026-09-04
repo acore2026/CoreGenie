@@ -1,6 +1,8 @@
 const prisma = require("../utils/prisma");
 const later = require("@breejs/later");
 const cronValidate = require("cron-validate").default;
+const { safeJsonParse } = require("../utils/http");
+const { nextRunAt: nextVisualRunAt } = require("../utils/scheduleRules");
 
 // Use UTC time for cron interpretation. This ensures consistent behavior
 // regardless of server timezone (e.g., when running in containers).
@@ -18,6 +20,10 @@ const ScheduledJob = {
     "enabled",
     "workspace_id",
     "agent_id",
+    "scheduleType",
+    "scheduleConfig",
+    "timezone",
+    "created_by",
   ],
 
   /**
@@ -35,7 +41,16 @@ const ScheduledJob = {
    * @param {string} cronExpression
    * @returns {Date|null}
    */
-  computeNextRunAt: function (cronExpression) {
+  computeNextRunAt: function (
+    cronExpression,
+    scheduleConfig = null,
+    after = new Date()
+  ) {
+    const visualConfig =
+      typeof scheduleConfig === "string"
+        ? safeJsonParse(scheduleConfig, null)
+        : scheduleConfig;
+    if (visualConfig?.type) return nextVisualRunAt(visualConfig, after);
     try {
       const sched = later.parse.cron(cronExpression);
       const next = later.schedule(sched).next(1);
@@ -70,17 +85,29 @@ const ScheduledJob = {
     schedule,
     workspace_id = null,
     agent_id = null,
+    scheduleType = "recurring",
+    scheduleConfig = null,
+    timezone = "UTC",
+    created_by = null,
   } = {}) {
     try {
-      const nextRunAt = this.computeNextRunAt(schedule);
+      const serializedConfig = scheduleConfig
+        ? JSON.stringify(scheduleConfig)
+        : "{}";
+      const internalSchedule = schedule || scheduleConfig?.scheduledAt || "";
+      const nextRunAt = this.computeNextRunAt(internalSchedule, scheduleConfig);
       const job = await prisma.scheduled_jobs.create({
         data: {
           name: String(name),
           prompt: String(prompt),
           workspace_id: workspace_id ? Number(workspace_id) : null,
           agent_id: agent_id ? Number(agent_id) : null,
+          created_by: created_by ? Number(created_by) : null,
           tools: tools ? JSON.stringify(tools) : null,
-          schedule: String(schedule),
+          schedule: String(internalSchedule),
+          scheduleType: String(scheduleType),
+          scheduleConfig: serializedConfig,
+          timezone: String(timezone || "UTC"),
           nextRunAt,
         },
       });
@@ -98,6 +125,8 @@ const ScheduledJob = {
         if (data.hasOwnProperty(key)) {
           if (key === "tools") {
             updates[key] = data[key] ? JSON.stringify(data[key]) : null;
+          } else if (key === "scheduleConfig") {
+            updates[key] = JSON.stringify(data[key] || {});
           } else {
             updates[key] = data[key];
           }
@@ -105,8 +134,12 @@ const ScheduledJob = {
       }
 
       // Recompute nextRunAt if schedule changed
-      if (updates.schedule) {
-        updates.nextRunAt = this.computeNextRunAt(updates.schedule);
+      if (updates.schedule || updates.scheduleConfig) {
+        const current = await this.get({ id: Number(id) });
+        const schedule = updates.schedule ?? current?.schedule;
+        const scheduleConfig =
+          updates.scheduleConfig ?? current?.scheduleConfig;
+        updates.nextRunAt = this.computeNextRunAt(schedule, scheduleConfig);
       }
 
       updates.updatedAt = new Date();
@@ -221,7 +254,8 @@ const ScheduledJob = {
       const job = await this.get({ id: Number(id) });
       if (!job) return;
 
-      const nextRunAt = this.computeNextRunAt(job.schedule);
+      if (job.scheduleType === "once" && job.nextRunAt) return;
+      const nextRunAt = this.computeNextRunAt(job.schedule, job.scheduleConfig);
       if (!nextRunAt) return;
 
       await prisma.scheduled_jobs.update({
@@ -237,22 +271,72 @@ const ScheduledJob = {
    * Update lastRunAt and nextRunAt after a job run.
    * @param {number} id
    */
-  updateRunTimestamps: async function (id) {
+  markRunStarted: async function (id) {
     try {
       const job = await this.get({ id: Number(id) });
       if (!job) return;
-
-      const nextRunAt = this.computeNextRunAt(job.schedule);
+      const visualConfig = safeJsonParse(job.scheduleConfig, null);
       await prisma.scheduled_jobs.update({
         where: { id: Number(id) },
         data: {
           lastRunAt: new Date(),
-          nextRunAt,
+          ...(!visualConfig?.type
+            ? { nextRunAt: this.computeNextRunAt(job.schedule) }
+            : {}),
           updatedAt: new Date(),
         },
       });
     } catch (error) {
-      console.error("Failed to update run timestamps:", error.message);
+      console.error("Failed to update scheduled job timestamp:", error.message);
+    }
+  },
+
+  claimScheduledTrigger: async function (id, now = new Date()) {
+    try {
+      return await prisma.$transaction(async (tx) => {
+        const job = await tx.scheduled_jobs.findFirst({
+          where: { id: Number(id), enabled: true },
+        });
+        if (!job?.nextRunAt || job.nextRunAt.getTime() > now.getTime())
+          return null;
+
+        if (job.scheduleType === "once") {
+          return await tx.scheduled_jobs.update({
+            where: { id: job.id },
+            data: { enabled: false, nextRunAt: null, updatedAt: now },
+          });
+        }
+
+        const nextRunAt = this.computeNextRunAt(
+          job.schedule,
+          job.scheduleConfig,
+          new Date(Math.max(now.getTime(), job.nextRunAt.getTime()))
+        );
+        if (!nextRunAt) return null;
+        return await tx.scheduled_jobs.update({
+          where: { id: job.id },
+          data: { nextRunAt, updatedAt: now },
+        });
+      });
+    } catch (error) {
+      console.error("Failed to claim scheduled job trigger:", error.message);
+      return null;
+    }
+  },
+
+  deferOneTimeTrigger: async function (id, delayMs = 60_000) {
+    try {
+      return await prisma.scheduled_jobs.update({
+        where: { id: Number(id) },
+        data: {
+          enabled: true,
+          nextRunAt: new Date(Date.now() + Math.max(1_000, Number(delayMs))),
+          updatedAt: new Date(),
+        },
+      });
+    } catch (error) {
+      console.error("Failed to defer one-time scheduled job:", error.message);
+      return null;
     }
   },
 
@@ -485,11 +569,14 @@ const ScheduledJob = {
       {
         category: "agent-tools",
         name: "Agent Tools",
-        items: toolRegistry.list().map((tool) => ({
-          id: tool.id,
-          name: tool.name,
-          description: tool.description,
-        })),
+        items: toolRegistry
+          .list()
+          .filter((tool) => tool.id !== "schedule.create")
+          .map((tool) => ({
+            id: tool.id,
+            name: tool.name,
+            description: tool.description,
+          })),
       },
     ];
     const servers = await new MCPCompatibilityLayer().servers().catch(() => []);
