@@ -207,6 +207,7 @@ function stateFromSnapshot(snapshot) {
     summary: fallbackSummary,
     summaryKey: fallbackSummaryKey,
     agent: snapshot.run.runtimeSnapshot?.agent,
+    runtimeKey: snapshot.run.runtimeKey,
     startedAt: snapshot.run.startedAt || snapshot.run.createdAt,
     completedAt: snapshot.run.completedAt,
     tasks: [],
@@ -214,12 +215,14 @@ function stateFromSnapshot(snapshot) {
     toolExecutions: [],
     activities: [],
     resourceTraces: [],
+    messageParts: [],
   });
   return {
     ...replayed,
     status: snapshot.run.status,
     phase: snapshot.run.phase,
     agent: snapshot.run.runtimeSnapshot?.agent || replayed.agent,
+    runtimeKey: snapshot.run.runtimeKey || replayed.runtimeKey,
     startedAt: snapshot.run.startedAt || snapshot.run.createdAt,
     completedAt: snapshot.run.completedAt,
     tasks: snapshot.tasks || [],

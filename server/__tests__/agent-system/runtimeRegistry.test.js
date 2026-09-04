@@ -9,13 +9,28 @@ const {
 } = require("../../agent-system/runtimes/registry");
 
 describe("Agent runtime registry", () => {
-  it("exposes only the governed runtime for new Agents", () => {
+  it("exposes every selectable Agent runtime", () => {
     expect(runtimeOptions()).toEqual([
       expect.objectContaining({
+        key: LEGACY_DEFAULT_RUNTIME_KEY,
+        label: "ReAct",
+        version: 1,
+        experimental: false,
+        modelRoles: [],
+      }),
+      expect.objectContaining({
         key: DEFAULT_RUNTIME_KEY,
+        label: "Orchestrated",
         version: 1,
         experimental: false,
         modelRoles: ["controller", "worker", "reviewer", "vision"],
+      }),
+      expect.objectContaining({
+        key: EVIDENCE_RESEARCH_RUNTIME_KEY,
+        label: "研究",
+        version: 1,
+        experimental: true,
+        modelRoles: ["planner", "worker", "reviewer"],
       }),
     ]);
   });

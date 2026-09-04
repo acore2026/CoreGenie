@@ -20,6 +20,7 @@ import ModelRouteNotification from "./ModelRouteNotification";
 import SubagentRun from "./SubagentRun";
 import ContextTrace from "./ContextTrace";
 import AgentExecutionRail from "./AgentExecutionRail";
+import ReActMessageTimeline from "./ReActMessageTimeline";
 import Workspace from "@/models/workspace";
 import { useNavigate, useParams } from "react-router-dom";
 import paths from "@/utils/paths";
@@ -292,6 +293,18 @@ function buildMessages({
   const messages = history.reduce((acc, props, index) => {
     const isLastBotReply =
       index === lastBotReplyIndex && props.role === "assistant";
+    const relatedExecution = props.agentRunId
+      ? history.find(
+          (message) =>
+            message.type === "agentExecution" &&
+            message.agentRunId === props.agentRunId
+        )
+      : null;
+    const agentRunState = relatedExecution?.agentRunState || null;
+    const runtime =
+      props.runtime ||
+      (agentRunState?.runtimeKey ? { key: agentRunState.runtimeKey } : null);
+    const isReActMessage = runtime?.key === "default-react";
 
     // The execution rail is the single surface for live Agent activity. These
     // legacy lifecycle records remain in the stream for compatibility, but
@@ -301,6 +314,27 @@ function buildMessages({
     }
 
     if (props?.type === "agentExecution" && props.agentRunState) {
+      if (props.agentRunState.runtimeKey === "default-react") {
+        const responseExists = history.some(
+          (message) =>
+            message.uuid === `${props.agentRunId}:assistant` &&
+            message.type !== "agentExecution"
+        );
+        if (!responseExists)
+          acc.push(
+            <div
+              key={props.uuid || `agent-execution-${index}`}
+              className="w-full px-4 py-4 md:pl-0"
+            >
+              <ReActMessageTimeline
+                runId={props.agentRunId}
+                runState={props.agentRunState}
+                messageId={`${props.agentRunId}:pending`}
+              />
+            </div>
+          );
+        return acc;
+      }
       acc.push(
         <AgentExecutionRail
           key={props.uuid || `agent-execution-${index}`}
@@ -390,7 +424,7 @@ function buildMessages({
       acc.push(<FileDownloadCard key={props.uuid} props={props} />);
     } else if (props.type === "scheduledJobCreated" && !!props.content) {
       acc.push(<ScheduledJobCreatedCard key={props.uuid} props={props} />);
-    } else if (isLastBotReply && props.animate) {
+    } else if (isLastBotReply && props.animate && !isReActMessage) {
       acc.push(
         <PromptReply
           key={`prompt-reply-${props.uuid || index}`}
@@ -426,6 +460,13 @@ function buildMessages({
           subagentRuns={props.subagentRuns}
           contextTraces={props.contextTraces}
           agentRunId={props.agentRunId}
+          runtime={runtime}
+          messageParts={
+            props.messageParts?.length
+              ? props.messageParts
+              : agentRunState?.messageParts || []
+          }
+          agentRunState={agentRunState}
           readOnly={readOnly}
         />
       );

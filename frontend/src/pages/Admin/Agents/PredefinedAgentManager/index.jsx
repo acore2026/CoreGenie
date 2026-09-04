@@ -72,6 +72,13 @@ export default function PredefinedAgentManager({ view = "agents" }) {
 
   const visibleSkills =
     skillScope === "workspace" ? workspaceSkills : data.skills;
+  const runtimeLabels = useMemo(
+    () =>
+      Object.fromEntries(
+        data.runtimes.map((runtime) => [runtime.key, runtime.label])
+      ),
+    [data.runtimes]
+  );
 
   async function setDefaultAgent(event) {
     const agentId = Number(event.target.value);
@@ -193,7 +200,7 @@ export default function PredefinedAgentManager({ view = "agents" }) {
                           </span>
                         )}
                         <span className="rounded-full bg-emerald-300/10 px-1.5 py-0.5 text-[9px] text-emerald-300 light:bg-emerald-50 light:text-emerald-700">
-                          Governed
+                          {runtimeLabels[agent.runtimeKey] || agent.runtimeKey}
                         </span>
                       </span>
                       <span className="mt-1.5 block line-clamp-2 text-xs leading-5 text-theme-text-secondary">
@@ -559,7 +566,7 @@ function AgentEditor({
     allTools: agent?.tools === null || !agent,
     tools: agent?.tools || [],
     skillIds: agent?.skillIds || [],
-    runtimeKey: "governed-agent",
+    runtimeKey: agent?.runtimeKey || "governed-agent",
     runtimeConfig: agent?.runtimeConfig || {},
     makeDefault: isCurrentDefault,
   });
@@ -790,22 +797,65 @@ function AgentEditor({
 
         <div className="mt-4 space-y-4">
           <Field
-            label="Governed Agent runtime"
-            hint="自动选择直接回答或依赖任务图；失败任务不会清除成功结果"
+            label="运行方式"
+            hint="选择这个 Agent 处理任务时使用的执行方式"
           >
-            <div className="flex items-start gap-2 rounded-xl border border-emerald-300/15 bg-emerald-300/[0.035] px-3 py-2.5 text-[11px] leading-4 text-theme-text-secondary">
-              <CheckCircle
-                size={15}
-                weight="fill"
-                className="mt-px shrink-0 text-emerald-300 light:text-emerald-700"
-              />
-              <span>{selectedRuntime?.description}</span>
+            <div className="grid gap-2 md:grid-cols-3">
+              {runtimes.map((runtime) => {
+                const selected = form.runtimeKey === runtime.key;
+                return (
+                  <label
+                    key={runtime.key}
+                    className={`relative flex min-h-28 flex-col rounded-xl border p-3 transition-colors duration-150 focus-within:ring-2 focus-within:ring-cyan-300/60 focus-within:ring-offset-2 focus-within:ring-offset-theme-bg-secondary ${
+                      selected
+                        ? "border-cyan-300/45 bg-cyan-300/[0.07]"
+                        : "border-white/10 bg-white/[0.02] hover:border-white/20 hover:bg-white/[0.035] light:border-slate-200 light:bg-slate-50 light:hover:border-slate-300 light:hover:bg-white"
+                    } ${saving ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}
+                  >
+                    <input
+                      type="radio"
+                      name="agent-runtime"
+                      value={runtime.key}
+                      checked={selected}
+                      disabled={saving}
+                      onChange={() =>
+                        setForm({
+                          ...form,
+                          runtimeKey: runtime.key,
+                          runtimeConfig: {},
+                        })
+                      }
+                      className="sr-only"
+                    />
+                    <span className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-semibold text-theme-text-primary">
+                        {runtime.label}
+                      </span>
+                      {selected && (
+                        <CheckCircle
+                          size={16}
+                          weight="fill"
+                          className="shrink-0 text-cyan-300 light:text-cyan-700"
+                        />
+                      )}
+                    </span>
+                    <span className="mt-2 text-[11px] leading-4 text-theme-text-secondary">
+                      {runtime.description}
+                    </span>
+                    {runtime.experimental && (
+                      <span className="mt-auto pt-2 text-[10px] font-medium text-amber-300 light:text-amber-700">
+                        实验功能
+                      </span>
+                    )}
+                  </label>
+                );
+              })}
             </div>
           </Field>
 
           {selectedRuntime?.modelRoles?.length > 0 && (
             <Field
-              label="Runtime role models"
+              label="角色模型"
               hint={`留空时使用聊天框选择的模型${fallbackModel ? `（当前 ${fallbackModel}）` : ""}`}
             >
               <div className="grid gap-2 rounded-2xl border border-white/[0.08] bg-black/10 p-3 sm:grid-cols-2 xl:grid-cols-4 light:border-slate-200 light:bg-slate-50">
@@ -814,7 +864,7 @@ function AgentEditor({
                   return (
                     <label key={role} className="min-w-0">
                       <span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-500 light:text-slate-500">
-                        {role}
+                        {runtimeRoleLabels[role] || role}
                       </span>
                       <select
                         value={form.runtimeConfig?.[key] || ""}
@@ -829,9 +879,9 @@ function AgentEditor({
                           })
                         }
                         className={`${inputClass} truncate`}
-                        aria-label={`${role} model`}
+                        aria-label={`${runtimeRoleLabels[role] || role}模型`}
                       >
-                        <option value="">Inherit chat model</option>
+                        <option value="">使用对话模型</option>
                         {models.map((model) => (
                           <option key={model.id} value={model.id}>
                             {model.name}
@@ -1373,6 +1423,15 @@ function CheckCard({ checked, title, description, onClick }) {
     </button>
   );
 }
+
+const runtimeRoleLabels = {
+  controller: "协调",
+  planner: "规划",
+  worker: "执行",
+  reviewer: "审查",
+  vision: "图像分析",
+  synthesizer: "汇总",
+};
 
 const inputClass =
   "w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 text-sm text-white outline-none placeholder:text-zinc-700 focus:border-cyan-300/45 light:border-slate-200 light:bg-slate-50 light:text-slate-900 light:placeholder:text-slate-400";

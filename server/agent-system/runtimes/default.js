@@ -20,6 +20,7 @@ async function executeSegment({
   signal,
   runnableConfig,
   onToken,
+  onAssistantTurn,
   budget = null,
   activatedSkillScope = null,
   inheritedSkills = [],
@@ -61,7 +62,8 @@ async function executeSegment({
     const text =
       workspace.queryRefusalResponse ||
       "There is no relevant information in this workspace to answer your query.";
-    await onToken(text);
+    await onAssistantTurn?.({ turnId: "turn-1" });
+    await onToken(text, { turnId: "turn-1" });
     return { kind: "completed", text, sources: [] };
   }
 
@@ -108,6 +110,7 @@ async function executeSegment({
           ],
         };
   let streamedText = "";
+  let currentTurnId = null;
   const graphRun = await graph.stream(graphInput, {
     ...runnableConfig,
     streamMode: ["messages", "values"],
@@ -118,16 +121,27 @@ async function executeSegment({
     ),
     signal,
   });
-  const finalState = await consumeGraphStream(graphRun, async (token) => {
-    streamedText += token;
-    await onToken(token);
-  });
+  const finalState = await consumeGraphStream(
+    graphRun,
+    async (token, { turnId } = {}) => {
+      if (currentTurnId && currentTurnId !== turnId)
+        streamedText += streamedText.endsWith("\n") ? "\n" : "\n\n";
+      currentTurnId = turnId || currentTurnId;
+      streamedText += token;
+      await onToken(token, { turnId });
+    },
+    {
+      onTurnStart: async ({ turnId }) => {
+        await onAssistantTurn?.({ turnId });
+      },
+    }
+  );
   const pendingInterrupt = finalState?.__interrupt__?.[0]?.value;
   if (pendingInterrupt)
     return { kind: "interrupt", interrupt: pendingInterrupt, sources };
   return {
     kind: "completed",
-    text: finalText(finalState) || streamedText,
+    text: streamedText || finalText(finalState),
     sources,
   };
 }

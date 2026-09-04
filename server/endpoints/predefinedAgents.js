@@ -93,7 +93,8 @@ function validateAgentPayload(body) {
   });
   if (!name) return { error: "Agent name is required." };
   if (!systemPrompt) return { error: "Agent system prompt is required." };
-  const runtimeKey = DEFAULT_RUNTIME_KEY;
+  const runtimeKey =
+    cleanText(body.runtimeKey, MAX_NAME) || DEFAULT_RUNTIME_KEY;
   let runtimeConfig;
   try {
     runtimeConfig = normalizeRuntimeConfig(runtimeKey, body.runtimeConfig);
@@ -502,4 +503,8 @@ function predefinedAgentEndpoints(app) {
   );
 }
 
-module.exports = { cleanExamplePrompts, predefinedAgentEndpoints };
+module.exports = {
+  cleanExamplePrompts,
+  predefinedAgentEndpoints,
+  validateAgentPayload,
+};

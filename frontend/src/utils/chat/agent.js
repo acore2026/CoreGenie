@@ -146,6 +146,14 @@ function legacyEventFromAgentRun(event) {
         type: "textResponseChunk",
         uuid: payload.messageId,
         content: payload.delta,
+        agentRunId: runId,
+        agentRunEvent: {
+          id: event.id,
+          runId,
+          type,
+          payload,
+          createdAt: event.createdAt,
+        },
       },
     };
   if (type === "message.completed")
@@ -155,6 +163,15 @@ function legacyEventFromAgentRun(event) {
         type: "chatId",
         uuid: payload.messageId,
         chatId: payload.chatId,
+        agentRunId: runId,
+        parts: payload.parts,
+        agentRunEvent: {
+          id: event.id,
+          runId,
+          type,
+          payload,
+          createdAt: event.createdAt,
+        },
       },
     };
   if (type === "approval.requested") {
@@ -351,6 +368,50 @@ function appendActivity(activities, activity) {
   return [...activities, activity].slice(-MAX_AGENT_ACTIVITIES);
 }
 
+function appendTextPart(parts, partId, delta) {
+  if (!partId || !delta) return parts;
+  const next = parts.map((part) => ({
+    ...part,
+    ...(Array.isArray(part.callIds) ? { callIds: [...part.callIds] } : {}),
+  }));
+  const index = next.findIndex(
+    (part) => part.id === partId && part.type === "text"
+  );
+  if (index >= 0)
+    next[index] = { ...next[index], text: `${next[index].text || ""}${delta}` };
+  else next.push({ id: partId, type: "text", text: String(delta) });
+  return next;
+}
+
+function appendToolGroupCall(parts, groupId, callId) {
+  if (!groupId || !callId) return parts;
+  const next = parts.map((part) => ({
+    ...part,
+    ...(Array.isArray(part.callIds) ? { callIds: [...part.callIds] } : {}),
+  }));
+  const index = next.findIndex(
+    (part) => part.id === groupId && part.type === "toolGroup"
+  );
+  if (index < 0) {
+    next.push({ id: groupId, type: "toolGroup", callIds: [callId] });
+    return next;
+  }
+  if (!next[index].callIds.includes(callId)) next[index].callIds.push(callId);
+  return next;
+}
+
+function updateExecutionState(history, runId, event) {
+  if (!runId || !event) return history;
+  return history.map((entry) =>
+    entry.type === "agentExecution" && entry.agentRunId === runId
+      ? {
+          ...entry,
+          agentRunState: reduceAgentRunState(entry.agentRunState, event),
+        }
+      : entry
+  );
+}
+
 export function reduceAgentRunState(state, event) {
   const next = {
     runId: state?.runId,
@@ -360,6 +421,7 @@ export function reduceAgentRunState(state, event) {
     summaryKey: state?.summaryKey || "preparing",
     summaryArgs: state?.summaryArgs || null,
     agent: state?.agent || null,
+    runtimeKey: state?.runtimeKey || null,
     startedAt: state?.startedAt || event.createdAt,
     completedAt: state?.completedAt || null,
     tasks: [...(state?.tasks || [])],
@@ -367,6 +429,7 @@ export function reduceAgentRunState(state, event) {
     toolExecutions: [...(state?.toolExecutions || [])],
     activities: [...(state?.activities || [])],
     resourceTraces: [...(state?.resourceTraces || [])],
+    messageParts: [...(state?.messageParts || [])],
   };
   const { type, payload = {} } = event;
   if (type === "activity.updated") {
@@ -379,6 +442,7 @@ export function reduceAgentRunState(state, event) {
     next.status = "running";
     next.phase = "running";
     next.agent = payload.agent || next.agent;
+    next.runtimeKey = payload.runtime?.key || next.runtimeKey;
     next.startedAt = event.createdAt;
   }
   if (type === "input.requested") {
@@ -499,6 +563,21 @@ export function reduceAgentRunState(state, event) {
     };
     if (index >= 0) next.toolExecutions[index] = execution;
     else next.toolExecutions.push(execution);
+    next.messageParts = appendToolGroupCall(
+      next.messageParts,
+      payload.groupId,
+      payload.callId
+    );
+  }
+  if (type === "message.delta" && payload.partId) {
+    next.messageParts = appendTextPart(
+      next.messageParts,
+      payload.partId,
+      payload.partDelta ?? payload.delta
+    );
+  }
+  if (type === "message.completed" && Array.isArray(payload.parts)) {
+    next.messageParts = payload.parts;
   }
   if (type === "context.used" && Array.isArray(payload.items)) {
     for (const item of payload.items) {
@@ -724,6 +803,12 @@ export default function handleSocketResponse(socket, event, setChatHistory) {
       emitAssistantMessageCompleteEvent(data.content.chatId);
 
     return setChatHistory((prev) => {
+      const withAgentState = (history) =>
+        updateExecutionState(
+          history,
+          data.content.agentRunId,
+          data.content.agentRunEvent
+        );
       if (data.content.type === "removeStatusResponse")
         return [...prev.filter((msg) => msg.uuid !== data.content.uuid)];
 
@@ -804,7 +889,7 @@ export default function handleSocketResponse(socket, event, setChatHistory) {
         : null;
       if (!knownMessage) {
         if (data.content.type === "fullTextResponse") {
-          return [
+          return withAgentState([
             ...prev.filter((msg) => !!msg.content),
             {
               uuid: data.content.uuid,
@@ -818,7 +903,7 @@ export default function handleSocketResponse(socket, event, setChatHistory) {
               pending: false,
               metrics: {},
             },
-          ];
+          ]);
         }
 
         // Handle textResponseChunk initialization as textResponse instead of statusResponse.
@@ -829,7 +914,7 @@ export default function handleSocketResponse(socket, event, setChatHistory) {
           // If this first chunk is just a non-text char (like \n, \t, etc.) then we need to ignore it.
           // Some providers like LMStudio will do this and it depends on the chat template as well.
           if (data.content.content.trim() === "") return prev;
-          return [
+          return withAgentState([
             ...prev.filter((msg) => !!msg.content),
             {
               uuid: data.content.uuid,
@@ -842,8 +927,9 @@ export default function handleSocketResponse(socket, event, setChatHistory) {
               animate: false,
               pending: false,
               metrics: {},
+              agentRunId: data.content.agentRunId,
             },
-          ];
+          ]);
         }
 
         return [
@@ -893,43 +979,52 @@ export default function handleSocketResponse(socket, event, setChatHistory) {
             .slice(userIdx + 1)
             .filter((msg) => msg.type === "contextTrace" && msg.contextTrace)
             .map((msg) => msg.contextTrace);
-          return prev
-            .filter((msg, i) => !(i > userIdx && msg.type === "contextTrace"))
-            .map((msg) => {
-              if (msg.uuid === uuid) {
-                const existing = Array.isArray(msg.contextTraces)
-                  ? msg.contextTraces
-                  : [];
-                const seen = new Set(existing.map((trace) => trace.id));
-                return {
-                  ...msg,
-                  chatId: data.content.chatId,
-                  contextTraces: [
-                    ...existing,
-                    ...turnTraces.filter((trace) => !seen.has(trace.id)),
-                  ],
-                };
-              }
-              if (msg === prev[userIdx])
-                return { ...msg, chatId: data.content.chatId };
-              return msg;
-            });
+          return withAgentState(
+            prev
+              .filter((msg, i) => !(i > userIdx && msg.type === "contextTrace"))
+              .map((msg) => {
+                if (msg.uuid === uuid) {
+                  const existing = Array.isArray(msg.contextTraces)
+                    ? msg.contextTraces
+                    : [];
+                  const seen = new Set(existing.map((trace) => trace.id));
+                  return {
+                    ...msg,
+                    chatId: data.content.chatId,
+                    ...(Array.isArray(data.content.parts)
+                      ? { messageParts: data.content.parts }
+                      : {}),
+                    contextTraces: [
+                      ...existing,
+                      ...turnTraces.filter((trace) => !seen.has(trace.id)),
+                    ],
+                  };
+                }
+                if (msg === prev[userIdx])
+                  return { ...msg, chatId: data.content.chatId };
+                return msg;
+              })
+          );
         }
 
         if (type === "textResponseChunk") {
-          return prev
-            .map((msg) =>
-              msg.uuid === uuid
-                ? {
-                    ...msg,
-                    type: "textResponse",
-                    content: msg.content + content,
-                  }
-                : msg?.content
-                  ? msg
-                  : null
-            )
-            .filter((msg) => !!msg);
+          return withAgentState(
+            prev
+              .map((msg) =>
+                msg.uuid === uuid
+                  ? {
+                      ...msg,
+                      type: "textResponse",
+                      content: msg.content + content,
+                      agentRunId:
+                        data.content.agentRunId || msg.agentRunId || null,
+                    }
+                  : msg?.content
+                    ? msg
+                    : null
+              )
+              .filter((msg) => !!msg)
+          );
         }
 
         // Generic text response - will be put in the agent thought bubble

@@ -1,19 +1,11 @@
 import React, { memo, useLayoutEffect, useRef, useState } from "react";
 import { FileDoc, Info, Warning } from "@phosphor-icons/react";
 import Actions from "./Actions";
-import renderMarkdown from "@/utils/chat/markdown";
 import Citations from "../Citation";
 import { v4 } from "uuid";
-import DOMPurify from "@/utils/chat/purify";
 import { EditMessageForm, useEditMessage } from "./Actions/EditMessage";
 import { useWatchDeleteMessage } from "./Actions/DeleteMessage";
 import TTSMessage from "./Actions/TTSButton";
-import {
-  THOUGHT_REGEX_CLOSE,
-  THOUGHT_REGEX_COMPLETE,
-  THOUGHT_REGEX_OPEN,
-  ThoughtChainComponent,
-} from "../ThoughtContainer";
 import paths from "@/utils/paths";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
@@ -26,6 +18,8 @@ import SubagentRun from "../SubagentRun";
 import ContextTrace from "../ContextTrace";
 import AgentExecutionRail from "../AgentExecutionRail";
 import ResponseEvaluation from "./ResponseEvaluation";
+import RenderChatContent from "../RenderChatContent";
+import ReActMessageTimeline from "../ReActMessageTimeline";
 
 const HistoricalMessage = ({
   uuid: uuidProp,
@@ -48,6 +42,9 @@ const HistoricalMessage = ({
   subagentRuns = [],
   contextTraces = [],
   agentRunId = null,
+  runtime = null,
+  messageParts = [],
+  agentRunState = null,
   readOnly = false,
 }) => {
   // Freeze uuid on first render. User messages arrive without a uuid and this value
@@ -71,6 +68,8 @@ const HistoricalMessage = ({
 
   const isRefusalMessage =
     role === "assistant" && message === chatQueryRefusalResponse(workspace);
+  const isReActMessage =
+    (runtime?.key || agentRunState?.runtimeKey) === "default-react";
 
   if (completeDelete) return null;
 
@@ -161,7 +160,9 @@ const HistoricalMessage = ({
         ) : (
           <div className="break-words">
             {agentRunId ? (
-              <AgentExecutionRail runId={agentRunId} />
+              !isReActMessage ? (
+                <AgentExecutionRail runId={agentRunId} />
+              ) : null
             ) : completedAgentTrace.length > 0 ? (
               <div className="mb-3">
                 <AgentStatus
@@ -187,7 +188,21 @@ const HistoricalMessage = ({
                 ))}
               </div>
             )}
-            <RenderChatContent role={role} message={message} messageId={uuid} />
+            {isReActMessage ? (
+              <ReActMessageTimeline
+                runId={agentRunId}
+                runState={agentRunState}
+                parts={messageParts}
+                fallbackText={message}
+                messageId={uuid}
+              />
+            ) : (
+              <RenderChatContent
+                role={role}
+                message={message}
+                messageId={uuid}
+              />
+            )}
             {isRefusalMessage && (
               <Link
                 data-tooltip-id="query-refusal-info"
@@ -261,6 +276,9 @@ export default memo(
       prevProps.contextTraces === nextProps.contextTraces &&
       prevProps.outputs === nextProps.outputs &&
       prevProps.agentRunId === nextProps.agentRunId &&
+      prevProps.runtime === nextProps.runtime &&
+      prevProps.messageParts === nextProps.messageParts &&
+      prevProps.agentRunState === nextProps.agentRunState &&
       prevProps.responseEvaluation === nextProps.responseEvaluation &&
       prevProps.readOnly === nextProps.readOnly
     );
@@ -373,61 +391,3 @@ function TruncatableContent({ children }) {
     </>
   );
 }
-
-const RenderChatContent = memo(
-  ({ role, message, messageId }) => {
-    // If the message is not from the assistant, we can render it directly
-    // as normal since the user cannot think (lol)
-    if (role !== "assistant")
-      return (
-        <span
-          className="flex flex-col gap-y-1 text-white light:text-slate-900"
-          dangerouslySetInnerHTML={{
-            __html: DOMPurify.sanitize(renderMarkdown(message)),
-          }}
-        />
-      );
-    let thoughtChain = null;
-    let msgToRender = message;
-    if (!message) return null;
-
-    // If the message is a perfect thought chain, we can render it directly
-    // Complete == open and close tags match perfectly.
-    if (message.match(THOUGHT_REGEX_COMPLETE)) {
-      thoughtChain = message.match(THOUGHT_REGEX_COMPLETE)?.[0];
-      msgToRender = message.replace(THOUGHT_REGEX_COMPLETE, "");
-    }
-
-    // If the message is a thought chain but not a complete thought chain (matching opening tags but not closing tags),
-    // we can render it as a thought chain if we can at least find a closing tag
-    // This can occur when the assistant starts with <thinking> and then <response>'s later.
-    if (
-      message.match(THOUGHT_REGEX_OPEN) &&
-      !message.match(THOUGHT_REGEX_CLOSE)
-    ) {
-      thoughtChain = message;
-      msgToRender = "";
-    }
-
-    return (
-      <>
-        {thoughtChain && (
-          <ThoughtChainComponent content={thoughtChain} messageId={messageId} />
-        )}
-        <span
-          className="flex flex-col gap-y-1 text-white light:text-slate-900"
-          dangerouslySetInnerHTML={{
-            __html: DOMPurify.sanitize(renderMarkdown(msgToRender)),
-          }}
-        />
-      </>
-    );
-  },
-  (prevProps, nextProps) => {
-    return (
-      prevProps.role === nextProps.role &&
-      prevProps.message === nextProps.message &&
-      prevProps.messageId === nextProps.messageId
-    );
-  }
-);

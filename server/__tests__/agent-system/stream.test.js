@@ -56,4 +56,59 @@ describe("native Agent graph streaming", () => {
     });
     expect(text).toBe("visible answer");
   });
+
+  it("assigns one turn id to chunks from the same model step", async () => {
+    async function* graphStream() {
+      yield [
+        "messages",
+        [new AIMessageChunk("first "), { langgraph_node: "model", langgraph_step: 1 }],
+      ];
+      yield [
+        "messages",
+        [new AIMessageChunk("turn"), { langgraph_node: "model", langgraph_step: 1 }],
+      ];
+      yield [
+        "messages",
+        [new AIMessageChunk("second"), { langgraph_node: "model", langgraph_step: 3 }],
+      ];
+    }
+
+    const turns = [];
+    const deltas = [];
+    await consumeGraphStream(
+      graphStream(),
+      async (token, metadata) => deltas.push([token, metadata.turnId]),
+      { onTurnStart: async ({ turnId }) => turns.push(turnId) }
+    );
+
+    expect(turns).toEqual(["turn-1", "turn-2"]);
+    expect(deltas).toEqual([
+      ["first ", "turn-1"],
+      ["turn", "turn-1"],
+      ["second", "turn-2"],
+    ]);
+  });
+
+  it("announces a tool-only assistant turn", async () => {
+    async function* graphStream() {
+      yield [
+        "messages",
+        [
+          new AIMessageChunk({
+            content: "",
+            tool_call_chunks: [
+              { id: "call-1", name: "search", args: "{}", index: 0 },
+            ],
+          }),
+          { langgraph_node: "model", langgraph_step: 1 },
+        ],
+      ];
+    }
+
+    const turns = [];
+    await consumeGraphStream(graphStream(), async () => {}, {
+      onTurnStart: async ({ turnId }) => turns.push(turnId),
+    });
+    expect(turns).toEqual(["turn-1"]);
+  });
 });

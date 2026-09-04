@@ -2,6 +2,7 @@
 const {
   cleanExamplePrompts,
   predefinedAgentEndpoints,
+  validateAgentPayload,
 } = require("../../endpoints/predefinedAgents");
 const { PredefinedAgent } = require("../../models/predefinedAgent");
 
@@ -79,5 +80,40 @@ describe("predefined Agent availability", () => {
         agent: expect.objectContaining({ enabled: false }),
       })
     );
+  });
+});
+
+describe("predefined Agent runtime selection", () => {
+  it("keeps a selected registered runtime and normalizes its configuration", () => {
+    expect(
+      validateAgentPayload({
+        name: "研究助手",
+        systemPrompt: "根据资料完成研究。",
+        runtimeKey: "evidence-research",
+        runtimeConfig: {
+          plannerModel: "planner-v1",
+          unknown: "discarded",
+        },
+      })
+    ).toEqual({
+      data: expect.objectContaining({
+        runtimeKey: "evidence-research",
+        runtimeConfig: expect.objectContaining({
+          attachmentMode: "parsed",
+          plannerModel: "planner-v1",
+          requiredCompletionTools: [],
+        }),
+      }),
+    });
+  });
+
+  it("rejects an unregistered runtime", () => {
+    expect(
+      validateAgentPayload({
+        name: "测试助手",
+        systemPrompt: "完成测试。",
+        runtimeKey: "unknown-runtime",
+      })
+    ).toEqual({ error: 'Unknown Agent runtime "unknown-runtime".' });
   });
 });

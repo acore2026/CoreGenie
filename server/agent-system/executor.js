@@ -8,6 +8,7 @@ const { WorkspaceThread } = require("../models/workspaceThread");
 const { User } = require("../models/user");
 const { AgentReportPublication } = require("../models/agentReportPublication");
 const { AgentRunArtifact } = require("../models/agentRunArtifact");
+const { v4: uuidv4 } = require("uuid");
 const { publicationOutput } = require("../tools/knowledge");
 const filesystem = require("../utils/agents/aibitat/plugins/filesystem/lib");
 const path = require("path");
@@ -17,6 +18,14 @@ const { withAgentTrace } = require("./observability");
 const { requireRuntime } = require("./runtimes/registry");
 const { consumeGraphStream } = require("./runtimes/stream");
 const { deleteCheckpointThread } = require("./checkpointer");
+const {
+  appendText,
+  appendToolCall,
+  cloneParts,
+  paragraphSeparator,
+  partsFromEvents,
+  plainTextFromParts,
+} = require("./messageTimeline");
 const {
   completeInlineDatasetResponse,
   registerReferencedArtifacts,
@@ -166,21 +175,76 @@ async function executeAgentRunSegment(initialRun, signal, runnableConfig = {}) {
 
   const messageId = `${run.id}:assistant`;
   await emit("message.started", { messageId, role: "assistant" });
-  let streamedText = "";
+  const usesReactTimeline = definition.id === "default-react";
+  const segmentId = uuidv4();
+  const previousEvents = usesReactTimeline
+    ? await AgentRunEvent.after(run.id, 0, 50_000)
+    : [];
+  const messageParts = usesReactTimeline
+    ? partsFromEvents(previousEvents, messageId)
+    : [];
+  let streamedText = usesReactTimeline ? plainTextFromParts(messageParts) : "";
   let deltaBuffer = "";
+  let partDeltaBuffer = "";
+  let deltaPartId = null;
+  let currentTurnId = null;
   let lastDeltaFlush = Date.now();
   const flushDelta = async () => {
     if (!deltaBuffer) return;
     const delta = deltaBuffer;
+    const partDelta = partDeltaBuffer;
+    const partId = deltaPartId;
     deltaBuffer = "";
+    partDeltaBuffer = "";
+    deltaPartId = null;
     lastDeltaFlush = Date.now();
-    await emit("message.delta", { messageId, delta });
+    await emit("message.delta", {
+      messageId,
+      delta,
+      ...(usesReactTimeline ? { partId, partDelta } : {}),
+    });
   };
-  const onToken = async (token) => {
-    streamedText += token;
-    deltaBuffer += token;
+  const scopedTurnId = (turnId) => `${segmentId}:${turnId || "turn-1"}`;
+  const onAssistantTurn = async ({ turnId } = {}) => {
+    if (!usesReactTimeline) return;
+    const nextTurnId = scopedTurnId(turnId);
+    if (currentTurnId === nextTurnId) return;
+    await flushDelta();
+    currentTurnId = nextTurnId;
+  };
+  const onToken = async (token, { turnId } = {}) => {
+    if (!usesReactTimeline) {
+      streamedText += token;
+      deltaBuffer += token;
+    } else {
+      const nextTurnId = scopedTurnId(turnId);
+      if (currentTurnId !== nextTurnId) await onAssistantTurn({ turnId });
+      const partId = `text:${currentTurnId}`;
+      if (deltaPartId && deltaPartId !== partId) await flushDelta();
+      const existingPart = messageParts.find((part) => part.id === partId);
+      const separator = existingPart ? "" : paragraphSeparator(streamedText);
+      appendText(messageParts, partId, token);
+      streamedText += `${separator}${token}`;
+      deltaPartId = partId;
+      deltaBuffer += `${separator}${token}`;
+      partDeltaBuffer += token;
+    }
     if (deltaBuffer.length >= 80 || Date.now() - lastDeltaFlush >= 50)
       await flushDelta();
+  };
+  const runtimeEmit = async (type, payload = {}) => {
+    if (!usesReactTimeline || !type.startsWith("tool.") || !payload.callId)
+      return emit(type, payload);
+    await flushDelta();
+    if (!currentTurnId) currentTurnId = scopedTurnId("unscoped");
+    const groupId = `tools:${currentTurnId}`;
+    appendToolCall(messageParts, groupId, payload.callId);
+    return emit(type, {
+      ...payload,
+      messageId,
+      turnId: currentTurnId,
+      groupId,
+    });
   };
 
   const result = await runtime.executeSegment({
@@ -190,10 +254,11 @@ async function executeAgentRunSegment(initialRun, signal, runnableConfig = {}) {
     thread,
     agent,
     history,
-    emit,
+    emit: runtimeEmit,
     signal,
     runnableConfig,
     onToken,
+    onAssistantTurn,
   });
   await flushDelta();
 
@@ -219,7 +284,18 @@ async function executeAgentRunSegment(initialRun, signal, runnableConfig = {}) {
     return AgentRun.get(run.id);
   }
 
-  let responseText = String(result.text || streamedText || "");
+  if (
+    usesReactTimeline &&
+    !plainTextFromParts(messageParts) &&
+    String(result.text || "")
+  ) {
+    await onAssistantTurn({ turnId: "completion" });
+    await onToken(String(result.text), { turnId: "completion" });
+    await flushDelta();
+  }
+  let responseText = usesReactTimeline
+    ? plainTextFromParts(messageParts)
+    : String(result.text || streamedText || "");
   let partial = Boolean(result.partial);
   const requiredCompletionTools = applicableCompletionTools(
     run.runtimeSnapshot?.runtimeConfig?.requiredCompletionTools || [],
@@ -234,12 +310,19 @@ async function executeAgentRunSegment(initialRun, signal, runnableConfig = {}) {
     );
     if (missing.length) {
       partial = true;
-      const warning = `\n\n未完成自动发布：缺少成功的 ${missing.join(
+      const warning = `未完成自动发布：缺少成功的 ${missing.join(
         ", "
       )} 工具执行。报告如已生成，仍保留在 Workspace 文件中。`;
-      responseText += warning;
-      if (streamedText)
-        await emit("message.delta", { messageId, delta: warning });
+      if (usesReactTimeline) {
+        await onAssistantTurn({ turnId: "completion-warning" });
+        await onToken(warning, { turnId: "completion-warning" });
+        await flushDelta();
+        responseText = plainTextFromParts(messageParts);
+      } else {
+        responseText += `\n\n${warning}`;
+        if (streamedText)
+          await emit("message.delta", { messageId, delta: `\n\n${warning}` });
+      }
     }
   }
   const sources = Array.isArray(result.sources) ? result.sources : [];
@@ -267,11 +350,21 @@ async function executeAgentRunSegment(initialRun, signal, runnableConfig = {}) {
     workspaceManager,
   });
   responseText = completedResponse.text;
-  if (streamedText && completedResponse.addition)
-    await emit("message.delta", {
-      messageId,
-      delta: completedResponse.addition,
-    });
+  if (streamedText && completedResponse.addition) {
+    if (usesReactTimeline) {
+      await onAssistantTurn({ turnId: "completion-artifacts" });
+      await onToken(completedResponse.addition.replace(/^\n+/, ""), {
+        turnId: "completion-artifacts",
+      });
+      await flushDelta();
+      responseText = plainTextFromParts(messageParts);
+    } else {
+      await emit("message.delta", {
+        messageId,
+        delta: completedResponse.addition,
+      });
+    }
+  }
   if (!streamedText)
     await emit("message.delta", { messageId, delta: responseText });
   const outputs = [];
@@ -318,6 +411,9 @@ async function executeAgentRunSegment(initialRun, signal, runnableConfig = {}) {
             agentRunId: run.id,
             agentId: agent.id,
             runtime: { key: definition.id, version: definition.version },
+            ...(usesReactTimeline && messageParts.length
+              ? { parts: cloneParts(messageParts) }
+              : {}),
             ...traces,
           },
           threadId: thread?.id || null,
@@ -333,6 +429,9 @@ async function executeAgentRunSegment(initialRun, signal, runnableConfig = {}) {
     text: responseText,
     chatId: chat?.id || null,
     outputs,
+    ...(usesReactTimeline && messageParts.length
+      ? { parts: cloneParts(messageParts) }
+      : {}),
   });
   const terminalStatus = partial ? "partial" : "completed";
   await AgentRun.update(run.id, {
@@ -387,10 +486,33 @@ async function persistFailedAgentRun(runId, error) {
   const completed = tasks.filter(
     (task) => task.status === "completed" && task.resultSummary
   );
-  const partial = completed.length > 0;
-  const responseText = partial
-    ? `${completed.map((task) => task.resultSummary).join("\n\n")}\n\nIncomplete work: ${error.message}`
+  const usesReactTimeline = run.runtimeKey === "default-react";
+  const messageId = `${run.id}:assistant`;
+  const messageParts = usesReactTimeline
+    ? partsFromEvents(await AgentRunEvent.after(run.id, 0, 50_000), messageId)
+    : [];
+  const previousText = plainTextFromParts(messageParts);
+  const partial = completed.length > 0 || Boolean(previousText.trim());
+  const failureText = partial
+    ? `Incomplete work: ${error.message}`
     : `I could not complete this request: ${error.message}`;
+  let streamDelta = null;
+  let responseText;
+  if (usesReactTimeline) {
+    const partId = `text:failure:${uuidv4()}`;
+    const separator = paragraphSeparator(previousText);
+    appendText(messageParts, partId, failureText);
+    responseText = plainTextFromParts(messageParts);
+    streamDelta = {
+      delta: `${separator}${failureText}`,
+      partId,
+      partDelta: failureText,
+    };
+  } else {
+    responseText = partial
+      ? `${completed.map((task) => task.resultSummary).join("\n\n")}\n\n${failureText}`
+      : failureText;
+  }
   const { chat } =
     run.configuration?.persistChat === false
       ? { chat: null }
@@ -404,6 +526,15 @@ async function persistFailedAgentRun(runId, error) {
             attachments: run.attachments,
             agentRunId: run.id,
             agentId: run.agent_id,
+            ...(usesReactTimeline
+              ? {
+                  runtime: {
+                    key: run.runtimeKey,
+                    version: run.runtimeVersion,
+                  },
+                  parts: cloneParts(messageParts),
+                }
+              : {}),
             error: partial ? null : error.message,
           },
           threadId: thread?.id || null,
@@ -416,6 +547,8 @@ async function persistFailedAgentRun(runId, error) {
     chatId: chat?.id || null,
     partial,
     responseText,
+    streamDelta,
+    messageParts: usesReactTimeline ? cloneParts(messageParts) : null,
   };
 }
 

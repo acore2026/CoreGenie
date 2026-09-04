@@ -223,6 +223,8 @@ function convertToChatHistory(history = []) {
         metrics: data?.metrics || {},
         error: data?.error || false,
         ...(data?.agentRunId ? { agentRunId: data.agentRunId } : {}),
+        ...(data?.runtime ? { runtime: data.runtime } : {}),
+        ...(Array.isArray(data?.parts) ? { messageParts: data.parts } : {}),
         ...(data?.agentTrace?.length > 0
           ? { agentTrace: data.agentTrace }
           : {}),

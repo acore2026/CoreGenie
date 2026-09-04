@@ -284,6 +284,7 @@ function workspaceThreadEndpoints(app) {
             response: JSON.stringify({
               ...chatResponse,
               text: String(newText),
+              parts: undefined,
             }),
           });
         }

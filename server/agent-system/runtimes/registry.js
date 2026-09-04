@@ -27,10 +27,10 @@ const runtimeRegistry = new ResourceRegistry("Agent runtime");
 runtimeRegistry.register({
   id: LEGACY_DEFAULT_RUNTIME_KEY,
   version: 1,
-  label: "Legacy Default Agent",
-  description: "General-purpose ReAct Agent using the existing runtime.",
+  label: "ReAct",
+  description: "在一个连续会话中思考、调用工具并完成任务。",
   experimental: false,
-  hidden: true,
+  hidden: false,
   modelRoles: [],
   configSchema: z
     .object({
@@ -46,9 +46,9 @@ runtimeRegistry.register({
 runtimeRegistry.register({
   id: DEFAULT_RUNTIME_KEY,
   version: 1,
-  label: "Governed Agent",
+  label: "Orchestrated",
   description:
-    "Adaptive controller, dependency-aware workers, review, and durable partial results.",
+    "先制定任务计划，再分步执行和检查结果；适合较长、需要产物的任务。",
   experimental: false,
   hidden: false,
   modelRoles: ["controller", "worker", "reviewer", "vision"],
@@ -59,11 +59,10 @@ runtimeRegistry.register({
 runtimeRegistry.register({
   id: EVIDENCE_RESEARCH_RUNTIME_KEY,
   version: 1,
-  label: "Evidence Research",
-  description:
-    "Plans research, gathers evidence in parallel, reviews gaps, and writes a cited answer.",
+  label: "研究",
+  description: "规划研究、并行查找资料、检查遗漏，并生成带参考资料的回答。",
   experimental: true,
-  hidden: true,
+  hidden: false,
   modelRoles: ["planner", "worker", "reviewer"],
   configSchema: roleModelSchema,
   load: () => require("./evidenceResearch"),

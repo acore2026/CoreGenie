@@ -98,12 +98,15 @@ class AgentRunSupervisor {
         if (persisted?.responseText) {
           await AgentRunEvent.append(id, "message.delta", {
             messageId: `${id}:assistant`,
-            delta: persisted.responseText,
+            ...(persisted.streamDelta || { delta: persisted.responseText }),
           }).catch(() => null);
           await AgentRunEvent.append(id, "message.completed", {
             messageId: `${id}:assistant`,
             text: persisted.responseText,
             chatId: persisted.chatId,
+            ...(persisted.messageParts
+              ? { parts: persisted.messageParts }
+              : {}),
           }).catch(() => null);
         }
         await AgentRun.update(id, {
