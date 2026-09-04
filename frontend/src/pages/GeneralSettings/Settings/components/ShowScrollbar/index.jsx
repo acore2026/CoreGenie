@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import Appearance from "@/models/appearance";
 import { useTranslation } from "react-i18next";
 import Toggle from "@/components/lib/Toggle";
@@ -6,7 +6,9 @@ import Toggle from "@/components/lib/Toggle";
 export default function ShowScrollbar() {
   const { t } = useTranslation();
   const [saving, setSaving] = useState(false);
-  const [showScrollbar, setShowScrollbar] = useState(false);
+  const [showScrollbar, setShowScrollbar] = useState(() =>
+    Appearance.get("showScrollbar")
+  );
 
   const handleChange = async (checked) => {
     setShowScrollbar(checked);
@@ -19,14 +21,6 @@ export default function ShowScrollbar() {
     }
     setSaving(false);
   };
-
-  useEffect(() => {
-    function fetchSettings() {
-      const settings = Appearance.getSettings();
-      setShowScrollbar(settings.showScrollbar);
-    }
-    fetchSettings();
-  }, []);
 
   return (
     <div className="my-4">

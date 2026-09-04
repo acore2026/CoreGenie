@@ -12,7 +12,7 @@ import { safeJsonParse } from "@/utils/request";
 
 const Appearance = {
   defaultSettings: {
-    showScrollbar: false,
+    showScrollbar: true,
     autoSubmitSttInput: true,
     autoPlayAssistantTtsResponse: false,
     enableSpellCheck: true,
@@ -25,7 +25,13 @@ const Appearance = {
    */
   getSettings: () => {
     const settings = localStorage.getItem(APPEARANCE_SETTINGS);
-    return safeJsonParse(settings, Appearance.defaultSettings);
+    const parsedSettings = safeJsonParse(settings, {});
+    return {
+      ...Appearance.defaultSettings,
+      ...(parsedSettings && typeof parsedSettings === "object"
+        ? parsedSettings
+        : {}),
+    };
   },
 
   /**
