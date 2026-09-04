@@ -174,7 +174,24 @@ WORKDIR /app
 FROM build AS backend-build
 WORKDIR /app/server
 ARG YARN_REGISTRY=https://registry.npmmirror.com
+ARG TARGETARCH
+ARG VSCODE_RIPGREP_PACKAGE_VERSION=1.17.1
+ARG VSCODE_RIPGREP_RELEASE=v15.0.1
 COPY --chown=anythingllm:anythingllm ./server/package.json ./server/yarn.lock ./
+# @vscode/ripgrep normally discovers this asset through GitHub's anonymous
+# Releases API during postinstall. Seed its documented cache from the direct
+# release URL so cold builds do not fail when the shared API quota is exhausted.
+RUN case "$TARGETARCH" in \
+      amd64) ripgrep_target=x86_64-unknown-linux-musl ;; \
+      arm64) ripgrep_target=aarch64-unknown-linux-musl ;; \
+      *) echo "Unsupported ripgrep build architecture: $TARGETARCH" >&2; exit 1 ;; \
+    esac && \
+    ripgrep_asset="ripgrep-${VSCODE_RIPGREP_RELEASE}-${ripgrep_target}.tar.gz" && \
+    ripgrep_cache="/tmp/vscode-ripgrep-cache-${VSCODE_RIPGREP_PACKAGE_VERSION}" && \
+    mkdir -p "$ripgrep_cache" && \
+    curl -fsSL --retry 4 --retry-all-errors \
+      "https://github.com/microsoft/ripgrep-prebuilt/releases/download/${VSCODE_RIPGREP_RELEASE}/${ripgrep_asset}" \
+      -o "$ripgrep_cache/$ripgrep_asset"
 RUN sed -i \
       -e "s#https://registry.yarnpkg.com#${YARN_REGISTRY}#g" \
       -e "s#https://registry.npmjs.org#${YARN_REGISTRY}#g" \
