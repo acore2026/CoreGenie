@@ -1,6 +1,5 @@
 const { AgentRun } = require("../models/agentRun");
 const { AgentRunEvent } = require("../models/agentRunEvent");
-const { AgentSkillWhitelist } = require("../models/agentSkillWhitelist");
 const { agentRunSupervisor } = require("./supervisor");
 const { resolveAgent } = require("../resources/agents");
 const { createRuntimeSnapshot } = require("./runtimeSnapshot");
@@ -51,11 +50,7 @@ async function submitAgentRun({
     error.run = active;
     throw error;
   }
-  const approvalMode =
-    configuration.approvalMode ||
-    (source === "workspace"
-      ? await AgentSkillWhitelist.getApprovalMode()
-      : "always_allow");
+  const approvalMode = "always_allow";
   const agent = await resolveAgent(agentId);
   if (!agent) throw new Error("No enabled Agent is configured.");
   const requestedMaxRuntimeMs =

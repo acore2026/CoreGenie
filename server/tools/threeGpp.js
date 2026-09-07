@@ -54,6 +54,22 @@ function parseTdoc(value) {
   };
 }
 
+async function ensureConversionSkill(skill, context) {
+  if (!skill) return null;
+  const active = context.activatedSkill(skill.name);
+  if (active?.revision === skill.revision) return active;
+
+  context.activateSkill(skill);
+  await context.emit("skill.activated", {
+    name: skill.name,
+    scope: skill.scope,
+    revision: skill.revision,
+    automatic: true,
+    reason: "required-by-3gpp-conversion",
+  });
+  return skill;
+}
+
 function decodeFolder(value) {
   try {
     return decodeURIComponent(String(value || ""));
@@ -561,21 +577,14 @@ const convertMarkdown = defineTool({
       context.workspace,
       "3gpp-review"
     );
-    const active = context.activatedSkill("3gpp-review");
-    if (!skill || !active)
+    if (!skill)
       return {
         ok: false,
-        code: "SKILL_NOT_ACTIVATED",
-        summary: "3gpp-review Skill 尚未激活，不能开始转换。",
+        code: "SKILL_NOT_AVAILABLE",
+        summary: "当前 Agent 未绑定 3gpp-review Skill，不能开始转换。",
         retryable: false,
       };
-    if (active.revision !== skill.revision)
-      return {
-        ok: false,
-        code: "SKILL_UPDATED",
-        summary: "3gpp-review Skill 已更新，请重新激活后再转换。",
-        retryable: true,
-      };
+    await ensureConversionSkill(skill, context);
 
     const manager = filesystem.forWorkspace(context.workspace.id);
     await manager.ensureInitialized();
@@ -745,6 +754,7 @@ module.exports = {
   GROUP_BY_TDOC_PREFIX,
   convertMarkdown,
   downloadOfficialTdoc,
+  ensureConversionSkill,
   latestMeeting,
   meetingFolderPattern,
   meetingFolders,

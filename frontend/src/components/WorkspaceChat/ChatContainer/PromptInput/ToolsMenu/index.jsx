@@ -18,9 +18,11 @@ export const TOOLS_MENU_KEYBOARD_EVENT = "tools-menu-keyboard";
  * @param {function} props.sendCommand
  * @param {object} props.promptRef
  * @param {boolean} [props.centered] - when true, popup opens below the input
+ * @param {boolean} [props.agentSessionActive] - whether this conversation has an active Agent session
  */
 export default function ToolsMenu({
   workspace,
+  agentSessionActive,
   showing,
   setShowing,
   sendCommand,
@@ -124,6 +126,7 @@ export default function ToolsMenu({
 
         <div className="flex flex-col gap-1 overflow-y-auto no-scroll min-h-0">
           <AgentSkillsTab
+            agentSessionActive={agentSessionActive}
             sendCommand={sendCommand}
             setShowing={setShowing}
             promptRef={promptRef}

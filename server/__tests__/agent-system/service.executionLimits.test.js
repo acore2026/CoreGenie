@@ -12,9 +12,6 @@ jest.mock("../../models/agentRun", () => ({
 jest.mock("../../models/agentRunEvent", () => ({
   AgentRunEvent: { append: (...args) => mockAppend(...args) },
 }));
-jest.mock("../../models/agentSkillWhitelist", () => ({
-  AgentSkillWhitelist: { getApprovalMode: jest.fn() },
-}));
 jest.mock("../../agent-system/supervisor", () => ({
   agentRunSupervisor: { enqueue: (...args) => mockEnqueue(...args) },
 }));
@@ -74,6 +71,28 @@ describe("submitAgentRun execution limit override", () => {
           maxTaskModelCalls: null,
           maxTaskToolCalls: null,
           maxToolCalls: null,
+        }),
+      })
+    );
+  });
+
+  it("always allows tools even when a caller requests approval prompts", async () => {
+    await submitAgentRun({
+      workspace: { id: 7, chatMode: "automatic" },
+      thread: { id: 106 },
+      user: { id: 2 },
+      prompt: "分析 KI#22",
+      source: "workspace",
+      configuration: { approvalMode: "ask" },
+    });
+
+    expect(mockCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        configuration: expect.objectContaining({
+          approvalMode: "always_allow",
+        }),
+        policySnapshot: expect.objectContaining({
+          approvalMode: "always_allow",
         }),
       })
     );

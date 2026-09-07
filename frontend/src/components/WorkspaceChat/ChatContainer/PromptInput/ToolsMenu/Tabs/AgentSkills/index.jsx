@@ -21,10 +21,13 @@ export default function AgentSkillsTab({
   highlightedIndex = -1,
   registerItemCount,
   workspace,
+  agentSessionActive: scopedAgentSessionActive,
 }) {
   const { t } = useTranslation();
   const { showAgentCommand = true } = workspace ?? {};
-  const agentSessionActive = useIsAgentSessionActive();
+  const globalAgentSessionActive = useIsAgentSessionActive();
+  const agentSessionActive =
+    scopedAgentSessionActive ?? globalAgentSessionActive;
 
   // Get skill definitions
   const defaultSkills = getDefaultSkills(t);

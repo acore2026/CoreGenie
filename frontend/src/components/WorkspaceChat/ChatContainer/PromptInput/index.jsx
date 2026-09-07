@@ -23,7 +23,6 @@ import Appearance from "@/models/appearance";
 import usePromptInputStorage from "@/hooks/usePromptInputStorage";
 import ToolsMenu, { TOOLS_MENU_KEYBOARD_EVENT } from "./ToolsMenu";
 import QuickCommandsMenu from "./QuickCommandsMenu";
-import ToolApprovalMode from "./ToolApprovalMode";
 import WorkspaceModelPicker from "../WorkspaceModelPicker";
 import { useSearchParams } from "react-router-dom";
 import { useIsAgentSessionActive } from "@/utils/chat/agent";
@@ -44,6 +43,7 @@ const MAX_EDIT_STACK_SIZE = 100;
  * @param {string} [props.workspaceSlug] - workspace slug for home page context
  * @param {string} [props.threadSlug] - thread slug for home page context
  * @param {Array<string | {label: string, prompt: string}>} [props.examplePrompts] - selected Agent example inputs
+ * @param {boolean} [props.agentSessionActive] - whether this conversation has an active Agent session
  */
 function PromptInput({
   workspace = {},
@@ -55,12 +55,15 @@ function PromptInput({
   workspaceSlug = null,
   threadSlug = null,
   examplePrompts = [],
+  agentSessionActive: scopedAgentSessionActive,
 }) {
   const { t } = useTranslation();
   const { user } = useUser();
   const { showAgentCommand = true } = workspace ?? {};
   const { isDisabled } = useIsDisabled();
-  const agentSessionActive = useIsAgentSessionActive();
+  const globalAgentSessionActive = useIsAgentSessionActive();
+  const agentSessionActive =
+    scopedAgentSessionActive ?? globalAgentSessionActive;
   const [promptInput, setPromptInput] = useState("");
   const [showTools, setShowTools] = useState(false);
   const [showQuickCommands, setShowQuickCommands] = useState(false);
@@ -375,6 +378,7 @@ function PromptInput({
           <div className="relative w-[95vw] md:w-[750px]">
             <ToolsMenu
               workspace={workspace}
+              agentSessionActive={agentSessionActive}
               showing={showTools}
               setShowing={setShowTools}
               sendCommand={sendCommand}
@@ -431,7 +435,7 @@ function PromptInput({
                       sendCommand={sendCommand}
                       promptInput={promptInput}
                       textareaRef={textareaRef}
-                      visible={!agentSessionActive & showAgentCommand}
+                      visible={!agentSessionActive && showAgentCommand}
                     />
                   </div>
                   <QuickCommandsButton
@@ -455,7 +459,6 @@ function PromptInput({
                   <WorkspaceModelPicker
                     workspaceSlug={workspaceSlug ?? workspace?.slug}
                   />
-                  <ToolApprovalMode />
                   <SpeechToText sendCommand={sendCommand} />
                   {isStreaming || agentSessionActive ? (
                     <StopGenerationButton />

@@ -51,8 +51,10 @@ describe("governed Agent Skill activation", () => {
       "Always pass `cwd=skill://3gpp-tdocs`"
     );
     expect(result.data.instructions).toContain(
-      "ignore that example and use `skill://3gpp-tdocs` instead"
+      "All `skill://` roots in the package instructions below have been normalized"
     );
+    expect(result.data.instructions).not.toContain("cwd=skill://3gpp-review");
+    expect(result.data.instructions).toContain("cwd=skill://3gpp-tdocs");
     expect(context.activateSkill).toHaveBeenCalledWith(skill);
   });
 
@@ -146,6 +148,36 @@ describe("governed Agent Skill activation", () => {
 
     expect(result.data.content).toContain("knowledge.search");
     expect(result.data.content).not.toContain("memory.store");
+  });
+
+  it("normalizes stale skill roots in text Skill resources", async () => {
+    const skill = {
+      name: "3gpp-tdocs",
+      scope: "global",
+      revision: "sha256:legacy",
+      root: "/private/package/root",
+      files: [{ path: "references/example.md" }],
+    };
+    resolveActivatedSkillSnapshot.mockResolvedValue(skill);
+    readPackageResource.mockResolvedValue({
+      path: "references/example.md",
+      binary: false,
+      content: "Run with cwd=skill://3gpp-review.",
+    });
+    const context = {
+      workspace: { id: 1 },
+      activatedSkill: jest.fn().mockReturnValue({
+        revision: "sha256:legacy",
+      }),
+      emit: jest.fn().mockResolvedValue(undefined),
+    };
+
+    const result = await readSkillResource.execute(
+      { name: "3gpp-tdocs", path: "references/example.md", offset: 0 },
+      context
+    );
+
+    expect(result.data.content).toBe("Run with cwd=skill://3gpp-tdocs.");
   });
 
   it("resolves a unique resource basename instead of probing guessed paths", async () => {

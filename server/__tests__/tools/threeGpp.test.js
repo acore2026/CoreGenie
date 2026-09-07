@@ -6,6 +6,7 @@ const path = require("path");
 const {
   DIRECTORY_BY_GROUP,
   downloadOfficialTdoc,
+  ensureConversionSkill,
   latestMeeting,
   meetingFolders,
   meetingFoldersForYear,
@@ -13,6 +14,61 @@ const {
   parseTdoc,
   resolveMeeting,
 } = require("../../tools/threeGpp");
+
+describe("3GPP Markdown conversion Skill", () => {
+  const skill = {
+    id: 10,
+    name: "3gpp-review",
+    scope: "global",
+    revision: "revision-2",
+  };
+
+  it("automatically activates its required Skill", async () => {
+    const context = {
+      activatedSkill: jest.fn().mockReturnValue(null),
+      activateSkill: jest.fn(),
+      emit: jest.fn().mockResolvedValue(undefined),
+    };
+
+    await expect(ensureConversionSkill(skill, context)).resolves.toBe(skill);
+    expect(context.activateSkill).toHaveBeenCalledWith(skill);
+    expect(context.emit).toHaveBeenCalledWith(
+      "skill.activated",
+      expect.objectContaining({
+        name: "3gpp-review",
+        revision: "revision-2",
+        automatic: true,
+      })
+    );
+  });
+
+  it("reuses an already active matching revision", async () => {
+    const active = { ...skill };
+    const context = {
+      activatedSkill: jest.fn().mockReturnValue(active),
+      activateSkill: jest.fn(),
+      emit: jest.fn(),
+    };
+
+    await expect(ensureConversionSkill(skill, context)).resolves.toBe(active);
+    expect(context.activateSkill).not.toHaveBeenCalled();
+    expect(context.emit).not.toHaveBeenCalled();
+  });
+
+  it("refreshes an outdated active revision", async () => {
+    const context = {
+      activatedSkill: jest
+        .fn()
+        .mockReturnValue({ ...skill, revision: "revision-1" }),
+      activateSkill: jest.fn(),
+      emit: jest.fn().mockResolvedValue(undefined),
+    };
+
+    await expect(ensureConversionSkill(skill, context)).resolves.toBe(skill);
+    expect(context.activateSkill).toHaveBeenCalledWith(skill);
+    expect(context.emit).toHaveBeenCalledTimes(1);
+  });
+});
 
 describe("3GPP meeting resolver", () => {
   const temporaryRoots = [];

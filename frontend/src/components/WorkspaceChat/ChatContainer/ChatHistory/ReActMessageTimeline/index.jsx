@@ -3,8 +3,6 @@ import {
   CaretDown,
   CheckCircle,
   CircleNotch,
-  MinusCircle,
-  WarningCircle,
   Wrench,
 } from "@phosphor-icons/react";
 import { useTranslation } from "react-i18next";
@@ -15,6 +13,24 @@ import RenderChatContent from "../RenderChatContent";
 const TERMINAL = new Set(["completed", "partial", "failed", "cancelled"]);
 const ACTIVE = new Set(["requested", "running", "started", "retrying"]);
 
+function mergeAdjacentToolGroups(parts = []) {
+  return parts.reduce((merged, part) => {
+    if (part.type === "text" && !String(part.text || "").trim()) return merged;
+    const previous = merged.at(-1);
+    if (part.type === "toolGroup" && previous?.type === "toolGroup") {
+      previous.callIds = [
+        ...new Set([...(previous.callIds || []), ...(part.callIds || [])]),
+      ];
+      return merged;
+    }
+    merged.push({
+      ...part,
+      ...(Array.isArray(part.callIds) ? { callIds: [...part.callIds] } : {}),
+    });
+    return merged;
+  }, []);
+}
+
 function toolName(toolId) {
   const value = String(toolId || "Tool");
   return value.replace(/[.:/_-]+/g, " ");
@@ -23,23 +39,12 @@ function toolName(toolId) {
 function ToolRow({ tool, t }) {
   const status = tool.status || "requested";
   const active = ACTIVE.has(status);
-  const failed = status === "failed";
-  const inactive = ["cancelled", "skipped"].includes(status);
-  const Icon = active
-    ? CircleNotch
-    : failed
-      ? WarningCircle
-      : inactive
-        ? MinusCircle
-        : CheckCircle;
+  const completed = status === "completed";
+  const Icon = active ? CircleNotch : completed ? CheckCircle : Wrench;
   const tone = active
     ? "text-cyan-300 light:text-cyan-700"
-    : failed
-      ? "text-red-400 light:text-red-700"
-      : inactive
-        ? "text-theme-text-secondary"
-        : "text-emerald-400 light:text-emerald-700";
-  const detail = tool.error || tool.result_summary;
+    : "text-theme-text-secondary";
+  const detail = completed ? tool.result_summary : null;
 
   return (
     <li className="grid min-h-10 grid-cols-[16px_minmax(0,1fr)_auto] items-start gap-2 px-2 py-2">
@@ -54,16 +59,16 @@ function ToolRow({ tool, t }) {
           {toolName(tool.tool_id)}
         </span>
         {detail && (
-          <span
-            className={`mt-0.5 block whitespace-pre-wrap break-words text-[11px] leading-4 ${failed ? "text-red-300 light:text-red-700" : "text-theme-text-secondary"}`}
-          >
+          <span className="mt-0.5 block whitespace-pre-wrap break-words text-[11px] leading-4 text-theme-text-secondary">
             {detail}
           </span>
         )}
       </span>
-      <span className={`pt-0.5 text-[10px] font-semibold ${tone}`}>
-        {t(`chat_window.agent_invocation.status.${status}`)}
-      </span>
+      {active && (
+        <span className={`pt-0.5 text-[10px] font-semibold ${tone}`}>
+          {t(`chat_window.agent_invocation.status.${status}`)}
+        </span>
+      )}
     </li>
   );
 }
@@ -79,29 +84,17 @@ function ToolGroupBar({ callIds, tools, runActive }) {
       }
   );
   const active = executions.some((tool) => ACTIVE.has(tool.status));
-  const failed = executions.filter((tool) => tool.status === "failed").length;
-  const incomplete = executions.filter((tool) =>
-    ["cancelled", "skipped"].includes(tool.status)
-  ).length;
-  const attention = failed + incomplete;
-  const Icon = active ? CircleNotch : attention ? WarningCircle : CheckCircle;
+  const Icon = active ? CircleNotch : CheckCircle;
   const tone = active
     ? "text-cyan-300 light:text-cyan-700"
-    : attention
-      ? "text-red-400 light:text-red-700"
-      : "text-theme-text-secondary";
+    : "text-theme-text-secondary";
   const label = active
     ? t("chat_window.agent_invocation.react_tools_running", {
         count: callIds.length,
       })
-    : attention
-      ? t("chat_window.agent_invocation.react_tools_failed", {
-          count: callIds.length,
-          failed: attention,
-        })
-      : t("chat_window.agent_invocation.react_tools_complete", {
-          count: callIds.length,
-        });
+    : t("chat_window.agent_invocation.react_tools_complete", {
+        count: callIds.length,
+      });
 
   return (
     <div className="max-w-[780px] overflow-hidden rounded-md border border-white/[0.08] bg-white/[0.015] light:border-slate-200 light:bg-slate-50/60">
@@ -171,9 +164,12 @@ export default function ReActMessageTimeline({
 
   const tools = runState?.toolExecutions || snapshotTools;
   const messageParts = useMemo(() => {
-    if (runState?.messageParts?.length) return runState.messageParts;
-    if (parts?.length) return parts;
-    return [];
+    const source = runState?.messageParts?.length
+      ? runState.messageParts
+      : parts?.length
+        ? parts
+        : [];
+    return mergeAdjacentToolGroups(source);
   }, [parts, runState?.messageParts]);
   const runActive = runState ? !TERMINAL.has(runState.status) : false;
 

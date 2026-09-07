@@ -33,13 +33,24 @@ function sanitizeSkillToolReferences(text, skill, visibleToolIds = null) {
   return content;
 }
 
+function sanitizeSkillRootReferences(text, skill) {
+  const skillRoot = `skill://${skill.name}`;
+  return String(text || "").replace(
+    /skill:\/\/[a-z0-9][a-z0-9-]*/gi,
+    skillRoot
+  );
+}
+
 function runtimeSkillBody(skill, visibleToolIds = null) {
-  return sanitizeSkillToolReferences(skill.instructions, skill, visibleToolIds);
+  return sanitizeSkillRootReferences(
+    sanitizeSkillToolReferences(skill.instructions, skill, visibleToolIds),
+    skill
+  );
 }
 
 function runtimeInstructions(skill, visibleToolIds = null) {
   const skillRoot = `skill://${skill.name}`;
-  return `Runtime environment note: this activated package's exact skill root is \`${skillRoot}\`. Always pass \`cwd=${skillRoot}\` when running its bundled scripts. If the package instructions contain a different hard-coded \`skill://...\` example from an earlier package name, ignore that example and use \`${skillRoot}\` instead. When calling \`read_skill_resource\`, copy the exact resource path (including its directory and extension) from the activated package's \`files\` list; do not guess alternate paths.\n\n${runtimeSkillBody(skill, visibleToolIds)}`;
+  return `Runtime environment note: this activated package's exact skill root is \`${skillRoot}\`. Always pass \`cwd=${skillRoot}\` when running its bundled scripts. All \`skill://\` roots in the package instructions below have been normalized to this exact value. When calling \`read_skill_resource\`, copy the exact resource path (including its directory and extension) from the activated package's \`files\` list; do not guess alternate paths.\n\n${runtimeSkillBody(skill, visibleToolIds)}`;
 }
 
 function readableResourcePaths(skill) {
@@ -229,10 +240,13 @@ const readSkillResource = defineTool({
       ? resource
       : {
           ...resource,
-          content: sanitizeSkillToolReferences(
-            resource.content,
-            skill,
-            context.visibleToolIds
+          content: sanitizeSkillRootReferences(
+            sanitizeSkillToolReferences(
+              resource.content,
+              skill,
+              context.visibleToolIds
+            ),
+            skill
           ),
         };
     await context.emit("skill.resource.used", {
@@ -262,6 +276,7 @@ module.exports = {
   readSkillResource,
   runtimeInstructions,
   runtimeSkillBody,
+  sanitizeSkillRootReferences,
   sanitizeSkillToolReferences,
   resolveResourcePath,
 };

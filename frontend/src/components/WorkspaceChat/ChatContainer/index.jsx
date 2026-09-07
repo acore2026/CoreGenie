@@ -538,6 +538,7 @@ export default function ChatContainer({
                         </h1>
                         <PromptInput
                           workspace={workspace}
+                          agentSessionActive={Boolean(websocket)}
                           submit={submitPrompt}
                           isStreaming={loadingResponse}
                           sendCommand={dispatchCommand}
@@ -606,6 +607,7 @@ export default function ChatContainer({
                   ) : (
                     <PromptInput
                       workspace={workspace}
+                      agentSessionActive={Boolean(websocket)}
                       submit={submitPrompt}
                       isStreaming={loadingResponse}
                       sendCommand={dispatchCommand}

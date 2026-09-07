@@ -8,7 +8,6 @@ import {
 } from "react";
 import HistoricalMessage from "./HistoricalMessage";
 import PromptReply from "./PromptReply";
-import ToolApprovalRequest from "./ToolApprovalRequest";
 import ClarifyingQuestionCard from "./ClarifyingQuestion";
 import FileDownloadCard from "./FileDownloadCard";
 import ScheduledJobCreatedCard from "./ScheduledJobCreatedCard";
@@ -386,21 +385,7 @@ function buildMessages({
       return acc;
     }
 
-    if (props.type === "toolApprovalRequest") {
-      acc.push(
-        <ToolApprovalRequest
-          key={`tool-approval-${props.requestId}`}
-          requestId={props.requestId}
-          skillName={props.skillName}
-          payload={props.payload}
-          description={props.description}
-          timeoutMs={props.timeoutMs}
-          allowRemember={props.allowRemember}
-          websocket={websocket}
-        />
-      );
-      return acc;
-    }
+    if (props.type === "toolApprovalRequest") return acc;
 
     if (props.type === "clarifyingQuestion") {
       acc.push(
