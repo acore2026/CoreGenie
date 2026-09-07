@@ -1,6 +1,6 @@
 # 从 SQLite 切换到 PostgreSQL
 
-项目默认仍使用 SQLite。PostgreSQL 使用单独的 Prisma migration，避免现有实例在准备阶段受到影响。完成下面的检查和数据迁移后，再切换应用。
+`start-anythingllm.sh` 默认使用 PostgreSQL。SQLite 已弃用，只保留给旧安装迁移和紧急回滚。PostgreSQL 使用单独的 Prisma migration，避免旧实例在准备阶段受到影响。
 
 ## 使用时请注意
 

@@ -11,6 +11,11 @@ Environment overrides:
   ANYTHINGLLM_IMAGE      Docker image (default: anythingllm:local)
   CONTAINER_NAME         Container name (default: anythingllm)
   HOST_PORT              Host HTTP port (default: 7555)
+  DATABASE_PROVIDER      Database backend (default: postgresql)
+  DATABASE_URL           External PostgreSQL URL; unset uses the managed container
+  POSTGRES_CONTAINER_NAME Managed PostgreSQL container (default: anythingllm-postgres)
+  POSTGRES_IMAGE         PostgreSQL image (default: postgres:17-alpine)
+  POSTGRES_PORT          Host PostgreSQL port (default: 55433)
   ANYTHINGLLM_PROXY      Optional container HTTP(S) proxy URL
   ANYTHINGLLM_NO_PROXY   Container proxy bypass list
   ANYTHINGLLM_UID        Image user ID used for root-created storage (default: 1000)
@@ -48,10 +53,63 @@ STORAGE_LOCATION="${STORAGE_LOCATION:-${HOME}/anythingllm}"
 ANYTHINGLLM_IMAGE="${ANYTHINGLLM_IMAGE:-anythingllm:local}"
 CONTAINER_NAME="${CONTAINER_NAME:-anythingllm}"
 HOST_PORT="${HOST_PORT:-7555}"
+APP_DATABASE_PROVIDER="${DATABASE_PROVIDER:-postgresql}"
+APP_DATABASE_URL="${DATABASE_URL:-}"
+POSTGRES_CONTAINER_NAME="${POSTGRES_CONTAINER_NAME:-anythingllm-postgres}"
+POSTGRES_IMAGE="${POSTGRES_IMAGE:-postgres:17-alpine}"
+POSTGRES_PORT="${POSTGRES_PORT:-55433}"
+POSTGRES_NETWORK_NAME="${POSTGRES_NETWORK_NAME:-anythingllm-db}"
+POSTGRES_VOLUME_NAME="${POSTGRES_VOLUME_NAME:-anythingllm-postgres-data}"
+APP_POSTGRES_DB="${POSTGRES_DB:-anythingllm}"
+APP_POSTGRES_USER="${POSTGRES_USER:-anythingllm}"
+APP_POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-}"
 # Langfuse's OTLP endpoint is reachable directly from this host. Bypassing the
 # general-purpose proxy avoids a proxy path that can acknowledge OTLP batches
 # without making them visible to the project.
 ANYTHINGLLM_NO_PROXY="${ANYTHINGLLM_NO_PROXY:-localhost,127.0.0.1,::1,host.docker.internal,jp.cloud.langfuse.com}"
+
+read_dotenv_value() {
+  local key="$1"
+  local file="$2"
+  local value
+  [[ -f "$file" ]] || return 0
+  value="$(
+    sed -n -E \
+      "s/^[[:space:]]*${key}[[:space:]]*=[[:space:]]*(.*)$/\1/p" \
+      "$file" | tail -n 1
+  )"
+  value="${value%$'\r'}"
+  case "$value" in
+    \"*\")
+      value="${value#\"}"
+      value="${value%%\"*}"
+      ;;
+    \'*\')
+      value="${value#\'}"
+      value="${value%%\'*}"
+      ;;
+    *)
+      value="${value%%#*}"
+      value="${value%"${value##*[![:space:]]}"}"
+      ;;
+  esac
+  printf '%s' "$value"
+}
+
+langfuse_env_file="$STORAGE_LOCATION/.env"
+langfuse_base_url="$(read_dotenv_value LANGFUSE_BASE_URL "$langfuse_env_file")"
+langfuse_proxy_url="$(read_dotenv_value LANGFUSE_PROXY_URL "$langfuse_env_file")"
+if [[ -n "$langfuse_base_url" && -z "$langfuse_proxy_url" ]]; then
+  langfuse_no_proxy_host="${langfuse_base_url#*://}"
+  langfuse_no_proxy_host="${langfuse_no_proxy_host%%/*}"
+  langfuse_no_proxy_host="${langfuse_no_proxy_host##*@}"
+  if [[ -n "$langfuse_no_proxy_host" ]]; then
+    case ",$ANYTHINGLLM_NO_PROXY," in
+      *",$langfuse_no_proxy_host,"*) ;;
+      *) ANYTHINGLLM_NO_PROXY+=",$langfuse_no_proxy_host" ;;
+    esac
+  fi
+fi
 ANYTHINGLLM_UID="${ANYTHINGLLM_UID:-1000}"
 ANYTHINGLLM_GID="${ANYTHINGLLM_GID:-1000}"
 APP_REBUILD="${APP_REBUILD:-false}"
@@ -100,10 +158,107 @@ if ! docker info >/dev/null 2>&1; then
   exit 1
 fi
 
+docker_env_value() {
+  local container="$1"
+  local key="$2"
+  docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' \
+    "$container" | sed -n "s/^${key}=//p" | tail -n 1
+}
+
+urlencode() {
+  local input="$1"
+  local output=""
+  local character
+  local encoded
+  local index
+  for ((index = 0; index < ${#input}; index += 1)); do
+    character="${input:index:1}"
+    case "$character" in
+      [a-zA-Z0-9.~_-]) output+="$character" ;;
+      *)
+        printf -v encoded '%%%02X' "'$character"
+        output+="$encoded"
+        ;;
+    esac
+  done
+  printf '%s' "$output"
+}
+
+start_postgres() {
+  if ! docker network inspect "$POSTGRES_NETWORK_NAME" >/dev/null 2>&1; then
+    echo "Creating PostgreSQL network '$POSTGRES_NETWORK_NAME'..."
+    docker network create "$POSTGRES_NETWORK_NAME" >/dev/null
+  fi
+
+  if docker container inspect "$POSTGRES_CONTAINER_NAME" >/dev/null 2>&1; then
+    if [[ "$(docker inspect --format '{{.State.Running}}' "$POSTGRES_CONTAINER_NAME")" != "true" ]]; then
+      echo "Starting PostgreSQL container '$POSTGRES_CONTAINER_NAME'..."
+      docker start "$POSTGRES_CONTAINER_NAME" >/dev/null
+    else
+      echo "PostgreSQL container is already running."
+    fi
+  else
+    if [[ -z "$APP_POSTGRES_PASSWORD" ]]; then
+      APP_POSTGRES_PASSWORD="$(openssl rand -hex 24)"
+    fi
+    echo "Creating PostgreSQL container '$POSTGRES_CONTAINER_NAME'..."
+    docker run -d \
+      --name "$POSTGRES_CONTAINER_NAME" \
+      --restart unless-stopped \
+      --network "$POSTGRES_NETWORK_NAME" \
+      --publish "127.0.0.1:${POSTGRES_PORT}:5432" \
+      --env "POSTGRES_DB=$APP_POSTGRES_DB" \
+      --env "POSTGRES_USER=$APP_POSTGRES_USER" \
+      --env "POSTGRES_PASSWORD=$APP_POSTGRES_PASSWORD" \
+      --volume "$POSTGRES_VOLUME_NAME:/var/lib/postgresql/data" \
+      --health-cmd "pg_isready -U $APP_POSTGRES_USER -d $APP_POSTGRES_DB" \
+      --health-interval 5s \
+      --health-timeout 5s \
+      --health-retries 20 \
+      "$POSTGRES_IMAGE" >/dev/null
+  fi
+
+  for _attempt in {1..60}; do
+    if [[ "$(docker inspect --format '{{.State.Health.Status}}' "$POSTGRES_CONTAINER_NAME" 2>/dev/null)" == "healthy" ]]; then
+      break
+    fi
+    if (( _attempt == 60 )); then
+      echo "Error: PostgreSQL did not become healthy." >&2
+      docker logs --tail 100 "$POSTGRES_CONTAINER_NAME" >&2
+      exit 1
+    fi
+    sleep 0.5
+  done
+
+  APP_POSTGRES_DB="$(docker_env_value "$POSTGRES_CONTAINER_NAME" POSTGRES_DB)"
+  APP_POSTGRES_USER="$(docker_env_value "$POSTGRES_CONTAINER_NAME" POSTGRES_USER)"
+  APP_POSTGRES_PASSWORD="$(docker_env_value "$POSTGRES_CONTAINER_NAME" POSTGRES_PASSWORD)"
+  if [[ -z "$APP_POSTGRES_DB" || -z "$APP_POSTGRES_USER" || -z "$APP_POSTGRES_PASSWORD" ]]; then
+    echo "Error: PostgreSQL container credentials are incomplete." >&2
+    exit 1
+  fi
+  APP_DATABASE_URL="postgresql://$(urlencode "$APP_POSTGRES_USER"):$(urlencode "$APP_POSTGRES_PASSWORD")@$POSTGRES_CONTAINER_NAME:5432/$(urlencode "$APP_POSTGRES_DB")"
+}
+
 if [[ ! "$HOST_PORT" =~ ^[0-9]+$ ]] || ((HOST_PORT < 1 || HOST_PORT > 65535)); then
   echo "Error: HOST_PORT must be an integer between 1 and 65535." >&2
   exit 1
 fi
+
+if [[ ! "$POSTGRES_PORT" =~ ^[0-9]+$ ]] || \
+  ((POSTGRES_PORT < 1 || POSTGRES_PORT > 65535)); then
+  echo "Error: POSTGRES_PORT must be an integer between 1 and 65535." >&2
+  exit 1
+fi
+
+case "$APP_DATABASE_PROVIDER" in
+  postgres | postgresql) APP_DATABASE_PROVIDER="postgresql" ;;
+  sqlite) ;;
+  *)
+    echo "Error: DATABASE_PROVIDER must be 'postgresql' or 'sqlite'." >&2
+    exit 1
+    ;;
+esac
 
 if [[ ! "$PROMPTFOO_PORT" =~ ^[0-9]+$ ]] || \
   ((PROMPTFOO_PORT < 1 || PROMPTFOO_PORT > 65535)); then
@@ -174,6 +329,25 @@ if ((EUID == 0)); then
     "$STORAGE_LOCATION/agent-skills" \
     "$STORAGE_LOCATION/agent-skills/global"
   chown "$PROMPTFOO_UID:$PROMPTFOO_GID" "$STORAGE_LOCATION/promptfoo"
+fi
+
+DATABASE_ARGS=()
+APP_NETWORK_ARGS=()
+if [[ "$APP_DATABASE_PROVIDER" == "postgresql" ]]; then
+  if [[ -z "$APP_DATABASE_URL" ]]; then
+    start_postgres
+    APP_NETWORK_ARGS=(--network "$POSTGRES_NETWORK_NAME")
+  fi
+  DATABASE_ARGS=(
+    --env DATABASE_PROVIDER=postgresql
+    --env "DATABASE_URL=$APP_DATABASE_URL"
+    --env LANGGRAPH_CHECKPOINT_BACKEND=postgresql
+  )
+else
+  DATABASE_ARGS=(
+    --env DATABASE_PROVIDER=sqlite
+    --env LANGGRAPH_CHECKPOINT_BACKEND=sqlite
+  )
 fi
 
 start_sandbox_broker() {
@@ -312,6 +486,20 @@ if [[ "${AGENT_CONFIG_SYNC_ENABLED:-false}" == "true" ]]; then
   )
 fi
 
+if docker container inspect "$CONTAINER_NAME" >/dev/null 2>&1; then
+  current_database_provider="$(
+    docker_env_value "$CONTAINER_NAME" DATABASE_PROVIDER
+  )"
+  current_database_provider="${current_database_provider:-sqlite}"
+  if [[ "$current_database_provider" == "postgres" ]]; then
+    current_database_provider="postgresql"
+  fi
+  if [[ "$current_database_provider" != "$APP_DATABASE_PROVIDER" ]]; then
+    echo "Replacing AnythingLLM container to use $APP_DATABASE_PROVIDER..."
+    docker rm --force "$CONTAINER_NAME" >/dev/null
+  fi
+fi
+
 if [[ "$APP_RECREATE" == "true" ]] && \
   docker container inspect "$CONTAINER_NAME" >/dev/null 2>&1; then
   echo "Replacing AnythingLLM container '$CONTAINER_NAME'..."
@@ -330,6 +518,7 @@ else
   docker run -d \
     --name "$CONTAINER_NAME" \
     --restart unless-stopped \
+    "${APP_NETWORK_ARGS[@]}" \
     --publish "${HOST_PORT}:3001" \
     --cap-add SYS_ADMIN \
     --add-host host.docker.internal:host-gateway \
@@ -342,6 +531,7 @@ else
     --env "AGENT_MAX_CONCURRENCY=$AGENT_MAX_CONCURRENCY" \
     --env "NO_PROXY=$ANYTHINGLLM_NO_PROXY" \
     --env "no_proxy=$ANYTHINGLLM_NO_PROXY" \
+    "${DATABASE_ARGS[@]}" \
     "${PROXY_ARGS[@]}" \
     "$ANYTHINGLLM_IMAGE" >/dev/null
 fi
@@ -442,5 +632,10 @@ if [[ "$PROMPTFOO_ENABLED" == "true" ]]; then
 fi
 
 echo "AnythingLLM: http://localhost:${HOST_PORT}"
+if [[ "$APP_DATABASE_PROVIDER" == "postgresql" ]]; then
+  echo "Database:    PostgreSQL ($POSTGRES_CONTAINER_NAME)"
+else
+  echo "Database:    SQLite (deprecated)"
+fi
 echo "Storage:     $STORAGE_LOCATION"
 echo "Logs:        docker logs -f $CONTAINER_NAME"
