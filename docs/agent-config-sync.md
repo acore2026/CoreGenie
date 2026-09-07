@@ -78,8 +78,22 @@ mapping commit together. One process serializes web configuration saves and sync
 operations; unsupported direct SQL writes are detected by the periodic comparison
 but do not participate in that lock.
 
-Built-in seed updates are bypassed while synchronization is enabled. Initial
-production configuration should be exported before enabling on an empty database.
+`agent-config/` is the single maintained source for shared definitions. The old
+`server/agent-skills/examples/` packages and embedded Agent seed prompts have been
+removed. Docker bundles the same directory at `/app/agent-config`; the writable
+repository mount takes its place when synchronization is enabled.
+
+Without synchronization, initialization reads these files once per
+`agent_config_seed_v1` version in `server/agent-skills/seed.js`. It imports all
+bundled Skills and Agents, resolves portable Skill bindings and legacy names, and
+keeps existing IDs, icons and the installation's default Agent selection. Existing
+global prompts are preserved. Later web edits survive restarts; bump the seed
+version when intentionally updating bundled definitions for non-sync installs.
+Skill/Agent imports and the version marker share one database transaction.
+
+Built-in seed updates are bypassed while synchronization is enabled. Historical
+database migrations remain unchanged; they are not editable configuration sources.
+Runtime database records and revision storage still exist outside the repository.
 New runs pin assigned global Skill revisions; recovery loads those revisions
 instead of the current edited package. Workspace-private Skills retain their
 existing revision-change behavior.

@@ -11,9 +11,9 @@ from openpyxl import Workbook
 
 
 SCRIPT = (
-    Path(__file__).parents[2]
-    / "agent-skills"
-    / "examples"
+    Path(__file__).resolve().parents[3]
+    / "agent-config"
+    / "skills"
     / "3gpp-review"
     / "scripts"
     / "3gpp_tdocs.py"

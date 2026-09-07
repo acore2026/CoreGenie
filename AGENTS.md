@@ -10,7 +10,8 @@
 - `server/`：Node.js 服务端、Prisma 数据层、Agent 运行时和 Jest 测试。
 - `collector/`：文档采集与解析服务。
 - `server/agent-system/`：Agent 调度和运行逻辑。
-- `server/agent-skills/`：内置 Skill、种子数据、脚本和参考资料。
+- `agent-config/`：全局提示词、Agent 定义和 Skill 包的唯一配置来源。
+- `server/agent-skills/`：Skill 加载、版本管理和初始化逻辑，不放配置副本。
 - `.interface-design/system.md`：现有界面设计规范。
 
 ## 开发原则
@@ -20,6 +21,7 @@
 - 不要编辑 `node_modules/`、`frontend/dist/`、数据库文件或临时测试产物。
 - 搜索文件和文本优先使用 `rg`、`rg --files`。
 - 修改种子 Agent 的名称、描述、提示词或绑定关系时，更新种子版本，并同步修改对应测试。
+- 提示词和 Skill 内容只改 `agent-config/`。不要在服务端代码中另存副本；未启用同步的安装使用 `server/agent-skills/seed.js` 中的统一种子版本。
 
 ## 语言与文案
 

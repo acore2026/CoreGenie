@@ -213,6 +213,7 @@ RUN sed -i \
 # Source-only layers come after all dependency layers.
 COPY --chown=anythingllm:anythingllm ./server/ /app/server/
 COPY --chown=anythingllm:anythingllm ./collector/ /app/collector/
+COPY --chown=anythingllm:anythingllm ./agent-config/ /app/agent-config/
 
 WORKDIR /app
 USER anythingllm

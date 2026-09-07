@@ -203,10 +203,11 @@ yarn dev:frontend
 
 ```text
 CoreGenie/
+├── agent-config/             全局提示词、Agent 定义和 Skill 包（唯一配置来源）
 ├── frontend/                 React + Vite 前端
 ├── server/                   Node.js 服务端与 Prisma 数据层
 │   ├── agent-system/         Agent 规划、任务图、执行与恢复
-│   └── agent-skills/         内置 Skill、脚本、参考资料和种子 Agent
+│   └── agent-skills/         Skill 加载、版本管理和初始化逻辑
 ├── collector/                文档采集、解析与格式转换
 ├── sandbox/                  隔离执行环境与 Broker
 ├── docker/                   Docker 镜像和 Compose 配置

@@ -2,11 +2,11 @@
 const path = require("path");
 const { loadPackage } = require("../../agent-skills/package");
 
-describe("3gpp-review-direct example Skill", () => {
+describe("3gpp-review-direct repository Skill", () => {
   it("keeps the original helper in a valid single-context package", async () => {
     const root = path.join(
       __dirname,
-      "../../agent-skills/examples/3gpp-review-direct"
+      "../../../agent-config/skills/3gpp-review-direct"
     );
     const pkg = await loadPackage(root, {
       directoryName: "3gpp-review-direct",

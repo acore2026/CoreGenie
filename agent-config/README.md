@@ -4,6 +4,12 @@ This directory contains the shared production Prompt, 9 Agent definitions and
 7 Skill packages exported on 2026-09-07. It can be edited by Codex and synchronized
 with the web admin editors when repository sync is enabled.
 
+This is the only maintained source of shared Prompt, Agent and Skill definitions
+in the repository. Server initialization and package tests read these same files;
+there are no separate seed templates. Docker bundles this directory at
+`/app/agent-config`, and the live repository mount replaces that bundle when sync
+is enabled.
+
 - Edit `global-prompt.md` for installation-wide instructions.
 - Edit `agents/*.yaml` for prompts, runtime settings, tools and Skill bindings.
 - Edit `skills/*/SKILL.md` and companion files for reusable Skills.

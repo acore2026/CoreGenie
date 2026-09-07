@@ -2,11 +2,11 @@
 const path = require("path");
 const { loadPackage } = require("../../agent-skills/package");
 
-describe("3gpp-position-evolution example Skill", () => {
+describe("3gpp-position-evolution repository Skill", () => {
   it("is a valid, self-contained package with deterministic helpers", async () => {
     const root = path.join(
       __dirname,
-      "../../agent-skills/examples/3gpp-position-evolution"
+      "../../../agent-config/skills/3gpp-position-evolution"
     );
     const pkg = await loadPackage(root, {
       directoryName: "3gpp-position-evolution",

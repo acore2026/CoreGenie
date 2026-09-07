@@ -5,9 +5,9 @@ from pathlib import Path
 
 
 SCRIPT = (
-    Path(__file__).parents[2]
-    / "agent-skills"
-    / "examples"
+    Path(__file__).resolve().parents[3]
+    / "agent-config"
+    / "skills"
     / "3gpp-position-evolution"
     / "scripts"
     / "3gpp_evolution.py"

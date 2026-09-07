@@ -8,7 +8,14 @@ from pathlib import Path
 from unittest.mock import patch
 
 
-SCRIPT = Path(__file__).parents[1] / "scripts" / "3gpp_tdocs.py"
+SCRIPT = (
+    Path(__file__).resolve().parents[3]
+    / "agent-config"
+    / "skills"
+    / "3gpp-review"
+    / "scripts"
+    / "3gpp_tdocs.py"
+)
 SPEC = importlib.util.spec_from_file_location("threegpp_tdocs", SCRIPT)
 MODULE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
