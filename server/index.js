@@ -120,6 +120,8 @@ workspaceFileEndpoints(apiRouter);
 predefinedAgentEndpoints(apiRouter);
 workspaceSkillEndpoints(apiRouter);
 agentFeedbackEndpoints(apiRouter);
+require("./endpoints/configSync").configSyncEndpoints(apiRouter);
+require("./config-sync").start();
 require("./agent-system/feedbackSync").startAgentFeedbackSync();
 require("./agent-system/supervisor")
   .agentRunSupervisor.start()

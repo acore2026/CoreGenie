@@ -1,5 +1,30 @@
 // Anything with "null" requires a translation. Contribute to translation via a PR!
 const TRANSLATIONS = {
+  config_sync: {
+    title: "仓库配置同步",
+    loading: "正在读取同步状态…",
+    disabled: "未启用",
+    synced: "已同步",
+    error: "同步出错",
+    issue_count: "{{count}} 项需要处理",
+    description:
+      "网页保存后自动写入仓库；每两秒检查文件修改，校验通过后用于新任务。",
+    setup:
+      "由部署管理员设置 AGENT_CONFIG_SYNC_ENABLED=true 和 AGENT_CONFIG_SYNC_DIR，并挂载可写的配置目录。",
+    request_error: "无法读取同步状态，请稍后重试。",
+    retry: "立即同步",
+    working: "正在处理…",
+    conflict: "文件和数据库都已修改，请比较后选择要保留的版本。",
+    compare: "比较版本",
+    close: "收起比较",
+    choose_hint:
+      "选择的版本将覆盖另一侧。若内容已再次变化，请刷新比较后重新选择。",
+    file: "文件版本",
+    database: "数据库版本",
+    use_file: "使用文件版本",
+    use_database: "使用数据库版本",
+    missing: "此版本不存在或内容为空。",
+  },
   onboarding: {
     home: {
       getStarted: "开始",

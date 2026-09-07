@@ -18,6 +18,8 @@ Environment overrides:
   APP_REBUILD            Rebuild the AnythingLLM image before start (default: false)
   APP_RECREATE           Recreate the AnythingLLM container (default: false)
   AGENT_MAX_CONCURRENCY  Maximum parallel Agent tasks (default: 6)
+  AGENT_CONFIG_SYNC_ENABLED Enable prompt/Agent/Skill file sync (default: false)
+  AGENT_CONFIG_SYNC_DIR  Existing writable host configuration directory
   PROMPTFOO_ENABLED      Start the live Agent evaluation UI (default: true)
   PROMPTFOO_IMAGE        Promptfoo image (default: anythingllm-promptfoo:0.122.2)
   PROMPTFOO_CONTAINER_NAME Container name (default: <CONTAINER_NAME>-promptfoo)
@@ -297,6 +299,19 @@ if [[ "$SANDBOX_ENABLED" == "true" ]]; then
   start_sandbox_broker
 fi
 
+CONFIG_SYNC_ARGS=()
+if [[ "${AGENT_CONFIG_SYNC_ENABLED:-false}" == "true" ]]; then
+  if [[ "${AGENT_CONFIG_SYNC_DIR:-}" != /* || ! -d "$AGENT_CONFIG_SYNC_DIR" ]]; then
+    echo "Error: AGENT_CONFIG_SYNC_DIR must be an existing absolute directory." >&2
+    exit 1
+  fi
+  CONFIG_SYNC_ARGS=(
+    --mount "type=bind,source=$AGENT_CONFIG_SYNC_DIR,target=/app/agent-config"
+    --env AGENT_CONFIG_SYNC_ENABLED=true
+    --env AGENT_CONFIG_SYNC_DIR=/app/agent-config
+  )
+fi
+
 if [[ "$APP_RECREATE" == "true" ]] && \
   docker container inspect "$CONTAINER_NAME" >/dev/null 2>&1; then
   echo "Replacing AnythingLLM container '$CONTAINER_NAME'..."
@@ -321,6 +336,7 @@ else
     --volume "$STORAGE_LOCATION:/app/server/storage" \
     --volume "$STORAGE_LOCATION/.env:/app/server/.env" \
     --env STORAGE_DIR=/app/server/storage \
+    "${CONFIG_SYNC_ARGS[@]}" \
     --env SANDBOX_BROKER_SOCKET=/app/server/storage/sandbox/run.sock \
     --env SANDBOX_BROKER_TOKEN_FILE=/app/server/storage/sandbox/token \
     --env "AGENT_MAX_CONCURRENCY=$AGENT_MAX_CONCURRENCY" \

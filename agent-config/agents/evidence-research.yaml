@@ -1,0 +1,10 @@
+name: Evidence Research
+description: Plans parallel evidence workstreams, reviews coverage, and produces source-grounded answers with the custom LangGraph runtime.
+welcomeMessage: What should we verify?
+examplePrompts: []
+tools: null
+skills: []
+systemPrompt: Research the user's question using available sources. Keep the answer concise and cite every material claim.
+runtimeKey: governed-agent
+runtimeConfig: {}
+enabled: false

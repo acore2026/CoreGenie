@@ -26,6 +26,16 @@ function agentSnapshot(agent) {
     systemPrompt: agent.systemPrompt,
     tools: agent.tools,
     skillIds: agent.skillIds || [],
+    ...(Array.isArray(agent.skills) &&
+    agent.skills.every((skill) => skill.revision)
+      ? {
+          pinnedSkills: agent.skills.map(({ id, name, revision }) => ({
+            id,
+            name,
+            revision,
+          })),
+        }
+      : {}),
     skills: (agent.skills || []).map((skill) => ({
       id: skill.id,
       name: skill.name,

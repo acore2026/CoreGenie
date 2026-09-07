@@ -1272,4 +1272,10 @@ function mergeConnections(existingConnections = [], updates = []) {
   return Array.from(connectionsMap.values());
 }
 
+require("../config-sync").synchronizeWrites(
+  SystemSettings,
+  ["_updateSettings"],
+  (updates = {}) =>
+    Object.prototype.hasOwnProperty.call(updates, "global_system_prompt")
+);
 module.exports.SystemSettings = SystemSettings;

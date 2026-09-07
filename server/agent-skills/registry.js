@@ -28,9 +28,7 @@ async function availableSkills(
   workspace,
   { includeInvalid = false } = {}
 ) {
-  const globalSkills = await PredefinedAgentSkill.whereIds(
-    agent?.skillIds || []
-  );
+  const globalSkills = await assignedSkills(agent);
   const globals = globalSkills.map((skill) => descriptor(skill, "global"));
   const globalNames = new Set(globals.map((skill) => skill.name));
   const workspacePackages = workspace?.id
@@ -53,7 +51,7 @@ async function availableSkills(
 
 async function resolveAvailableSkill(agent, workspace, name) {
   const normalized = String(name || "").trim();
-  const assigned = await PredefinedAgentSkill.whereIds(agent?.skillIds || []);
+  const assigned = await assignedSkills(agent);
   const global = assigned.find((skill) => skill.name === normalized);
   if (global) return descriptor(global, "global");
   const allGlobals = await PredefinedAgentSkill.all();
@@ -70,7 +68,9 @@ async function resolveActivatedSkillSnapshot(snapshot, workspace) {
   if (!snapshot?.name || !snapshot?.scope) return null;
   if (snapshot.scope === "global") {
     const skill = snapshot.id
-      ? await PredefinedAgentSkill.get(snapshot.id)
+      ? snapshot.revision
+        ? await PredefinedAgentSkill.getRevision(snapshot.id, snapshot.revision)
+        : await PredefinedAgentSkill.get(snapshot.id)
       : (await PredefinedAgentSkill.all()).find(
           (candidate) => candidate.name === snapshot.name
         );
@@ -80,6 +80,22 @@ async function resolveActivatedSkillSnapshot(snapshot, workspace) {
   if (snapshot.scope !== "workspace" || !workspace?.id) return null;
   const skill = await resolveWorkspacePackage(workspace.id, snapshot.name);
   return skill?.valid ? descriptor(skill, "workspace") : null;
+}
+
+async function assignedSkills(agent) {
+  if (!agent?.pinnedSkills)
+    return PredefinedAgentSkill.whereIds(agent?.skillIds || []);
+  return Promise.all(
+    agent.pinnedSkills.map(async (snapshot) => {
+      const skill = await PredefinedAgentSkill.getRevision(
+        snapshot.id,
+        snapshot.revision
+      );
+      if (!skill)
+        throw new Error(`Skill revision unavailable: ${snapshot.name}`);
+      return skill;
+    })
+  );
 }
 
 function allowedToolIds(skill) {

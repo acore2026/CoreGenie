@@ -116,6 +116,30 @@ async function hydrate(record, { editor = false } = {}) {
 }
 
 const PredefinedAgentSkill = {
+  getRevision: async function (id, sha256) {
+    if (!/^[a-f0-9]{64}$/.test(String(sha256))) return null;
+    const revision = await revisionRecord(id, sha256);
+    if (!revision) return null;
+    const root = globalRevisionRoot(id, sha256);
+    const pkg = await loadPackage(root);
+    if (!pkg.valid || pkg.sha256 !== sha256)
+      throw new Error("Skill revision is missing or has been modified.");
+    return {
+      id: Number(id),
+      name: pkg.manifest.name,
+      description: pkg.manifest.description,
+      scope: "global",
+      revision: sha256,
+      skillMd: pkg.source,
+      manifest: pkg.manifest,
+      instructions: pkg.body,
+      files: pkg.files,
+      warnings: pkg.warnings,
+      errors: pkg.errors,
+      valid: pkg.valid,
+      root,
+    };
+  },
   all: async function ({ editor = false, includeArchived = false } = {}) {
     try {
       const records = await prisma.predefined_agent_skills.findMany({
@@ -308,5 +332,11 @@ const PredefinedAgentSkill = {
     }
   },
 };
+
+require("../config-sync").synchronizeWrites(PredefinedAgentSkill, [
+  "createPackage",
+  "updatePackage",
+  "delete",
+]);
 
 module.exports = { PredefinedAgentSkill, normalizedLegacyName };

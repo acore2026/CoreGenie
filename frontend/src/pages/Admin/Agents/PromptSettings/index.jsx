@@ -5,6 +5,7 @@ import { GlobeHemisphereWest, Robot, UserCircle } from "@phosphor-icons/react";
 import Sidebar from "@/components/SettingsSidebar";
 import Admin from "@/models/admin";
 import showToast from "@/utils/toast";
+import ConfigSyncPanel from "../ConfigSyncPanel";
 
 const MAX_PROMPT_LENGTH = 40_000;
 
@@ -72,6 +73,19 @@ export default function AgentPromptSettings() {
             </div>
           </header>
 
+          <div className="mx-auto w-full max-w-5xl">
+            <ConfigSyncPanel
+              onResolved={async () => {
+                if (prompt !== savedPrompt) return;
+                const result = await Admin.systemPreferencesByFields([
+                  "global_system_prompt",
+                ]);
+                const value = result?.settings?.global_system_prompt || "";
+                setPrompt(value);
+                setSavedPrompt(value);
+              }}
+            />
+          </div>
           <div className="mx-auto mt-6 grid w-full max-w-5xl gap-5 lg:grid-cols-[minmax(0,1fr)_280px]">
             <section className="rounded-2xl border border-white/[0.08] bg-white/[0.025] p-5 light:border-slate-200 light:bg-white">
               <div className="flex items-center justify-between gap-4">

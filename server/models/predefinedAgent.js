@@ -108,6 +108,9 @@ const PredefinedAgent = {
     try {
       const agent = await this.get(id);
       if (!agent || agent.isBuiltinDefault) return false;
+      if (require("../config-sync").enabled()) {
+        return !!(await this.update(id, { enabled: false }));
+      }
       await prisma.predefined_agents.delete({ where: { id: Number(id) } });
       return true;
     } catch (error) {
@@ -137,5 +140,11 @@ const PredefinedAgent = {
     return success;
   },
 };
+
+require("../config-sync").synchronizeWrites(PredefinedAgent, [
+  "create",
+  "update",
+  "delete",
+]);
 
 module.exports = { PredefinedAgent, normalizeAgent };

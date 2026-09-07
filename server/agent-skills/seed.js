@@ -246,6 +246,8 @@ async function seed3gppReview() {
 }
 
 async function seedBuiltinSkills() {
+  // Configuration files and the database are reconciled by config-sync when enabled.
+  if (require("../config-sync").enabled()) return;
   if (process.env.NODE_ENV === "test") return;
   if (!seedPromise) {
     seedPromise = (async () => {

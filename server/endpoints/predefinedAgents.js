@@ -338,7 +338,7 @@ function predefinedAgentEndpoints(app) {
           error:
             "Choose another global default Agent before deleting this one.",
         });
-      if (agent.iconFilename) {
+      if (agent.iconFilename && !require("../config-sync").enabled()) {
         const target = iconPath(agent.iconFilename);
         if (target && fs.existsSync(target)) fs.unlinkSync(target);
       }

@@ -1,0 +1,13 @@
+name: 通用助手
+description: 通用助手
+welcomeMessage: null
+examplePrompts: []
+tools: null
+skills:
+  - 3gpp-lookup
+systemPrompt: You are a helpful AI assistant. Follow the user's instructions carefully, use available tools when useful, and provide clear, accurate answers.
+runtimeKey: governed-agent
+runtimeConfig:
+  attachmentMode: parsed
+  requiredCompletionTools: []
+enabled: false

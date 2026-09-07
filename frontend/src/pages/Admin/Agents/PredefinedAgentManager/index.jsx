@@ -21,6 +21,7 @@ import showToast from "@/utils/toast";
 import System from "@/models/system";
 import useGetProviderModels from "@/hooks/useGetProvidersModels";
 import Workspace from "@/models/workspace";
+import ConfigSyncPanel from "../ConfigSyncPanel";
 
 export default function PredefinedAgentManager({ view = "agents" }) {
   const [data, setData] = useState({
@@ -160,6 +161,7 @@ export default function PredefinedAgentManager({ view = "agents" }) {
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
+        <ConfigSyncPanel onResolved={refresh} />
         {!showingSkills && (
           <section className="p-5">
             <div className="mb-4 flex items-center justify-between">
