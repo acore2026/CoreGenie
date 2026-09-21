@@ -35,6 +35,9 @@ describe("single-source repository seeds", () => {
       'CREATE TABLE agent_skill_revisions (id TEXT PRIMARY KEY, skillId INTEGER NOT NULL, sha256 TEXT NOT NULL, manifest TEXT NOT NULL, fileManifest TEXT NOT NULL DEFAULT "[]", packagePath TEXT NOT NULL, createdBy INTEGER, createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE(skillId, sha256))',
     ])
       await mockPrisma.$executeRawUnsafe(sql);
+    await mockPrisma.$executeRawUnsafe(
+      "ALTER TABLE predefined_agents ADD COLUMN wizard TEXT"
+    );
   });
   afterEach(async () => {
     jest.restoreAllMocks();
@@ -48,7 +51,7 @@ describe("single-source repository seeds", () => {
   });
 
   it("seeds exactly the canonical prompts, settings, bindings and complete packages", async () => {
-    expect(SEED_SETTING).toBe("agent_config_seed_v1");
+    expect(SEED_SETTING).toBe("agent_config_seed_v6");
     await seedRepositoryConfig();
     expect(await mockPrisma.predefined_agents.count()).toBe(9);
     expect(await mockPrisma.predefined_agent_skills.count()).toBe(7);

@@ -84,7 +84,7 @@ removed. Docker bundles the same directory at `/app/agent-config`; the writable
 repository mount takes its place when synchronization is enabled.
 
 Without synchronization, initialization reads these files once per
-`agent_config_seed_v1` version in `server/agent-skills/seed.js`. It imports all
+`agent_config_seed_v6` version in `server/agent-skills/seed.js`. It imports all
 bundled Skills and Agents, resolves portable Skill bindings and legacy names, and
 keeps existing IDs, icons and the installation's default Agent selection. Existing
 global prompts are preserved. Later web edits survive restarts; bump the seed

@@ -13,6 +13,7 @@ function normalizeAgent(agent) {
     ...agent,
     tools: agent.tools === null ? null : safeJsonParse(agent.tools, []),
     examplePrompts: safeJsonParse(agent.examplePrompts, []),
+    wizard: safeJsonParse(agent.wizard, null),
     runtimeKey: agent.runtimeKey || DEFAULT_RUNTIME_KEY,
     runtimeConfig: safeJsonParse(agent.runtimeConfig, {}),
     skillIds,
@@ -66,6 +67,7 @@ const PredefinedAgent = {
           description: data.description || "",
           welcomeMessage: data.welcomeMessage || null,
           examplePrompts: JSON.stringify(data.examplePrompts || []),
+          wizard: data.wizard == null ? null : JSON.stringify(data.wizard),
           tools: data.tools === null ? null : JSON.stringify(data.tools || []),
           skillIds: JSON.stringify(data.skillIds || []),
           systemPrompt: data.systemPrompt,
@@ -84,6 +86,9 @@ const PredefinedAgent = {
   update: async function (id, data = {}) {
     try {
       const updates = { ...data, lastUpdatedAt: new Date() };
+      if (Object.prototype.hasOwnProperty.call(updates, "wizard"))
+        updates.wizard =
+          updates.wizard == null ? null : JSON.stringify(updates.wizard);
       if (Object.prototype.hasOwnProperty.call(updates, "tools"))
         updates.tools =
           updates.tools === null ? null : JSON.stringify(updates.tools || []);

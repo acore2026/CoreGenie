@@ -12,6 +12,9 @@ is enabled.
 
 - Edit `global-prompt.md` for installation-wide instructions.
 - Edit `agents/*.yaml` for prompts, runtime settings, tools and Skill bindings.
+- Add an optional `wizard` to an Agent for a branching task form. See
+  [任务向导配置](../docs/agent-wizard.md); the generated prompt is added to a
+  user-editable chat draft, never sent automatically.
 - Edit `skills/*/SKILL.md` and companion files for reusable Skills.
 - Keep filenames and directory keys stable. `skills` in Agent YAML references
   Skill directory keys, not database IDs.

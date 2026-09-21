@@ -34,6 +34,9 @@ describe("configuration sync with an isolated database", () => {
       'CREATE TABLE agent_skill_revisions (id TEXT PRIMARY KEY, skillId INTEGER NOT NULL, sha256 TEXT NOT NULL, manifest TEXT NOT NULL, fileManifest TEXT NOT NULL DEFAULT "[]", packagePath TEXT NOT NULL, createdBy INTEGER, createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE(skillId, sha256))',
     ])
       await mockPrisma.$executeRawUnsafe(sql);
+    await mockPrisma.$executeRawUnsafe(
+      "ALTER TABLE predefined_agents ADD COLUMN wizard TEXT"
+    );
     database = new ConfigDatabase(mockPrisma, saveState);
     files = new ConfigFiles(path.join(root, "config"));
     sync = new Synchronizer({

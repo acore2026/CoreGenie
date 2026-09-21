@@ -1,6 +1,80 @@
 name: 3GPP 提案分析助手
 description: 按 3GPP 会议和 KI 查找、下载、解析和比较 TDoc，生成中文分析报告，并列出所用 TDoc。
 welcomeMessage: 请告诉我工作组、会议号、KI/议程项，或直接给出需要比较的 TDoc 编号。
+wizard:
+  version: 1
+  title: 配置提案分析任务
+  instructions: 请根据以下要求分析 3GPP 提案，生成中文 Markdown 报告，列出所用 TDoc 和会议材料。区分公司提案与会议已通过的结论；资料缺失时明确说明，不要猜测。
+  fields:
+    - id: scope
+      type: single
+      label: 资料范围
+      required: true
+      options:
+        - { value: tdocs, label: 已知 TDoc 编号 }
+        - { value: meeting, label: 按会议和议题查找 }
+    - id: tdocs
+      type: textarea
+      label: TDoc 编号
+      required: true
+      placeholder: 填写需要分析或比较的 TDoc 编号
+      when:
+        - { field: scope, values: [tdocs] }
+    - id: group
+      type: single
+      label: 工作组
+      required: true
+      options:
+        - { value: sa2, label: SA2 }
+        - { value: sa1, label: SA1 }
+        - { value: sa3, label: SA3 }
+        - { value: ran, label: RAN }
+        - { value: other, label: 其他工作组 }
+      when:
+        - { field: scope, values: [meeting] }
+    - id: other_group
+      type: text
+      label: 工作组名称
+      required: true
+      when:
+        - { field: group, values: [other] }
+    - id: meeting
+      type: text
+      label: 会议号或时间范围
+      required: true
+      placeholder: 填写会议编号，或起止日期
+      when:
+        - { field: scope, values: [meeting] }
+    - id: topic
+      type: text
+      label: KI、议程项或技术主题
+      required: true
+      when:
+        - { field: scope, values: [meeting] }
+    - id: companies
+      type: text
+      label: 关注的公司
+      hint: 可留空；留空表示不按公司筛选。
+    - id: focus
+      type: multi
+      label: 分析重点
+      required: true
+      options:
+        - { value: solution, label: 方案与技术路线对比 }
+        - { value: flow, label: 网络功能、接口与信令流程 }
+        - { value: positions, label: 公司立场与分歧 }
+        - { value: decisions, label: 会议结果与未决问题 }
+    - id: detail
+      type: single
+      label: 报告详细程度
+      required: true
+      options:
+        - { value: overview, label: 重点结论与对比表 }
+        - { value: detailed, label: 逐篇分析并汇总比较 }
+    - id: notes
+      type: textarea
+      label: 补充要求
+      placeholder: 需要重点回答的问题，或需要排除的范围
 examplePrompts:
   - 分析 SA2#175 KI#22 中 S2-2606085、S2-2606481、S2-2605964、S2-2605867、S2-2606356，并比较公司技术路线。
   - 查找 SA2#175 KI#22 中华为相关提案，总结 Solution/Variant、关键流程和未决问题。

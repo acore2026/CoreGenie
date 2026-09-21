@@ -27,6 +27,8 @@ import WorkspaceModelPicker from "../WorkspaceModelPicker";
 import { useSearchParams } from "react-router-dom";
 import { useIsAgentSessionActive } from "@/utils/chat/agent";
 import AgentSwitcher from "@/components/PredefinedAgents/AgentSwitcher";
+import AgentWizard from "@/components/PredefinedAgents/AgentWizard";
+import usePredefinedAgent from "@/hooks/usePredefinedAgent";
 import useUser from "@/hooks/useUser";
 
 export const PROMPT_INPUT_ID = "primary-prompt-input";
@@ -401,6 +403,22 @@ function PromptInput({
               />
             )}
             <div className="bg-theme-bg-chat-input border border-theme-chat-input-border rounded-[20px] pwa:rounded-3xl flex flex-col px-5 overflow-visible">
+              {selectedAgent?.wizard && (
+                <div className="flex justify-start pt-2">
+                  <AgentWizard
+                    key={`${selectedAgent.id}:${workspaceSlug}:${threadSlug}`}
+                    agent={selectedAgent}
+                    disabled={isDisabled || isStreaming || agentSessionActive}
+                    onUse={(prompt) =>
+                      selectExamplePrompt(
+                        promptInput.trim()
+                          ? `${promptInput}\n\n${prompt}`
+                          : prompt
+                      )
+                    }
+                  />
+                </div>
+              )}
               <AttachmentManager attachments={attachments} />
               <div className="flex items-center">
                 <textarea

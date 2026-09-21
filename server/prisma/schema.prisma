@@ -513,6 +513,7 @@ model predefined_agents {
   description      String   @default("")
   welcomeMessage   String?
   examplePrompts   String   @default("[]") // JSON array of example inputs shown above the chat composer.
+  wizard          String?  // Optional declarative task form, JSON.
   tools            String? // JSON array of executable tool identifiers. Null means all currently enabled tools.
   skillIds         String   @default("[]") // JSON array of predefined_agent_skills IDs.
   systemPrompt     String

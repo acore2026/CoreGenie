@@ -96,7 +96,9 @@ function validateAgentPayload(body) {
   const runtimeKey =
     cleanText(body.runtimeKey, MAX_NAME) || DEFAULT_RUNTIME_KEY;
   let runtimeConfig;
+  let wizard;
   try {
+    wizard = require("../utils/agentWizard").validateWizard(body.wizard);
     runtimeConfig = normalizeRuntimeConfig(runtimeKey, body.runtimeConfig);
   } catch (error) {
     return { error: error.message };
@@ -107,6 +109,9 @@ function validateAgentPayload(body) {
       description: cleanText(body.description, MAX_DESCRIPTION),
       welcomeMessage: cleanText(body.welcomeMessage, MAX_WELCOME) || null,
       examplePrompts: cleanExamplePrompts(body.examplePrompts),
+      ...(Object.prototype.hasOwnProperty.call(body, "wizard")
+        ? { wizard }
+        : {}),
       tools: body.tools === null ? null : uniqueStrings(body.tools),
       skillIds: uniqueIntegers(body.skillIds),
       systemPrompt,
@@ -210,6 +215,7 @@ function predefinedAgentEndpoints(app) {
             description,
             welcomeMessage,
             examplePrompts,
+            wizard,
             iconUrl,
             enabled,
             isBuiltinDefault,
@@ -221,6 +227,7 @@ function predefinedAgentEndpoints(app) {
             description,
             welcomeMessage,
             examplePrompts,
+            wizard,
             iconUrl,
             enabled,
             isBuiltinDefault,

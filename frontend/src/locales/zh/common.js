@@ -1,5 +1,16 @@
 // Anything with "null" requires a translation. Contribute to translation via a PR!
 const TRANSLATIONS = {
+  agent_wizard: {
+    open: "任务向导",
+    hint: "填写任务要求，生成后可以修改，确认后再发送。",
+    close: "关闭",
+    required: "必填",
+    missing: "请填写或选择这一项。",
+    preview: "检查并修改提示词",
+    back: "返回修改",
+    generate: "生成提示词",
+    use: "添加到聊天草稿",
+  },
   config_sync: {
     title: "仓库配置同步",
     loading: "正在读取同步状态…",

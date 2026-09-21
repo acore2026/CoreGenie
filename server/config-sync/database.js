@@ -13,6 +13,7 @@ const AGENT_FIELDS = [
   "description",
   "welcomeMessage",
   "examplePrompts",
+  "wizard",
   "tools",
   "skills",
   "systemPrompt",
@@ -22,6 +23,7 @@ const AGENT_FIELDS = [
 ];
 
 function agentValue(value) {
+  const wizard = require("../utils/agentWizard").validateWizard(value.wizard);
   for (const key of Object.keys(value))
     if (!AGENT_FIELDS.includes(key)) throw new Error(`未知 Agent 配置：${key}`);
   for (const [key, limit, required] of [
@@ -72,6 +74,7 @@ function agentValue(value) {
     description: value.description || "",
     welcomeMessage: value.welcomeMessage || null,
     examplePrompts: value.examplePrompts || [],
+    ...(wizard ? { wizard } : {}),
     tools: value.tools ?? null,
     skills: value.skills || [],
     systemPrompt: value.systemPrompt,
@@ -165,6 +168,7 @@ class ConfigDatabase {
           description: record.description,
           welcomeMessage: record.welcomeMessage,
           examplePrompts: JSON.parse(record.examplePrompts),
+          ...(record.wizard ? { wizard: JSON.parse(record.wizard) } : {}),
           tools: record.tools == null ? null : JSON.parse(record.tools),
           skills: skillKeys,
           systemPrompt: record.systemPrompt,
@@ -226,6 +230,7 @@ class ConfigDatabase {
         skillIds: JSON.stringify(skillIds),
         tools: agent.tools === null ? null : JSON.stringify(agent.tools),
         examplePrompts: JSON.stringify(agent.examplePrompts),
+        wizard: agent.wizard == null ? null : JSON.stringify(agent.wizard),
         runtimeConfig: JSON.stringify(agent.runtimeConfig),
         lastUpdatedAt: new Date(),
       });
