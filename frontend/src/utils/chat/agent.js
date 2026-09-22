@@ -508,7 +508,10 @@ export function reduceAgentRunState(state, event) {
     next.tasks = payload.tasks.map((task) => ({
       ...previous.get(task.id),
       ...task,
-      status: previous.get(task.id)?.status || task.status || "pending",
+      status:
+        payload.planKind === "progress"
+          ? task.status || "pending"
+          : previous.get(task.id)?.status || task.status || "pending",
     }));
   }
   if (type === "task.created" && payload.task) {

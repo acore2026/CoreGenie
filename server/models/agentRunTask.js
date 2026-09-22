@@ -82,6 +82,53 @@ const AgentRunTask = {
     return rows;
   },
 
+  saveProgressPlan: async function (runId, tasks) {
+    const prefix = `${runId}:plan:`;
+    return withPrismaRetry(() =>
+      prisma.$transaction(async (client) => {
+        const previous = await client.agent_run_tasks.findMany({
+          where: { run_id: String(runId) },
+        });
+        const incoming = new Set(tasks.map((task) => `${prefix}${task.id}`));
+        if (previous.some((task) => !incoming.has(task.id)))
+          throw new Error("请保留已有任务；不再需要的步骤请标记为跳过。");
+        const rows = [];
+        for (const [order, task] of tasks.entries()) {
+          const id = `${prefix}${task.id}`;
+          const old = previous.find((item) => item.id === id);
+          const data = {
+            title: task.title,
+            objective: task.title,
+            status: task.status,
+            progress: task.detail || null,
+            error: task.status === "failed" ? task.detail || null : null,
+            resultSummary:
+              task.status === "completed" ? task.detail || task.title : null,
+            budget: JSON.stringify({ planOrder: order }),
+            startedAt:
+              old?.startedAt || (task.status === "running" ? new Date() : null),
+            completedAt: ["completed", "failed", "skipped"].includes(
+              task.status
+            )
+              ? old?.completedAt || new Date()
+              : null,
+            lastUpdatedAt: new Date(),
+          };
+          rows.push(
+            normalizeTask(
+              await client.agent_run_tasks.upsert({
+                where: { id },
+                create: { id, run_id: String(runId), ...data },
+                update: data,
+              })
+            )
+          );
+        }
+        return rows;
+      })
+    );
+  },
+
   update: async function (id, data = {}) {
     return normalizeTask(
       await withPrismaRetry(() =>

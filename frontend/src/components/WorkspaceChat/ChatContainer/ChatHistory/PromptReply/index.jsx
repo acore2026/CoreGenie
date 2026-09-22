@@ -4,6 +4,7 @@ import { Warning } from "@phosphor-icons/react";
 import renderMarkdown from "@/utils/chat/markdown";
 import DOMPurify from "@/utils/chat/purify";
 import Citations from "../Citation";
+import WorkingIndicator from "../TaskPlanCard/WorkingIndicator";
 import {
   THOUGHT_REGEX_CLOSE,
   THOUGHT_REGEX_COMPLETE,
@@ -11,14 +12,26 @@ import {
   ThoughtChainComponent,
 } from "../ThoughtContainer";
 
-const PromptReply = ({ uuid, reply, pending, error, sources = [] }) => {
-  if (!reply && sources.length === 0 && !pending && !error) return null;
+const PromptReply = ({
+  uuid,
+  reply,
+  pending,
+  error,
+  sources = [],
+  agentStatus,
+}) => {
+  if (!reply && sources.length === 0 && !pending && !error && !agentStatus)
+    return null;
 
   if (pending) {
     return (
       <div className="flex justify-start w-full">
         <div className="py-4 pl-0 pr-4 flex flex-col md:max-w-[80%]">
-          <div className="mt-3 ml-1 dot-falling light:invert"></div>
+          {agentStatus ? (
+            <WorkingIndicator status={agentStatus} />
+          ) : (
+            <div className="mt-3 ml-1 dot-falling light:invert"></div>
+          )}
         </div>
       </div>
     );
@@ -46,6 +59,7 @@ const PromptReply = ({ uuid, reply, pending, error, sources = [] }) => {
           message={reply}
           messageId={uuid}
         />
+        <WorkingIndicator status={agentStatus} />
         <Citations sources={sources} />
       </div>
     </div>

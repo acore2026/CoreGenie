@@ -20,6 +20,7 @@ import AgentExecutionRail from "../AgentExecutionRail";
 import ResponseEvaluation from "./ResponseEvaluation";
 import RenderChatContent from "../RenderChatContent";
 import ReActMessageTimeline from "../ReActMessageTimeline";
+import WorkingIndicator from "../TaskPlanCard/WorkingIndicator";
 
 const HistoricalMessage = ({
   uuid: uuidProp,
@@ -202,6 +203,9 @@ const HistoricalMessage = ({
                 message={message}
                 messageId={uuid}
               />
+            )}
+            {!isReActMessage && role === "assistant" && (
+              <WorkingIndicator status={agentRunState?.status} />
             )}
             {isRefusalMessage && (
               <Link

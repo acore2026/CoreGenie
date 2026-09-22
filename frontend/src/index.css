@@ -1249,3 +1249,59 @@ textarea {
   }
 
 }
+
+@layer components {
+  .dsh-task-card {
+    width: 100%;
+    max-width: 780px;
+    border: 1px solid var(--theme-sidebar-border);
+    border-radius: 10px;
+    background: var(--theme-sidebar-subitem-default);
+    color: var(--theme-text-primary);
+  }
+  .dsh-task-card-heading {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    min-height: 44px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-size: 13px;
+  }
+  .dsh-task-card-heading:hover {
+    background: var(--theme-sidebar-subitem-hover);
+  }
+  .dsh-task-card-heading:active {
+    opacity: 0.75;
+  }
+  .dsh-task-card-heading:focus-visible {
+    outline: 2px solid var(--theme-text-secondary);
+    outline-offset: 2px;
+  }
+  .dsh-task-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    min-height: 40px;
+    padding: 8px 4px;
+  }
+  .dsh-task-number {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    color: var(--theme-text-secondary);
+    background: var(--theme-sidebar-subitem-selected);
+  }
+  .dsh-task-row[data-status="running"] .dsh-task-number {
+    background: var(--theme-text-primary);
+    color: var(--theme-bg-primary);
+  }
+
+}

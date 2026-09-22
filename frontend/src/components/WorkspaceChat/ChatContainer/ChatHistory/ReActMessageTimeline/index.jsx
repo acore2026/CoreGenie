@@ -9,6 +9,8 @@ import { useTranslation } from "react-i18next";
 import { API_BASE } from "@/utils/constants";
 import { baseHeaders } from "@/utils/request";
 import RenderChatContent from "../RenderChatContent";
+import TaskPlanCard from "../TaskPlanCard";
+import WorkingIndicator from "../TaskPlanCard/WorkingIndicator";
 
 const TERMINAL = new Set(["completed", "partial", "failed", "cancelled"]);
 const ACTIVE = new Set(["requested", "running", "started", "retrying"]);
@@ -146,23 +148,50 @@ export default function ReActMessageTimeline({
   fallbackText = "",
   messageId,
 }) {
-  const { t } = useTranslation();
-  const [snapshotTools, setSnapshotTools] = useState([]);
+  const [snapshot, setSnapshot] = useState(null);
 
   useEffect(() => {
     if (runState || !runId) return;
     const controller = new AbortController();
-    fetch(`${API_BASE}/agent-runs/${runId}/snapshot?view=rail`, {
-      headers: baseHeaders(),
-      signal: controller.signal,
-    })
-      .then((response) => (response.ok ? response.json() : null))
-      .then((snapshot) => setSnapshotTools(snapshot?.toolExecutions || []))
-      .catch(() => null);
-    return () => controller.abort();
+    let timer;
+    setSnapshot(null);
+    const refresh = async () => {
+      try {
+        const response = await fetch(
+          `${API_BASE}/agent-runs/${runId}/snapshot?view=rail`,
+          {
+            headers: baseHeaders(),
+            signal: controller.signal,
+          }
+        );
+        if (!response.ok) {
+          if (response.status >= 500 || response.status === 429)
+            timer = setTimeout(refresh, 4000);
+          return;
+        }
+        const next = await response.json();
+        if (controller.signal.aborted) return;
+        setSnapshot(next);
+        if (next?.run && !TERMINAL.has(next.run.status))
+          timer = setTimeout(refresh, 2000);
+      } catch {
+        if (!controller.signal.aborted) timer = setTimeout(refresh, 4000);
+      }
+    };
+    refresh();
+    return () => {
+      controller.abort();
+      clearTimeout(timer);
+    };
   }, [runId, runState]);
 
-  const tools = runState?.toolExecutions || snapshotTools;
+  const tools = (
+    runState?.toolExecutions ||
+    snapshot?.toolExecutions ||
+    []
+  ).filter((tool) => tool.tool_id !== "plan.update");
+  const tasks = runState?.tasks || snapshot?.tasks || [];
+  const status = runState?.status || snapshot?.run?.status;
   const messageParts = useMemo(() => {
     const source = runState?.messageParts?.length
       ? runState.messageParts
@@ -171,57 +200,63 @@ export default function ReActMessageTimeline({
         : [];
     return mergeAdjacentToolGroups(source);
   }, [parts, runState?.messageParts]);
-  const runActive = runState ? !TERMINAL.has(runState.status) : false;
-
-  if (!messageParts.length) {
-    if (!fallbackText && runActive)
-      return (
-        <div className="flex min-h-10 max-w-[780px] items-center gap-2 text-xs text-theme-text-secondary">
-          <CircleNotch
-            size={14}
-            className="text-cyan-300 motion-safe:animate-spin motion-reduce:animate-none light:text-cyan-700"
-          />
-          {t("chat_window.agent_invocation.react_processing")}
-        </div>
-      );
-    return (
-      <div className="space-y-3">
-        {tools.length > 0 && (
-          <ToolGroupBar
-            callIds={tools.map((tool) => tool.call_id)}
-            tools={tools}
-            runActive={runActive}
-          />
-        )}
-        <RenderChatContent
-          role="assistant"
-          message={fallbackText}
-          messageId={messageId}
-        />
-      </div>
-    );
-  }
+  const runActive = Boolean(status && !TERMINAL.has(status));
 
   return (
     <div className="space-y-3">
-      {messageParts.map((part) =>
-        part.type === "toolGroup" ? (
-          <ToolGroupBar
-            key={part.id}
-            callIds={part.callIds || []}
-            tools={tools}
-            runActive={runActive}
-          />
-        ) : part.text ? (
-          <div key={part.id}>
+      <TaskPlanCard tasks={tasks} />
+      {!messageParts.length ? (
+        <>
+          {tools.length > 0 && (
+            <ToolGroupBar
+              callIds={tools.map((tool) => tool.call_id)}
+              tools={tools}
+              runActive={runActive}
+            />
+          )}
+          {fallbackText && (
             <RenderChatContent
               role="assistant"
-              message={part.text}
-              messageId={`${messageId}:${part.id}`}
+              message={fallbackText}
+              messageId={messageId}
             />
-          </div>
-        ) : null
+          )}
+        </>
+      ) : (
+        messageParts.map((part) => {
+          if (part.type === "toolGroup") {
+            const calls = (part.callIds || []).filter(
+              (id) =>
+                !(
+                  runState?.toolExecutions ||
+                  snapshot?.toolExecutions ||
+                  []
+                ).some(
+                  (tool) =>
+                    tool.call_id === id && tool.tool_id === "plan.update"
+                )
+            );
+            return calls.length ? (
+              <ToolGroupBar
+                key={part.id}
+                callIds={calls}
+                tools={tools}
+                runActive={runActive}
+              />
+            ) : null;
+          }
+          return part.text ? (
+            <div key={part.id}>
+              <RenderChatContent
+                role="assistant"
+                message={part.text}
+                messageId={`${messageId}:${part.id}`}
+              />
+            </div>
+          ) : null;
+        })
       )}
+      <WorkingIndicator status={status} />
     </div>
   );
 }

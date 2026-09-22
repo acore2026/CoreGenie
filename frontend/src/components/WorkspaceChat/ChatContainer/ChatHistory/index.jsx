@@ -20,6 +20,7 @@ import SubagentRun from "./SubagentRun";
 import ContextTrace from "./ContextTrace";
 import AgentExecutionRail from "./AgentExecutionRail";
 import ReActMessageTimeline from "./ReActMessageTimeline";
+import WorkingIndicator from "./TaskPlanCard/WorkingIndicator";
 import Workspace from "@/models/workspace";
 import { useNavigate, useParams } from "react-router-dom";
 import paths from "@/utils/paths";
@@ -342,6 +343,20 @@ function buildMessages({
           transport={websocket}
         />
       );
+      if (
+        !history.some(
+          (message) =>
+            message.agentRunId === props.agentRunId &&
+            message.role === "assistant" &&
+            message.type !== "agentExecution"
+        )
+      )
+        acc.push(
+          <WorkingIndicator
+            key={`${props.agentRunId}:working`}
+            status={props.agentRunState.status}
+          />
+        );
       return acc;
     }
 
@@ -419,6 +434,7 @@ function buildMessages({
           sources={props.sources}
           error={props.error}
           closed={props.closed}
+          agentStatus={agentRunState?.status}
         />
       );
     } else {

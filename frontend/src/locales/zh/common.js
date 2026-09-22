@@ -1,5 +1,23 @@
 // Anything with "null" requires a translation. Contribute to translation via a PR!
 const TRANSLATIONS = {
+  task_plan: {
+    title: "任务计划",
+    count: "已完成 {{completed}}/{{total}}",
+    working: "助手正在工作",
+    status: {
+      pending: "待开始",
+      planned: "待开始",
+      queued: "排队中",
+      running: "进行中",
+      retrying: "重试中",
+      completed: "已完成",
+      failed: "未完成",
+      skipped: "已跳过",
+      cancelled: "已停止",
+      waiting_for_input: "等待补充",
+      waiting_for_approval: "等待确认",
+    },
+  },
   agent_wizard: {
     open: "快捷任务",
     catalog_error: "暂时无法读取官方资料，可以重试或手动填写。",

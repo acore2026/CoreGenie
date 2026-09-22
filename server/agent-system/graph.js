@@ -88,6 +88,22 @@ async function buildAgentGraph({
         excludeToolIds: effectiveExcludedToolIds,
         strictSelection,
       });
+  // Progress tracking belongs to the top-level ReAct conversation, not delegated workers.
+  // Keep this runtime-local (like call_agent), outside the shared registry so
+  // orchestrated planners and workers never receive a second planning surface.
+  if (
+    !disableTools &&
+    run.runtimeKey === "default-react" &&
+    !taskId &&
+    depth === 0 &&
+    !effectiveExcludedToolIds.includes("plan.update")
+  ) {
+    const { updatePlan } = require("../tools/plan");
+    tools.push(
+      require("../tools/descriptor").toLangChainTool(updatePlan, context)
+    );
+    visibleToolIds.add(updatePlan.id);
+  }
   const systemPrompt = systemPromptOverride
     ? [
         systemPromptOverride,
@@ -162,6 +178,7 @@ async function buildAgentGraph({
               "web_fetch",
               "activate_skill",
               "read_skill_resource",
+              "update_plan",
             ].includes(name)
         )
         .map((name) => [
