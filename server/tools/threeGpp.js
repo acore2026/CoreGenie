@@ -506,31 +506,81 @@ const downloadProposals = defineTool({
         const proposalRoot = await manager.validatePath(proposalRelative);
         await fs.mkdir(proposalRoot, { recursive: true });
         const files = [];
+        const kiTempRelative = `${temporaryRoot}/${safeWorkspaceSegment(`KI${normalizedKi}`)}`;
+        const downloadDirRelative = `${kiTempRelative}/docs`;
+        const manifestRelative = `${kiTempRelative}/proposals.json`;
+        const kiTempPath = await manager.validatePath(kiTempRelative);
+        await fs.mkdir(kiTempPath, { recursive: true });
+        await fs.writeFile(
+          await manager.validatePath(manifestRelative),
+          JSON.stringify(
+            {
+              schema: "3gpp-review-manifest/v1",
+              excel: "official-agenda-catalog",
+              sheet: snapshot.id,
+              agenda_filter: requestedKi,
+              count: tdocs.length,
+              proposals: tdocs.map((tdoc) => ({
+                document: tdoc,
+                agenda: matchingItems
+                  .map((item) => item.agendaItem || item.value)
+                  .filter(Boolean)
+                  .join(", "),
+                title:
+                  matchingItems.find((item) => item.referenceTdoc === tdoc)
+                    ?.referenceTitle || "",
+                source:
+                  matchingItems.find((item) => item.referenceTdoc === tdoc)
+                    ?.source || snapshot.source,
+                status: "available",
+              })),
+            },
+            null,
+            2
+          ) + "\n",
+          "utf8"
+        );
+        const docsUrl = new URL("Docs/", snapshot.source).toString();
+        const downloadExecution = await sandbox.run({
+          language: "bash",
+          code: [
+            "set -euo pipefail",
+            `python3 scripts/3gpp_tdocs.py download --manifest ${shellQuote(`/workspace/${manifestRelative}`)} --base-url ${shellQuote(docsUrl)} --output ${shellQuote(`/workspace/${downloadDirRelative}`)} --workers 5`,
+          ].join("\n"),
+          workspaceId: context.workspace.id,
+          invocationId: context.run.id,
+          timeoutSeconds: 900,
+          skill: {
+            id: skill.id,
+            name: skill.name,
+            scope: skill.scope,
+            revision: skill.revision,
+          },
+        });
+        const downloadResult = sandboxToolResult(downloadExecution, 900);
         for (const tdoc of tdocs) {
           try {
-            const downloaded = await downloadOfficialTdoc(
-              parseTdoc(tdoc),
-              context,
-              manager,
-              { destinationRoot: proposalRelative }
-            );
-            if (!downloaded.ok) {
+            const sourceRelative = `${downloadDirRelative}/${tdoc}.docx`;
+            const sourcePath = await manager.validatePath(sourceRelative);
+            if (!(await existingFile(sourcePath))) {
               failures.push({
                 ki: requestedKi,
                 tdoc,
-                code: downloaded.code,
-                error: downloaded.summary,
+                code: downloadResult.ok ? "TDOC_NOT_FOUND" : "DOWNLOAD_FAILED",
+                error: downloadResult.ok
+                  ? `下载结果中没有 ${tdoc}.docx。`
+                  : downloadResult.summary,
               });
               continue;
             }
-            const tempRelative = `${temporaryRoot}/${safeWorkspaceSegment(tdoc)}`;
+            const tempRelative = `${kiTempRelative}/${safeWorkspaceSegment(tdoc)}`;
             const tempPath = await manager.validatePath(tempRelative);
             await fs.mkdir(tempPath, { recursive: true });
             const execution = await sandbox.run({
               language: "bash",
               code: [
                 "set -euo pipefail",
-                `python3 scripts/3gpp_tdocs.py convert-docx --input ${shellQuote(`/workspace/${downloaded.docxRelative}`)} --output ${shellQuote(`/workspace/${tempRelative}`)}`,
+                `python3 scripts/3gpp_tdocs.py convert-docx --input ${shellQuote(`/workspace/${sourceRelative}`)} --output ${shellQuote(`/workspace/${tempRelative}`)}`,
               ].join("\n"),
               workspaceId: context.workspace.id,
               invocationId: context.run.id,
@@ -558,9 +608,13 @@ const downloadProposals = defineTool({
               proposalRoot,
               tdoc
             );
+            await fs.copyFile(
+              sourcePath,
+              await manager.validatePath(`${proposalRelative}/${tdoc}.docx`)
+            );
             files.push({
               tdoc,
-              docx: `/workspace/${downloaded.docxRelative}`,
+              docx: `/workspace/${proposalRelative}/${tdoc}.docx`,
               markdown: `/workspace/${proposalRelative}/${tdoc}.md`,
               warnings: converted.warnings,
             });
