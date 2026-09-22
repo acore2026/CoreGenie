@@ -13,6 +13,7 @@ const { workspaceFileRelativePath } = require("../agent-system/attachments");
 const filesystem = require("../utils/agents/aibitat/plugins/filesystem/lib");
 const sandbox = require("../utils/agents/aibitat/plugins/sandbox/lib");
 const { sandboxToolResult } = require("./sandboxResult");
+const threeGppCatalog = require("../utils/threeGppCatalog");
 
 const execFileAsync = promisify(execFile);
 const USER_AGENT =
@@ -166,7 +167,12 @@ async function existingFile(filePath) {
   }
 }
 
-async function downloadOfficialTdoc(parsed, context, manager) {
+async function downloadOfficialTdoc(
+  parsed,
+  context,
+  manager,
+  { destinationRoot = null } = {}
+) {
   const directory = DIRECTORY_BY_GROUP[parsed.group];
   const baseUrl = `https://www.3gpp.org/ftp/${directory}/`;
   const listing = await fetchOfficial(baseUrl, context);
@@ -191,9 +197,8 @@ async function downloadOfficialTdoc(parsed, context, manager) {
     };
 
   for (const folder of folders) {
-    const docsRoot = `3gpp-review/${folder}/docs`;
+    const docsRoot = destinationRoot || `3gpp-review/${folder}/docs`;
     const docxRelative = `${docsRoot}/${parsed.tdoc}.docx`;
-    const zipRelative = `${docsRoot}/${parsed.tdoc}.zip`;
     const docxPath = await manager.validatePath(docxRelative);
     if (await existingFile(docxPath)) {
       return {
@@ -277,12 +282,10 @@ async function downloadOfficialTdoc(parsed, context, manager) {
         summary: `${parsed.tdoc} 的 DOCX 为空或超过 100 MiB。`,
         retryable: false,
       };
-    const zipPath = await manager.validatePath(zipRelative);
     await fs.mkdir(path.dirname(docxPath), { recursive: true });
-    await Promise.all([
-      fs.writeFile(zipPath, buffer),
-      fs.writeFile(docxPath, docx),
-    ]);
+    // The official ZIP is a transport format, not a workspace deliverable.
+    // Keep it in memory and persist only the extracted DOCX.
+    await fs.writeFile(docxPath, docx);
     return {
       ok: true,
       folder,
@@ -303,6 +306,314 @@ async function downloadOfficialTdoc(parsed, context, manager) {
 function shellQuote(value) {
   return `'${String(value).replace(/'/g, `'"'"'`)}'`;
 }
+
+function safeWorkspaceSegment(value) {
+  return String(value || "")
+    .trim()
+    .replace(/[^A-Za-z0-9#._-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 120);
+}
+
+function meetingNumberFromInput(group, value) {
+  const match = String(value || "")
+    .trim()
+    .match(new RegExp(`^${group}#(\\d+)(?:[A-Za-z]*)$`, "i"));
+  return match ? Number(match[1]) : null;
+}
+
+function kiNumber(value) {
+  const match = String(value || "")
+    .trim()
+    .match(/^KI\s*#?\s*(\d+(?:\.\d+)*)$/i);
+  return match ? match[1] : null;
+}
+
+function agendaItemsForKi(items, ki) {
+  const number = kiNumber(ki);
+  if (!number) return [];
+  const pattern = new RegExp(`\\b(?:KI\\s*#?\\s*)${number}\\b`, "i");
+  return items.filter((item) =>
+    pattern.test(
+      [item.label, item.title, item.description, item.referenceTitle]
+        .filter(Boolean)
+        .join(" ")
+    )
+  );
+}
+
+function tdocsFromAgenda(items, group) {
+  const values = new Set();
+  for (const item of items) {
+    for (const candidate of [
+      item.referenceTdoc,
+      item.label,
+      item.description,
+    ]) {
+      for (const match of String(candidate || "").matchAll(
+        /\b([A-Z]\d-\d{6,8})\b/gi
+      )) {
+        const parsed = parseTdoc(match[1]);
+        if (parsed?.group === group) values.add(parsed.tdoc);
+      }
+    }
+  }
+  return [...values].sort();
+}
+
+async function copyConvertedDeliverable(
+  manager,
+  temporaryRelative,
+  proposalRoot,
+  tdoc
+) {
+  const temporaryRoot = await manager.validatePath(temporaryRelative);
+  const summary = JSON.parse(
+    await fs.readFile(
+      path.join(temporaryRoot, "conversion-summary.json"),
+      "utf8"
+    )
+  );
+  const markdownName = path.basename(String(summary.markdown || ""));
+  if (!markdownName || !markdownName.toLowerCase().endsWith(".md"))
+    throw new Error(`${tdoc} conversion did not produce Markdown.`);
+  let markdown = await fs.readFile(
+    path.join(temporaryRoot, markdownName),
+    "utf8"
+  );
+  const assetRoot = path.join(proposalRoot, `${tdoc}.assets`);
+  for (const directory of ["assets", "embedded"]) {
+    const source = path.join(temporaryRoot, directory);
+    try {
+      await fs.stat(source);
+    } catch {
+      continue;
+    }
+    const destination = path.join(assetRoot, directory);
+    await fs.mkdir(path.dirname(destination), { recursive: true });
+    await fs.cp(source, destination, { recursive: true, force: true });
+    markdown = markdown.replaceAll(
+      `${directory}/`,
+      `${tdoc}.assets/${directory}/`
+    );
+  }
+  await fs.writeFile(path.join(proposalRoot, `${tdoc}.md`), markdown, "utf8");
+  return {
+    warnings: Array.isArray(summary.warnings)
+      ? summary.warnings.map(String)
+      : [],
+  };
+}
+
+const downloadProposals = defineTool({
+  id: "3gpp.download",
+  name: "download_3gpp_proposals",
+  description:
+    "按指定 3GPP 工作组、会议和官方 KI 下载并转换提案，只保留 proposal 下的最终文件。",
+  schema: z.object({
+    group: z.string().trim().toUpperCase(),
+    meeting: z.string().trim().min(1).max(80),
+    ki: z.array(z.string().trim().min(1).max(40)).min(1).max(20),
+  }),
+  action: true,
+  effect: "write",
+  idempotency: "none",
+  retry: { maxAttempts: 1 },
+  maxResultBytes: 24 * 1024,
+  activity: ({ group, meeting }) => `下载 ${group} ${meeting} 的官方 KI 提案`,
+  execute: async ({ group, meeting, ki }, context) => {
+    if (!threeGppCatalog.GROUPS.includes(group))
+      return {
+        ok: false,
+        code: "INVALID_GROUP",
+        summary: "工作组标识无效。",
+        retryable: false,
+      };
+    const number = meetingNumberFromInput(group, meeting);
+    if (!number)
+      return {
+        ok: false,
+        code: "INVALID_MEETING",
+        summary: `会议必须写成 ${group}#会议号，例如 ${group}#176。`,
+        retryable: false,
+      };
+    const manager = filesystem.forWorkspace(context.workspace.id);
+    await manager.ensureInitialized();
+    const skill = await resolveAvailableSkill(
+      context.agent,
+      context.workspace,
+      "3gpp-review"
+    );
+    if (!skill)
+      return {
+        ok: false,
+        code: "SKILL_NOT_AVAILABLE",
+        summary: "当前 Agent 未绑定 3gpp-review Skill，不能下载和转换提案。",
+        retryable: false,
+      };
+    await ensureConversionSkill(skill, context);
+    const meetings = await threeGppCatalog.meetings(group);
+    const snapshot = meetings.meetings.find((item) => item.number === number);
+    if (!snapshot)
+      return {
+        ok: false,
+        code: "MEETING_NOT_FOUND",
+        summary: `官方目录中没有找到 ${group}#${number}。`,
+        retryable: false,
+      };
+    const meetingAgenda = await threeGppCatalog.agenda(group, snapshot.id, {
+      meeting: snapshot,
+    });
+    const runId = `${Date.now()}-${String(context.run.id).slice(0, 12)}`;
+    const temporaryRoot = `tmp/3gpp/${runId}`;
+    const temporaryPath = await manager.validatePath(temporaryRoot);
+    const outputs = [];
+    const failures = [];
+    try {
+      for (const requestedKi of [...new Set(ki)]) {
+        const normalizedKi = kiNumber(requestedKi);
+        if (!normalizedKi) {
+          failures.push({
+            ki: requestedKi,
+            code: "INVALID_KI",
+            error: "KI 必须写成 KI18 或 KI#18。",
+          });
+          continue;
+        }
+        const matchingItems = agendaItemsForKi(
+          meetingAgenda.items,
+          requestedKi
+        );
+        const tdocs = tdocsFromAgenda(matchingItems, group);
+        const rootName = `${group}#${number}-KI${normalizedKi}`;
+        const proposalRelative = `3gpp/${rootName}/proposal`;
+        if (!tdocs.length) {
+          failures.push({
+            ki: requestedKi,
+            code: meetingAgenda.warning
+              ? "AGENDA_NOT_AVAILABLE"
+              : matchingItems.length
+                ? "KI_TDOC_NOT_FOUND"
+                : "KI_NOT_FOUND",
+            error: meetingAgenda.warning
+              ? meetingAgenda.warning
+              : matchingItems.length
+                ? "官方议程找到 KI 标记，但没有可下载的 TDoc 编号。"
+                : "官方议程没有找到这个 KI，未扩大范围下载整场会议。",
+          });
+          continue;
+        }
+        const proposalRoot = await manager.validatePath(proposalRelative);
+        await fs.mkdir(proposalRoot, { recursive: true });
+        const files = [];
+        for (const tdoc of tdocs) {
+          try {
+            const downloaded = await downloadOfficialTdoc(
+              parseTdoc(tdoc),
+              context,
+              manager,
+              { destinationRoot: proposalRelative }
+            );
+            if (!downloaded.ok) {
+              failures.push({
+                ki: requestedKi,
+                tdoc,
+                code: downloaded.code,
+                error: downloaded.summary,
+              });
+              continue;
+            }
+            const tempRelative = `${temporaryRoot}/${safeWorkspaceSegment(tdoc)}`;
+            const tempPath = await manager.validatePath(tempRelative);
+            await fs.mkdir(tempPath, { recursive: true });
+            const execution = await sandbox.run({
+              language: "bash",
+              code: [
+                "set -euo pipefail",
+                `python3 scripts/3gpp_tdocs.py convert-docx --input ${shellQuote(`/workspace/${downloaded.docxRelative}`)} --output ${shellQuote(`/workspace/${tempRelative}`)}`,
+              ].join("\n"),
+              workspaceId: context.workspace.id,
+              invocationId: context.run.id,
+              timeoutSeconds: 300,
+              skill: {
+                id: skill.id,
+                name: skill.name,
+                scope: skill.scope,
+                revision: skill.revision,
+              },
+            });
+            const result = sandboxToolResult(execution, 300);
+            if (!result.ok) {
+              failures.push({
+                ki: requestedKi,
+                tdoc,
+                code: "CONVERSION_FAILED",
+                error: result.summary,
+              });
+              continue;
+            }
+            const converted = await copyConvertedDeliverable(
+              manager,
+              tempRelative,
+              proposalRoot,
+              tdoc
+            );
+            files.push({
+              tdoc,
+              docx: `/workspace/${downloaded.docxRelative}`,
+              markdown: `/workspace/${proposalRelative}/${tdoc}.md`,
+              warnings: converted.warnings,
+            });
+          } catch (error) {
+            failures.push({
+              ki: requestedKi,
+              tdoc,
+              code: "DOWNLOAD_FAILED",
+              error: error.message,
+            });
+          }
+        }
+        if (files.length)
+          outputs.push({
+            ki: `KI${normalizedKi}`,
+            directory: `/workspace/3gpp/${rootName}`,
+            files,
+          });
+      }
+      const stateRoot = await manager.validatePath("_meta/tasks");
+      await fs.mkdir(stateRoot, { recursive: true });
+      await fs.writeFile(
+        path.join(stateRoot, `${runId}.json`),
+        JSON.stringify(
+          {
+            schema: "3gpp-download/v1",
+            runId,
+            group,
+            meeting: `${group}#${number}`,
+            ki,
+            outputs,
+            failures,
+            completedAt: new Date().toISOString(),
+          },
+          null,
+          2
+        ) + "\n",
+        "utf8"
+      );
+      return {
+        ok: outputs.length > 0 && failures.length === 0,
+        code: failures.length ? "DOWNLOAD_PARTIAL" : "DOWNLOAD_COMPLETE",
+        summary: failures.length
+          ? `已完成 ${outputs.reduce((sum, item) => sum + item.files.length, 0)} 份提案，另有 ${failures.length} 项未完成。`
+          : `已下载并转换 ${outputs.reduce((sum, item) => sum + item.files.length, 0)} 份提案。`,
+        data: { group, meeting: `${group}#${number}`, outputs, failures },
+        retryable: failures.length > 0,
+      };
+    } finally {
+      await fs.rm(temporaryPath, { recursive: true, force: true });
+    }
+  },
+});
 
 function meetingFolderPattern(group, meetingNumber) {
   const escaped = String(meetingNumber).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -753,6 +1064,7 @@ module.exports = {
   DIRECTORY_BY_GROUP,
   GROUP_BY_TDOC_PREFIX,
   convertMarkdown,
+  downloadProposals,
   downloadOfficialTdoc,
   ensureConversionSkill,
   latestMeeting,

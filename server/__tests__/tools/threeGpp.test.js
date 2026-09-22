@@ -190,6 +190,9 @@ describe("3GPP meeting resolver", () => {
     expect(
       await fs.readFile(path.join(root, result.docxRelative), "utf8")
     ).toBe("test-docx");
+    expect(
+      await fs.readdir(path.dirname(path.join(root, result.docxRelative)))
+    ).toEqual(["S2-2606085.docx"]);
     for (const [, options] of fetchMock.mock.calls)
       expect(options.headers["User-Agent"]).toMatch(/^Mozilla\/5\.0/);
   });

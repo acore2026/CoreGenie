@@ -9,8 +9,10 @@ const userInput = require("./userInput");
 const skills = require("./skills");
 const vision = require("./vision");
 const knowledge = require("./knowledge");
+const globalKnowledge = require("./globalKnowledge");
 const threeGpp = require("./threeGpp");
 const schedule = require("./schedule");
+const { readCatalog } = require("./referenceCatalog");
 
 const toolRegistry = new ResourceRegistry("tool");
 for (const descriptor of [
@@ -26,9 +28,15 @@ for (const descriptor of [
   vision.inspectImage,
   knowledge.ingestDocuments,
   knowledge.publishReport,
+  globalKnowledge.listGlobalKnowledge,
+  globalKnowledge.ingestGlobalKnowledge,
+  globalKnowledge.replaceGlobalKnowledge,
+  globalKnowledge.removeGlobalKnowledge,
   threeGpp.resolveMeeting,
+  threeGpp.downloadProposals,
   threeGpp.convertMarkdown,
   schedule.createScheduledJob,
+  readCatalog,
 ]) {
   toolRegistry.register(descriptor);
 }

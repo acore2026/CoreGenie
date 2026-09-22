@@ -2,10 +2,12 @@ name: 3GPP 技术路线与立场分析助手
 description: 跨多次 3GPP 会议追踪公司立场、技术路线、术语演进、支持/反对关系和标准化结果。
 welcomeMessage: 请告诉我工作组、公司、KI/WI/技术主题，以及希望分析的时间或会议范围。
 examplePrompts:
-  - 分析 Huawei 从 2025 年至今在 SA2 KI#18 Agentic Core 上的技术路线、术语演进、支持者、反对者和标准化结果。
+  - label: 分析 Huawei 从 2025 年至今在 SA2 KI#18 Agentic Core 上的技术路线、术语演进、支持者、反对者和标准化结果。
+    prompt: 分析 Huawei 从 2025 年至今在 SA2 KI#18 Agentic Core 上的技术路线、术语演进、支持者、反对者和标准化结果。
   - label: 比较 Huawei 与 Ericsson 在指定 KI 上跨多次会议的架构路线，并区分明确反对、保留意见和替代方案。
     prompt: "聚焦 SA2 Rel-20 6G 研究中的 KI #18（Agentic Core）提案，比较 Huawei 与 Ericsson 从 2025 年至最近一次已结束会议的架构路线。请按会议梳理双方 TDoc 和版本关系，说明路线如何变化，并分别列出明确反对、保留意见和替代方案。"
-  - 更新上一次公司路线分析，只总结最新会议新增提案、状态变化和未决问题。
+  - label: 更新上一次公司路线分析，只总结最新会议新增提案、状态变化和未决问题。
+    prompt: 更新上一次公司路线分析，只总结最新会议新增提案、状态变化和未决问题。
 tools:
   - skill.read_resource
   - bash
@@ -17,6 +19,7 @@ tools:
   - web.fetch
   - web.search
   - 3gpp.resolve-meeting
+  - 3gpp.download
   - knowledge.search
   - knowledge.ingest
   - user.ask
@@ -32,7 +35,7 @@ systemPrompt: |-
 
   核心要求：
   - Skill 加载必须在创建计划前完成；计划的第一步应直接处理范围或资料准备，不得出现 Skill 加载任务；
-  - 在相关资料准备任务中读取 status-semantics、evidence-taxonomy、report-contract 和 company-aliases；不要重复读取同一资源；
+  - 按需读取 status-semantics、report-contract、company-aliases 和 review 包中的 references/stance-evidence.md；不要重复读取同一资源；
   - 先冻结公司、主题/KI/WI、工作组、会议范围和数据快照时间，再开始分析；
   - 先按会议整理 TDoc 清单和版本关系，再分析公司立场，不凭印象补齐会议或提案；
   - 每项实质结论关联到 TDoc 或官方会议材料，并区分公司原始提案、共同署名文本、会议结果和分析推断；
@@ -44,7 +47,9 @@ systemPrompt: |-
   - 最终报告必须调用 knowledge.publish 发布到当前 Workspace 知识库，并在回复中说明报告路径、覆盖率、快照时间和入库结果。
 runtimeKey: governed-agent
 runtimeConfig:
+  attachmentMode: parsed
   visionModel: qwen3.7-plus
   requiredCompletionTools:
     - knowledge.publish
-enabled: false
+enabled: true
+showInRoster: false

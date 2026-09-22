@@ -592,7 +592,22 @@ wizard:
         required: false
         when:
           - field: group
-            values: [SA, SA1, SA4, RAN, RAN1, RAN2, RAN3, RAN4, RAN5, CT, CT1, CT3, CT6]
+            values:
+              [
+                SA,
+                SA1,
+                SA4,
+                RAN,
+                RAN1,
+                RAN2,
+                RAN3,
+                RAN4,
+                RAN5,
+                CT,
+                CT1,
+                CT3,
+                CT6,
+              ]
       - id: companies
         type: multi
         label: 关注的公司
@@ -1192,7 +1207,22 @@ wizard:
         required: false
         when:
           - field: group
-            values: [SA, SA1, SA4, RAN, RAN1, RAN2, RAN3, RAN4, RAN5, CT, CT1, CT3, CT6]
+            values:
+              [
+                SA,
+                SA1,
+                SA4,
+                RAN,
+                RAN1,
+                RAN2,
+                RAN3,
+                RAN4,
+                RAN5,
+                CT,
+                CT1,
+                CT3,
+                CT6,
+              ]
       - id: ki_ct4_29841_0
         type: multi
         label: "KI · 6G 核心网用户面协议（TR 29.841 V0.3.1）"
@@ -1896,7 +1926,22 @@ wizard:
         required: false
         when:
           - field: group
-            values: [SA, SA1, SA4, RAN, RAN1, RAN2, RAN3, RAN4, RAN5, CT, CT1, CT3, CT6]
+            values:
+              [
+                SA,
+                SA1,
+                SA4,
+                RAN,
+                RAN1,
+                RAN2,
+                RAN3,
+                RAN4,
+                RAN5,
+                CT,
+                CT1,
+                CT3,
+                CT6,
+              ]
       - id: companies
         type: multi
         label: 关注的公司
@@ -2002,6 +2047,7 @@ tools:
   - web.fetch
   - 3gpp.resolve-meeting
   - 3gpp.catalog
+  - 3gpp.download
   - knowledge.search
   - knowledge.ingest
   - user.ask
@@ -2021,19 +2067,18 @@ systemPrompt: |-
   - 区分提案方主张、编辑说明和已达成的 3GPP 共识；
   - 对流程图使用视觉工具核验实体、箭头和消息顺序，无法辨认时明确标注不确定；
   - 默认输出中文 Markdown 报告；
-  - 使用 filter-index 生成并验证 proposals.json，不得手写或改造 manifest；
-  - 将工作拆为会议与清单、下载与提取、分析与严格 coverage、报告与发布四个有依赖关系的阶段；
+  - 需要按会议和 KI 获取资料时，必须调用 3gpp.download；不要用 bash/python 直接下载、拼接官方 ZIP 或把中间 ZIP 写入 Workspace；
+  - 下载 Tool 返回的 proposal 目录是资料准备的唯一入口；将工作拆为下载与提取、分析与严格 coverage、报告与发布三个有依赖关系的阶段；
   - Workspace 知识库就是 RAG 知识库：用 knowledge.search 检索已入库资料，用 knowledge.ingest 将普通文档文件加入 RAG；不得用个人记忆工具保存文档；
   - 调用 Skill 自带脚本时，bash 的 cwd 必须使用已加载 Skill 提供的 skill:// 路径，并通过相对路径 scripts/3gpp_tdocs.py 执行；禁止调用 /workspace/3gpp-review/scripts/3gpp_tdocs.py 或其他工作区脚本副本；
   - 后续工具调用必须复用上一步返回的准确文件路径，路径不确定时先搜索，不得根据文件名猜目录；
-  - 最终报告必须通过严格 coverage 并生成 receipt，再将 manifest、receipt 和完整 TDoc 列表一并传给 knowledge.publish；
+  - 需要交付分析报告时，先完成 coverage 检查，再按用户要求将完整 TDoc 列表和来源传给 knowledge.publish；仅下载任务不生成报告，也不调用 knowledge.publish；
   - 每次运行只发布一份最终报告，发布成功后不得换路径再次发布；
-  - knowledge.publish 成功后，在最终回复中说明报告路径、覆盖率和入库结果。
+  - 发布成功后，在最终回复中说明报告路径、覆盖率和入库结果。
 runtimeKey: governed-agent
 runtimeConfig:
   visionModel: qwen3.7-plus
-  requiredCompletionTools:
-    - knowledge.publish
-  publicationRequiresCoverage: true
+  requiredCompletionTools: []
+  publicationRequiresCoverage: false
 enabled: true
 showInRoster: true

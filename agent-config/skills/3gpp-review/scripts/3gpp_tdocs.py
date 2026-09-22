@@ -28,7 +28,7 @@ except ImportError:  # Conversion mode does not need the Excel dependency.
     load_workbook = None
 
 
-DOC_RE = re.compile(r"\b([A-Z]\d-\d{6,8})\b", re.I)
+DOC_RE = re.compile(r"(?<![A-Z0-9])([A-Z]\d-\d{6,8})(?![A-Z0-9])", re.I)
 NS = {
     "w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main",
     "r": "http://schemas.openxmlformats.org/officeDocument/2006/relationships",
@@ -162,8 +162,11 @@ def cmd_filter(args) -> None:
         match = DOC_RE.search(at(row, doc_col))
         if not match:
             continue
-        if args.agenda and args.agenda.casefold() not in at(row, agenda_col).casefold():
-            continue
+        if args.agenda:
+            agenda = args.agenda.strip().casefold()
+            row_agendas = re.split(r"[;,\s]+", at(row, agenda_col).casefold())
+            if not any(value == agenda or value.startswith(agenda + ".") for value in row_agendas):
+                continue
         source_filter = getattr(args, "source", None)
         if source_filter and source_filter.casefold() not in at(row, source_col).casefold():
             continue
@@ -288,16 +291,21 @@ def download_limited(response, target) -> None:
 
 def download_one(item: dict, base_url: str, output: Path) -> tuple[str, str]:
     doc = item["document"].upper()
-    archive = output / f"{doc}.zip"
     existing = list(output.glob(f"{doc}*.docx"))
     if existing:
         return doc, f"cached {existing[0].name}"
+    archive_handle = tempfile.NamedTemporaryFile(
+        prefix=f".{doc}.", suffix=".zip.tmp", dir=output, delete=False
+    )
+    archive = Path(archive_handle.name)
+    archive_handle.close()
     url = f"{base_url.rstrip('/')}/{doc}.zip"
     try:
         validate_3gpp_url(url)
     except ValueError as exc:
+        archive.unlink(missing_ok=True)
         return doc, f"ERROR {exc}"
-    if not archive.exists() or not zipfile.is_zipfile(archive):
+    try:
         request = urllib.request.Request(url, headers={"User-Agent": "3gpp-review/1.0"})
         try:
             with urllib.request.urlopen(request, timeout=120) as response, archive.open("wb") as target:
@@ -305,27 +313,26 @@ def download_one(item: dict, base_url: str, output: Path) -> tuple[str, str]:
         except (OSError, ValueError, urllib.error.URLError) as exc:
             archive.unlink(missing_ok=True)
             return doc, f"ERROR download {url}: {exc}"
-    if not zipfile.is_zipfile(archive):
-        archive.unlink(missing_ok=True)
-        return doc, "ERROR invalid ZIP"
-    if archive.stat().st_size > MAX_DOWNLOAD_BYTES:
-        archive.unlink(missing_ok=True)
-        return doc, "ERROR ZIP exceeds download limit"
-    with zipfile.ZipFile(archive) as bundle:
-        try:
-            validate_archive(bundle)
-        except ValueError as exc:
+        if not zipfile.is_zipfile(archive):
             archive.unlink(missing_ok=True)
-            return doc, f"ERROR {exc}"
-        names = [name for name in bundle.namelist() if name.lower().endswith(".docx")]
-        if not names:
-            return doc, "ERROR ZIP contains no DOCX"
-        for index, name in enumerate(names, 1):
-            suffix = "" if len(names) == 1 else f"-{index}"
-            destination = output / f"{doc}{suffix}.docx"
-            with bundle.open(name) as source, destination.open("wb") as target:
-                shutil.copyfileobj(source, target)
-    return doc, "downloaded"
+            return doc, "ERROR invalid ZIP"
+        if archive.stat().st_size > MAX_DOWNLOAD_BYTES:
+            return doc, "ERROR ZIP exceeds download limit"
+        with zipfile.ZipFile(archive) as bundle:
+            validate_archive(bundle)
+            names = [name for name in bundle.namelist() if name.lower().endswith(".docx")]
+            if not names:
+                return doc, "ERROR ZIP contains no DOCX"
+            for index, name in enumerate(names, 1):
+                suffix = "" if len(names) == 1 else f"-{index}"
+                destination = output / f"{doc}{suffix}.docx"
+                with bundle.open(name) as source, destination.open("wb") as target:
+                    shutil.copyfileobj(source, target)
+        return doc, "downloaded"
+    except (OSError, ValueError, zipfile.BadZipFile) as exc:
+        return doc, f"ERROR {exc}"
+    finally:
+        archive.unlink(missing_ok=True)
 
 
 def cmd_download(args) -> None:
@@ -344,7 +351,25 @@ def cmd_download(args) -> None:
 
 
 def xml_text(node) -> str:
-    return "".join(node.xpath(".//w:t/text()", namespaces=NS)).strip()
+    """Keep revision intent visible; never merge deleted and current wording."""
+    def render(element):
+        if not isinstance(element.tag, str):
+            return ""
+        kind = etree.QName(element).localname
+        if element.tag in {f"{{{NS['w']}}}t", f"{{{NS['w']}}}delText"}:
+            return element.text or ""
+        if element.tag == f"{{{NS['w']}}}tab":
+            return "\t"
+        if element.tag in {f"{{{NS['w']}}}br", f"{{{NS['w']}}}cr"}:
+            return "\n"
+        content = "".join(render(child) for child in element)
+        if element.tag in {f"{{{NS['w']}}}ins", f"{{{NS['w']}}}del", f"{{{NS['w']}}}moveFrom", f"{{{NS['w']}}}moveTo"} and content:
+            label = {"ins": "INS", "del": "DEL", "moveFrom": "MOVE_FROM", "moveTo": "MOVE_TO"}[kind]
+            return f"[{label}:{content}]"
+        if element.tag == f"{{{NS['w']}}}p":
+            return content + "\n"
+        return content
+    return render(node).strip()
 
 
 def visio_text(data: bytes) -> list[str]:
@@ -957,19 +982,81 @@ def cmd_convert_docx(args) -> None:
     print(json.dumps(summary, ensure_ascii=False, indent=2))
 
 
+def convert_batch(inputs: list[str], output: Path) -> dict:
+    if not isinstance(inputs, list) or not inputs or any(not isinstance(p, str) or not Path(p).is_absolute() for p in inputs):
+        raise ValueError("inputs must be a non-empty JSON array of absolute file paths")
+    output.mkdir(parents=True, exist_ok=False)
+    summary = {"schema": "3gpp-conversion-batch/v1", "inputCount": len(inputs), "results": [], "successCount": 0, "failureCount": 0, "status": "running"}
+    summary_path = output / "batch-summary.json"
+    def checkpoint():
+        summary_path.write_text(json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    checkpoint()
+    for index, source in enumerate(inputs, 1):
+        destination = output / f"{index:04d}"
+        try:
+            converted = convert_docx_to_markdown(Path(source), destination)
+            markdown = destination / converted["markdown"]
+            archive = Path(converted["archive"])
+            if not markdown.is_file() or not markdown.read_text(encoding="utf-8").strip() or not archive.is_file():
+                raise ValueError("Converter did not produce non-empty Markdown and a ZIP")
+            with zipfile.ZipFile(archive) as package:
+                if package.testzip() is not None:
+                    raise ValueError("Output ZIP is corrupt")
+            summary["results"].append({"input": source, "status": "converted", "output": str(destination), **converted})
+            summary["successCount"] += 1
+        except (OSError, ValueError, KeyError, zipfile.BadZipFile, etree.XMLSyntaxError) as error:
+            summary["results"].append({"input": source, "status": "failed", "output": str(destination), "error": str(error)})
+            summary["failureCount"] += 1
+        checkpoint()
+    summary["status"] = "partial" if summary["failureCount"] else "passed"
+    checkpoint()
+    return summary
+
+
+def cmd_convert_batch(args):
+    try:
+        inputs = json.loads(Path(args.inputs).read_text(encoding="utf-8"))
+        summary = convert_batch(inputs, Path(args.output))
+    except (OSError, ValueError) as error:
+        raise SystemExit(f"Batch conversion failed: {error}") from error
+    print(json.dumps(summary, ensure_ascii=False, indent=2))
+    if summary["failureCount"]:
+        raise SystemExit(1)
+
+
 def extract_docx(docx: Path, texts: Path, figures: Path) -> tuple[str, str]:
     doc_id = docx.stem
     doc_figures = figures / doc_id
     doc_figures.mkdir(parents=True, exist_ok=True)
     lines = [f"[SOURCE DOCX: {docx.resolve()}]"]
+    source_index = {
+        "schema": "3gpp-proposal-source/v1", "document": doc_id,
+        "source": {"path": str(docx.resolve()), "sha256": hashlib.sha256(docx.read_bytes()).hexdigest()},
+        "blocks": [], "images": [], "warnings": [],
+    }
     try:
         with zipfile.ZipFile(docx) as package:
             validate_archive(package)
             root = etree.fromstring(package.read("word/document.xml"))
+            relationships = relationship_map(package)
+            image_targets = {}
+            used_names = set()
+            for name in package.namelist():
+                if name.lower().startswith("word/media/") and not name.endswith("/"):
+                    destination = doc_figures / unique_asset_name(name, used_names)
+                    data = package.read(name)
+                    destination.write_bytes(data)
+                    item = {"id": name, "path": str(destination.resolve()),
+                            "sha256": hashlib.sha256(data).hexdigest(), "locators": []}
+                    image_targets[name] = item
+                    source_index["images"].append(item)
             body = root.find("w:body", NS)
             if body is not None:
-                for child in body:
+                for block_index, child in enumerate(body, 1):
                     kind = etree.QName(child).localname
+                    locator = f"BLOCK: {block_index} {kind}"
+                    source_index["blocks"].append({"locator": locator, "text": xml_text(child)})
+                    lines.append(f"[BLOCK: {block_index} {kind}]")
                     if kind == "p":
                         text = xml_text(child)
                         if text:
@@ -980,6 +1067,20 @@ def extract_docx(docx: Path, texts: Path, figures: Path) -> tuple[str, str]:
                             cells = [xml_text(cell) for cell in row.xpath("./w:tc", namespaces=NS)]
                             lines.append(" | ".join(cells))
                         lines.append("[TABLE END]")
+                    # Walk the complete block, including table cells and VML fallbacks.
+                    # Keep one reference per target per block, not one per XML fallback.
+                    for rid in child.xpath(".//a:blip/@r:embed | .//v:imagedata/@r:id", namespaces=NS):
+                        relation = relationships.get(rid, {})
+                        if relation.get("mode") == "External":
+                            source_index["warnings"].append(f"External image not downloaded at {locator}")
+                            continue
+                        target = package_target(relation.get("target", ""))
+                        item = image_targets.get(target)
+                        if item and locator not in item["locators"]:
+                            item["locators"].append(locator)
+                            lines.append(f"[FIGURE REF: {item['path']}]")
+                        elif not item:
+                            source_index["warnings"].append(f"Missing image relationship {rid} at {locator}")
 
             xml_root = etree.fromstring(package.read("word/document.xml"))
             shape_text = []
@@ -993,9 +1094,7 @@ def extract_docx(docx: Path, texts: Path, figures: Path) -> tuple[str, str]:
             for name in package.namelist():
                 lower = name.lower()
                 if lower.startswith("word/media/") and not lower.endswith("/"):
-                    destination = doc_figures / safe_name(name)
-                    destination.write_bytes(package.read(name))
-                    lines.append(f"[FIGURE: {destination.resolve()}]")
+                    lines.append(f"[FIGURE: {image_targets[name]['path']}]")
                 elif lower.startswith("word/embeddings/") and lower.endswith(".vsdx"):
                     data = package.read(name)
                     destination = doc_figures / safe_name(name)
@@ -1008,6 +1107,8 @@ def extract_docx(docx: Path, texts: Path, figures: Path) -> tuple[str, str]:
         return doc_id, f"ERROR {exc}"
     target = texts / f"{doc_id}.txt"
     target.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    source_index["text"] = {"path": str(target.resolve()), "sha256": hashlib.sha256(target.read_bytes()).hexdigest()}
+    (texts / f"{doc_id}.source.json").write_text(json.dumps(source_index, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return doc_id, f"{target.name}: {len(lines)} lines"
 
 
@@ -1017,14 +1118,23 @@ def cmd_extract(args) -> None:
     figures = Path(args.figures)
     texts.mkdir(parents=True, exist_ok=True)
     figures.mkdir(parents=True, exist_ok=True)
-    documents = sorted(source.glob("*.docx"))
+    candidates = [source] if source.is_file() else source.iterdir()
+    documents = sorted(p for p in candidates if p.is_file() and p.suffix.lower() == ".docx" and not p.name.startswith("~$"))
     if not documents:
         raise SystemExit(f"No DOCX files found in {source}")
     failures = 0
+    if len({p.stem for p in documents}) != len(documents):
+        raise SystemExit("Duplicate document stems; select one version per document")
+    results = []
     for docx in documents:
-        doc, result = extract_docx(docx, texts, figures)
+        try:
+            doc, result = extract_docx(docx, texts, figures)
+        except OSError as exc:
+            doc, result = docx.stem, f"ERROR {exc}"
         print(f"{doc}: {result}")
         failures += result.startswith("ERROR")
+        results.append({"document": doc, "source": str(docx.resolve()), "status": "failed" if result.startswith("ERROR") else "extracted", "detail": result})
+        (texts / "extraction-summary.json").write_text(json.dumps({"status": "partial" if failures else "extracted", "results": results}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     if failures:
         raise SystemExit(f"{failures} extraction(s) failed")
 
@@ -1032,21 +1142,37 @@ def cmd_extract(args) -> None:
 def cmd_coverage(args) -> None:
     manifest = Path(args.manifest)
     receipt = Path(args.receipt)
+    # A failed recheck must never leave a prior success receipt behind.
+    receipt.unlink(missing_ok=True)
     payload = manifest_payload(str(manifest))
     expected = {item["document"].upper() for item in payload["proposals"]}
     extracted = set()
+    invalid = []
+    text_files = []
     for path in Path(args.texts).glob("*.txt"):
         match = DOC_RE.search(path.stem)
         if match:
-            extracted.add(match.group(1).upper())
+            document = match.group(1).upper()
+            if document in extracted:
+                invalid.append(f"Duplicate extracted TDoc: {document}")
+            extracted.add(document)
+            raw = path.read_bytes()
+            content = raw.decode("utf-8")
+            body = re.sub(r"^\[(?:SOURCE DOCX:|BLOCK:|FIGURE(?: REF)?:|VISIO:|TABLE |VML/WPS |END VML/WPS |VISIO |END VISIO )[^\n]*\]\s*$", "", content, flags=re.M)
+            if not body.strip():
+                invalid.append(f"Empty extracted body: {document}")
+            text_files.append({"document": document, "path": str(path.resolve()), "sha256": hashlib.sha256(raw).hexdigest()})
     missing = sorted(expected - extracted)
     extra = sorted(extracted - expected)
     print(f"Expected: {len(expected)}")
     print(f"Extracted: {len(expected & extracted)}")
     print("Missing: " + (", ".join(missing) if missing else "none"))
     print("Extra: " + (", ".join(extra) if extra else "none"))
-    if missing or extra:
-        receipt.unlink(missing_ok=True)
+    if not expected:
+        invalid.append("Manifest contains no proposals")
+    if missing or extra or invalid:
+        for message in invalid:
+            print(message)
         raise SystemExit(1)
     manifest_bytes = manifest.read_bytes()
     coverage = {
@@ -1059,6 +1185,7 @@ def cmd_coverage(args) -> None:
         "extractedDocuments": sorted(extracted),
         "missing": [],
         "extra": [],
+        "textFiles": sorted(text_files, key=lambda item: item["document"]),
         "validatedAt": datetime.now(timezone.utc).isoformat(),
     }
     receipt.parent.mkdir(parents=True, exist_ok=True)
@@ -1104,7 +1231,7 @@ def make_parser() -> argparse.ArgumentParser:
     validating.set_defaults(func=cmd_validate_manifest)
 
     extract = commands.add_parser("extract")
-    extract.add_argument("--input", required=True)
+    extract.add_argument("--input", required=True, help="DOCX file or directory containing DOCX files")
     extract.add_argument("--texts", required=True)
     extract.add_argument("--figures", required=True)
     extract.set_defaults(func=cmd_extract)
@@ -1113,6 +1240,11 @@ def make_parser() -> argparse.ArgumentParser:
     converting.add_argument("--input", required=True)
     converting.add_argument("--output", required=True)
     converting.set_defaults(func=cmd_convert_docx)
+
+    batch = commands.add_parser("convert-batch")
+    batch.add_argument("--inputs", required=True)
+    batch.add_argument("--output", required=True)
+    batch.set_defaults(func=cmd_convert_batch)
 
     coverage = commands.add_parser("coverage")
     coverage.add_argument("--manifest", required=True)
