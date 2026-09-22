@@ -561,6 +561,14 @@ export function reduceAgentRunState(state, event) {
       task_id: payload.taskId,
       tool_id: payload.toolId,
       status,
+      startedAt:
+        (index >= 0 ? next.toolExecutions[index].startedAt : null) ||
+        event.createdAt,
+      completedAt: ["completed", "failed", "cancelled", "skipped"].includes(
+        status
+      )
+        ? event.createdAt
+        : null,
       result_summary: payload.summary,
       error: status === "skipped" ? null : payload.error,
     };

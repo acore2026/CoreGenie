@@ -234,7 +234,7 @@ export default forwardRef(function (
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
         >
-          <div className="w-full max-w-[750px]">{compiledHistory}</div>
+          <div className="w-full max-w-[920px]">{compiledHistory}</div>
           {showing && (
             <ManageWorkspace
               hideModal={hideModal}

@@ -523,7 +523,7 @@ export default function ChatContainer({
               {isMobile && <SidebarMobileHeader />}
               <DnDFileUploaderWrapper>
                 <div className="flex flex-col h-full w-full items-center justify-center">
-                  <div className="flex flex-col items-center w-full max-w-[750px]">
+                  <div className="flex flex-col items-center w-full max-w-[920px]">
                     {readOnly ? (
                       <ReadOnlyThreadNotice
                         thread={thread}
@@ -641,7 +641,7 @@ function ReadOnlyThreadNotice({
       id={centered ? undefined : "prompt-input-wrapper"}
       className={`${centered ? "w-full max-w-[560px]" : "absolute bottom-0 left-0 right-0 z-20 px-4 pb-4 md:px-6 md:pb-6"}`}
     >
-      <div className="mx-auto flex max-w-[750px] items-center gap-3 rounded-lg border border-white/10 bg-zinc-900/95 px-4 py-3 light:border-slate-200 light:bg-white/95">
+      <div className="mx-auto flex max-w-[920px] items-center gap-3 rounded-lg border border-white/10 bg-zinc-900/95 px-4 py-3 light:border-slate-200 light:bg-white/95">
         <LockSimple
           size={18}
           weight="bold"

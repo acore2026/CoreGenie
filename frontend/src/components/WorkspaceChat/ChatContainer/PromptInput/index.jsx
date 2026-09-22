@@ -371,13 +371,13 @@ function PromptInput({
         className={
           centered
             ? "flex flex-col gap-y-1 rounded-t-lg w-full items-center"
-            : "flex flex-col gap-y-1 rounded-t-lg md:w-full w-full mx-auto max-w-[750px] items-center"
+            : "flex flex-col gap-y-1 rounded-t-lg md:w-full w-full mx-auto max-w-[920px] px-3 md:px-0 items-center"
         }
       >
         <div
-          className={`flex items-center rounded-lg md:w-full ${centered ? "mb-0" : "mb-4"}`}
+          className={`flex w-full items-center rounded-lg ${centered ? "mb-0" : "mb-4"}`}
         >
-          <div className="relative w-[95vw] md:w-[750px]">
+          <div className="relative w-full min-w-0">
             <ToolsMenu
               workspace={workspace}
               agentSessionActive={agentSessionActive}
