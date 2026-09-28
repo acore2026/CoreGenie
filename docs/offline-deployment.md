@@ -101,6 +101,24 @@ SANDBOX_PROXY=http://172.17.0.1:7890 \
 
 设置 `SANDBOX_PROXY=""` 可以禁用 runner 代理。代理只作用于 Sandbox 内执行的代码；应用容器本身的代理用 `ANYTHINGLLM_PROXY` 控制，同样在安装前设置。
 
+## 通过 GitHub 镜像更新
+
+代码推送到 GitHub 后，`build-and-push-image.yaml` 会构建应用镜像并发布到 `ghcr.io/acore2026/coregenie`（`latest` 和 `master` 两个标签）。目标机不需要重新执行离线安装，直接拉取新镜像重建容器：
+
+```bash
+STORAGE_LOCATION=/root/anythingllm \
+AGENT_CONFIG_SYNC_DIR=/root/offline-extract/agent-config \
+bash pull-and-update-from-ghcr.sh
+```
+
+脚本（`scripts/pull-and-update-from-ghcr.sh`）会拉取镜像、删除旧容器、按原配置重建并等待健康检查通过。数据目录、`.env`、agent-config 挂载和数据库都不变。
+
+注意事项：
+
+1. 镜像是多架构的（amd64/arm64），目标机会自动拉取对应架构。
+2. `agent-config/` 不在镜像里，仓库中该目录有更新时需要单独同步到目标机的挂载目录。
+3. 该 workflow 也支持在 GitHub 页面手动触发（workflow_dispatch），适合不改代码重建镜像的场景。
+
 ## 安全和检查
 
 数据包包含用户密码哈希、API Key、连接器配置和源站 `.env` 里的密钥。传输和保存时请按密钥材料处理，不要提交到 Git。脚本会为数据包内的每个文件写入 SHA-256 校验值，导入前会验证这些值。
