@@ -9,6 +9,8 @@ Start a persistent AnythingLLM Docker container.
 Environment overrides:
   STORAGE_LOCATION       Host data directory (default: $HOME/anythingllm)
   ANYTHINGLLM_IMAGE      Docker image (default: anythingllm:local)
+  OFFLINE_GLOBAL_DATA_PACKAGE
+                          Extracted global-data package to import before start
   CONTAINER_NAME         Container name (default: anythingllm)
   HOST_PORT              Host HTTP port (default: 7555)
   DATABASE_PROVIDER      Database backend (default: postgresql)
@@ -51,6 +53,7 @@ fi
 
 STORAGE_LOCATION="${STORAGE_LOCATION:-${HOME}/anythingllm}"
 ANYTHINGLLM_IMAGE="${ANYTHINGLLM_IMAGE:-anythingllm:local}"
+OFFLINE_GLOBAL_DATA_PACKAGE="${OFFLINE_GLOBAL_DATA_PACKAGE:-}"
 CONTAINER_NAME="${CONTAINER_NAME:-anythingllm}"
 HOST_PORT="${HOST_PORT:-7555}"
 APP_DATABASE_PROVIDER="${DATABASE_PROVIDER:-postgresql}"
@@ -130,7 +133,10 @@ SANDBOX_REBUILD="${SANDBOX_REBUILD:-false}"
 SANDBOX_MAX_CONCURRENCY="${SANDBOX_MAX_CONCURRENCY:-6}"
 SANDBOX_RUNNER_MEMORY="${SANDBOX_RUNNER_MEMORY:-1024m}"
 SANDBOX_NETWORK="${SANDBOX_NETWORK:-bridge}"
-SANDBOX_PROXY="${SANDBOX_PROXY:-${ANYTHINGLLM_PROXY:-http://host.docker.internal:7890}}"
+# Empty SANDBOX_PROXY disables the runner proxy; unset falls back to
+# ANYTHINGLLM_PROXY. On offline installs the packaged value wins unless the
+# operator sets SANDBOX_PROXY explicitly.
+SANDBOX_PROXY="${SANDBOX_PROXY:-${OFFLINE_SANDBOX_PROXY:-${ANYTHINGLLM_PROXY:-http://host.docker.internal:7890}}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 
 PROXY_ARGS=()
@@ -349,6 +355,42 @@ else
     --env LANGGRAPH_CHECKPOINT_BACKEND=sqlite
   )
 fi
+
+import_offline_global_data() {
+  if [[ -z "$OFFLINE_GLOBAL_DATA_PACKAGE" ]]; then
+    return
+  fi
+  if [[ "$APP_DATABASE_PROVIDER" != "postgresql" ]]; then
+    echo "Error: offline global data import requires PostgreSQL." >&2
+    exit 1
+  fi
+  if [[ ! -f "$OFFLINE_GLOBAL_DATA_PACKAGE/manifest.json" ]]; then
+    echo "Error: OFFLINE_GLOBAL_DATA_PACKAGE must contain manifest.json." >&2
+    exit 1
+  fi
+  if [[ ! -d "$OFFLINE_GLOBAL_DATA_PACKAGE/storage" ]]; then
+    echo "Error: OFFLINE_GLOBAL_DATA_PACKAGE must contain a storage/ directory." >&2
+    exit 1
+  fi
+  if [[ -f "$STORAGE_LOCATION/.offline-global-data-imported.json" ]]; then
+    echo "Offline global data is already imported into '$STORAGE_LOCATION'."
+    return
+  fi
+
+  echo "Importing offline global data into PostgreSQL..."
+  docker run --rm \
+    --network "$POSTGRES_NETWORK_NAME" \
+    --volume "$OFFLINE_GLOBAL_DATA_PACKAGE:/offline:ro" \
+    --volume "$STORAGE_LOCATION:/app/server/storage" \
+    --env DATABASE_PROVIDER=postgresql \
+    --env "DATABASE_URL=$APP_DATABASE_URL" \
+    --env STORAGE_DIR=/app/server/storage \
+    --entrypoint /bin/bash \
+    "$ANYTHINGLLM_IMAGE" \
+    -lc 'cd /app/server && node scripts/postgres/prepare-schema.js && npx prisma generate --schema=./prisma-postgresql/schema.prisma && npx prisma migrate deploy --schema=./prisma-postgresql/schema.prisma && node scripts/offline/global-data.js import --package /offline --storage-root /app/server/storage'
+}
+
+import_offline_global_data
 
 start_sandbox_broker() {
   local sandbox_socket="$STORAGE_LOCATION/sandbox/run.sock"
