@@ -59,6 +59,8 @@ function createSubagentTool(context, availableAgents = []) {
       try {
         const invocation = {
           parentRun: context.run,
+          runId: childRunId,
+          runtimeKey: "default-react",
           workspace: context.workspace,
           user: context.user,
           agent: child,

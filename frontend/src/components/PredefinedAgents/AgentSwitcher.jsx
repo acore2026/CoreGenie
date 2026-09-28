@@ -1,10 +1,12 @@
 import { CaretDown, Check, Robot } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useTranslation } from "react-i18next";
 import usePredefinedAgent from "@/hooks/usePredefinedAgent";
 import AgentAvatar from "./AgentAvatar";
 
 export default function AgentSwitcher({ disabled = false }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [menuPosition, setMenuPosition] = useState({ left: 8, bottom: 8 });
   const rootRef = useRef(null);
@@ -47,19 +49,20 @@ export default function AgentSwitcher({ disabled = false }) {
     };
   }, [open]);
 
-  if (!agents.length) return null;
+  const visibleAgents = agents.filter((agent) => agent.showInRoster !== false);
+  if (!visibleAgents.length) return null;
   return (
     <div ref={rootRef} className="relative">
       <button
         type="button"
         disabled={disabled}
         onClick={() => setOpen((value) => !value)}
-        className={`flex h-6 max-w-[150px] items-center gap-1.5 rounded-full px-2 text-xs font-medium transition ${
+        className={`flex h-7 max-w-[150px] items-center gap-1.5 rounded-md px-2 text-xs font-medium text-theme-text-secondary transition-colors duration-150 hover:bg-theme-sidebar-subitem-hover hover:text-theme-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-button-primary ${
           open
-            ? "bg-cyan-300/15 text-cyan-200 light:bg-cyan-100 light:text-cyan-800"
-            : "text-zinc-300 hover:bg-zinc-700 hover:text-white light:text-slate-600 light:hover:bg-slate-200"
+            ? "bg-theme-sidebar-subitem-selected text-theme-text-primary"
+            : ""
         } disabled:cursor-not-allowed disabled:opacity-50`}
-        aria-label="Switch Agent"
+        aria-label={t("predefined_agents.switch_aria")}
       >
         {selectedAgent ? (
           <AgentAvatar
@@ -78,9 +81,9 @@ export default function AgentSwitcher({ disabled = false }) {
           <div
             ref={menuRef}
             style={menuPosition}
-            className="fixed z-[300] max-h-[min(420px,calc(100vh-24px))] w-64 overflow-y-auto rounded-xl border border-white/10 bg-zinc-800 p-1.5 shadow-2xl light:border-slate-200 light:bg-white"
+            className="dsh-menu fixed z-[300] max-h-[min(420px,calc(100vh-24px))] w-64 overflow-y-auto"
           >
-            {agents.map((agent) => (
+            {visibleAgents.map((agent) => (
               <AgentOption
                 key={agent.id}
                 agent={agent}
@@ -103,7 +106,7 @@ function AgentOption({ agent, active, onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left transition hover:bg-white/[0.07] light:hover:bg-slate-100"
+      className="flex min-h-10 w-full items-center gap-2 rounded-md px-2 py-2 text-left transition-colors hover:bg-theme-sidebar-subitem-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-theme-button-primary"
     >
       <AgentAvatar agent={agent} size={28} className="!rounded-lg" />
       <span className="min-w-0 flex-1">

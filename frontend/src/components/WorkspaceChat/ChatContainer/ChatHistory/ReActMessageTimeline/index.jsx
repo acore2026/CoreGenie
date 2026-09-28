@@ -75,7 +75,13 @@ export default function ReActMessageTimeline({
     snapshot?.toolExecutions ||
     []
   ).filter((tool) => tool.tool_id !== "plan.update");
-  const tasks = runState?.tasks || snapshot?.tasks || [];
+  const runtimeKey = runState?.runtimeKey || snapshot?.run?.runtimeKey;
+  const allTasks = runState?.tasks || snapshot?.tasks || [];
+  const tasks = allTasks.filter((task) =>
+    runtimeKey === "default-react"
+      ? String(task.id).includes(":plan:")
+      : !String(task.id).includes(":plan:")
+  );
   const status = runState?.status || snapshot?.run?.status;
   const messageParts = useMemo(() => {
     const source = runState?.messageParts?.length

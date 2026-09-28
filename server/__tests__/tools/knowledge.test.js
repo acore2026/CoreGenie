@@ -250,6 +250,16 @@ describe("knowledge.publish", () => {
       extractedDocuments: ["S2-2606085"],
       missing: [],
       extra: [],
+      textFiles: [
+        {
+          document: "S2-2606085",
+          path: "work/S2-2606085.txt",
+          sha256: crypto
+            .createHash("sha256")
+            .update("proposal body")
+            .digest("hex"),
+        },
+      ],
       validatedAt: "2026-08-28T00:00:00Z",
     });
     mockManager.validatePath.mockImplementation(
@@ -258,6 +268,7 @@ describe("knowledge.publish", () => {
     fs.readFile.mockImplementation(async (target) => {
       if (target.endsWith("proposals.json")) return manifest;
       if (target.endsWith("coverage.json")) return receipt;
+      if (target.endsWith("S2-2606085.txt")) return "proposal body";
       return "# Report\n\nS2-2606085 evidence.";
     });
 
@@ -285,6 +296,38 @@ describe("knowledge.publish", () => {
         }),
       })
     );
+    AgentReportPublication.begin.mockClear();
+    fs.readFile.mockImplementation(async (target) => {
+      if (target.endsWith("proposals.json")) return manifest;
+      if (target.endsWith("coverage.json")) return receipt;
+      if (target.endsWith("S2-2606085.txt")) return "changed after validation";
+      return "# Report\n\nS2-2606085 evidence.";
+    });
+    const stale = await publishReport.execute(
+      { ...args, manifestPath, coverageReceiptPath: receiptPath },
+      context()
+    );
+    expect(stale.code).toBe("EXTRACTED_TEXT_CHANGED");
+    expect(AgentReportPublication.begin).not.toHaveBeenCalled();
+  });
+
+  it("cannot skip required coverage after runtime config normalization", async () => {
+    const {
+      normalizeRuntimeConfig,
+    } = require("../../agent-system/runtimes/registry");
+    const result = await publishReport.execute(args, {
+      ...context(),
+      run: {
+        id: "run-publish",
+        runtimeSnapshot: {
+          runtimeConfig: normalizeRuntimeConfig("governed-agent", {
+            publicationRequiresCoverage: true,
+          }),
+        },
+      },
+    });
+    expect(result.code).toBe("COVERAGE_BINDING_REQUIRED");
+    expect(AgentReportPublication.begin).not.toHaveBeenCalled();
   });
 
   it("rejects a publication TDoc list that differs from the manifest", async () => {

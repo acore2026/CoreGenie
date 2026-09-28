@@ -495,11 +495,6 @@ const KEY_MAPPING = {
     checks: [isNotEmpty, supportedTranscriptionProvider],
     postUpdate: [],
   },
-  WhisperModelPref: {
-    envKey: "WHISPER_MODEL_PREF",
-    checks: [validLocalWhisper],
-    postUpdate: [],
-  },
   WhisperGenericOpenAiBaseUrl: {
     envKey: "WHISPER_GENERIC_OPEN_AI_BASE_URL",
     checks: [isValidURL],
@@ -1035,23 +1030,13 @@ function supportedSTTProvider(input = "") {
   return validSelection ? null : `${input} is not a valid STT provider.`;
 }
 
-function validLocalWhisper(input = "") {
-  const validSelection = [
-    "Xenova/whisper-small",
-    "Xenova/whisper-large",
-  ].includes(input);
-  return validSelection
-    ? null
-    : `${input} is not a valid Whisper model selection.`;
-}
-
 function supportedLLM(input = "") {
   const validSelection = ["openai", "generic-openai"].includes(input);
   return validSelection ? null : `${input} is not a valid LLM provider.`;
 }
 
 function supportedTranscriptionProvider(input = "") {
-  const validSelection = ["openai", "generic-openai", "local"].includes(input);
+  const validSelection = ["openai", "generic-openai"].includes(input);
   return validSelection
     ? null
     : `${input} is not a valid transcription model provider.`;
@@ -1400,9 +1385,6 @@ function dumpENV() {
     "GENERIC_OPENAI_STREAMING_DISABLED",
     // Custom headers for Generic OpenAI
     "GENERIC_OPEN_AI_CUSTOM_HEADERS",
-
-    // Specify Chromium args for collector
-    "ANYTHINGLLM_CHROMIUM_ARGS",
 
     // Allow setting a custom response timeout for Ollama
     "OLLAMA_RESPONSE_TIMEOUT",

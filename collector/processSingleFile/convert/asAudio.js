@@ -6,7 +6,6 @@ const {
 } = require("../../utils/files");
 const { tokenizeString } = require("../../utils/tokenizer");
 const { default: slugify } = require("slugify");
-const { LocalWhisper } = require("../../utils/WhisperProviders/localWhisper");
 const { OpenAiWhisper } = require("../../utils/WhisperProviders/OpenAiWhisper");
 const {
   GenericOpenAiWhisper,
@@ -15,7 +14,6 @@ const {
 const WHISPER_PROVIDERS = {
   openai: OpenAiWhisper,
   "generic-openai": GenericOpenAiWhisper,
-  local: LocalWhisper,
 };
 
 async function asAudio({
@@ -24,11 +22,19 @@ async function asAudio({
   options = {},
   metadata = {},
 }) {
-  const WhisperProvider = WHISPER_PROVIDERS.hasOwnProperty(
-    options?.whisperProvider
-  )
-    ? WHISPER_PROVIDERS[options?.whisperProvider]
-    : WHISPER_PROVIDERS.local;
+  const providerName = options?.whisperProvider || "openai";
+  const WhisperProvider = WHISPER_PROVIDERS[providerName];
+
+  if (!WhisperProvider) {
+    if (!options.absolutePath) trashFile(fullFilePath);
+    return {
+      success: false,
+      reason:
+        `不支持音频转写服务“${providerName}”。` +
+        "请配置 OpenAI 或兼容 OpenAI 接口的转写服务。",
+      documents: [],
+    };
+  }
 
   console.log(`-- Working ${filename} --`);
   const whisper = new WhisperProvider({ options });

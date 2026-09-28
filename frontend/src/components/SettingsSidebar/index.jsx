@@ -1,8 +1,16 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
+import { createPortal } from "react-dom";
 import paths from "@/utils/paths";
 import useLogo from "@/hooks/useLogo";
 import {
   ArrowLeft,
+  X,
   List,
   Flask,
   Gear,
@@ -16,23 +24,42 @@ import AgentIcon from "@/media/animations/agent-static.png";
 import useUser from "@/hooks/useUser";
 import { isMobile } from "react-device-detect";
 import Footer from "../Footer";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import showToast from "@/utils/toast";
 import System from "@/models/system";
 import Option from "./MenuOption";
 import { CanViewChatHistoryProvider } from "../CanViewChatHistory";
 import useAppVersion from "@/hooks/useAppVersion";
-import { SETTINGS_RETURN_PATH } from "@/utils/constants";
+import {
+  SettingsModalBackdrop,
+  useSettingsModal,
+} from "@/components/SettingsModal";
+import { getSettingsReturnPath } from "@/utils/settingsModal";
 
 export default function SettingsSidebar() {
   const { t } = useTranslation();
   const { logo } = useLogo();
   const { user } = useUser();
+  const navigate = useNavigate();
   const sidebarRef = useRef(null);
+  const [closeTarget, setCloseTarget] = useState(null);
+  useLayoutEffect(() => {
+    if (!isMobile) setCloseTarget(sidebarRef.current?.nextElementSibling);
+  }, []);
   const [showSidebar, setShowSidebar] = useState(false);
   const [showBgOverlay, setShowBgOverlay] = useState(false);
   const returnPath = getSettingsReturnPath();
+  const closeSettings = useCallback(
+    () => navigate(returnPath, { replace: true }),
+    [navigate, returnPath]
+  );
+
+  useSettingsModal({
+    anchorRef: sidebarRef,
+    onDismiss: closeSettings,
+    labelledBy: "system-settings-title",
+  });
 
   useEffect(() => {
     function handleBg() {
@@ -50,9 +77,15 @@ export default function SettingsSidebar() {
   if (isMobile) {
     return (
       <>
-        <div className="fixed top-0 left-0 right-0 z-10 flex justify-between items-center px-4 py-2 bg-theme-bg-sidebar light:bg-white text-theme-text-secondary shadow-lg h-16">
+        <SettingsModalBackdrop onDismiss={closeSettings} />
+        <div
+          ref={sidebarRef}
+          className="fixed top-0 left-0 right-0 z-10 flex justify-between items-center px-4 py-2 bg-theme-bg-sidebar light:bg-white text-theme-text-secondary shadow-lg h-16"
+        >
           <Link
             to={returnPath}
+            replace
+            data-settings-close
             aria-label={t("settings.back-to-chat")}
             title={t("settings.back-to-chat")}
             className="rounded-lg p-2 flex items-center justify-center text-theme-text-secondary hover:text-white hover:bg-theme-action-menu-item-hover hover:light:text-theme-text-primary transition-colors"
@@ -155,79 +188,62 @@ export default function SettingsSidebar() {
 
   return (
     <>
-      <div>
-        <Link
-          to={paths.home()}
-          className="flex shrink-0 max-w-[55%] items-center justify-start mx-[20.5px] my-[18px]"
+      <SettingsModalBackdrop onDismiss={closeSettings} />
+      <div ref={sidebarRef} className="system-settings-sidebar">
+        <div className="flex h-14 shrink-0 items-center justify-between px-5">
+          <h1
+            id="system-settings-title"
+            className="text-base font-semibold text-theme-text-primary"
+          >
+            {t("settings.title")}
+          </h1>
+          {closeTarget &&
+            createPortal(
+              <Link
+                to={returnPath}
+                replace
+                data-settings-close
+                aria-label={t("settings.back-to-chat")}
+                title={t("settings.back-to-chat")}
+                className="absolute right-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-lg bg-theme-bg-secondary text-theme-text-secondary transition-colors duration-150 hover:bg-theme-sidebar-subitem-hover hover:text-theme-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-button-primary"
+              >
+                <X size={16} weight="bold" />
+              </Link>,
+              closeTarget
+            )}
+        </div>
+        <nav
+          aria-label={t("settings.title")}
+          className="sidebar-scrollbar min-h-0 flex-1 overflow-y-auto px-3 pb-4"
         >
-          <img
-            src={logo}
-            alt="品牌标志"
-            className="rounded max-h-[32px]"
-            style={{ objectFit: "contain" }}
-          />
-        </Link>
-        <div
-          ref={sidebarRef}
-          className="transition-all duration-500 relative m-[16px] rounded-[16px] bg-theme-bg-sidebar border-[2px] border-theme-sidebar-border light:border-none min-w-[250px] p-[10px] h-[calc(100%-84px)]"
-        >
-          <div className="w-full h-full flex flex-col overflow-x-hidden items-between min-w-[235px]">
+          <div className="flex flex-col gap-1">
+            <SidebarOptions user={user} t={t} />
+          </div>
+        </nav>
+        <div className="shrink-0 border-t border-theme-sidebar-border px-5 py-4">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-theme-text-secondary">
+            <SupportEmail />
             <Link
-              to={returnPath}
-              className="group mb-2 flex w-full items-center gap-2 rounded-xl border border-theme-sidebar-border px-3 py-2.5 text-sm font-medium text-theme-text-secondary transition-colors hover:border-white/20 hover:bg-theme-action-menu-item-hover hover:text-white hover:light:text-theme-text-primary"
+              to={paths.help()}
+              className="transition-colors hover:text-theme-text-primary"
             >
-              <ArrowLeft
-                className="h-4 w-4 flex-shrink-0 transition-transform group-hover:-translate-x-0.5"
-                weight="bold"
-              />
-              <span>{t("settings.back-to-chat")}</span>
+              {t("help.navigation")}
             </Link>
-            <div className="text-theme-text-secondary text-sm font-medium uppercase mt-[4px] mb-0 ml-2">
-              {t("settings.title")}
-            </div>
-            <div className="relative h-[calc(100%-60px)] flex flex-col w-full justify-between pt-[10px] overflow-y-scroll no-scroll">
-              <div className="h-auto sidebar-items">
-                <div className="flex flex-col gap-y-2 pb-[60px] overflow-y-scroll no-scroll">
-                  <SidebarOptions user={user} t={t} />
-                  <div className="h-[1.5px] bg-[#3D4147] mx-3 mt-[14px]" />
-                  <SupportEmail />
-                  <Link
-                    to={paths.help()}
-                    className="text-theme-text-secondary hover:text-white hover:light:text-theme-text-primary text-xs leading-[18px] mx-3"
-                  >
-                    {t("help.navigation")}
-                  </Link>
-                  <Link
-                    hidden={
-                      user?.hasOwnProperty("role") && user.role !== "admin"
-                    }
-                    to={paths.settings.privacy()}
-                    className="text-theme-text-secondary hover:text-white hover:light:text-theme-text-primary text-xs leading-[18px] mx-3"
-                  >
-                    {t("settings.privacy")}
-                  </Link>
-                  <AppVersion />
-                </div>
-              </div>
-            </div>
-            <div className="absolute bottom-0 left-0 right-0 pt-4 pb-3 rounded-b-[16px] bg-theme-bg-sidebar bg-opacity-80 backdrop-filter backdrop-blur-md z-10">
-              <Footer />
-            </div>
+            <Link
+              hidden={user?.hasOwnProperty("role") && user.role !== "admin"}
+              to={paths.settings.privacy()}
+              className="transition-colors hover:text-theme-text-primary"
+            >
+              {t("settings.privacy")}
+            </Link>
+          </div>
+          <div className="mt-2 text-[11px] text-theme-text-secondary opacity-70">
+            <AppVersion />
           </div>
         </div>
       </div>
     </>
   );
-}
-
-function getSettingsReturnPath() {
-  const returnPath = sessionStorage.getItem(SETTINGS_RETURN_PATH);
-  if (
-    returnPath === "/" ||
-    /^\/workspace\/[^/]+(?:\/t\/[^/]+)?(?:[?#].*)?$/.test(returnPath || "")
-  )
-    return returnPath;
-  return paths.home();
 }
 
 function SupportEmail() {
@@ -249,7 +265,7 @@ function SupportEmail() {
   return (
     <Link
       to={supportEmail}
-      className="text-theme-text-secondary hover:text-white hover:light:text-theme-text-primary text-xs leading-[18px] mx-3 mt-1"
+      className="transition-colors hover:text-theme-text-primary"
     >
       {t("settings.contact")}
     </Link>
@@ -319,6 +335,11 @@ const SidebarOptions = ({ user = null, t }) => (
               roles: ["admin", "manager"],
             },
             {
+              btnText: t("settings.global-knowledge"),
+              href: paths.settings.globalKnowledge(),
+              roles: ["admin"],
+            },
+            {
               hidden: !canViewChatHistory,
               btnText: t("settings.workspace-chats"),
               href: paths.settings.chats(),
@@ -366,6 +387,12 @@ const SidebarOptions = ({ user = null, t }) => (
             {
               btnText: t("settings.predefined-agent-skills"),
               href: paths.settings.predefinedAgentSkills(),
+              flex: true,
+              roles: ["admin"],
+            },
+            {
+              btnText: t("quick_tasks.title"),
+              href: paths.settings.quickTasks(),
               flex: true,
               roles: ["admin"],
             },
@@ -456,12 +483,6 @@ const SidebarOptions = ({ user = null, t }) => (
               href: paths.settings.browserExtension(),
               flex: true,
               roles: ["admin", "manager"],
-            },
-            {
-              btnText: t("settings.mobile-app"),
-              href: paths.settings.mobile(),
-              flex: true,
-              roles: ["admin"],
             },
           ]}
         />

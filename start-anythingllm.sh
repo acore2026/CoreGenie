@@ -353,9 +353,12 @@ fi
 start_sandbox_broker() {
   local sandbox_socket="$STORAGE_LOCATION/sandbox/run.sock"
   local sandbox_broker_name="${CONTAINER_NAME}-sandbox-broker"
+  local sandbox_image_guard_name="${CONTAINER_NAME}-sandbox-image-guard"
   local workspace_root="$STORAGE_LOCATION/anythingllm-fs/workspaces"
   local global_skills_root="$STORAGE_LOCATION/agent-skills/global"
   local docker_socket_gid
+  local runner_image_id
+  local guard_image_id
   docker_socket_gid="$(stat -c '%g' /var/run/docker.sock)"
 
   if [[ "$SANDBOX_REBUILD" == "true" ]] || \
@@ -366,6 +369,46 @@ start_sandbox_broker() {
       --build-arg "SANDBOX_UID=$ANYTHINGLLM_UID" \
       --build-arg "SANDBOX_GID=$ANYTHINGLLM_GID" \
       "$SCRIPT_DIR/sandbox"
+  fi
+
+  # The broker starts short-lived containers from the runner image, so the
+  # image otherwise appears unused between calls and can be removed by broad
+  # Docker prune commands. Keep one inert, locked-down container running from
+  # the image so ordinary image/system pruning treats it as in use.
+  runner_image_id="$(docker image inspect --format '{{.Id}}' "$SANDBOX_IMAGE")"
+  if docker container inspect "$sandbox_image_guard_name" >/dev/null 2>&1; then
+    guard_image_id="$(
+      docker container inspect --format '{{.Image}}' "$sandbox_image_guard_name"
+    )"
+    if [[ "$guard_image_id" != "$runner_image_id" ]]; then
+      echo "Replacing sandbox image guard for '$SANDBOX_IMAGE'..."
+      docker rm --force "$sandbox_image_guard_name" >/dev/null
+    fi
+  fi
+
+  if docker container inspect "$sandbox_image_guard_name" >/dev/null 2>&1; then
+    if [[ "$(docker inspect --format '{{.State.Running}}' "$sandbox_image_guard_name")" != "true" ]]; then
+      echo "Starting sandbox image guard '$sandbox_image_guard_name'..."
+      docker start "$sandbox_image_guard_name" >/dev/null
+    fi
+  else
+    echo "Creating sandbox image guard '$sandbox_image_guard_name'..."
+    docker run -d \
+      --name "$sandbox_image_guard_name" \
+      --restart unless-stopped \
+      --network none \
+      --read-only \
+      --user "$ANYTHINGLLM_UID:$ANYTHINGLLM_GID" \
+      --cap-drop ALL \
+      --security-opt no-new-privileges:true \
+      --pids-limit 8 \
+      --memory 16m \
+      --memory-swap 16m \
+      --cpus 0.01 \
+      --label anythingllm.sandbox.image-guard=true \
+      "$SANDBOX_IMAGE" \
+      sleep infinity \
+      >/dev/null
   fi
 
   if [[ "$SANDBOX_REBUILD" == "true" ]] || \
@@ -520,7 +563,6 @@ else
     --restart unless-stopped \
     "${APP_NETWORK_ARGS[@]}" \
     --publish "${HOST_PORT}:3001" \
-    --cap-add SYS_ADMIN \
     --add-host host.docker.internal:host-gateway \
     --volume "$STORAGE_LOCATION:/app/server/storage" \
     --volume "$STORAGE_LOCATION/.env:/app/server/.env" \

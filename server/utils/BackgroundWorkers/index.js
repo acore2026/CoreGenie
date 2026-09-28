@@ -28,6 +28,11 @@ class BackgroundService {
 
   #alwaysRunJobs = [
     {
+      name: "sync-three-gpp-catalog",
+      timeout: "10s",
+      interval: "5m",
+    },
+    {
       name: "cleanup-orphan-documents",
       timeout: "1m",
       interval: "12hr",

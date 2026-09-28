@@ -11,11 +11,13 @@ const {
   userFromSession,
   multiUserMode,
   queryParams,
+  safeJsonParse,
 } = require("../utils/http");
 const {
   handleAssetUpload,
   handlePfpUpload,
   handleAudioUpload,
+  handleFileUpload,
 } = require("../utils/files/multer");
 const { v4 } = require("uuid");
 const { SystemSettings } = require("../models/systemSettings");
@@ -46,6 +48,13 @@ const { fetchPfp, determinePfpFilepath } = require("../utils/files/pfp");
 const { exportChatsAsType } = require("../utils/helpers/chat/convertTo");
 const { EventLogs } = require("../models/eventLogs");
 const { CollectorApi } = require("../utils/collectorApi");
+const { GlobalDocument } = require("../models/globalDocuments");
+const {
+  fallbackDownloadName,
+  getGlobalKnowledgeDownload,
+  preserveGlobalKnowledgeSource,
+  removeGlobalKnowledgeSource,
+} = require("../utils/globalKnowledge");
 const {
   recoverAccount,
   resetPassword,
@@ -603,6 +612,134 @@ function systemEndpoints(app) {
       } catch (e) {
         console.error(e.message, e);
         response.sendStatus(500).end();
+      }
+    }
+  );
+
+  app.get(
+    "/system/global-knowledge",
+    [validatedRequest, flexUserRoleValid([ROLES.admin])],
+    async (_request, response) => {
+      try {
+        const documents = (await GlobalDocument.all()).map((document) => {
+          const metadata = safeJsonParse(document.metadata, {});
+          return {
+            id: document.id,
+            filename: document.filename,
+            title: metadata.title || document.filename,
+            downloadName:
+              metadata.sourceFile?.originalName ||
+              fallbackDownloadName(metadata.title || document.filename),
+            createdAt: document.createdAt,
+          };
+        });
+        response.status(200).json({ documents });
+      } catch (error) {
+        console.error(error.message, error);
+        response.status(500).json({ error: "无法读取公共知识库。" });
+      }
+    }
+  );
+
+  app.post(
+    "/system/global-knowledge/upload",
+    [validatedRequest, flexUserRoleValid([ROLES.admin]), handleFileUpload],
+    async (request, response) => {
+      let sourceFile = null;
+      let sourceInUse = false;
+      try {
+        const Collector = new CollectorApi();
+        if (!(await Collector.online()))
+          return response
+            .status(503)
+            .json({ error: "文档处理服务当前不可用。" });
+        const { originalname } = request.file;
+        sourceFile = await preserveGlobalKnowledgeSource(
+          request.file.path,
+          originalname
+        );
+        const parsed = await Collector.processDocument(originalname, {
+          docSource: "global-knowledge",
+          ragScope: "global",
+        });
+        if (!parsed?.success || !parsed.documents?.length) {
+          await removeGlobalKnowledgeSource(sourceFile.storageName);
+          sourceFile = null;
+          return response
+            .status(422)
+            .json({ error: parsed?.reason || "文档无法解析。" });
+        }
+
+        const paths = parsed.documents.map((document) => document.location);
+        const result = await GlobalDocument.addDocuments(
+          paths,
+          response.locals?.user?.id || null,
+          sourceFile
+        );
+        sourceInUse = result.embedded.length > 0;
+        if (result.failedToEmbed.length)
+          return response.status(422).json({
+            error: result.errors[0] || "文档无法加入公共知识库。",
+            embedded: result.embedded,
+            failed: result.failedToEmbed,
+          });
+        response.status(201).json({
+          success: true,
+          embedded: result.embedded.length,
+        });
+      } catch (error) {
+        if (sourceFile && !sourceInUse)
+          await removeGlobalKnowledgeSource(sourceFile.storageName).catch(
+            () => {}
+          );
+        console.error(error.message, error);
+        response.status(500).json({ error: "文档无法加入公共知识库。" });
+      }
+    }
+  );
+
+  app.get(
+    "/system/global-knowledge/:id/download",
+    [validatedRequest, flexUserRoleValid([ROLES.admin])],
+    async (request, response) => {
+      try {
+        const document = await GlobalDocument.get({
+          id: Number(request.params.id),
+        });
+        if (!document)
+          return response.status(404).json({ error: "没有找到该文档。" });
+        const download = await getGlobalKnowledgeDownload(document);
+        if (!download)
+          return response
+            .status(404)
+            .json({ error: "该文档没有可下载的内容。" });
+        if (download.kind === "file")
+          return response.download(download.path, download.filename);
+        response.attachment(download.filename);
+        response.type("text/plain; charset=utf-8");
+        return response.send(download.content);
+      } catch (error) {
+        console.error(error.message, error);
+        return response.status(500).json({ error: "文档下载失败，请重试。" });
+      }
+    }
+  );
+
+  app.delete(
+    "/system/global-knowledge/:id",
+    [validatedRequest, flexUserRoleValid([ROLES.admin])],
+    async (request, response) => {
+      try {
+        const removed = await GlobalDocument.delete(
+          request.params.id,
+          response.locals?.user?.id || null
+        );
+        if (!removed)
+          return response.status(404).json({ error: "没有找到该文档。" });
+        response.status(200).json({ success: true });
+      } catch (error) {
+        console.error(error.message, error);
+        response.status(500).json({ error: error.message });
       }
     }
   );

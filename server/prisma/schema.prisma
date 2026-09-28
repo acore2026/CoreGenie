@@ -18,6 +18,20 @@ model api_keys {
   lastUpdatedAt DateTime @default(now())
 }
 
+model global_reference_entries {
+  key           String   @id
+  payload       String?
+  revision      String?
+  lastSuccessAt DateTime?
+  lastAttemptAt DateTime?
+  nextRefreshAt DateTime @default(now())
+  lastError     String?
+  leaseToken    String?
+  leaseUntil    DateTime?
+
+  @@index([nextRefreshAt])
+}
+
 model workspace_documents {
   id                   Int                   @id @default(autoincrement())
   docId                String                @unique
@@ -31,6 +45,19 @@ model workspace_documents {
   lastUpdatedAt        DateTime              @default(now())
   workspace            workspaces            @relation(fields: [workspaceId], references: [id])
   document_sync_queues document_sync_queues?
+}
+
+model global_documents {
+  id            Int      @id @default(autoincrement())
+  docId         String   @unique
+  filename      String
+  docpath       String   @unique
+  metadata      String?
+  createdBy     Int?
+  createdAt     DateTime @default(now())
+  lastUpdatedAt DateTime @default(now())
+
+  @@index([createdAt])
 }
 
 model invites {
@@ -492,6 +519,19 @@ model predefined_agent_skills {
   @@index([archived])
 }
 
+model predefined_quick_tasks {
+  id             Int      @id @default(autoincrement())
+  key            String   @unique
+  title          String
+  description    String   @default("")
+  definition     String   // JSON object accepted by agentWizard.validateWizard
+  archived       Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  lastUpdatedAt  DateTime @default(now())
+
+  @@index([archived])
+}
+
 model agent_skill_revisions {
   id           String   @id
   skillId      Int
@@ -516,11 +556,13 @@ model predefined_agents {
   wizard          String?  // Optional declarative task form, JSON.
   tools            String? // JSON array of executable tool identifiers. Null means all currently enabled tools.
   skillIds         String   @default("[]") // JSON array of predefined_agent_skills IDs.
+  quickTaskIds     String   @default("[]") // JSON array of predefined_quick_tasks IDs.
   systemPrompt     String
   runtimeKey       String   @default("governed-agent")
   runtimeConfig    String   @default("{}")
   isBuiltinDefault Boolean  @default(false)
   enabled          Boolean  @default(true)
+  showInRoster     Boolean  @default(true)
   createdAt        DateTime @default(now())
   lastUpdatedAt    DateTime @default(now())
 }

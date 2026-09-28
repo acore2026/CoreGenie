@@ -49,10 +49,10 @@ export default function ShareChatButton({ workspace, threadSlug = null }) {
       disabled={isSharing}
       title={t("chat_window.share_chat.tooltip")}
       aria-label={t("chat_window.share_chat.button")}
-      className={`group h-[35px] px-3 rounded-full flex items-center gap-1.5 border text-sm font-semibold shadow-sm transition-all disabled:cursor-wait disabled:opacity-80 ${
+      className={`group flex h-9 shrink-0 items-center gap-1.5 rounded-md border px-2.5 text-sm font-medium transition-[background-color,border-color,color,opacity,transform] duration-150 active:scale-[0.97] disabled:cursor-wait disabled:opacity-60 sm:px-3 ${
         isCopied
-          ? "bg-emerald-400 border-emerald-300 text-emerald-950"
-          : "bg-amber-400 hover:bg-amber-300 border-amber-300 text-zinc-950 hover:shadow-md"
+          ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-300 light:text-emerald-700"
+          : "border-theme-sidebar-border bg-theme-bg-chat text-theme-text-secondary hover:bg-theme-sidebar-subitem-hover hover:text-theme-text-primary"
       }`}
     >
       {isSharing ? (

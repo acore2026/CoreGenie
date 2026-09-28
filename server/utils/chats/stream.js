@@ -4,6 +4,8 @@ const { WorkspaceChats } = require("../../models/workspaceChats");
 const { WorkspaceParsedFiles } = require("../../models/workspaceParsedFiles");
 const { getVectorDbClass, resolveProviderConnector } = require("../helpers");
 const { writeResponseChunk } = require("../helpers/chat/responses");
+const { retrieveSharedVectorContext } = require("../../tools/rag");
+const { GLOBAL_KNOWLEDGE_NAMESPACE } = require("../globalKnowledge");
 const { grepAgents } = require("./agents");
 const {
   grepCommand,
@@ -90,10 +92,17 @@ async function streamChatWithWorkspace(
   const messageLimit = workspace?.openAiHistory || 20;
   const hasVectorizedSpace = await VectorDb.hasNamespace(workspace.slug);
   const embeddingsCount = await VectorDb.namespaceCount(workspace.slug);
+  const hasGlobalKnowledge = await VectorDb.hasNamespace(
+    GLOBAL_KNOWLEDGE_NAMESPACE
+  );
 
   // User is trying to query-mode chat a workspace that has no data in it - so
   // we should exit early as no information can be found under these conditions.
-  if ((!hasVectorizedSpace || embeddingsCount === 0) && chatMode === "query") {
+  if (
+    (!hasVectorizedSpace || embeddingsCount === 0) &&
+    !hasGlobalKnowledge &&
+    chatMode === "query"
+  ) {
     const textResponse =
       workspace?.queryRefusalResponse ??
       "There is no relevant information in this workspace to answer your query.";
@@ -176,22 +185,19 @@ async function streamChatWithWorkspace(
     });
   });
 
-  const vectorSearchResults =
-    embeddingsCount !== 0
-      ? await VectorDb.performSimilaritySearch({
-          namespace: workspace.slug,
-          input: updatedMessage,
-          LLMConnector,
-          similarityThreshold: workspace?.similarityThreshold,
-          topN: workspace?.topN,
-          filterIdentifiers: pinnedDocIdentifiers,
-          rerank: workspace?.vectorSearchMode === "rerank",
-        })
-      : {
-          contextTexts: [],
-          sources: [],
-          message: null,
-        };
+  const sharedVectorEntries = await retrieveSharedVectorContext({
+    workspace,
+    user,
+    thread,
+    query: updatedMessage,
+    LLMConnector,
+    filterIdentifiers: pinnedDocIdentifiers,
+  });
+  const vectorSearchResults = {
+    contextTexts: sharedVectorEntries.map((entry) => entry.text),
+    sources: sharedVectorEntries.map((entry) => entry.source),
+    message: null,
+  };
 
   // Failed similarity search if it was run at all and failed.
   if (!!vectorSearchResults.message) {

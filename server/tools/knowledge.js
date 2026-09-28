@@ -108,6 +108,40 @@ async function validateCoverageBinding(args, context, manager) {
         "INVALID_COVERAGE_RECEIPT",
         "The coverage receipt does not prove exact coverage for the current proposal manifest. Rerun coverage and use the new receipt."
       );
+    if (required || receipt.textFiles != null) {
+      const files = receipt.textFiles;
+      if (
+        !Array.isArray(files) ||
+        files.length !== manifestIds.length ||
+        !files.length ||
+        JSON.stringify(
+          documentIds(files.map((item) => item?.document || ""))
+        ) !== JSON.stringify(manifestIds)
+      )
+        return coverageFailure(
+          "INVALID_COVERAGE_RECEIPT",
+          "The coverage receipt must bind one extracted text hash per TDoc. Rerun coverage."
+        );
+      for (const file of files) {
+        if (
+          typeof file.path !== "string" ||
+          !/^[a-f0-9]{64}$/.test(file.sha256 || "")
+        )
+          return coverageFailure(
+            "INVALID_COVERAGE_RECEIPT",
+            "An extracted text path or hash is invalid. Rerun coverage."
+          );
+        const target = await manager.validatePath(file.path);
+        const text = await fs.readFile(target);
+        if (
+          crypto.createHash("sha256").update(text).digest("hex") !== file.sha256
+        )
+          return coverageFailure(
+            "EXTRACTED_TEXT_CHANGED",
+            "Extracted text changed after coverage validation. Recheck the report and rerun coverage."
+          );
+      }
+    }
     return {
       ok: true,
       metadata: {

@@ -61,6 +61,7 @@ function PromptInput({
 }) {
   const { t } = useTranslation();
   const { user } = useUser();
+  const { selectedAgent } = usePredefinedAgent();
   const { showAgentCommand = true } = workspace ?? {};
   const { isDisabled } = useIsDisabled();
   const globalAgentSessionActive = useIsAgentSessionActive();
@@ -396,29 +397,19 @@ function PromptInput({
               centered={centered}
               highlightedIndexRef={quickCommandsHighlightRef}
             />
-            {centered && (
-              <ExamplePromptShelf
-                prompts={examplePrompts}
-                onSelect={selectExamplePrompt}
+            {selectedAgent?.wizard && (
+              <AgentWizard
+                key={`${selectedAgent.id}:${workspaceSlug}:${threadSlug}`}
+                agent={selectedAgent}
+                disabled={isDisabled || isStreaming || agentSessionActive}
+                onUse={(prompt) =>
+                  selectExamplePrompt(
+                    promptInput.trim() ? `${promptInput}\n\n${prompt}` : prompt
+                  )
+                }
               />
             )}
-            <div className="bg-theme-bg-chat-input border border-theme-chat-input-border rounded-[20px] pwa:rounded-3xl flex flex-col px-5 overflow-visible">
-              {selectedAgent?.wizard && (
-                <div className="flex justify-start pt-2">
-                  <AgentWizard
-                    key={`${selectedAgent.id}:${workspaceSlug}:${threadSlug}`}
-                    agent={selectedAgent}
-                    disabled={isDisabled || isStreaming || agentSessionActive}
-                    onUse={(prompt) =>
-                      selectExamplePrompt(
-                        promptInput.trim()
-                          ? `${promptInput}\n\n${prompt}`
-                          : prompt
-                      )
-                    }
-                  />
-                </div>
-              )}
+            <div className="flex flex-col overflow-visible rounded-lg border border-theme-chat-input-border bg-theme-bg-chat-input px-4 transition-[border-color,box-shadow] duration-150 focus-within:ring-1 focus-within:ring-theme-button-primary">
               <AttachmentManager attachments={attachments} />
               <div className="flex items-center">
                 <textarea
@@ -438,11 +429,11 @@ function PromptInput({
                   }}
                   value={promptInput}
                   spellCheck={Appearance.get("enableSpellCheck")}
-                  className={`border-none cursor-text max-h-[50vh] md:max-h-[350px] md:min-h-[40px] pt-[20px] w-full leading-5 text-theme-text-primary bg-transparent placeholder:text-theme-text-placeholder resize-none active:outline-none focus:outline-none flex-grow pwa:!text-[16px] ${textSizeClass}`}
+                  className={`border-none cursor-text max-h-[50vh] md:max-h-[350px] md:min-h-[40px] pt-4 w-full leading-5 text-theme-text-primary bg-transparent placeholder:text-theme-text-placeholder resize-none active:outline-none focus:outline-none flex-grow pwa:!text-[16px] ${textSizeClass}`}
                   placeholder={t("chat_window.send_message")}
                 />
               </div>
-              <div className="flex items-center justify-between gap-2 pt-3.5 pb-3">
+              <div className="flex items-center justify-between gap-2 pb-2.5 pt-2">
                 <div className="flex min-w-0 items-center gap-x-0.5">
                   <div className="flex items-center gap-x-1">
                     <AttachItem
@@ -490,6 +481,12 @@ function PromptInput({
                 </div>
               </div>
             </div>
+            {centered && (
+              <ExamplePromptShelf
+                prompts={examplePrompts}
+                onSelect={selectExamplePrompt}
+              />
+            )}
           </div>
         </div>
       </form>
@@ -523,12 +520,11 @@ function ExamplePromptShelf({ prompts = [], onSelect }) {
           type="button"
           onClick={() => onSelect(prompt)}
           title={label}
-          className="group inline-flex min-h-8 min-w-0 max-w-full items-start gap-1.5 rounded-2xl border border-cyan-300/15 bg-cyan-300/[0.055] px-3 py-2 text-left text-xs text-zinc-300 shadow-[0_8px_24px_rgba(0,0,0,0.08)] transition hover:-translate-y-0.5 hover:border-cyan-300/35 hover:bg-cyan-300/[0.1] hover:text-white md:max-w-[620px] light:border-cyan-600/15 light:bg-cyan-50 light:text-slate-600 light:hover:border-cyan-500/40 light:hover:bg-cyan-100 light:hover:text-slate-900"
+          className="group inline-flex min-h-8 min-w-0 max-w-full items-start gap-1.5 rounded-md border border-theme-sidebar-border bg-transparent px-3 py-2 text-left text-xs text-theme-text-secondary transition-colors duration-150 hover:bg-theme-sidebar-subitem-hover hover:text-theme-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-button-primary md:max-w-[620px]"
         >
           <ChatCircleText
             size={13}
-            weight="duotone"
-            className="mt-px shrink-0 text-cyan-300 light:text-cyan-700"
+            className="mt-px shrink-0 text-theme-text-secondary"
           />
           <span className="min-w-0 whitespace-normal break-words leading-4">
             {label}
@@ -565,12 +561,9 @@ function AgentSessionButton({
         data-tooltip-id="agent-session"
         data-tooltip-content={t("chat_window.start_agent_session")}
         aria-label={t("chat_window.start_agent_session")}
-        className="group border-none relative flex justify-center items-center cursor-pointer w-6 h-6 rounded-full hover:bg-zinc-700 light:hover:bg-slate-200"
+        className="group relative flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border-none text-theme-text-secondary transition-colors hover:bg-theme-sidebar-subitem-hover hover:text-theme-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-button-primary"
       >
-        <At
-          size={18}
-          className="pointer-events-none text-zinc-300 light:text-slate-600 group-hover:text-white light:group-hover:text-slate-600 shrink-0"
-        />
+        <At size={18} className="pointer-events-none shrink-0 text-current" />
       </button>
       <Tooltip
         id="agent-session"
@@ -599,10 +592,10 @@ function ToolsButton({
         setShowTools(!showTools);
         textareaRef.current?.focus();
       }}
-      className={`group border-none cursor-pointer flex items-center justify-center gap-x-1.5 h-6 px-2 rounded-full transition-colors ${
+      className={`group flex h-7 cursor-pointer items-center justify-center gap-x-1.5 rounded-md border-none px-2 text-theme-text-secondary transition-colors duration-150 hover:bg-theme-sidebar-subitem-hover hover:text-theme-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-button-primary ${
         showTools
-          ? "bg-zinc-700 text-white light:bg-slate-200 light:text-slate-800"
-          : "text-zinc-300 hover:bg-zinc-700 hover:text-white light:text-slate-600 light:hover:bg-slate-200 light:hover:text-slate-800"
+          ? "bg-theme-sidebar-subitem-selected text-theme-text-primary"
+          : ""
       }`}
     >
       <Wrench size={14} weight="bold" className="shrink-0" />
@@ -633,10 +626,10 @@ function QuickCommandsButton({
         textareaRef.current?.focus();
       }}
       aria-label={t("chat_window.slash_commands")}
-      className={`group flex h-6 cursor-pointer items-center justify-center gap-x-1.5 rounded-full border-none px-2 transition-colors ${
+      className={`group flex h-7 cursor-pointer items-center justify-center gap-x-1.5 rounded-md border-none px-2 text-theme-text-secondary transition-colors duration-150 hover:bg-theme-sidebar-subitem-hover hover:text-theme-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-button-primary ${
         showing
-          ? "bg-violet-500/20 text-violet-200 light:bg-violet-100 light:text-violet-800"
-          : "text-zinc-300 hover:bg-zinc-700 hover:text-white light:text-slate-600 light:hover:bg-slate-200 light:hover:text-slate-800"
+          ? "bg-theme-sidebar-subitem-selected text-theme-text-primary"
+          : ""
       }`}
     >
       <Command size={14} weight="bold" className="shrink-0" />
@@ -656,10 +649,10 @@ function SendPromptButton({ formRef, promptInput, isDisabled }) {
         ref={formRef}
         type="submit"
         disabled={isDisabled || !promptInput.trim().length}
-        className={`border-none flex justify-center items-center rounded-full w-8 h-8 transition-all ${
+        className={`flex h-8 w-8 items-center justify-center rounded-md border-none transition-[background-color,color,transform] duration-150 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-button-primary ${
           promptInput.trim().length && !isDisabled
-            ? "cursor-pointer bg-white hover:bg-zinc-200 light:bg-slate-800 light:hover:bg-slate-600"
-            : "cursor-not-allowed bg-zinc-600 light:bg-slate-400"
+            ? "cursor-pointer bg-theme-text-primary text-theme-bg-chat hover:opacity-90"
+            : "cursor-not-allowed bg-theme-sidebar-subitem-selected text-theme-text-secondary"
         }`}
         data-tooltip-id="send-prompt"
         data-tooltip-content={
@@ -670,7 +663,7 @@ function SendPromptButton({ formRef, promptInput, isDisabled }) {
         aria-label={t("chat_window.send")}
       >
         <ArrowUp
-          className="w-[18px] h-[18px] pointer-events-none text-zinc-800 light:text-white"
+          className="pointer-events-none h-[18px] w-[18px] text-current"
           weight="bold"
         />
         <span className="sr-only">{t("chat_window.send")}</span>

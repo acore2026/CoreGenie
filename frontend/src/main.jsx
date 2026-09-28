@@ -11,14 +11,19 @@ import Login from "@/pages/Login";
 import SimpleSSOPassthrough from "@/pages/Login/SSO/simple";
 import OnboardingFlow from "@/pages/OnboardingFlow";
 import "@/index.css";
+import { RouteErrorFallback } from "@/components/ErrorBoundaryFallback";
+import { installChunkRecovery } from "@/utils/chunkRecovery";
 
 const isDev = import.meta.env.DEV;
 const REACTWRAP = isDev ? React.Fragment : React.StrictMode;
+
+installChunkRecovery();
 
 const router = createBrowserRouter([
   {
     path: "/",
     element: <App />,
+    errorElement: <RouteErrorFallback />,
     children: [
       {
         path: "/",
@@ -193,6 +198,13 @@ const router = createBrowserRouter([
         },
       },
       {
+        path: "/settings/agents/quick-tasks",
+        lazy: async () => {
+          const { default: AdminAgents } = await import("@/pages/Admin/Agents");
+          return { element: <AdminRoute Component={AdminAgents} /> };
+        },
+      },
+      {
         path: "/settings/agents/tools",
         lazy: async () => {
           const { default: AdminAgents } = await import("@/pages/Admin/Agents");
@@ -351,6 +363,15 @@ const router = createBrowserRouter([
             "@/pages/Admin/Workspaces"
           );
           return { element: <ManagerRoute Component={AdminWorkspaces} /> };
+        },
+      },
+      {
+        path: "/settings/global-knowledge",
+        lazy: async () => {
+          const { default: GlobalKnowledge } = await import(
+            "@/pages/Admin/GlobalKnowledge"
+          );
+          return { element: <AdminRoute Component={GlobalKnowledge} /> };
         },
       },
       // Onboarding Flow

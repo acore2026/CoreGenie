@@ -1,16 +1,21 @@
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   ArrowLeft,
   ArrowsClockwise,
   CaretRight,
+  CircleNotch,
   DownloadSimple,
+  Eye,
   File,
   FileText,
   Folder,
+  FolderOpen,
   FileZip,
-  House,
   Image as ImageIcon,
+  Copy,
+  PencilSimple,
+  Trash,
   UploadSimple,
   X,
 } from "@phosphor-icons/react";
@@ -19,6 +24,10 @@ import { saveAs } from "file-saver";
 import Workspace from "@/models/workspace";
 import { AGENT_SESSION_END } from "@/utils/chat/agent";
 import { useWorkspaceFilesSidebar } from "../ChatSidebar";
+import ContextMenu from "@/components/lib/ContextMenu";
+import ConfirmDialog from "@/components/lib/ConfirmDialog";
+import { copyTextToClipboard } from "@/utils/clipboard";
+import showToast from "@/utils/toast";
 
 function formatSize(bytes = 0) {
   if (bytes < 1024) return `${bytes} B`;
@@ -32,47 +41,280 @@ function formatSize(bytes = 0) {
   return `${value >= 10 ? value.toFixed(0) : value.toFixed(1)} ${unit}`;
 }
 
+function parentDirectory(entryPath = "") {
+  const segments = String(entryPath).split("/").filter(Boolean);
+  segments.pop();
+  return segments.join("/");
+}
+
+function includesPath(parent, child) {
+  if (!parent || !child) return false;
+  return child === parent || child.startsWith(`${parent}/`);
+}
+
 function fileIcon(entry) {
   if (entry.type === "directory")
-    return <Folder size={20} weight="fill" className="text-amber-400" />;
+    return (
+      <Folder size={16} weight="fill" className="text-theme-text-secondary" />
+    );
   if (/\.(png|jpe?g|gif|webp|svg|bmp)$/i.test(entry.name))
-    return <ImageIcon size={20} className="text-sky-400" />;
+    return <ImageIcon size={16} className="text-theme-text-secondary" />;
   if (
     /\.(md|txt|json|ya?ml|toml|csv|log|jsx?|tsx?|py|sh|css|html)$/i.test(
       entry.name
     )
   )
-    return <FileText size={20} className="text-emerald-400" />;
-  return <File size={20} className="text-zinc-400 light:text-slate-500" />;
+    return <FileText size={16} className="text-theme-text-secondary" />;
+  return <File size={16} className="text-theme-text-secondary" />;
 }
 
-export function WorkspaceFilesPanel({
-  workspace,
-  onClose = null,
-  reserveUserControl = false,
+function FileTreeLevel({
+  path,
+  depth,
+  levels,
+  expandedPaths,
+  activeDirectory,
+  onToggle,
+  onOpen,
+  onDownload,
+  onContextMenu,
+  renamingPath,
+  renameValue,
+  onRenameChange,
+  onRenameSubmit,
+  onRenameCancel,
+  mutatingPath,
+  downloadingPath,
+  t,
 }) {
+  const level = levels[path];
+
+  if (!level || (level.loading && !level.entries)) {
+    return (
+      <div
+        role="status"
+        className="flex h-8 items-center gap-2 text-xs text-theme-text-secondary"
+        style={{ paddingLeft: `${12 + depth * 14}px` }}
+      >
+        <CircleNotch size={13} className="animate-spin" />
+        {t("workspace_list.loading")}
+      </div>
+    );
+  }
+
+  if (level.error) {
+    return (
+      <button
+        type="button"
+        onClick={() => onToggle({ path, type: "directory" }, true)}
+        className="flex min-h-8 w-full items-center text-left text-xs text-red-300 hover:bg-red-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-theme-button-primary light:text-red-700"
+        style={{ paddingLeft: `${12 + depth * 14}px` }}
+      >
+        {level.error}
+      </button>
+    );
+  }
+
+  if (!level.entries?.length) {
+    return (
+      <div
+        className="flex h-8 items-center text-xs text-theme-text-secondary"
+        style={{ paddingLeft: `${12 + depth * 14}px` }}
+      >
+        {depth === 0
+          ? t("chat_window.workspace_files.empty")
+          : t("chat_window.workspace_files.empty_folder")}
+      </div>
+    );
+  }
+
+  return level.entries.map((entry) => {
+    const isDirectory = entry.type === "directory";
+    const expanded = isDirectory && expandedPaths.has(entry.path);
+    const active = isDirectory && activeDirectory === entry.path;
+    const renaming = renamingPath === entry.path;
+    return (
+      <div key={entry.path}>
+        <div
+          className={`group/file relative flex min-h-9 items-center rounded-md ${
+            active
+              ? "bg-theme-sidebar-subitem-selected"
+              : "hover:bg-theme-sidebar-subitem-hover focus-within:bg-theme-sidebar-subitem-hover"
+          }`}
+          onContextMenu={(event) => {
+            event.preventDefault();
+            onContextMenu(entry, { x: event.clientX, y: event.clientY });
+          }}
+        >
+          {renaming ? (
+            <form
+              className="flex min-h-9 min-w-0 flex-1 items-center gap-1.5 pr-2"
+              style={{ paddingLeft: `${8 + depth * 14}px` }}
+              onSubmit={(event) => {
+                event.preventDefault();
+                onRenameSubmit(entry);
+              }}
+            >
+              {isDirectory ? (
+                <CaretRight
+                  size={12}
+                  weight="bold"
+                  className={`shrink-0 text-theme-text-secondary ${expanded ? "rotate-90" : ""}`}
+                />
+              ) : (
+                <span className="w-3 shrink-0" aria-hidden="true" />
+              )}
+              <span className="shrink-0">{fileIcon(entry)}</span>
+              <input
+                autoFocus
+                value={renameValue}
+                onChange={(event) => onRenameChange(event.target.value)}
+                onBlur={() => onRenameSubmit(entry)}
+                onKeyDown={(event) => {
+                  if (event.key !== "Escape") return;
+                  event.preventDefault();
+                  onRenameCancel();
+                }}
+                disabled={mutatingPath === entry.path}
+                aria-label={t("chat_window.workspace_files.rename_label", {
+                  name: entry.name,
+                })}
+                className="dsh-control h-7 min-w-0 flex-1 px-2 text-[15px]"
+              />
+              {mutatingPath === entry.path && (
+                <CircleNotch
+                  size={14}
+                  className="shrink-0 animate-spin text-theme-text-secondary"
+                />
+              )}
+            </form>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => (isDirectory ? onToggle(entry) : onOpen(entry))}
+                aria-expanded={isDirectory ? expanded : undefined}
+                className="flex min-h-9 min-w-0 flex-1 items-center gap-1.5 pr-9 text-left text-[15px] text-theme-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-theme-button-primary"
+                style={{ paddingLeft: `${8 + depth * 14}px` }}
+                title={entry.name}
+              >
+                {isDirectory ? (
+                  <CaretRight
+                    size={12}
+                    weight="bold"
+                    className={`shrink-0 text-theme-text-secondary transition-transform duration-150 ${expanded ? "rotate-90" : ""}`}
+                  />
+                ) : (
+                  <span className="w-3 shrink-0" aria-hidden="true" />
+                )}
+                <span className="shrink-0">{fileIcon(entry)}</span>
+                <span className="min-w-0 flex-1 truncate">{entry.name}</span>
+                {!isDirectory && (
+                  <span className="shrink-0 text-[10px] tabular-nums text-theme-text-secondary opacity-0 group-hover/file:opacity-100 group-focus-within/file:opacity-100">
+                    {formatSize(entry.size)}
+                  </span>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => onDownload(entry)}
+                disabled={Boolean(downloadingPath || mutatingPath)}
+                title={t(
+                  isDirectory
+                    ? "chat_window.workspace_files.download_folder"
+                    : "chat_window.workspace_files.download"
+                )}
+                aria-label={t(
+                  isDirectory
+                    ? "chat_window.workspace_files.download_folder"
+                    : "chat_window.workspace_files.download"
+                )}
+                className="absolute right-0 flex h-9 w-8 items-center justify-center rounded-md text-theme-text-secondary opacity-0 transition-opacity hover:text-theme-text-primary focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-theme-button-primary group-hover/file:opacity-100 disabled:cursor-wait disabled:opacity-40"
+              >
+                {isDirectory ? (
+                  <FileZip size={15} />
+                ) : (
+                  <DownloadSimple size={15} />
+                )}
+              </button>
+            </>
+          )}
+        </div>
+        {expanded && (
+          <FileTreeLevel
+            path={entry.path}
+            depth={depth + 1}
+            levels={levels}
+            expandedPaths={expandedPaths}
+            activeDirectory={activeDirectory}
+            onToggle={onToggle}
+            onOpen={onOpen}
+            onDownload={onDownload}
+            onContextMenu={onContextMenu}
+            renamingPath={renamingPath}
+            renameValue={renameValue}
+            onRenameChange={onRenameChange}
+            onRenameSubmit={onRenameSubmit}
+            onRenameCancel={onRenameCancel}
+            mutatingPath={mutatingPath}
+            downloadingPath={downloadingPath}
+            t={t}
+          />
+        )}
+      </div>
+    );
+  });
+}
+
+export function WorkspaceFilesPanel({ workspace, onClose = null }) {
   const { t } = useTranslation();
-  const [currentPath, setCurrentPath] = useState("");
-  const [entries, setEntries] = useState([]);
+  const [levels, setLevels] = useState({});
+  const [expandedPaths, setExpandedPaths] = useState(() => new Set());
+  const [activeDirectory, setActiveDirectory] = useState("");
   const [selectedFile, setSelectedFile] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [previewLoading, setPreviewLoading] = useState(false);
   const [error, setError] = useState(null);
   const [downloadingPath, setDownloadingPath] = useState(null);
   const [uploadingCount, setUploadingCount] = useState(0);
   const [uploadMessage, setUploadMessage] = useState(null);
+  const [contextMenu, setContextMenu] = useState(null);
+  const [renamingEntry, setRenamingEntry] = useState(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [deleteEntry, setDeleteEntry] = useState(null);
+  const [mutatingPath, setMutatingPath] = useState(null);
+  const generations = useRef(new Map());
+  const requests = useRef(new Map());
+  const mutationLock = useRef(false);
+  const uploadTarget = useRef(null);
 
-  const loadDirectory = useCallback(
+  const loadLevel = useCallback(
     async (targetPath = "", { quiet = false } = {}) => {
       if (!workspace?.slug) return;
-      if (!quiet) setLoading(true);
-      setError(null);
-      const result = await Workspace.listFiles(workspace.slug, targetPath);
-      if (result.error) setError(result.error);
-      else {
-        setCurrentPath(result.path || "");
-        setEntries(result.entries || []);
-      }
-      if (!quiet) setLoading(false);
+      requests.current.get(targetPath)?.abort();
+      const controller = new AbortController();
+      requests.current.set(targetPath, controller);
+      const generation = (generations.current.get(targetPath) || 0) + 1;
+      generations.current.set(targetPath, generation);
+      setLevels((current) => ({
+        ...current,
+        [targetPath]: {
+          ...current[targetPath],
+          loading: true,
+          error: null,
+          entries: quiet ? current[targetPath]?.entries : undefined,
+        },
+      }));
+      const result = await Workspace.listFiles(workspace.slug, targetPath, {
+        signal: controller.signal,
+      });
+      if (result.aborted || generations.current.get(targetPath) !== generation)
+        return;
+      setLevels((current) => ({
+        ...current,
+        [targetPath]: result.error
+          ? { loading: false, error: result.error, entries: null }
+          : { loading: false, error: null, entries: result.entries || [] },
+      }));
     },
     [workspace?.slug]
   );
@@ -80,45 +322,64 @@ export function WorkspaceFilesPanel({
   const loadPreview = useCallback(
     async (entry, { quiet = false } = {}) => {
       if (!workspace?.slug) return;
-      if (!quiet) setLoading(true);
+      if (!quiet) setPreviewLoading(true);
       setError(null);
       const result = await Workspace.previewFile(workspace.slug, entry.path);
       if (result.error) setError(result.error);
       else setSelectedFile(result);
-      if (!quiet) setLoading(false);
+      if (!quiet) setPreviewLoading(false);
     },
     [workspace?.slug]
   );
 
   useEffect(() => {
-    loadDirectory("");
-  }, [loadDirectory]);
+    requests.current.forEach((request) => request.abort());
+    requests.current.clear();
+    generations.current.clear();
+    setLevels({});
+    setExpandedPaths(new Set());
+    setActiveDirectory("");
+    setSelectedFile(null);
+    setError(null);
+    setContextMenu(null);
+    setRenamingEntry(null);
+    setDeleteEntry(null);
+    loadLevel("");
+    return () => {
+      requests.current.forEach((request) => request.abort());
+    };
+  }, [loadLevel]);
 
   useEffect(() => {
     function refreshAfterAgentRun() {
       if (selectedFile) loadPreview(selectedFile, { quiet: true });
-      else loadDirectory(currentPath, { quiet: true });
+      new Set(["", ...expandedPaths]).forEach((path) =>
+        loadLevel(path, { quiet: true })
+      );
     }
     window.addEventListener(AGENT_SESSION_END, refreshAfterAgentRun);
     return () =>
       window.removeEventListener(AGENT_SESSION_END, refreshAfterAgentRun);
-  }, [currentPath, selectedFile, loadDirectory, loadPreview]);
+  }, [expandedPaths, selectedFile, loadLevel, loadPreview]);
 
-  const breadcrumbs = useMemo(() => {
-    const parts = currentPath.split("/").filter(Boolean);
-    return parts.map((name, index) => ({
-      name,
-      path: parts.slice(0, index + 1).join("/"),
-    }));
-  }, [currentPath]);
+  function toggleDirectory(entry, retry = false) {
+    const targetPath = entry.path || "";
+    setActiveDirectory(targetPath);
+    setExpandedPaths((current) => {
+      const next = new Set(current);
+      if (retry || !next.has(targetPath)) next.add(targetPath);
+      else next.delete(targetPath);
+      return next;
+    });
+    if (retry || !levels[targetPath]) loadLevel(targetPath);
+  }
 
-  async function openEntry(entry) {
-    if (entry.type === "directory") {
-      setSelectedFile(null);
-      await loadDirectory(entry.path);
-      return;
-    }
-    await loadPreview(entry);
+  function openDirectory(entry) {
+    const targetPath = entry.path || "";
+    setContextMenu(null);
+    setActiveDirectory(targetPath);
+    setExpandedPaths((current) => new Set([...current, targetPath]));
+    if (!levels[targetPath]) loadLevel(targetPath);
   }
 
   async function downloadEntry(entry) {
@@ -143,15 +404,136 @@ export function WorkspaceFilesPanel({
     }
   }
 
+  function removeCachedBranch(targetPath) {
+    setLevels((current) =>
+      Object.fromEntries(
+        Object.entries(current).filter(
+          ([cachedPath]) => !includesPath(targetPath, cachedPath)
+        )
+      )
+    );
+    setExpandedPaths(
+      (current) =>
+        new Set([...current].filter((item) => !includesPath(targetPath, item)))
+    );
+  }
+
+  function startRename(entry) {
+    setContextMenu(null);
+    setRenamingEntry(entry);
+    setRenameValue(entry.name);
+  }
+
+  async function renameEntry(entry) {
+    if (mutationLock.current || !entry) return;
+    const name = renameValue.trim();
+    if (!name || name === entry.name) {
+      setRenamingEntry(null);
+      setRenameValue("");
+      return;
+    }
+
+    mutationLock.current = true;
+    setMutatingPath(entry.path);
+    const { response, data } = await Workspace.renameWorkspaceEntry(
+      workspace.slug,
+      entry.path,
+      name
+    ).catch((renameError) => ({
+      response: { ok: false },
+      data: { error: renameError.message },
+    }));
+    mutationLock.current = false;
+    setMutatingPath(null);
+    if (!response.ok) {
+      showToast(
+        data?.error ||
+          t("chat_window.workspace_files.rename_failed", {
+            name: entry.name,
+          }),
+        "error",
+        { clear: true }
+      );
+      return;
+    }
+
+    const parent = parentDirectory(entry.path);
+    removeCachedBranch(entry.path);
+    setActiveDirectory((current) =>
+      includesPath(entry.path, current) ? parent : current
+    );
+    setSelectedFile((current) =>
+      includesPath(entry.path, current?.path) ? null : current
+    );
+    setRenamingEntry(null);
+    setRenameValue("");
+    await loadLevel(parent, { quiet: true });
+  }
+
+  async function copyEntryValue(value, successMessage) {
+    setContextMenu(null);
+    const copied = await copyTextToClipboard(value);
+    showToast(
+      t(copied ? successMessage : "chat_window.workspace_files.copy_failed"),
+      copied ? "success" : "error",
+      { clear: true }
+    );
+  }
+
+  async function confirmDeleteEntry() {
+    if (mutationLock.current || !deleteEntry) return;
+    const entry = deleteEntry;
+    mutationLock.current = true;
+    setMutatingPath(entry.path);
+    const { response, data } = await Workspace.deleteWorkspaceEntry(
+      workspace.slug,
+      entry.path
+    ).catch((deleteError) => ({
+      response: { ok: false },
+      data: { error: deleteError.message },
+    }));
+    mutationLock.current = false;
+    setMutatingPath(null);
+    if (!response.ok) {
+      showToast(
+        data?.error ||
+          t("chat_window.workspace_files.delete_failed", {
+            name: entry.name,
+          }),
+        "error",
+        { clear: true }
+      );
+      return;
+    }
+
+    const parent = parentDirectory(entry.path);
+    removeCachedBranch(entry.path);
+    setActiveDirectory((current) =>
+      includesPath(entry.path, current) ? parent : current
+    );
+    setSelectedFile((current) =>
+      includesPath(entry.path, current?.path) ? null : current
+    );
+    setDeleteEntry(null);
+    await loadLevel(parent, { quiet: true });
+  }
+
   function refresh() {
-    if (selectedFile) loadPreview(selectedFile);
-    else loadDirectory(currentPath);
+    if (selectedFile) {
+      loadPreview(selectedFile);
+      return;
+    }
+    new Set(["", ...expandedPaths]).forEach((path) =>
+      loadLevel(path, { quiet: true })
+    );
   }
 
   const uploadFiles = useCallback(
     async (selectedFiles = []) => {
       if (!selectedFiles.length || uploadingCount > 0 || !workspace?.slug)
         return;
+      const targetPath = uploadTarget.current ?? activeDirectory;
+      uploadTarget.current = null;
       setUploadingCount(selectedFiles.length);
       setUploadMessage(null);
       setError(null);
@@ -159,7 +541,7 @@ export function WorkspaceFilesPanel({
       for (const file of selectedFiles) {
         const formData = new FormData();
         formData.append("file", file, file.name);
-        formData.append("path", currentPath || ".");
+        formData.append("path", targetPath || ".");
         try {
           const { response, data } = await Workspace.uploadWorkspaceFile(
             workspace.slug,
@@ -178,9 +560,9 @@ export function WorkspaceFilesPanel({
             count: selectedFiles.length,
           })
         );
-      await loadDirectory(currentPath, { quiet: true });
+      await loadLevel(targetPath, { quiet: true });
     },
-    [currentPath, loadDirectory, t, uploadingCount, workspace?.slug]
+    [activeDirectory, loadLevel, t, uploadingCount, workspace?.slug]
   );
 
   const {
@@ -190,115 +572,122 @@ export function WorkspaceFilesPanel({
     isDragActive,
   } = useDropzone({
     onDropAccepted: uploadFiles,
+    onFileDialogCancel: () => {
+      uploadTarget.current = null;
+    },
     noClick: true,
     noKeyboard: true,
     noDragEventsBubbling: true,
     disabled: uploadingCount > 0,
   });
 
+  const treeLoading = Boolean(levels[""]?.loading);
+
   return (
     <div
       {...getRootProps()}
-      className="relative h-full min-h-0 bg-zinc-900 light:bg-white light:border-2 light:border-slate-300 md:rounded-[16px] flex flex-col overflow-hidden text-white light:text-slate-900"
+      className="relative flex h-full min-h-0 flex-col overflow-hidden bg-theme-bg-chat text-theme-text-primary"
     >
       <input {...getInputProps()} />
       {isDragActive && (
-        <div className="pointer-events-none absolute inset-2 z-50 flex items-center justify-center rounded-xl border border-cyan-300/50 bg-zinc-950/90 light:bg-white/95">
+        <div className="pointer-events-none absolute inset-2 z-50 flex items-center justify-center rounded-md border border-theme-button-primary bg-theme-bg-primary/95">
           <div className="flex flex-col items-center gap-2 text-center">
             <UploadSimple
-              size={28}
-              weight="duotone"
+              size={24}
               className="text-cyan-300 light:text-cyan-700"
             />
-            <p className="text-sm font-semibold">
+            <p className="text-sm font-medium">
               {t("chat_window.workspace_files.drop_title")}
             </p>
-            <p className="max-w-[260px] text-xs text-zinc-400 light:text-slate-500">
+            <p className="max-w-[260px] text-xs text-theme-text-secondary">
               {t("chat_window.workspace_files.drop_description", {
-                path: currentPath || "/",
+                path: activeDirectory || "/",
               })}
             </p>
           </div>
         </div>
       )}
-      <div
-        className={`pl-4 ${reserveUserControl ? "pr-14" : "pr-4"} pt-4 pb-3 border-b border-zinc-700/70 light:border-slate-200 bg-zinc-900 light:bg-white`}
-      >
-        <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <p className="font-semibold text-[15px] leading-5">
-              {t("chat_window.workspace_files.title")}
-            </p>
-            <p className="text-[11px] leading-4 text-zinc-400 light:text-slate-500 truncate">
-              {t("chat_window.workspace_files.description")}
-            </p>
-          </div>
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={openUploadPicker}
-              disabled={uploadingCount > 0}
-              title={t("chat_window.workspace_files.upload")}
-              aria-label={t("chat_window.workspace_files.upload")}
-              className="flex h-8 items-center gap-1.5 rounded-lg border-none bg-cyan-300/10 px-2.5 text-xs font-medium text-cyan-300 transition-colors hover:bg-cyan-300/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70 disabled:cursor-wait disabled:opacity-40 light:text-cyan-700"
-            >
-              <UploadSimple size={16} weight="bold" />
-              <span>{t("chat_window.workspace_files.upload")}</span>
-            </button>
-            <button
-              type="button"
-              onClick={refresh}
-              disabled={loading}
-              title={t("chat_window.workspace_files.refresh")}
-              className="w-8 h-8 rounded-lg border-none bg-transparent hover:bg-zinc-800 light:hover:bg-slate-100 text-zinc-400 hover:text-white light:text-slate-500 light:hover:text-slate-900 flex items-center justify-center transition-colors disabled:opacity-40"
-            >
-              <ArrowsClockwise
-                size={17}
-                className={loading ? "animate-spin" : ""}
-              />
-            </button>
-            {onClose && (
-              <button
-                type="button"
-                onClick={onClose}
-                title={t("chat_window.workspace_files.close")}
-                className="w-8 h-8 rounded-lg border-none bg-transparent hover:bg-zinc-800 light:hover:bg-slate-100 text-zinc-400 hover:text-white light:text-slate-500 light:hover:text-slate-900 flex items-center justify-center transition-colors"
-              >
-                <X size={17} weight="bold" />
-              </button>
-            )}
-          </div>
+
+      <div className="flex h-14 shrink-0 items-center gap-2 border-b border-theme-sidebar-border pl-4 pr-3">
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold">
+            {t("chat_window.workspace_files.title")}
+          </p>
+          <p className="truncate text-[11px] text-theme-text-secondary">
+            {activeDirectory || workspace?.name || "/"}
+          </p>
         </div>
+        <button
+          type="button"
+          onClick={() => {
+            uploadTarget.current = activeDirectory;
+            openUploadPicker();
+          }}
+          disabled={uploadingCount > 0}
+          title={t("chat_window.workspace_files.upload")}
+          aria-label={t("chat_window.workspace_files.upload")}
+          className="flex h-8 w-8 items-center justify-center rounded-md text-theme-text-secondary hover:bg-theme-sidebar-subitem-hover hover:text-theme-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-button-primary disabled:cursor-wait disabled:opacity-40"
+        >
+          {uploadingCount ? (
+            <CircleNotch size={16} className="animate-spin" />
+          ) : (
+            <UploadSimple size={16} />
+          )}
+        </button>
+        <button
+          type="button"
+          onClick={refresh}
+          disabled={treeLoading || previewLoading}
+          title={t("chat_window.workspace_files.refresh")}
+          aria-label={t("chat_window.workspace_files.refresh")}
+          className="flex h-8 w-8 items-center justify-center rounded-md text-theme-text-secondary hover:bg-theme-sidebar-subitem-hover hover:text-theme-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-button-primary disabled:opacity-40"
+        >
+          <ArrowsClockwise
+            size={16}
+            className={treeLoading || previewLoading ? "animate-spin" : ""}
+          />
+        </button>
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            title={t("chat_window.workspace_files.close")}
+            aria-label={t("chat_window.workspace_files.close")}
+            className="flex h-8 w-8 items-center justify-center rounded-md text-theme-text-secondary hover:bg-theme-sidebar-subitem-hover hover:text-theme-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-button-primary"
+          >
+            <X size={16} />
+          </button>
+        )}
       </div>
 
-      {(uploadingCount > 0 || uploadMessage) && (
+      {(uploadMessage || (error && !selectedFile)) && (
         <div
           aria-live="polite"
-          className="border-b border-zinc-800 bg-cyan-300/[0.05] px-4 py-2 text-xs text-cyan-200 light:border-slate-200 light:text-cyan-800"
+          className={`border-b border-theme-sidebar-border px-4 py-2 text-xs ${error ? "text-red-300 light:text-red-700" : "text-theme-text-secondary"}`}
         >
-          {uploadingCount > 0
-            ? t("chat_window.workspace_files.uploading", {
-                count: uploadingCount,
-              })
-            : uploadMessage}
+          {error || uploadMessage}
         </div>
       )}
 
       {selectedFile ? (
-        <div className="flex-1 min-h-0 flex flex-col">
-          <div className="px-3 py-2.5 flex items-center gap-2 border-b border-zinc-800 light:border-slate-200">
+        <div className="flex min-h-0 flex-1 flex-col">
+          <div className="flex min-h-11 items-center gap-2 border-b border-theme-sidebar-border px-2">
             <button
               type="button"
-              onClick={() => setSelectedFile(null)}
-              className="w-8 h-8 flex-shrink-0 rounded-lg border border-zinc-700 light:border-slate-300 bg-zinc-800 light:bg-slate-50 hover:bg-zinc-700 light:hover:bg-slate-100 flex items-center justify-center transition-colors"
+              onClick={() => {
+                setSelectedFile(null);
+                setError(null);
+              }}
+              aria-label={t("chat_window.workspace_files.back")}
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-theme-text-secondary hover:bg-theme-sidebar-subitem-hover hover:text-theme-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-button-primary"
             >
               <ArrowLeft size={16} />
             </button>
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium truncate">
+              <p className="truncate text-[13px] font-medium">
                 {selectedFile.name}
               </p>
-              <p className="text-[11px] text-zinc-500 light:text-slate-500 truncate">
+              <p className="truncate text-[10px] text-theme-text-secondary">
                 {formatSize(selectedFile.size)} · {selectedFile.path}
               </p>
             </div>
@@ -307,30 +696,31 @@ export function WorkspaceFilesPanel({
               onClick={() => downloadEntry({ ...selectedFile, type: "file" })}
               disabled={Boolean(downloadingPath)}
               title={t("chat_window.workspace_files.download")}
-              className="w-8 h-8 flex-shrink-0 rounded-lg border-none bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 light:text-emerald-700 flex items-center justify-center transition-colors disabled:opacity-40"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-theme-text-secondary hover:bg-theme-sidebar-subitem-hover hover:text-theme-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-button-primary disabled:opacity-40"
             >
-              <DownloadSimple size={17} weight="bold" />
+              <DownloadSimple size={16} />
             </button>
           </div>
-
-          <div className="flex-1 min-h-0 overflow-auto bg-zinc-950/70 light:bg-slate-50">
-            {error ? (
+          <div className="sidebar-scrollbar min-h-0 flex-1 overflow-auto">
+            {previewLoading ? (
+              <MessageState message={t("workspace_list.loading")} loading />
+            ) : error ? (
               <MessageState message={error} tone="error" />
             ) : selectedFile.kind === "image" ? (
-              <div className="min-h-full p-4 flex items-center justify-center">
+              <div className="flex min-h-full items-center justify-center p-4">
                 <img
                   src={`data:${selectedFile.mime};base64,${selectedFile.content}`}
                   alt={selectedFile.name}
-                  className="max-w-full max-h-full rounded-lg object-contain bg-[linear-gradient(45deg,#202020_25%,transparent_25%),linear-gradient(-45deg,#202020_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#202020_75%),linear-gradient(-45deg,transparent_75%,#202020_75%)] light:bg-[linear-gradient(45deg,#e5e7eb_25%,transparent_25%),linear-gradient(-45deg,#e5e7eb_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#e5e7eb_75%),linear-gradient(-45deg,transparent_75%,#e5e7eb_75%)] bg-[length:16px_16px]"
+                  className="max-h-full max-w-full object-contain"
                 />
               </div>
             ) : selectedFile.kind === "text" ? (
               <>
-                <pre className="m-0 p-4 text-[12px] leading-[1.65] font-mono text-zinc-200 light:text-slate-800 whitespace-pre-wrap break-words selection:bg-emerald-500/30">
+                <pre className="m-0 whitespace-pre-wrap break-words p-4 font-mono text-[12px] leading-[1.65] text-theme-text-primary selection:bg-cyan-500/20">
                   {selectedFile.content || " "}
                 </pre>
                 {selectedFile.truncated && (
-                  <p className="m-3 mt-0 px-3 py-2 rounded-md bg-amber-500/10 text-amber-300 light:text-amber-700 text-xs">
+                  <p className="m-3 mt-0 border-l-2 border-amber-400 px-3 py-1.5 text-xs text-amber-300 light:text-amber-700">
                     {t("chat_window.workspace_files.preview_truncated")}
                   </p>
                 )}
@@ -347,131 +737,218 @@ export function WorkspaceFilesPanel({
           </div>
         </div>
       ) : (
-        <div className="flex-1 min-h-0 flex flex-col">
-          <div className="px-3 py-2.5 flex items-center gap-1 overflow-x-auto no-scroll border-b border-zinc-800 light:border-slate-200 text-xs">
-            <button
-              type="button"
-              onClick={() => loadDirectory("")}
-              className="flex-shrink-0 w-7 h-7 rounded-md border-none bg-transparent hover:bg-zinc-800 light:hover:bg-slate-100 text-zinc-400 light:text-slate-500 flex items-center justify-center"
-            >
-              <House size={15} weight="fill" />
-            </button>
-            {breadcrumbs.map((crumb) => (
-              <div key={crumb.path} className="flex items-center gap-1 min-w-0">
-                <CaretRight
-                  size={12}
-                  className="flex-shrink-0 text-zinc-600 light:text-slate-400"
-                />
-                <button
-                  type="button"
-                  onClick={() => loadDirectory(crumb.path)}
-                  className="max-w-[120px] truncate px-1.5 py-1 rounded border-none bg-transparent hover:bg-zinc-800 light:hover:bg-slate-100 text-zinc-300 light:text-slate-600"
-                >
-                  {crumb.name}
-                </button>
-              </div>
-            ))}
+        <div className="sidebar-scrollbar min-h-0 flex-1 overflow-y-auto p-1.5">
+          <div className="mb-1 flex h-9 items-center gap-1.5 px-2 text-[15px] font-medium text-theme-text-secondary">
+            <FolderOpen size={16} />
+            <span className="min-w-0 flex-1 truncate">
+              {workspace?.name || t("chat_window.workspace_files.title")}
+            </span>
+            {treeLoading && <CircleNotch size={13} className="animate-spin" />}
           </div>
-
-          <div className="flex-1 min-h-0 overflow-y-auto p-2">
-            {error ? (
-              <MessageState message={error} tone="error" />
-            ) : loading ? (
-              <div className="p-3 space-y-2">
-                {[0, 1, 2, 3].map((item) => (
-                  <div
-                    key={item}
-                    className="h-12 rounded-lg bg-zinc-800/80 light:bg-slate-100 animate-pulse"
-                  />
-                ))}
-              </div>
-            ) : entries.length === 0 ? (
-              <MessageState
-                message={t("chat_window.workspace_files.empty")}
-                detail={t("chat_window.workspace_files.empty_description")}
-              />
-            ) : (
-              entries.map((entry) => (
-                <div
-                  key={entry.path}
-                  className="group flex w-full items-center rounded-lg bg-transparent pr-2 transition-colors hover:bg-zinc-800/80 light:hover:bg-slate-100"
-                >
-                  <button
-                    type="button"
-                    onClick={() => openEntry(entry)}
-                    className="flex min-w-0 flex-1 items-center gap-3 border-none bg-transparent px-3 py-2.5 text-left"
-                  >
-                    <span className="flex-shrink-0">{fileIcon(entry)}</span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[13px] font-medium text-zinc-200 light:text-slate-800">
-                        {entry.name}
-                      </span>
-                      <span className="block truncate text-[10px] text-zinc-500 light:text-slate-500">
-                        {entry.type === "directory"
-                          ? t("chat_window.workspace_files.folder")
-                          : formatSize(entry.size)}
-                      </span>
-                    </span>
-                    {entry.type === "directory" && (
-                      <CaretRight
-                        size={14}
-                        className="flex-shrink-0 text-zinc-600 group-hover:text-zinc-300 light:text-slate-400 light:group-hover:text-slate-700"
-                      />
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => downloadEntry(entry)}
-                    disabled={Boolean(downloadingPath)}
-                    title={t(
-                      entry.type === "directory"
-                        ? "chat_window.workspace_files.download_folder"
-                        : "chat_window.workspace_files.download"
-                    )}
-                    aria-label={t(
-                      entry.type === "directory"
-                        ? "chat_window.workspace_files.download_folder"
-                        : "chat_window.workspace_files.download"
-                    )}
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border-none bg-transparent text-zinc-500 opacity-70 transition-colors hover:bg-emerald-500/15 hover:text-emerald-400 group-hover:opacity-100 disabled:cursor-wait disabled:opacity-40 light:text-slate-500 light:hover:text-emerald-700"
-                  >
-                    {entry.type === "directory" ? (
-                      <FileZip size={17} weight="bold" />
-                    ) : (
-                      <DownloadSimple size={17} weight="bold" />
-                    )}
-                  </button>
-                </div>
-              ))
-            )}
-          </div>
+          <FileTreeLevel
+            path=""
+            depth={0}
+            levels={levels}
+            expandedPaths={expandedPaths}
+            activeDirectory={activeDirectory}
+            onToggle={toggleDirectory}
+            onOpen={loadPreview}
+            onDownload={downloadEntry}
+            onContextMenu={(entry, point) => setContextMenu({ entry, point })}
+            renamingPath={renamingEntry?.path}
+            renameValue={renameValue}
+            onRenameChange={setRenameValue}
+            onRenameSubmit={renameEntry}
+            onRenameCancel={() => {
+              setRenamingEntry(null);
+              setRenameValue("");
+            }}
+            mutatingPath={mutatingPath}
+            downloadingPath={downloadingPath}
+            t={t}
+          />
         </div>
       )}
+      {contextMenu && (
+        <ContextMenu
+          point={contextMenu.point}
+          label={t("chat_window.workspace_files.item_menu", {
+            name: contextMenu.entry.name,
+          })}
+          onClose={() => setContextMenu(null)}
+          width={196}
+        >
+          <button
+            type="button"
+            role="menuitem"
+            className="dsh-menu-item"
+            onClick={() => {
+              const entry = contextMenu.entry;
+              if (entry.type === "directory") openDirectory(entry);
+              else {
+                setContextMenu(null);
+                loadPreview(entry);
+              }
+            }}
+          >
+            {contextMenu.entry.type === "directory" ? (
+              <FolderOpen size={17} />
+            ) : (
+              <Eye size={17} />
+            )}
+            <span>
+              {t(
+                contextMenu.entry.type === "directory"
+                  ? "chat_window.workspace_files.open_folder"
+                  : "chat_window.workspace_files.preview"
+              )}
+            </span>
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="dsh-menu-item"
+            disabled={Boolean(downloadingPath)}
+            onClick={() => {
+              const entry = contextMenu.entry;
+              setContextMenu(null);
+              downloadEntry(entry);
+            }}
+          >
+            {contextMenu.entry.type === "directory" ? (
+              <FileZip size={17} />
+            ) : (
+              <DownloadSimple size={17} />
+            )}
+            <span>
+              {t(
+                contextMenu.entry.type === "directory"
+                  ? "chat_window.workspace_files.download_folder_action"
+                  : "chat_window.workspace_files.download_action"
+              )}
+            </span>
+          </button>
+          <div
+            role="separator"
+            className="mx-2 my-1 border-t border-theme-sidebar-border"
+          />
+          {contextMenu.entry.type === "directory" && (
+            <button
+              type="button"
+              role="menuitem"
+              className="dsh-menu-item"
+              onClick={() => {
+                uploadTarget.current = contextMenu.entry.path;
+                setActiveDirectory(contextMenu.entry.path);
+                setContextMenu(null);
+                openUploadPicker();
+              }}
+            >
+              <UploadSimple size={17} />
+              <span>{t("chat_window.workspace_files.upload_here")}</span>
+            </button>
+          )}
+          <button
+            type="button"
+            role="menuitem"
+            className="dsh-menu-item"
+            onClick={() => startRename(contextMenu.entry)}
+          >
+            <PencilSimple size={17} />
+            <span>{t("chat_window.workspace_files.rename")}</span>
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="dsh-menu-item"
+            onClick={() =>
+              copyEntryValue(
+                contextMenu.entry.name,
+                "chat_window.workspace_files.name_copied"
+              )
+            }
+          >
+            <Copy size={17} />
+            <span>{t("chat_window.workspace_files.copy_name")}</span>
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="dsh-menu-item"
+            onClick={() =>
+              copyEntryValue(
+                contextMenu.entry.path,
+                "chat_window.workspace_files.path_copied"
+              )
+            }
+          >
+            <Copy size={17} />
+            <span>{t("chat_window.workspace_files.copy_path")}</span>
+          </button>
+          <div
+            role="separator"
+            className="mx-2 my-1 border-t border-theme-sidebar-border"
+          />
+          <button
+            type="button"
+            role="menuitem"
+            className="dsh-menu-item dsh-menu-item-danger"
+            onClick={() => {
+              setDeleteEntry(contextMenu.entry);
+              setContextMenu(null);
+            }}
+          >
+            <Trash size={17} />
+            <span>{t("chat_window.workspace_files.delete")}</span>
+          </button>
+        </ContextMenu>
+      )}
+      <ConfirmDialog
+        open={Boolean(deleteEntry)}
+        title={t("chat_window.workspace_files.delete_title", {
+          type: t(
+            deleteEntry?.type === "directory"
+              ? "chat_window.workspace_files.folder"
+              : "chat_window.workspace_files.file"
+          ),
+        })}
+        description={t(
+          deleteEntry?.type === "directory"
+            ? "chat_window.workspace_files.delete_folder_description"
+            : "chat_window.workspace_files.delete_file_description",
+          { name: deleteEntry?.name }
+        )}
+        cancelLabel={t("common.cancel")}
+        confirmLabel={t("chat_window.workspace_files.delete")}
+        busy={Boolean(mutatingPath)}
+        onCancel={() => setDeleteEntry(null)}
+        onConfirm={confirmDeleteEntry}
+      />
     </div>
   );
 }
 
-function MessageState({ message, detail = null, tone = "normal" }) {
+function MessageState({ message, tone = "normal", loading = false }) {
   return (
-    <div className="h-full min-h-[180px] px-8 flex flex-col items-center justify-center text-center">
-      <FileText
-        size={28}
-        className={
-          tone === "error"
-            ? "text-red-400"
-            : "text-zinc-600 light:text-slate-400"
-        }
-      />
+    <div className="flex h-full min-h-[180px] flex-col items-center justify-center px-8 text-center">
+      {loading ? (
+        <CircleNotch
+          size={22}
+          className="animate-spin text-theme-text-secondary"
+        />
+      ) : (
+        <FileText
+          size={24}
+          className={
+            tone === "error" ? "text-red-400" : "text-theme-text-secondary"
+          }
+        />
+      )}
       <p
-        className={`mt-3 text-sm ${tone === "error" ? "text-red-300 light:text-red-700" : "text-zinc-300 light:text-slate-700"}`}
+        className={`mt-3 text-sm ${tone === "error" ? "text-red-300 light:text-red-700" : "text-theme-text-secondary"}`}
       >
         {message}
       </p>
-      {detail && (
-        <p className="mt-1 text-xs leading-5 text-zinc-500 light:text-slate-500">
-          {detail}
-        </p>
-      )}
     </div>
   );
 }
@@ -491,15 +968,15 @@ function WorkspaceFilesSidebar({ workspace }) {
 
   if (isPermanent)
     return (
-      <aside className="h-full w-[280px] xl:w-[330px] 2xl:w-[380px] flex-shrink-0 rounded-[16px] shadow-[0_14px_45px_rgba(0,0,0,0.16)] light:shadow-[0_12px_35px_rgba(15,23,42,0.08)]">
-        <WorkspaceFilesPanel workspace={workspace} reserveUserControl />
+      <aside className="h-full w-[280px] shrink-0 border-l border-theme-sidebar-border xl:w-[330px] 2xl:w-[380px]">
+        <WorkspaceFilesPanel workspace={workspace} />
       </aside>
     );
 
   if (!sidebarOpen) return null;
   return (
-    <div className="fixed inset-0 z-[60] bg-zinc-950/70 light:bg-slate-900/20 backdrop-blur-sm p-2 sm:p-3">
-      <div className="h-full w-full max-w-[430px] ml-auto shadow-2xl rounded-[16px]">
+    <div className="fixed inset-0 z-[60] bg-zinc-950/60 light:bg-slate-900/20">
+      <div className="ml-auto h-full w-full max-w-[430px] border-l border-theme-sidebar-border bg-theme-bg-chat">
         <WorkspaceFilesPanel workspace={workspace} onClose={closeSidebar} />
       </div>
     </div>

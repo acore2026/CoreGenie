@@ -5,7 +5,7 @@ import { fetchEventSource } from "@microsoft/fetch-event-source";
 import { v4 } from "uuid";
 
 const WorkspaceThread = {
-  all: async function (workspaceSlug) {
+  all: async function (workspaceSlug, { throwOnError = false } = {}) {
     const { threads, defaultThreadChatCount } = await fetch(
       `${API_BASE}/workspace/${workspaceSlug}/threads`,
       {
@@ -13,8 +13,13 @@ const WorkspaceThread = {
         headers: baseHeaders(),
       }
     )
-      .then((res) => res.json())
-      .catch(() => {
+      .then((res) => {
+        if (throwOnError && !res.ok)
+          throw new Error(`Unable to load threads (${res.status})`);
+        return res.json();
+      })
+      .catch((error) => {
+        if (throwOnError) throw error;
         return { threads: [], defaultThreadChatCount: 0 };
       });
 

@@ -1,4 +1,5 @@
 const { ChatOpenAI } = require("@langchain/openai");
+const { CompatibleChatCompletions } = require("./compatibleChatCompletions");
 const { toValidNumber } = require("../utils/http");
 const { GenericOpenAiLLM } = require("../utils/AiProviders/genericOpenAi");
 
@@ -44,7 +45,7 @@ function createChatModel({
     });
   }
 
-  return new ChatOpenAI({
+  const compatibleOptions = {
     ...common,
     apiKey: process.env.GENERIC_OPEN_AI_API_KEY || "not-required",
     maxTokens:
@@ -57,6 +58,39 @@ function createChatModel({
       baseURL: process.env.GENERIC_OPEN_AI_BASE_PATH,
       defaultHeaders: GenericOpenAiLLM.parseCustomHeaders(),
     },
+  };
+  return new ChatOpenAI({
+    ...compatibleOptions,
+    completions: new CompatibleChatCompletions(compatibleOptions),
+  });
+}
+
+// Explicit opt-in for short auxiliary calls; normal Agent calls keep their model.
+async function createLightweightChatModel(options = {}) {
+  const { SystemSettings } = require("../models/systemSettings");
+  const [provider, model] = await Promise.all([
+    SystemSettings.getValueOrFallback(
+      { label: "lightweight_model_provider" },
+      ""
+    ),
+    SystemSettings.getValueOrFallback({ label: "lightweight_model_name" }, ""),
+  ]);
+  const configured =
+    SUPPORTED_LLM_PROVIDERS.has(provider) && String(model || "").trim();
+  return createChatModel({
+    ...options,
+    ...(configured
+      ? {
+          workspace: {
+            ...options.workspace,
+            agentProvider: provider,
+            chatProvider: provider,
+          },
+          model: model.trim(),
+        }
+      : {}),
+    thinking: false,
+    temperature: 0,
   });
 }
 
@@ -64,4 +98,5 @@ module.exports = {
   SUPPORTED_LLM_PROVIDERS,
   selectedProvider,
   createChatModel,
+  createLightweightChatModel,
 };

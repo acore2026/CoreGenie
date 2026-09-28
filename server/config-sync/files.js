@@ -5,7 +5,7 @@ const YAML = require("yaml");
 const { loadPackage, parseSkillMarkdown } = require("../agent-skills/package");
 const { hash } = require("./engine");
 
-const KEY = /^(agents|skills)\/[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const KEY = /^(agents|skills|quick-tasks)\/[a-z0-9]+(?:-[a-z0-9]+)*$/;
 function validKey(key) {
   if (key !== "global-prompt" && !KEY.test(key))
     throw new Error("无效的配置标识。");
@@ -67,7 +67,7 @@ class ConfigFiles {
       this.root,
       key === "global-prompt"
         ? "global-prompt.md"
-        : key.startsWith("agents/")
+        : key.startsWith("agents/") || key.startsWith("quick-tasks/")
           ? `${key}.yaml`
           : key
     );
@@ -99,14 +99,16 @@ class ConfigFiles {
     const value = YAML.parse(source, { uniqueKeys: true, maxAliasCount: 0 });
     if (!value || typeof value !== "object" || Array.isArray(value))
       throw new Error("Agent 配置必须是 YAML 对象。");
-    return require("./database").agentValue(value);
+    return key.startsWith("quick-tasks/")
+      ? require("./database").quickTaskValue(value)
+      : require("./database").agentValue(value);
   }
 
   async list() {
     await assertSafe(this.root, this.root);
     const values = {};
     const keys = ["global-prompt"];
-    for (const kind of ["agents", "skills"]) {
+    for (const kind of ["agents", "skills", "quick-tasks"]) {
       const directory = path.join(this.root, kind);
       await assertSafe(this.root, directory);
       const entries = await fs
@@ -133,8 +135,12 @@ class ConfigFiles {
           continue;
         }
         if (entry.name.startsWith(".")) continue;
-        if (kind === "agents" && !entry.name.endsWith(".yaml")) continue;
-        const key = `${kind}/${kind === "agents" ? entry.name.slice(0, -5) : entry.name}`;
+        if (
+          (kind === "agents" || kind === "quick-tasks") &&
+          !entry.name.endsWith(".yaml")
+        )
+          continue;
+        const key = `${kind}/${kind === "agents" || kind === "quick-tasks" ? entry.name.slice(0, -5) : entry.name}`;
         keys.push(key);
       }
     }

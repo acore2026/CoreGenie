@@ -51,19 +51,16 @@ function ActionMenu({ chatId, forkThread, isEditing, role, readOnly = false }) {
       {open && (
         <div
           data-action-menu-open
-          className="absolute -top-1 left-7 mt-1 border-[1.5px] border-white/40 rounded-lg bg-theme-action-menu-bg flex flex-col shadow-[0_4px_14px_rgba(0,0,0,0.25)] text-white z-99"
+          className="dsh-menu absolute -top-1 left-7 z-99 mt-1 flex min-w-[120px] flex-col"
         >
-          <button
-            onClick={handleFork}
-            className="border-none rounded-t-lg flex items-center text-white gap-x-2 hover:bg-theme-action-menu-item-hover py-1.5 px-2 transition-colors duration-200 w-full text-left"
-          >
+          <button onClick={handleFork} className="dsh-menu-item">
             <TreeView size={18} />
             <span className="text-sm">{t("chat_window.fork")}</span>
           </button>
           {!readOnly && (
             <button
               onClick={handleDelete}
-              className="border-none flex rounded-b-lg items-center text-white gap-x-2 hover:bg-theme-action-menu-item-hover py-1.5 px-2 transition-colors duration-200 w-full text-left"
+              className="dsh-menu-item dsh-menu-item-danger"
             >
               <Trash size={18} />
               <span className="text-sm">{t("chat_window.delete")}</span>

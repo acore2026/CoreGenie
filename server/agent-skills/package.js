@@ -184,12 +184,18 @@ function isProbablyText(buffer) {
   return (decoded.match(/\uFFFD/g) || []).length / decoded.length < 0.01;
 }
 
-async function walkPackage(root) {
+async function walkPackage(root, { includePythonCaches = false } = {}) {
   const files = [];
   const caseInsensitivePaths = new Set();
   let totalBytes = 0;
   async function walk(directory, prefix = "") {
     for (const entry of await fs.readdir(directory, { withFileTypes: true })) {
+      // Interpreter caches are not Skill resources or revision inputs.
+      if (
+        !includePythonCaches &&
+        (entry.name === "__pycache__" || /\.py[co]$/.test(entry.name))
+      )
+        continue;
       const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
       const absolute = path.join(directory, entry.name);
       const stats = await fs.lstat(absolute);
@@ -244,7 +250,17 @@ async function loadPackage(root, options = {}) {
   const source = await fs.readFile(skillPath, "utf8");
   const parsed = parseSkillMarkdown(source, options);
   const files = await walkPackage(root);
-  const sha256 = await packageHash(root, files);
+  let sha256 = await packageHash(root, files);
+  if (options.expectedSha256 && sha256 !== options.expectedSha256) {
+    // Historical immutable revisions included interpreter caches in their
+    // hashes. Verify those exact bytes without exposing caches as resources
+    // or changing the revision pinned by an existing run.
+    const legacyFiles = await walkPackage(root, { includePythonCaches: true });
+    const legacyHash = await packageHash(root, legacyFiles);
+    if (legacyHash !== options.expectedSha256)
+      throw new Error("Skill revision is missing or has been modified.");
+    sha256 = legacyHash;
+  }
   return { ...parsed, root, files, sha256 };
 }
 

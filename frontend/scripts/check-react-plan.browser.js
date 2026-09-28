@@ -37,11 +37,16 @@ async (page) => {
   if (!await page.locator('.dsh-tool-entry').innerText().then(x=>x.includes('分'))) throw new Error('Missing elapsed time');
   await page.getByRole('button',{name:/调用详情/}).click();
   await page.evaluate(state=>window.renderPlan({...state,toolExecutions:[{...state.toolExecutions[0],status:'failed',completedAt:new Date().toISOString(),error:'无法读取文档，请检查文件是否可用。'}]}),state);
-  await page.locator('.dsh-tool-group[data-status="failed"]').waitFor();
+  await page.locator('.dsh-tool-group[data-status="stopped"]').waitFor();
+  if (await page.getByText('无法读取文档，请检查文件是否可用。').count()) throw new Error('Error emphasized in collapsed card');
+  await page.getByRole('button',{name:/调用详情/}).click();
+  if (await page.locator('.dsh-tool-group [class*="text-red"]').count()) throw new Error('Tool attempt highlighted in red');
+  if (/失败|需留意|未完成/.test(await page.locator('.dsh-tool-group').innerText())) throw new Error('Failure label shown');
   await page.getByText('无法读取文档，请检查文件是否可用。').waitFor();
   await page.screenshot({path:'/tmp/react-tools-failed-mobile.png'});
   await page.evaluate(state=>window.renderPlan({...state,toolExecutions:[{...state.toolExecutions[0],status:'completed'}]}),state);
-  await page.getByText('已调用 1 个工具').count();
+  await page.locator('.dsh-tool-group[data-status="stopped"]').waitFor();
+  await page.getByText('1 次调用', {exact:true}).waitFor();
   if (await page.locator('[data-agent-working]').count()!==1) throw new Error('Spinner stopped after tool completion');
   for (const status of ['waiting_for_input','waiting_for_approval','completed','failed','cancelled','partial']) {
     await page.evaluate(({state,status})=>window.renderPlan({...state,status}),{state,status});

@@ -207,6 +207,11 @@ function toLangChainTool(descriptor, context) {
         if (
           descriptor.effect === "read" &&
           previousExecution &&
+          // An interrupt leaves the call running so replay can consume the
+          // user's answer. Only terminal executions can be failed retries.
+          ["completed", "failed", "skipped", "cancelled"].includes(
+            previousExecution.status
+          ) &&
           !reusableExecution(previousExecution) &&
           previousExecution.retryable !== true
         ) {

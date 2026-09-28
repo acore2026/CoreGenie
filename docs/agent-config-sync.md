@@ -32,25 +32,46 @@ directory/database.
 agent-config/
   global-prompt.md
   agents/<stable-key>.yaml
+  quick-tasks/<stable-key>.yaml
   skills/<stable-key>/SKILL.md
   skills/<stable-key>/scripts/...
   skills/<stable-key>/references/...
 ```
 
 Agent YAML fields are `name`, `description`, `welcomeMessage`, `examplePrompts`,
-`tools` (null for all enabled tools), `skills` (directory keys), `systemPrompt`,
-`runtimeKey`, `runtimeConfig`, and `enabled`. Store multiline prompts with YAML
-block strings. Keys are lowercase letters/numbers separated by hyphens. Keep
-file/directory keys stable when changing display names.
+`tools` (null for all enabled tools), `skills` (directory keys),
+`quickTasks` (shared task file keys), `systemPrompt`,
+`runtimeKey`, `runtimeConfig`, `enabled`, and `showInRoster`. `enabled` controls
+whether the Agent can run or receive delegated work. `showInRoster` controls
+user-facing Agent lists only and defaults to `true`. Store multiline prompts
+with YAML block strings. Keys are lowercase letters/numbers separated by
+hyphens. Keep file/directory keys stable when changing display names.
+Agent delegation is available to callers with `tools: null`; callers using an
+explicit tool list must include `agent.call`. Hidden, enabled Agents remain
+valid delegation targets.
 
 Skill packages keep normal SKILL.md frontmatter, instructions, scripts and binary
 assets. An optional top-level `archived: true` frontmatter field controls archive
 state and is stripped from the runtime package. Resource removal creates a full
 replacement revision. Existing revisions remain in runtime storage.
 
-Shared prompts and Agent/Skill configuration are synchronized. User/workspace
+Shared prompts and Agent/Skill/quick-task configuration are synchronized. User/workspace
 private content, credentials, chat history, icons and the installation's default
 Agent selection are not exported.
+
+Quick tasks live in `quick-tasks/<stable-key>.yaml`; the file key must match the
+form's `id`. A task contains `version`, `id`, `title`, `instructions`, `fields`,
+and optional `description` and `archived`. Bind the same task to multiple Agents
+using, for example, `quickTasks: [proposal-topic-analysis]`. The database stores
+these bindings as `quickTaskIds`; numeric database IDs do not belong in YAML.
+Skills and quick tasks are imported before Agents. A binding must refer to an
+existing task. Each Agent supports at most 12 tasks and 180000 serialized
+characters in total (40000 per task). Archived tasks keep their bindings but
+are hidden from users. Edit and preview tasks at `/settings/agents/quick-tasks`.
+
+Legacy inline `wizard` forms are migrated to shared tasks while preserving their
+contents. See [任务向导配置](agent-wizard.md) for the form schema and client
+compatibility rules.
 
 ## First synchronization and conflicts
 
@@ -69,7 +90,7 @@ screens cannot overwrite newer content.
 Invalid files keep the last valid database configuration active. Fix the file
 and let the next scan retry. Missing definition files do not delete records; use
 the database version in the panel to restore them. Retire an Agent using
-`enabled: false`, or a Skill using `archived: true`. With sync enabled, the web
+`enabled: false`, or a Skill or quick task using `archived: true`. With sync enabled, the web
 Agent delete operation disables the record so its file and run history survive.
 
 Pending exports retry on subsequent scans and after restart. File writes use
@@ -84,12 +105,12 @@ removed. Docker bundles the same directory at `/app/agent-config`; the writable
 repository mount takes its place when synchronization is enabled.
 
 Without synchronization, initialization reads these files once per
-`agent_config_seed_v6` version in `server/agent-skills/seed.js`. It imports all
-bundled Skills and Agents, resolves portable Skill bindings and legacy names, and
+`agent_config_seed_v11` version in `server/agent-skills/seed.js`. It imports all
+bundled Skills, quick tasks and Agents, resolves portable bindings and legacy names, and
 keeps existing IDs, icons and the installation's default Agent selection. Existing
 global prompts are preserved. Later web edits survive restarts; bump the seed
 version when intentionally updating bundled definitions for non-sync installs.
-Skill/Agent imports and the version marker share one database transaction.
+Skill/quick-task/Agent imports and the version marker share one database transaction.
 
 Built-in seed updates are bypassed while synchronization is enabled. Historical
 database migrations remain unchanged; they are not editable configuration sources.

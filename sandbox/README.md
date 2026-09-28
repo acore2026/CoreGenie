@@ -29,6 +29,12 @@ exact pinned package set. Plain `pip install` stores additional packages under
 `/workspace/.python`, so they persist and remain importable in later
 invocations for the same AnythingLLM workspace.
 
+Proposal PPT Skills use pinned python-pptx and Pillow. LibreOffice Impress/Draw,
+poppler-utils, and Noto CJK fonts support local slide rendering and image
+previews. Rebuild the runner image after dependency changes; an existing runner
+does not acquire them from an Agent configuration sync. Rendering is not visual
+approval: the Skill records the separate page-by-page review.
+
 Agent Skills use the same two tools. A globally managed skill revision is
 mounted read-only at `/skills/<name>` only for the invocation that needs it;
 workspace-local skills remain live under `/workspace/.agent/skills/<name>`.
@@ -38,5 +44,10 @@ hard maximum of 1800 seconds. The runner also includes pinned `uv` for PEP 723
 Python scripts.
 
 Use `start-anythingllm.sh` to build the runner image, launch the broker, and
-start AnythingLLM. Sandbox calls follow the configured global and per-tool
-approval policy.
+start AnythingLLM. The script also keeps a locked-down image guard container
+running from the runner image. It has no network, mounts, or writable root
+filesystem and only sleeps; its purpose is to make Docker treat the runner
+image as in use so ordinary `docker image prune -a` and `docker system prune
+-a` commands do not remove it between Agent calls. When the runner image is
+rebuilt, the script replaces the guard automatically. Sandbox calls follow the
+configured global and per-tool approval policy.

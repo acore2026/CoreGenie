@@ -149,6 +149,16 @@ async function executeAgentRunSegment(initialRun, signal, runnableConfig = {}) {
     agent: { id: agent.id, name: agent.name },
     runtime: { key: definition.id, version: definition.version },
   });
+  if (!run.parent_run_id && thread && run.configuration?.autoTitle !== false) {
+    void WorkspaceThread.autoRenameThread({
+      prompt: run.prompt,
+      workspace,
+      thread,
+      user,
+      onRename: (renamed) =>
+        emit("thread.renamed", { slug: renamed.slug, name: renamed.name }),
+    }).catch((error) => console.error(error.message));
+  }
   await emit("activity.updated", {
     phase: "planning",
     summary: `Understanding: ${run.prompt.replace(/\s+/g, " ").slice(0, 120)}`,
@@ -447,15 +457,6 @@ async function executeAgentRunSegment(initialRun, signal, runnableConfig = {}) {
     summaryKey: "completed",
   });
 
-  if (thread && run.configuration?.autoTitle !== false) {
-    await WorkspaceThread.autoRenameThread({
-      workspace,
-      thread,
-      user,
-      onRename: (renamed) =>
-        emit("thread.renamed", { slug: renamed.slug, name: renamed.name }),
-    }).catch((error) => console.error(error.message));
-  }
   await Promise.allSettled([
     AgentToolExecution.reconcileActive(run.id),
     AgentRunTask.reconcileTerminal(run.id, "cancelled"),

@@ -6,5 +6,8 @@ tools: null
 skills: []
 systemPrompt: Research the user's question using available sources. Keep the answer concise and cite every material claim.
 runtimeKey: governed-agent
-runtimeConfig: {}
+runtimeConfig:
+  attachmentMode: parsed
+  requiredCompletionTools: []
 enabled: false
+showInRoster: false

@@ -10,14 +10,16 @@ import { Link, useParams, useNavigate, useMatch } from "react-router-dom";
 import {
   CaretDown,
   CalendarDots,
-  DotsSixVertical,
+  DotsThree,
+  Folder,
+  PencilSimple,
   FilePlus,
   GearSix,
   UserPlus,
 } from "@phosphor-icons/react";
 import useUser from "@/hooks/useUser";
 import { useTranslation } from "react-i18next";
-import ThreadContainer from "./ThreadContainer";
+import ThreadContainer, { CreateThreadButton } from "./ThreadContainer";
 import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
 import showToast from "@/utils/toast";
 import { LAST_VISITED_WORKSPACE } from "@/utils/constants";
@@ -28,37 +30,98 @@ import {
   WORKSPACE_RENAMED_EVENT,
 } from "../events";
 import WorkspaceInviteModal from "@/components/Modals/WorkspaceInvite";
+import useAdminView from "@/hooks/useAdminView";
+import { assignedAdminWorkspaces } from "@/utils/adminView";
+import ContextMenu from "@/components/lib/ContextMenu";
 
 let cachedWorkspaces = null;
+let cachedOwner = null;
 
 export default function ActiveWorkspaces() {
+  const { user, authToken } = useUser();
+  const { adminView, canUseAdminView } = useAdminView(user);
+  return (
+    <WorkspaceList
+      key={`${user?.id ?? "single-user"}:${authToken ?? ""}:${adminView ? "admin" : "assigned"}`}
+      adminView={adminView}
+      canUseAdminView={canUseAdminView}
+    />
+  );
+}
+
+function WorkspaceList({ adminView, canUseAdminView }) {
+  const { t } = useTranslation();
+  const { user, authToken } = useUser();
+  const expansionKey = `workspace-expansion:${user?.id ?? "single-user"}`;
+  const owner = `${user?.id ?? "single-user"}:${authToken ?? ""}:${adminView ? "admin" : "assigned"}`;
   const navigate = useNavigate();
   const { slug } = useParams();
-  const [loading, setLoading] = useState(() => cachedWorkspaces === null);
-  const [workspaces, setWorkspaces] = useState(() => cachedWorkspaces || []);
+  const [loading, setLoading] = useState(
+    () => cachedOwner !== owner || cachedWorkspaces === null
+  );
+  const [workspaces, setWorkspaces] = useState(() =>
+    cachedOwner === owner ? cachedWorkspaces || [] : []
+  );
   const [renamingSlug, setRenamingSlug] = useState(null);
   const [renameValue, setRenameValue] = useState("");
   const [selectedWs, setSelectedWs] = useState(null);
   const [inviteWorkspace, setInviteWorkspace] = useState(null);
-  const [collapsedSlugs, setCollapsedSlugs] = useState(() => new Set());
+  const [contextMenu, setContextMenu] = useState(null);
+  const [expansion, setExpansion] = useState(() => {
+    try {
+      const value = JSON.parse(localStorage.getItem(expansionKey));
+      return value && typeof value === "object" && !Array.isArray(value)
+        ? value
+        : {};
+    } catch {
+      return {};
+    }
+  });
   const renameInputRef = useRef(null);
   const renameSavingRef = useRef(false);
   const renameCancelledRef = useRef(false);
-  const workspaceClickTimerRef = useRef(null);
   const { showing, showModal, hideModal } = useManageWorkspaceModal();
-  const { user } = useUser();
   const isInWorkspaceSettings = !!useMatch("/workspace/:slug/settings/:tab");
   const isHomePage = !!useMatch("/");
 
   useEffect(() => {
+    let cancelled = false;
     async function getWorkspaces() {
-      const workspaces = Workspace.orderWorkspaces(await Workspace.all());
+      const visibleWorkspaces =
+        canUseAdminView && !adminView
+          ? await assignedAdminWorkspaces(user.id, { refresh: true })
+          : await Workspace.all();
+      const workspaces = Workspace.orderWorkspaces(visibleWorkspaces);
+      if (cancelled) return;
+      cachedOwner = owner;
       cachedWorkspaces = workspaces;
       setLoading(false);
       setWorkspaces(workspaces);
     }
     getWorkspaces();
-  }, []);
+    return () => {
+      cancelled = true;
+    };
+  }, [adminView, canUseAdminView, owner, user?.id]);
+
+  useEffect(() => {
+    if (loading || !workspaces.length) return;
+    const lastVisited = safeJsonParse(
+      localStorage.getItem(LAST_VISITED_WORKSPACE)
+    );
+    const initialSlug =
+      slug ||
+      (isHomePage
+        ? workspaces.find((workspace) => workspace.slug === lastVisited?.slug)
+            ?.slug || workspaces[0].slug
+        : null);
+    if (!initialSlug) return;
+    setExpansion((current) =>
+      Object.hasOwn(current, initialSlug)
+        ? current
+        : { ...current, [initialSlug]: true }
+    );
+  }, [slug, isHomePage, loading, workspaces]);
 
   useEffect(() => {
     const workspaceCreated = (event) => {
@@ -97,13 +160,13 @@ export default function ActiveWorkspaces() {
     renameInputRef.current?.select();
   }, [renamingSlug]);
 
-  useEffect(
-    () => () => {
-      if (workspaceClickTimerRef.current)
-        clearTimeout(workspaceClickTimerRef.current);
-    },
-    []
-  );
+  useEffect(() => {
+    try {
+      localStorage.setItem(expansionKey, JSON.stringify(expansion));
+    } catch {
+      /* Navigation still works when storage is unavailable. */
+    }
+  }, [expansion, expansionKey]);
 
   if (loading) {
     return (
@@ -134,8 +197,12 @@ export default function ActiveWorkspaces() {
       reorderedWorkspaces.map((w) => w.id)
     );
     if (!success) {
-      showToast("Failed to reorder workspaces", "error");
-      Workspace.all().then((workspaces) => {
+      showToast(t("workspace_list.reorder_failed"), "error");
+      const reload =
+        canUseAdminView && !adminView
+          ? assignedAdminWorkspaces(user.id, { refresh: true })
+          : Workspace.all();
+      reload.then((workspaces) => {
         cachedWorkspaces = Workspace.orderWorkspaces(workspaces);
         setWorkspaces(cachedWorkspaces);
       });
@@ -154,43 +221,17 @@ export default function ActiveWorkspaces() {
     setRenamingSlug(workspace.slug);
   }
 
-  function toggleWorkspace(workspaceSlug) {
-    setCollapsedSlugs((current) => {
-      const next = new Set(current);
-      if (next.has(workspaceSlug)) next.delete(workspaceSlug);
-      else next.add(workspaceSlug);
-      return next;
-    });
+  function toggleWorkspace(workspaceSlug, isExpanded) {
+    setExpansion((current) => ({ ...current, [workspaceSlug]: !isExpanded }));
   }
 
-  function handleWorkspaceClick(event, workspace, isActive) {
+  function handleWorkspaceClick(event, workspace) {
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
+      return;
     event.preventDefault();
     window.dispatchEvent(new Event(CLOSE_MOBILE_SIDEBAR_EVENT));
-    if (workspaceClickTimerRef.current)
-      clearTimeout(workspaceClickTimerRef.current);
-    workspaceClickTimerRef.current = setTimeout(() => {
-      workspaceClickTimerRef.current = null;
-      if (isActive) {
-        toggleWorkspace(workspace.slug);
-        return;
-      }
-      setCollapsedSlugs((current) => {
-        const next = new Set(current);
-        next.delete(workspace.slug);
-        return next;
-      });
-      navigate(paths.workspace.chat(workspace.slug));
-    }, 180);
-  }
-
-  function handleWorkspaceDoubleClick(event, workspace) {
-    event.preventDefault();
-    event.stopPropagation();
-    if (workspaceClickTimerRef.current) {
-      clearTimeout(workspaceClickTimerRef.current);
-      workspaceClickTimerRef.current = null;
-    }
-    startWorkspaceRename(workspace);
+    setExpansion((current) => ({ ...current, [workspace.slug]: true }));
+    navigate(paths.workspace.chat(workspace.slug));
   }
 
   async function commitWorkspaceRename(workspace) {
@@ -213,7 +254,7 @@ export default function ActiveWorkspaces() {
     );
     renameSavingRef.current = false;
     if (!updatedWorkspace) {
-      showToast(`Workspace could not be renamed! ${message || ""}`, "error", {
+      showToast(message || t("workspace_list.rename_failed"), "error", {
         clear: true,
       });
       renameInputRef.current?.focus();
@@ -260,16 +301,15 @@ export default function ActiveWorkspaces() {
         {(provided) => (
           <div
             role="list"
-            aria-label="Workspaces"
-            className="flex flex-col gap-y-2"
+            aria-label={t("workbench_nav.workspaces")}
+            className="flex flex-col gap-y-3"
             ref={provided.innerRef}
             {...provided.droppableProps}
           >
             {workspaces.map((workspace, index) => {
               const isVirtuallyActive = workspace.slug === virtualActiveSlug;
               const isActive = workspace.slug === slug || isVirtuallyActive;
-              const isExpanded =
-                isActive && !collapsedSlugs.has(workspace.slug);
+              const isExpanded = expansion[workspace.slug] ?? isActive;
               const canParticipate =
                 workspace.viewerAccess !== "public_readonly";
               return (
@@ -287,19 +327,42 @@ export default function ActiveWorkspaces() {
                       }`}
                       role="listitem"
                     >
-                      <div className="flex gap-x-2 items-center justify-between">
+                      <div
+                        className="group/workspace relative flex min-h-10 items-center hover:bg-theme-sidebar-subitem-hover focus-within:bg-theme-sidebar-subitem-hover"
+                        onContextMenu={(event) => {
+                          const canManage = user?.role !== "default";
+                          if (!canManage && !canParticipate) return;
+                          event.preventDefault();
+                          setContextMenu({
+                            point: { x: event.clientX, y: event.clientY },
+                            workspace,
+                            canParticipate,
+                            canManage,
+                          });
+                        }}
+                      >
+                        <button
+                          type="button"
+                          aria-label={t(
+                            isExpanded
+                              ? "workspace_list.collapse"
+                              : "workspace_list.expand",
+                            { name: workspace.name }
+                          )}
+                          aria-expanded={isExpanded}
+                          aria-controls={`workspace-threads-${workspace.id}`}
+                          onClick={() =>
+                            toggleWorkspace(workspace.slug, isExpanded)
+                          }
+                          className="flex h-10 w-7 shrink-0 items-center justify-center text-theme-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-theme-button-primary"
+                        >
+                          <CaretDown
+                            size={14}
+                            className={isExpanded ? "" : "-rotate-90"}
+                          />
+                        </button>
                         {renamingSlug === workspace.slug ? (
-                          <div
-                            className={`
-                            flex flex-grow w-[75%] gap-x-2 py-[5px] pl-[7px] pr-[6px] rounded-[4px] items-center
-                            bg-theme-sidebar-item-default light:bg-blue-200
-                          `}
-                          >
-                            <DotsSixVertical
-                              size={20}
-                              className="mr-[3px] text-white light:text-blue-800"
-                              weight="bold"
-                            />
+                          <div className="flex min-w-0 flex-1 items-center pr-2">
                             <input
                               ref={renameInputRef}
                               value={renameValue}
@@ -319,95 +382,95 @@ export default function ActiveWorkspaces() {
                                   setRenamingSlug(null);
                                 }
                               }}
-                              aria-label="Rename workspace"
-                              className="h-7 min-w-0 flex-1 rounded-md border border-sky-400/70 bg-zinc-950 light:bg-white px-2 text-sm font-semibold text-white light:text-slate-900 outline-none ring-2 ring-sky-400/15"
+                              aria-label={t("workspace_list.rename_workspace")}
+                              className="h-8 min-w-0 flex-1 border border-theme-sidebar-border bg-theme-bg-chat px-2 text-sm text-theme-text-primary focus:outline-none focus:ring-2 focus:ring-theme-button-primary"
                             />
                           </div>
                         ) : (
-                          <Link
-                            to={paths.workspace.chat(workspace.slug)}
-                            onClick={(event) =>
-                              handleWorkspaceClick(event, workspace, isActive)
-                            }
-                            aria-current={isActive ? "page" : ""}
-                            aria-expanded={isActive ? isExpanded : undefined}
-                            className={`
-                            transition-all duration-[200ms]
-                            flex flex-grow w-[75%] gap-x-2 py-[6px] pl-[4px] pr-[6px] rounded-[4px] text-white justify-start items-center
-                            bg-theme-sidebar-item-default
-                            ${isActive ? "light:bg-blue-200 font-bold" : "hover:bg-theme-sidebar-subitem-hover light:hover:bg-slate-300"}
-                          `}
-                          >
-                            <div className="flex flex-row justify-between w-full items-center">
-                              <div
-                                {...provided.dragHandleProps}
-                                onClick={(event) => {
-                                  event.preventDefault();
-                                  event.stopPropagation();
-                                }}
-                                className="cursor-grab mr-[3px]"
-                              >
-                                <DotsSixVertical
-                                  size={20}
-                                  className={`${isActive ? "text-white light:text-blue-800" : ""}`}
-                                  weight="bold"
-                                />
-                              </div>
-                              <div
-                                data-tooltip-id="workspace-name"
-                                data-tooltip-content={workspace.name}
-                                onDoubleClick={(event) =>
-                                  handleWorkspaceDoubleClick(event, workspace)
-                                }
-                                className="flex items-center space-x-2 overflow-hidden flex-grow"
-                              >
-                                <div className="w-[130px] overflow-hidden">
-                                  <p
-                                    className={`
-                                  text-[14px] leading-loose whitespace-nowrap overflow-hidden
-                                  ${isActive ? "font-bold text-white light:text-blue-900" : "font-medium "} truncate
-                                  w-full group-hover:w-[130px] group-hover:duration-200
-                                `}
-                                  >
-                                    {workspace.name}
-                                  </p>
-                                </div>
-                              </div>
-                              <CaretDown
-                                size={14}
-                                aria-hidden="true"
-                                className={`shrink-0 text-zinc-500 transition-transform duration-150 light:text-slate-500 ${isExpanded ? "rotate-0" : "-rotate-90"}`}
+                          <>
+                            <span
+                              {...provided.dragHandleProps}
+                              aria-label={t("workspace_list.reorder", {
+                                name: workspace.name,
+                              })}
+                              title={t("workspace_list.reorder", {
+                                name: workspace.name,
+                              })}
+                              className="flex h-10 w-5 shrink-0 cursor-grab items-center justify-center text-theme-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-button-primary"
+                            >
+                              <Folder
+                                size={16}
+                                weight={isActive ? "fill" : "regular"}
                               />
-                            </div>
-                          </Link>
+                            </span>
+                            <Link
+                              to={paths.workspace.chat(workspace.slug)}
+                              onClick={(event) =>
+                                handleWorkspaceClick(event, workspace)
+                              }
+                              title={workspace.name}
+                              className={`flex h-10 min-w-0 flex-1 items-center py-0 pl-1 pr-[72px] text-sm text-theme-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-theme-button-primary md:pr-2 md:group-hover/workspace:pr-[72px] md:group-focus-within/workspace:pr-[72px] ${isActive ? "font-semibold" : "font-medium"}`}
+                            >
+                              <span className="truncate">{workspace.name}</span>
+                            </Link>
+                          </>
                         )}
                         {renamingSlug !== workspace.slug && (
-                          <WorkspaceActionsMenu
-                            workspace={workspace}
-                            isActive={isActive}
-                            isInWorkspaceSettings={isInWorkspaceSettings}
-                            canParticipate={canParticipate}
-                            canManage={user?.role !== "default"}
-                            onInvite={() => setInviteWorkspace(workspace)}
-                            onOpenFiles={() => {
-                              setSelectedWs(workspace);
-                              showModal();
-                            }}
-                          />
+                          <div className="absolute inset-y-0 right-0 flex items-center md:opacity-0 md:group-hover/workspace:opacity-100 md:group-focus-within/workspace:opacity-100">
+                            {canParticipate && (
+                              <CreateThreadButton
+                                workspace={workspace}
+                                onCreated={() =>
+                                  setExpansion((current) => ({
+                                    ...current,
+                                    [workspace.slug]: true,
+                                  }))
+                                }
+                              />
+                            )}
+                            <WorkspaceActionsMenu
+                              workspace={workspace}
+                              isActive={isActive}
+                              isInWorkspaceSettings={isInWorkspaceSettings}
+                              canParticipate={canParticipate}
+                              canManage={user?.role !== "default"}
+                              onRename={() => startWorkspaceRename(workspace)}
+                              onInvite={() => setInviteWorkspace(workspace)}
+                              onOpenFiles={() => {
+                                setSelectedWs(workspace);
+                                showModal();
+                              }}
+                            />
+                          </div>
                         )}
                       </div>
-                      {isExpanded && (
+                      <div
+                        id={`workspace-threads-${workspace.id}`}
+                        hidden={!isExpanded}
+                      >
                         <ThreadContainer
                           workspace={workspace}
-                          canCreate={canParticipate}
+                          expanded={isExpanded}
                         />
-                      )}
+                      </div>
                     </div>
                   )}
                 </Draggable>
               );
             })}
             {provided.placeholder}
+            {contextMenu && (
+              <WorkspaceContextMenu
+                {...contextMenu}
+                onClose={() => setContextMenu(null)}
+                onRename={() => startWorkspaceRename(contextMenu.workspace)}
+                onInvite={() => setInviteWorkspace(contextMenu.workspace)}
+                onOpenFiles={() => {
+                  setSelectedWs(contextMenu.workspace);
+                  showModal();
+                }}
+              />
+            )}
             {showing && (
               <ManageWorkspace
                 hideModal={hideModal}
@@ -428,42 +491,23 @@ export default function ActiveWorkspaces() {
   );
 }
 
-function WorkspaceActionsMenu({
+function workspaceMenuActions({
   workspace,
-  isActive,
-  isInWorkspaceSettings,
   canParticipate,
   canManage,
+  onRename,
   onInvite,
   onOpenFiles,
+  navigate,
+  t,
 }) {
-  const { t } = useTranslation();
-  const navigate = useNavigate();
-  const menuRef = useRef(null);
-  const [open, setOpen] = useState(false);
-
-  useEffect(() => {
-    if (!open) return;
-    const closeOnOutsideClick = (event) => {
-      if (!menuRef.current?.contains(event.target)) setOpen(false);
-    };
-    const closeOnEscape = (event) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", closeOnOutsideClick);
-    document.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.removeEventListener("mousedown", closeOnOutsideClick);
-      document.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [open]);
-
-  const runAction = (action) => {
-    setOpen(false);
-    action();
-  };
-
-  const actions = [
+  return [
+    canManage && {
+      key: "rename",
+      label: t("workspace_list.rename_workspace"),
+      icon: PencilSimple,
+      action: onRename,
+    },
     canManage && {
       key: "settings",
       label: t("sidebar-workspace-menu.settings"),
@@ -490,12 +534,120 @@ function WorkspaceActionsMenu({
       action: onInvite,
     },
   ].filter(Boolean);
+}
+
+function WorkspaceMenuItems({ actions, onClose }) {
+  return actions.map(({ key, label, icon: Icon, action }) => (
+    <button
+      key={key}
+      type="button"
+      role="menuitem"
+      onClick={() => {
+        onClose();
+        action();
+      }}
+      className="dsh-menu-item"
+    >
+      <Icon size={17} weight="bold" className="shrink-0" />
+      <span>{label}</span>
+    </button>
+  ));
+}
+
+function WorkspaceContextMenu({
+  point,
+  workspace,
+  canParticipate,
+  canManage,
+  onRename,
+  onInvite,
+  onOpenFiles,
+  onClose,
+}) {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const actions = workspaceMenuActions({
+    workspace,
+    canParticipate,
+    canManage,
+    onRename,
+    onInvite,
+    onOpenFiles,
+    navigate,
+    t,
+  });
+  return (
+    <ContextMenu
+      point={point}
+      label={t("sidebar-workspace-menu.title")}
+      onClose={onClose}
+    >
+      <WorkspaceMenuItems actions={actions} onClose={onClose} />
+    </ContextMenu>
+  );
+}
+
+function WorkspaceActionsMenu({
+  workspace,
+  isActive,
+  isInWorkspaceSettings,
+  canParticipate,
+  canManage,
+  onInvite,
+  onOpenFiles,
+  onRename,
+}) {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const menuRef = useRef(null);
+  const triggerRef = useRef(null);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    menuRef.current?.querySelector('[role="menuitem"]')?.focus();
+    const closeOnOutsideClick = (event) => {
+      if (!menuRef.current?.contains(event.target)) setOpen(false);
+    };
+    const closeOnEscape = (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        setOpen(false);
+        triggerRef.current?.focus();
+      }
+    };
+    document.addEventListener("mousedown", closeOnOutsideClick);
+    document.addEventListener("keydown", closeOnEscape, true);
+    return () => {
+      document.removeEventListener("mousedown", closeOnOutsideClick);
+      document.removeEventListener("keydown", closeOnEscape, true);
+    };
+  }, [open]);
+
+  const runAction = (action) => {
+    setOpen(false);
+    triggerRef.current?.focus();
+    action();
+  };
+
+  const actions = workspaceMenuActions({
+    workspace,
+    canParticipate,
+    canManage,
+    onRename,
+    onInvite,
+    onOpenFiles,
+    navigate,
+    t,
+  });
 
   if (actions.length === 0) return null;
 
   return (
     <div ref={menuRef} className="relative shrink-0">
       <button
+        ref={triggerRef}
         type="button"
         aria-haspopup="menu"
         aria-expanded={open}
@@ -507,28 +659,39 @@ function WorkspaceActionsMenu({
           event.stopPropagation();
           setOpen((current) => !current);
         }}
-        className={`flex h-8 w-8 items-center justify-center rounded-md border border-white/[0.08] bg-theme-sidebar-item-default text-zinc-400 transition-[background-color,border-color,color,transform] duration-150 hover:border-cyan-300/30 hover:bg-cyan-300/10 hover:text-cyan-200 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/50 light:border-slate-300 light:text-slate-600 light:hover:border-cyan-500/35 light:hover:bg-cyan-50 light:hover:text-cyan-800 ${open || (isActive && isInWorkspaceSettings) ? "border-cyan-300/20 text-cyan-300 light:border-cyan-500/25 light:text-cyan-700" : ""}`}
+        className={`flex h-9 w-8 items-center justify-center border-none text-theme-text-secondary hover:bg-theme-sidebar-subitem-hover hover:text-theme-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-button-primary ${open || (isActive && isInWorkspaceSettings) ? "bg-theme-sidebar-subitem-selected text-theme-text-primary" : ""}`}
       >
-        <GearSix size={18} weight={open ? "fill" : "regular"} />
+        <DotsThree size={20} weight="bold" />
       </button>
       {open && (
         <div
           role="menu"
+          onKeyDown={(event) => {
+            if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key))
+              return;
+            event.preventDefault();
+            const items = [
+              ...event.currentTarget.querySelectorAll('[role="menuitem"]'),
+            ];
+            const index = items.indexOf(document.activeElement);
+            const next =
+              event.key === "Home"
+                ? 0
+                : event.key === "End"
+                  ? items.length - 1
+                  : (index +
+                      (event.key === "ArrowDown" ? 1 : -1) +
+                      items.length) %
+                    items.length;
+            items[next]?.focus();
+          }}
           aria-label={t("sidebar-workspace-menu.title")}
-          className="absolute right-0 top-9 z-[70] w-[190px] rounded-lg border border-white/10 bg-zinc-900 p-1.5 light:border-slate-300 light:bg-white"
+          className="dsh-menu absolute right-0 top-9 z-[70] w-[190px]"
         >
-          {actions.map(({ key, label, icon: Icon, action }) => (
-            <button
-              key={key}
-              type="button"
-              role="menuitem"
-              onClick={() => runAction(action)}
-              className="flex min-h-10 w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-sm font-medium text-zinc-200 transition-[background-color,color] duration-150 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan-300/50 light:text-slate-700 light:hover:bg-slate-100 light:hover:text-slate-950"
-            >
-              <Icon size={17} weight="bold" className="shrink-0" />
-              <span>{label}</span>
-            </button>
-          ))}
+          <WorkspaceMenuItems
+            actions={actions}
+            onClose={() => runAction(() => {})}
+          />
         </div>
       )}
     </div>

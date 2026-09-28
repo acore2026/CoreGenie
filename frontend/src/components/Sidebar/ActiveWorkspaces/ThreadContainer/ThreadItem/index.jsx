@@ -21,17 +21,15 @@ import {
   subscribeConversationRuntime,
 } from "@/utils/chat/conversationRuntime";
 import { useTranslation } from "react-i18next";
+import ContextMenu from "@/components/lib/ContextMenu";
+import ConfirmDialog from "@/components/lib/ConfirmDialog";
 
-const THREAD_CALLOUT_DETAIL_WIDTH = 26;
 export default function ThreadItem({
-  idx,
-  activeIdx,
   isActive,
   workspace,
   thread,
   onRemove,
   toggleMarkForDeletion,
-  hasNext,
   ctrlPressed = false,
 }) {
   const { t } = useTranslation();
@@ -43,11 +41,21 @@ export default function ThreadItem({
   const renameSavingRef = useRef(false);
   const renameCancelledRef = useRef(false);
   const [showOptions, setShowOptions] = useState(false);
+  const [contextPoint, setContextPoint] = useState(null);
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(thread.name);
   const [isProcessing, setIsProcessing] = useState(false);
-  const canModify = thread.canModify !== false;
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const canModify =
+    workspace.viewerAccess !== "public_readonly" && thread.canModify !== false;
   const ownerName = thread.owner?.username;
+  const ownerLabel = ownerName
+    ? t("chat_window.thread_by", { username: ownerName })
+    : null;
+  const threadTooltip = ownerLabel
+    ? `${thread.name} · ${ownerLabel}`
+    : thread.name;
   const linkTo = thread.virtual
     ? "/"
     : !thread.slug
@@ -55,9 +63,9 @@ export default function ThreadItem({
       : paths.workspace.thread(workspaceSlug, thread.slug);
 
   const { ref } = useScrollActiveItemIntoView({
-    isActive,
+    isActive: isActive && Boolean(thread.slug),
     behavior: "instant",
-    block: "center",
+    block: "nearest",
   });
 
   useEffect(() => {
@@ -112,7 +120,7 @@ export default function ThreadItem({
     );
     renameSavingRef.current = false;
     if (!updatedThread) {
-      showToast(`Thread could not be renamed! ${message || ""}`, "error", {
+      showToast(message || t("workspace_list.rename_failed"), "error", {
         clear: true,
       });
       renameInputRef.current?.focus();
@@ -120,198 +128,230 @@ export default function ThreadItem({
     }
     window.dispatchEvent(
       new CustomEvent(THREAD_RENAME_EVENT, {
-        detail: { threadSlug: thread.slug, newName: updatedThread.name },
+        detail: {
+          workspaceSlug,
+          threadSlug: thread.slug,
+          newName: updatedThread.name,
+        },
       })
     );
     setRenaming(false);
   }
 
-  return (
-    <div
-      className={`w-full relative flex ${ownerName ? "h-[46px]" : "h-[38px]"} items-center border-none rounded-lg`}
-      role="listitem"
-    >
-      {/* Curved line Element and leader if required */}
-      <div
-        style={{ width: THREAD_CALLOUT_DETAIL_WIDTH / 2 }}
-        className={`${
-          isActive
-            ? "border-l-2 border-b-2 border-white light:border-blue-800 z-[2]"
-            : "border-l border-b border-zinc-500 light:border-slate-400 z-[1]"
-        } h-[50%] absolute top-0 left-3 rounded-bl-lg`}
-      ></div>
-      {/* Downstroke border for next item */}
-      {hasNext && (
-        <div
-          style={{ width: THREAD_CALLOUT_DETAIL_WIDTH / 2 }}
-          className={`${
-            idx <= activeIdx && !isActive
-              ? "border-l-2 border-white light:border-blue-800 z-[2]"
-              : "border-l border-zinc-500 light:border-slate-400 z-[1]"
-          } h-[100%] absolute top-0 left-3`}
-        ></div>
-      )}
+  function requestDelete() {
+    setShowOptions(false);
+    setContextPoint(null);
+    setDeleteDialogOpen(true);
+  }
 
-      {/* Curved line inline placeholder for spacing - not visible */}
+  async function deleteThread() {
+    if (deleting) return;
+    setDeleting(true);
+    const success = await Workspace.threads
+      .delete(workspace.slug, thread.slug)
+      .catch(() => false);
+    setDeleting(false);
+    if (!success) {
+      showToast(t("workspace_list.delete_failed"), "error", { clear: true });
+      return;
+    }
+    setDeleteDialogOpen(false);
+    showToast(t("workspace_list.deleted"), "success", { clear: true });
+    onRemove(thread.id);
+    if (urlSlug === workspaceSlug && threadSlug === thread.slug)
+      navigate(paths.workspace.chat(workspace.slug));
+  }
+
+  return (
+    <>
       <div
-        style={{ width: THREAD_CALLOUT_DETAIL_WIDTH + 8 }}
-        className="h-full shrink-0"
-      />
-      <div
-        className={`group/thread relative flex min-w-0 flex-1 items-center justify-between pr-2 ${isActive ? "bg-[var(--theme-sidebar-thread-selected)] light:bg-blue-200" : "hover:bg-theme-sidebar-subitem-hover light:hover:bg-slate-300"} rounded-[4px]`}
+        className="relative flex min-h-9 w-full items-center pl-4"
+        role="listitem"
       >
-        {thread.deleted ? (
-          <div className="w-full flex justify-between">
-            <div className="w-full pl-2 py-1">
-              <p
-                className={`text-left text-sm text-slate-400/50 light:text-slate-500 italic`}
-              >
-                deleted thread
-              </p>
-            </div>
-            {canModify && ctrlPressed && (
-              <button
-                type="button"
-                className="border-none"
-                onClick={() => toggleMarkForDeletion(thread.id)}
-              >
-                <ArrowCounterClockwise
-                  className="text-zinc-300 hover:text-white light:text-theme-text-secondary hover:light:text-theme-text-primary"
-                  size={18}
-                />
-              </button>
-            )}
-          </div>
-        ) : renaming ? (
-          <div className="w-full pl-1 py-0.5 pr-1">
-            <input
-              ref={renameInputRef}
-              value={renameValue}
-              onChange={(event) => setRenameValue(event.target.value)}
-              onBlur={commitInlineRename}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  event.preventDefault();
-                  event.currentTarget.blur();
-                }
-                if (event.key === "Escape") {
-                  event.preventDefault();
-                  renameCancelledRef.current = true;
-                  setRenameValue(thread.name);
-                  setRenaming(false);
-                }
-              }}
-              aria-label="Rename thread"
-              className="h-7 w-full rounded-md border border-sky-400/70 bg-zinc-950 light:bg-white px-2 text-sm font-medium text-white light:text-slate-900 outline-none ring-2 ring-sky-400/15"
-            />
-          </div>
-        ) : (
-          <Link
-            ref={ref}
-            to={linkTo}
-            onClick={(event) => {
-              window.dispatchEvent(new Event(CLOSE_MOBILE_SIDEBAR_EVENT));
-              if (!canModify || !isActive || !thread.slug || thread.virtual)
-                return;
-              event.preventDefault();
-              startInlineRename();
-            }}
-            data-tooltip-id="workspace-thread-name"
-            data-tooltip-content={thread.name}
-            className="flex w-full min-w-0 items-center gap-1.5 overflow-hidden py-1 pl-2"
-            aria-current={isActive ? "page" : ""}
-          >
-            <div className="min-w-0 flex-1">
-              <p
-                className={`m-0 truncate text-left text-sm ${
-                  isActive
-                    ? "font-semibold text-theme-text-primary light:text-blue-900"
-                    : "text-theme-text-primary font-medium light:text-slate-800"
-                }`}
-              >
-                {thread.name}
-              </p>
-              {ownerName && (
-                <p className="m-0 truncate text-left text-[10px] font-medium leading-3 text-theme-text-secondary/70">
-                  {t("chat_window.thread_by", { username: ownerName })}
+        <div
+          className={`group/thread relative flex min-h-9 min-w-0 flex-1 items-center justify-between ${isActive ? "bg-theme-sidebar-subitem-selected" : "hover:bg-theme-sidebar-subitem-hover focus-within:bg-theme-sidebar-subitem-hover"}`}
+          onContextMenu={(event) => {
+            if (!canModify || !thread.slug || thread.virtual || thread.deleted)
+              return;
+            event.preventDefault();
+            setShowOptions(false);
+            setContextPoint({ x: event.clientX, y: event.clientY });
+          }}
+        >
+          {thread.deleted ? (
+            <div className="w-full flex justify-between">
+              <div className="w-full pl-2 py-1">
+                <p
+                  className={`text-left text-sm text-slate-400/50 light:text-slate-500 italic`}
+                >
+                  {t("workspace_list.marked_delete")}
                 </p>
-              )}
-            </div>
-            {isProcessing && (
-              <span
-                title={t("chat_window.thread_processing")}
-                aria-label={t("chat_window.thread_processing")}
-                className="mr-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-cyan-400/10 text-cyan-300 light:bg-cyan-600/10 light:text-cyan-700"
-              >
-                <CircleNotch size={13} weight="bold" className="animate-spin" />
-              </span>
-            )}
-          </Link>
-        )}
-        {canModify && !!thread.slug && !thread.deleted && !thread.virtual && (
-          <div ref={optionsContainer} className="flex items-center">
-            {" "}
-            {/* Added flex and items-center */}
-            {ctrlPressed ? (
-              <button
-                type="button"
-                className="border-none"
-                onClick={() => toggleMarkForDeletion(thread.id)}
-              >
-                <X
-                  className="text-zinc-300 light:text-theme-text-secondary hover:text-white hover:light:text-theme-text-primary"
-                  weight="bold"
-                  size={18}
-                />
-              </button>
-            ) : (
-              <div className="flex items-center w-fit md:invisible md:group-hover/thread:visible md:group-focus-within/thread:visible gap-x-1">
+              </div>
+              {canModify && ctrlPressed && (
                 <button
                   type="button"
-                  className="border-none"
-                  onClick={() => setShowOptions(!showOptions)}
-                  aria-label="Thread options"
+                  aria-label={t("workspace_list.undo_mark")}
+                  className="flex h-9 w-8 shrink-0 items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-button-primary"
+                  onClick={() => toggleMarkForDeletion(thread.id)}
                 >
-                  <DotsThree
-                    className="text-slate-300 light:text-theme-text-secondary hover:text-white hover:light:text-theme-text-primary"
-                    size={25}
+                  <ArrowCounterClockwise
+                    className="text-zinc-300 hover:text-white light:text-theme-text-secondary hover:light:text-theme-text-primary"
+                    size={18}
                   />
                 </button>
-              </div>
-            )}
-            {showOptions && (
-              <OptionsMenu
-                containerRef={optionsContainer}
-                workspace={workspace}
-                thread={thread}
-                onRemove={onRemove}
-                onStartRename={startInlineRename}
-                close={() => setShowOptions(false)}
-                currentThreadSlug={threadSlug}
-                navigate={navigate}
+              )}
+            </div>
+          ) : renaming ? (
+            <div className="w-full pl-1 py-0.5 pr-1">
+              <input
+                ref={renameInputRef}
+                value={renameValue}
+                onChange={(event) => setRenameValue(event.target.value)}
+                onBlur={commitInlineRename}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    event.currentTarget.blur();
+                  }
+                  if (event.key === "Escape") {
+                    event.preventDefault();
+                    renameCancelledRef.current = true;
+                    setRenameValue(thread.name);
+                    setRenaming(false);
+                  }
+                }}
+                aria-label={t("workspace_list.rename_thread")}
+                className="h-8 w-full border border-theme-sidebar-border bg-theme-bg-chat px-2 text-sm text-theme-text-primary focus:outline-none focus:ring-2 focus:ring-theme-button-primary"
               />
-            )}
-          </div>
-        )}
+            </div>
+          ) : (
+            <Link
+              ref={ref}
+              to={linkTo}
+              onClick={() => {
+                window.dispatchEvent(new Event(CLOSE_MOBILE_SIDEBAR_EVENT));
+              }}
+              data-tooltip-id="workspace-thread-name"
+              data-tooltip-content={threadTooltip}
+              title={threadTooltip}
+              className={`flex min-h-9 w-full min-w-0 items-center gap-1.5 overflow-hidden py-1 pl-4 pr-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-theme-button-primary ${
+                ctrlPressed
+                  ? "md:pr-8"
+                  : "md:group-hover/thread:pr-8 md:group-focus-within/thread:pr-8"
+              }`}
+              aria-current={isActive ? "page" : ""}
+            >
+              <div className="min-w-0 flex-1">
+                <p
+                  className={`m-0 truncate text-left text-[15px] leading-5 ${
+                    isActive
+                      ? "font-medium text-theme-text-primary"
+                      : "text-theme-text-secondary font-normal"
+                  }`}
+                >
+                  {thread.name}
+                </p>
+              </div>
+              {isProcessing && (
+                <span
+                  title={t("chat_window.thread_processing")}
+                  aria-label={t("chat_window.thread_processing")}
+                  className="mr-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-cyan-400/10 text-cyan-300 light:bg-cyan-600/10 light:text-cyan-700"
+                >
+                  <CircleNotch
+                    size={13}
+                    weight="bold"
+                    className="animate-spin"
+                  />
+                </span>
+              )}
+            </Link>
+          )}
+          {canModify && !!thread.slug && !thread.deleted && !thread.virtual && (
+            <div
+              ref={optionsContainer}
+              className="flex items-center md:absolute md:inset-y-0 md:right-0"
+            >
+              {ctrlPressed ? (
+                <button
+                  type="button"
+                  aria-label={t("workspace_list.mark_delete")}
+                  className="flex h-9 w-8 shrink-0 items-center justify-center bg-transparent hover:bg-theme-sidebar-subitem-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-button-primary"
+                  onClick={() => toggleMarkForDeletion(thread.id)}
+                >
+                  <X
+                    className="text-zinc-300 light:text-theme-text-secondary hover:text-white hover:light:text-theme-text-primary"
+                    weight="bold"
+                    size={18}
+                  />
+                </button>
+              ) : (
+                <div
+                  className={`flex items-center ${showOptions ? "" : "md:pointer-events-none md:opacity-0 md:group-hover/thread:pointer-events-auto md:group-hover/thread:opacity-100 md:group-focus-within/thread:pointer-events-auto md:group-focus-within/thread:opacity-100"}`}
+                >
+                  <button
+                    type="button"
+                    className="flex h-9 w-8 shrink-0 items-center justify-center bg-transparent hover:bg-theme-sidebar-subitem-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-theme-button-primary"
+                    onClick={() => {
+                      setContextPoint(null);
+                      setShowOptions(!showOptions);
+                    }}
+                    aria-label={t("workspace_list.thread_options")}
+                    aria-expanded={showOptions}
+                  >
+                    <DotsThree
+                      className="text-slate-300 light:text-theme-text-secondary hover:text-white hover:light:text-theme-text-primary"
+                      size={22}
+                    />
+                  </button>
+                </div>
+              )}
+              {showOptions && (
+                <OptionsMenu
+                  containerRef={optionsContainer}
+                  onStartRename={startInlineRename}
+                  onRequestDelete={requestDelete}
+                  close={() => setShowOptions(false)}
+                />
+              )}
+            </div>
+          )}
+          {contextPoint && (
+            <ContextMenu
+              point={contextPoint}
+              label={t("workspace_list.thread_options")}
+              onClose={() => setContextPoint(null)}
+              width={160}
+            >
+              <ThreadMenuItems
+                onStartRename={startInlineRename}
+                onRequestDelete={requestDelete}
+                close={() => setContextPoint(null)}
+              />
+            </ContextMenu>
+          )}
+        </div>
       </div>
-    </div>
+      <ConfirmDialog
+        open={deleteDialogOpen}
+        title={t("workspace_list.delete_thread")}
+        description={t("workspace_list.delete_confirm")}
+        cancelLabel={t("common.cancel")}
+        confirmLabel={t("workspace_list.delete_thread")}
+        busy={deleting}
+        onCancel={() => setDeleteDialogOpen(false)}
+        onConfirm={deleteThread}
+      />
+    </>
   );
 }
 
-function OptionsMenu({
-  containerRef,
-  workspace,
-  thread,
-  onRemove,
-  onStartRename,
-  close,
-  currentThreadSlug,
-  navigate,
-}) {
+function OptionsMenu({ containerRef, onStartRename, onRequestDelete, close }) {
   const menuRef = useRef(null);
 
   useEffect(() => {
     if (!menuRef.current || !containerRef.current) return;
+    menuRef.current.querySelector("button")?.focus();
 
     const outsideClick = (event) => {
       if (
@@ -321,66 +361,66 @@ function OptionsMenu({
         close();
     };
     const isEsc = (event) => {
-      if (event.key === "Escape" || event.key === "Esc") close();
+      if (event.key === "Escape" || event.key === "Esc") {
+        event.preventDefault();
+        event.stopPropagation();
+        close();
+        containerRef.current?.querySelector("button")?.focus();
+      }
     };
 
     window.addEventListener("click", outsideClick);
-    window.addEventListener("keyup", isEsc);
+    window.addEventListener("keydown", isEsc, true);
     return () => {
       window.removeEventListener("click", outsideClick);
-      window.removeEventListener("keyup", isEsc);
+      window.removeEventListener("keydown", isEsc, true);
     };
   }, [close, containerRef]);
-
-  const renameThread = async () => {
-    close();
-    onStartRename();
-  };
-
-  const handleDelete = async () => {
-    if (
-      !window.confirm(
-        "Are you sure you want to delete this thread? All of its chats will be deleted. You cannot undo this."
-      )
-    )
-      return;
-    const success = await Workspace.threads.delete(workspace.slug, thread.slug);
-    if (!success) {
-      showToast("Thread could not be deleted!", "error", { clear: true });
-      return;
-    }
-    if (success) {
-      showToast("Thread deleted successfully!", "success", { clear: true });
-      onRemove(thread.id);
-      // Redirect if deleting the active thread
-      if (currentThreadSlug === thread.slug) {
-        navigate(paths.workspace.chat(workspace.slug));
-      }
-      return;
-    }
-  };
 
   return (
     <div
       ref={menuRef}
-      className="absolute w-fit z-[20] top-[25px] right-[10px] bg-zinc-900 light:bg-theme-bg-sidebar light:border-[1px] light:border-theme-sidebar-border rounded-lg p-1"
+      role="menu"
+      className="dsh-menu absolute right-0 top-9 z-[70] min-w-[160px]"
     >
-      <button
-        onClick={renameThread}
-        type="button"
-        className="w-full rounded-md flex items-center p-2 gap-x-2 hover:bg-slate-500/20 text-slate-300 light:text-theme-text-primary"
-      >
-        <PencilSimple size={18} />
-        <p className="text-sm">Rename</p>
-      </button>
-      <button
-        onClick={handleDelete}
-        type="button"
-        className="w-full rounded-md flex items-center p-2 gap-x-2 hover:bg-red-500/20 text-slate-300 light:text-theme-text-primary hover:text-red-100"
-      >
-        <Trash size={18} />
-        <p className="text-sm">Delete Thread</p>
-      </button>
+      <ThreadMenuItems
+        onStartRename={onStartRename}
+        onRequestDelete={onRequestDelete}
+        close={close}
+      />
     </div>
+  );
+}
+
+function ThreadMenuItems({ onStartRename, onRequestDelete, close }) {
+  const { t } = useTranslation();
+
+  return (
+    <>
+      <button
+        onClick={() => {
+          close();
+          onStartRename();
+        }}
+        type="button"
+        role="menuitem"
+        className="dsh-menu-item"
+      >
+        <PencilSimple size={17} />
+        <span>{t("workspace_list.rename_thread")}</span>
+      </button>
+      <button
+        onClick={() => {
+          close();
+          onRequestDelete();
+        }}
+        type="button"
+        role="menuitem"
+        className="dsh-menu-item dsh-menu-item-danger"
+      >
+        <Trash size={17} />
+        <span>{t("workspace_list.delete_thread")}</span>
+      </button>
+    </>
   );
 }

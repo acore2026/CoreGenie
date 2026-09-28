@@ -10,8 +10,13 @@ export default function useHoverMetaKey(setThreads, ready = true) {
   const isHovering = useRef(false);
 
   useEffect(() => {
+    if (!ready) {
+      isHovering.current = false;
+      setCtrlPressed(false);
+      return;
+    }
     const container = containerRef.current;
-    if (!container || !ready) return;
+    if (!container) return;
 
     const resetThreadDeletions = () =>
       setThreads((prev) => prev.map((t) => ({ ...t, deleted: false })));

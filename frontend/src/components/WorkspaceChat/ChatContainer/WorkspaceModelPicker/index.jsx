@@ -88,7 +88,7 @@ export default function WorkspaceModelPicker({ workspaceSlug = null }) {
     return null;
 
   return (
-    <div className="relative inline-grid h-6 min-w-[64px] max-w-[120px] shrink overflow-hidden md:max-w-[220px]">
+    <div className="relative inline-grid h-7 min-w-[64px] max-w-[120px] shrink overflow-hidden md:max-w-[220px]">
       <span
         aria-hidden="true"
         className="invisible col-start-1 row-start-1 whitespace-nowrap py-0 pl-2 pr-7 text-right text-xs font-medium"
@@ -101,7 +101,7 @@ export default function WorkspaceModelPicker({ workspaceSlug = null }) {
         disabled={loading || saving || models.length === 0}
         aria-label={t("chat_window.select_model")}
         title={selectedModel || t("chat_window.select_model")}
-        className="absolute inset-0 h-6 w-full min-w-0 cursor-pointer appearance-none truncate rounded-full border-none bg-transparent py-0 pl-2 pr-7 text-right text-xs font-medium text-theme-text-secondary outline-none hover:bg-theme-bg-secondary disabled:cursor-wait disabled:opacity-60"
+        className="dsh-control absolute inset-0 h-7 w-full min-w-0 cursor-pointer appearance-none truncate py-0 pl-2 pr-7 text-right text-xs font-medium text-theme-text-secondary hover:bg-theme-sidebar-subitem-hover hover:text-theme-text-primary disabled:cursor-wait disabled:opacity-60"
       >
         {models.length === 0 && (
           <option value="">{t("chat_window.select_model")}</option>

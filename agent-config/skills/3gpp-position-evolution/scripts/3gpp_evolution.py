@@ -425,7 +425,7 @@ def build_term_timeline(ledger: dict, texts: str, terms: Any) -> dict:
     return {
         "schemaVersion": 1,
         "generatedAt": now_utc(),
-        "note": "Occurrences do not by themselves prove a rename or semantic replacement.",
+        "note": "Occurrences do not by themselves prove a rename or semantic replacement. Counts include tracked insertions, deletions, and moves; firstSeen is not the date a term was first proposed or adopted.",
         "terms": output,
     }
 
@@ -490,10 +490,12 @@ def validate_evidence(
         if not tdoc:
             errors.append(f"{prefix}: evidence.tdoc is invalid")
         elif tdoc not in known:
-            warnings.append(f"{prefix}: evidence TDoc {tdoc} is outside this ledger")
+            errors.append(f"{prefix}: evidence TDoc {tdoc} is outside this ledger")
         if not str(evidence.get("locator") or "").strip():
-            warnings.append(f"{prefix}: evidence locator is missing")
+            errors.append(f"{prefix}: evidence locator is missing")
         evidence_text = str(evidence.get("text") or "")
+        if not evidence_text.strip():
+            errors.append(f"{prefix}: evidence text is required")
         if len(evidence_text) > 500:
             warnings.append(f"{prefix}: evidence text exceeds 500 characters; shorten it")
 

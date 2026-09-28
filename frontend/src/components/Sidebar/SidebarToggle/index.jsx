@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { SidebarSimple } from "@phosphor-icons/react";
 import paths from "@/utils/paths";
+import { useLocation } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Tooltip } from "react-tooltip";
 const SIDEBAR_TOGGLE_STORAGE_KEY = "anythingllm_sidebar_toggle";
 export const SIDEBAR_TOGGLE_EVENT = "sidebar-toggle";
@@ -19,20 +21,12 @@ function previousSidebarState() {
 }
 
 export function useSidebarToggle() {
-  const [showSidebar, setShowSidebar] = useState(previousSidebarState());
-  const [canToggleSidebar, setCanToggleSidebar] = useState(true);
-
-  useEffect(() => {
-    function checkPath() {
-      const currentPath = window.location.pathname;
-      const isVisible =
-        currentPath === paths.home() ||
-        /^\/workspace\/[^\/]+$/.test(currentPath) ||
-        /^\/workspace\/[^\/]+\/t\/[^\/]+$/.test(currentPath);
-      setCanToggleSidebar(isVisible);
-    }
-    checkPath();
-  }, [window.location.pathname]);
+  const [showSidebar, setShowSidebar] = useState(previousSidebarState);
+  const { pathname } = useLocation();
+  const canToggleSidebar =
+    pathname === paths.home() ||
+    /^\/workspace\/[^/]+$/.test(pathname) ||
+    /^\/workspace\/[^/]+\/t\/[^/]+$/.test(pathname);
 
   useEffect(() => {
     function toggleSidebar(e) {
@@ -56,7 +50,7 @@ export function useSidebarToggle() {
     return () => {
       window.removeEventListener("keydown", toggleSidebar);
     };
-  }, []);
+  }, [canToggleSidebar]);
 
   useEffect(() => {
     window.localStorage.setItem(
@@ -74,6 +68,7 @@ export function useSidebarToggle() {
 }
 
 export function ToggleSidebarButton({ showSidebar, setShowSidebar }) {
+  const { t } = useTranslation();
   const isMac = navigator.userAgent.includes("Mac");
   const shortcut = isMac ? "⌘ + Shift + S" : "Ctrl + Shift + S";
 
@@ -81,23 +76,23 @@ export function ToggleSidebarButton({ showSidebar, setShowSidebar }) {
     <>
       <button
         type="button"
-        className={`hidden md:block border-none bg-transparent outline-none ring-0 absolute transition-all duration-500 z-10 ${showSidebar ? "top-[18px] left-[248px]" : "top-[20px] left-[30px]"}`}
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border-none text-theme-text-secondary transition-colors hover:bg-theme-sidebar-item-hover hover:text-theme-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-button-primary"
         onClick={() => setShowSidebar((prev) => !prev)}
         data-tooltip-id="sidebar-toggle"
         data-tooltip-content={
           showSidebar
-            ? `Hide Sidebar (${shortcut})`
-            : `Show Sidebar (${shortcut})`
+            ? `${t("workbench_nav.collapse")} (${shortcut})`
+            : `${t("workbench_nav.expand")} (${shortcut})`
         }
         aria-label={
-          showSidebar
-            ? `Hide Sidebar (${shortcut})`
-            : `Show Sidebar (${shortcut})`
+          showSidebar ? t("workbench_nav.collapse") : t("workbench_nav.expand")
         }
+        aria-expanded={showSidebar}
+        aria-controls="workspace-navigation"
       >
         <SidebarSimple
           className="text-theme-text-secondary hover:text-theme-text-primary"
-          size={24}
+          size={20}
         />
       </button>
       <Tooltip

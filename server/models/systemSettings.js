@@ -73,6 +73,8 @@ const SystemSettings = {
     "public_registration_enabled",
     "default_predefined_agent_id",
     "global_system_prompt",
+    "lightweight_model_provider",
+    "lightweight_model_name",
   ],
   supportedFields: [
     "logo_filename",
@@ -101,6 +103,8 @@ const SystemSettings = {
     "custom_app_name",
     "default_predefined_agent_id",
     "global_system_prompt",
+    "lightweight_model_provider",
+    "lightweight_model_name",
 
     // Meta page customization
     "meta_page_title",
@@ -465,6 +469,20 @@ const SystemSettings = {
       const value = Number(id);
       return Number.isInteger(value) && value > 0 ? String(value) : null;
     },
+    lightweight_model_provider: (provider) => {
+      if (!["", "openai", "generic-openai"].includes(provider))
+        throw new Error("请选择支持的轻量任务模型服务商。");
+      return provider;
+    },
+    lightweight_model_name: (model) => {
+      if (
+        typeof model !== "string" ||
+        model.trim().length > 200 ||
+        /[\r\n]/.test(model)
+      )
+        throw new Error("模型名称不能超过 200 个字符，且不能包含换行。");
+      return model.trim();
+    },
     global_system_prompt: (prompt) =>
       String(prompt ?? "")
         .trim()
@@ -536,9 +554,7 @@ const SystemSettings = {
       // - Currently the only 3rd party is OpenAI, so is OPEN_AI_KEY is set
       // - then it can be shared.
       // --------------------------------------------------------
-      WhisperProvider: process.env.WHISPER_PROVIDER || "local",
-      WhisperModelPref:
-        process.env.WHISPER_MODEL_PREF || "Xenova/whisper-small",
+      WhisperProvider: process.env.WHISPER_PROVIDER || "openai",
       WhisperGenericOpenAiBaseUrl: process.env.WHISPER_GENERIC_OPEN_AI_BASE_URL,
       WhisperGenericOpenAiApiKey: !!process.env.WHISPER_GENERIC_OPEN_AI_API_KEY,
       WhisperGenericOpenAiModel: process.env.WHISPER_GENERIC_OPEN_AI_MODEL,

@@ -1,0 +1,1073 @@
+{
+  "version": 1,
+  "checkedAt": "2026-09-21",
+  "note": "只预置官方报告中已确认的 KI；中文标题及描述为简述。不是所有工作组或研究项目的完整清单。",
+  "studies": [
+    {
+      "group": "SA2",
+      "spec": "23.801-01",
+      "version": "0.8.0",
+      "release": 20,
+      "project": "6G 系统架构",
+      "source": "https://www.3gpp.org/ftp/Specs/archive/23_series/23.801-01/23801-01-080.zip",
+      "coverage": "numbered-main-issue-headings",
+      "entries": [
+        {
+          "id": "23801-01_5_1",
+          "number": "1",
+          "clause": "5.1",
+          "officialTitle": "Study the support for control signalling for 6G System",
+          "title": "控制信令",
+          "description": "研究 6G 控制信令及 NAS 功能的组织方式。"
+        },
+        {
+          "id": "23801-01_5_2",
+          "number": "2",
+          "clause": "5.2",
+          "officialTitle": "SBA framework",
+          "title": "服务化架构框架",
+          "description": "研究网络功能注册、发现、选择及服务韧性。"
+        },
+        {
+          "id": "23801-01_5_3",
+          "number": "3",
+          "clause": "5.3",
+          "officialTitle": "Support of Network Slicing in the 6G system",
+          "title": "网络切片",
+          "description": "研究 6G 切片设计、简化及业务流量映射。"
+        },
+        {
+          "id": "23801-01_5_4",
+          "number": "4",
+          "clause": "5.4",
+          "officialTitle": "User Plane Architecture",
+          "title": "用户面架构",
+          "description": "研究控制面与用户面分工、交互及用户面功能选择。"
+        },
+        {
+          "id": "23801-01_5_5",
+          "number": "5",
+          "clause": "5.5",
+          "officialTitle": "QoS Framework for 6G",
+          "title": "QoS 框架",
+          "description": "研究新业务流量需要的服务质量能力。"
+        },
+        {
+          "id": "23801-01_5_6",
+          "number": "6",
+          "clause": "5.6",
+          "officialTitle": "Policy and charging control framework",
+          "title": "策略与计费控制",
+          "description": "研究策略、计费控制框架的简化和功能支持。"
+        },
+        {
+          "id": "23801-01_5_7",
+          "number": "7",
+          "clause": "5.7",
+          "officialTitle": "Network Exposure",
+          "title": "网络能力开放",
+          "description": "研究统一开放框架及新旧网络能力的开放。"
+        },
+        {
+          "id": "23801-01_5_8",
+          "number": "8",
+          "clause": "5.8",
+          "officialTitle": "Network Sharing in the 6G system",
+          "title": "网络共享",
+          "description": "研究多运营商核心网及间接网络共享。"
+        },
+        {
+          "id": "23801-01_5_9",
+          "number": "9",
+          "clause": "5.9",
+          "officialTitle": "Localized Service Access",
+          "title": "本地化服务接入",
+          "description": "研究本地服务接入、授权及移动中的服务连续性。"
+        },
+        {
+          "id": "23801-01_5_10",
+          "number": "10",
+          "clause": "5.10",
+          "officialTitle": "FWA / Fixed Wireless Access",
+          "title": "固定无线接入",
+          "description": "分析 5G FWA 部署问题及对 6G 架构的要求。"
+        },
+        {
+          "id": "23801-01_5_11",
+          "number": "11",
+          "clause": "5.11",
+          "officialTitle": "Support of non-3GPP access",
+          "title": "非 3GPP 接入",
+          "description": "研究非 3GPP 接入及不同接入间的服务连续性。"
+        },
+        {
+          "id": "23801-01_5_12",
+          "number": "12",
+          "clause": "5.12",
+          "officialTitle": "Voice Services for 6G",
+          "title": "语音业务",
+          "description": "研究 6G 对 IMS 语音及相关接入的支持。"
+        },
+        {
+          "id": "23801-01_5_13",
+          "number": "13",
+          "clause": "5.13",
+          "officialTitle": "Emergency Voice Services for 6G",
+          "title": "紧急语音业务",
+          "description": "研究紧急呼叫识别、接入和会话建立。"
+        },
+        {
+          "id": "23801-01_5_14",
+          "number": "14",
+          "clause": "5.14",
+          "officialTitle": "Location Services for 6G",
+          "title": "定位业务",
+          "description": "研究定位架构、紧急业务定位及定位能力开放。"
+        },
+        {
+          "id": "23801-01_5_15",
+          "number": "15",
+          "clause": "5.15",
+          "officialTitle": "Messaging Services for 6G",
+          "title": "消息业务",
+          "description": "研究 6G 系统对短信服务的支持。"
+        },
+        {
+          "id": "23801-01_5_16",
+          "number": "16",
+          "clause": "5.16",
+          "officialTitle": "Other Essential/Regulatory Services for 6G",
+          "title": "其他基础与监管业务",
+          "description": "研究多媒体优先业务及关键通信的优先处理。"
+        },
+        {
+          "id": "23801-01_5_17",
+          "number": "17",
+          "clause": "5.17",
+          "officialTitle": "Migration and Interworking",
+          "title": "迁移与互通",
+          "description": "研究向 6G 迁移及与现有系统的互通。"
+        },
+        {
+          "id": "23801-01_5_18",
+          "number": "18",
+          "clause": "5.18",
+          "officialTitle": "AI for 6G architecture",
+          "title": "AI 支持 6G 架构",
+          "description": "研究如何在 6G 架构中使用 AI 和 AI Agent。"
+        },
+        {
+          "id": "23801-01_5_19",
+          "number": "19",
+          "clause": "5.19",
+          "officialTitle": "6G Network for AI",
+          "title": "6G 网络支持 AI",
+          "description": "研究网络为 AI 应用和 Agent 提供的支持。"
+        },
+        {
+          "id": "23801-01_5_20",
+          "number": "20",
+          "clause": "5.20",
+          "officialTitle": "Integrated Sensing and Communication",
+          "title": "通感一体化",
+          "description": "研究感知服务架构、授权及感知实体协作。"
+        },
+        {
+          "id": "23801-01_5_21",
+          "number": "21",
+          "clause": "5.21",
+          "officialTitle": "6G data framework in SA WG2",
+          "title": "6G 数据框架",
+          "description": "研究核心网中的通用数据处理能力及相关用例。"
+        },
+        {
+          "id": "23801-01_5_22",
+          "number": "22",
+          "clause": "5.22",
+          "officialTitle": "6G Computing Support",
+          "title": "6G 计算支持",
+          "description": "研究终端、核心网和应用服务器间的计算协作。"
+        },
+        {
+          "id": "23801-01_5_23",
+          "number": "23",
+          "clause": "5.23",
+          "officialTitle": "Support of 6G NTN",
+          "title": "6G 非地面网络",
+          "description": "研究 6G 卫星等非地面接入及服务连续性。"
+        },
+        {
+          "id": "23801-01_5_24",
+          "number": "24",
+          "clause": "5.24",
+          "officialTitle": "Analyse 5GS IoT features and solutions",
+          "title": "5GS 物联网能力分析",
+          "description": "分析哪些 5G 蜂窝物联网能力适用于 6G。"
+        }
+      ]
+    },
+    {
+      "group": "SA3",
+      "spec": "33.801-01",
+      "version": "0.6.0",
+      "release": 20,
+      "project": "6G 系统安全",
+      "source": "https://www.3gpp.org/ftp/Specs/archive/33_series/33.801-01/33801-01-060.zip",
+      "coverage": "numbered-main-issue-headings",
+      "entries": [
+        {
+          "id": "33801-01_5_1_3_1",
+          "number": "1.1",
+          "clause": "5.1.3.1",
+          "officialTitle": "Security Domains and Trust Anchors",
+          "title": "安全域与信任锚",
+          "description": "研究 6G 安全域的划分及信任基础。"
+        },
+        {
+          "id": "33801-01_5_1_3_2",
+          "number": "1.2",
+          "clause": "5.1.3.2",
+          "officialTitle": "6G Key Hierarchy",
+          "title": "密钥层次",
+          "description": "研究 6G 系统的密钥层次设计。"
+        },
+        {
+          "id": "33801-01_5_1_3_3",
+          "number": "1.3",
+          "clause": "5.1.3.3",
+          "officialTitle": "Algorithm support in 6G for AS and NAS",
+          "title": "AS 与 NAS 安全算法",
+          "description": "研究接入层及非接入层的安全算法支持。"
+        },
+        {
+          "id": "33801-01_5_1_3_4",
+          "number": "1.4",
+          "clause": "5.1.3.4",
+          "officialTitle": "Security Anchor",
+          "title": "安全锚点",
+          "description": "研究安全锚点的职责及架构安排。"
+        },
+        {
+          "id": "33801-01_5_1_3_5",
+          "number": "1.5",
+          "clause": "5.1.3.5",
+          "officialTitle": "MAC length in 6G for AS and NAS",
+          "title": "消息认证码长度",
+          "description": "研究 AS 与 NAS 消息认证码的长度。"
+        },
+        {
+          "id": "33801-01_5_2_3_1",
+          "number": "2.1",
+          "clause": "5.2.3.1",
+          "officialTitle": "MAC CE security",
+          "title": "MAC 控制单元安全",
+          "description": "研究 MAC CE 控制信息的威胁及保护。"
+        },
+        {
+          "id": "33801-01_5_2_3_2",
+          "number": "2.2",
+          "clause": "5.2.3.2",
+          "officialTitle": "Security for RAN mobility",
+          "title": "无线移动性安全",
+          "description": "研究切换中的安全上下文和密钥处理。"
+        },
+        {
+          "id": "33801-01_5_2_3_3",
+          "number": "2.3",
+          "clause": "5.2.3.3",
+          "officialTitle": "Security of initial RAN messages before AS security activation",
+          "title": "初始无线消息安全",
+          "description": "研究 AS 安全启用前的初始无线消息保护。"
+        },
+        {
+          "id": "33801-01_5_3_3_1",
+          "number": "3.1",
+          "clause": "5.3.3.1",
+          "officialTitle": "NAS Security",
+          "title": "NAS 安全",
+          "description": "研究终端与核心网之间的 NAS 信令保护。"
+        },
+        {
+          "id": "33801-01_5_3_3_2",
+          "number": "3.2",
+          "clause": "5.3.3.2",
+          "officialTitle": "Security of Interworking",
+          "title": "系统互通安全",
+          "description": "研究 6G 与现有系统互通时的安全上下文处理。"
+        },
+        {
+          "id": "33801-01_5_3_3_3",
+          "number": "3.3",
+          "clause": "5.3.3.3",
+          "officialTitle": "Generic procedures for secure parameter transfer between HN and UE",
+          "title": "归属网与终端安全传参",
+          "description": "研究归属网和终端间通用的安全参数传送。"
+        },
+        {
+          "id": "33801-01_5_3_3_4",
+          "number": "3.4",
+          "clause": "5.3.3.4",
+          "officialTitle": "Security for Generic UE-to-Core Network Interactions",
+          "title": "终端与核心网通用交互安全",
+          "description": "研究通用终端—核心网交互机制的安全。"
+        },
+        {
+          "id": "33801-01_5_3_3_5",
+          "number": "3.5",
+          "clause": "5.3.3.5",
+          "officialTitle": "UE NAS Identifier Privacy",
+          "title": "NAS 标识隐私",
+          "description": "研究终端 NAS 标识的隐私保护。"
+        },
+        {
+          "id": "33801-01_5_3_3_6",
+          "number": "3.6",
+          "clause": "5.3.3.6",
+          "officialTitle": "Fraud prevention across networks",
+          "title": "跨网络欺诈防范",
+          "description": "研究运营商间信任被滥用时的检测与防范。"
+        },
+        {
+          "id": "33801-01_5_3_3_7",
+          "number": "3.7",
+          "clause": "5.3.3.7",
+          "officialTitle": "NAS key separation",
+          "title": "NAS 密钥分离",
+          "description": "研究不同 NAS 安全用途之间的密钥分离。"
+        },
+        {
+          "id": "33801-01_5_4_3_1",
+          "number": "4.1",
+          "clause": "5.4.3.1",
+          "officialTitle": "Linking NF Authentication to authorization",
+          "title": "网络功能认证与授权关联",
+          "description": "研究如何把网络功能身份认证与访问授权关联。"
+        },
+        {
+          "id": "33801-01_5_4_3_2",
+          "number": "4.2",
+          "clause": "5.4.3.2",
+          "officialTitle": "Token Replay in SBA for indirect communication and interconnect scenarios",
+          "title": "SBA 令牌重放防护",
+          "description": "研究间接通信和互联场景中的令牌重放风险。"
+        },
+        {
+          "id": "33801-01_5_4_3_3",
+          "number": "4.3",
+          "clause": "5.4.3.3",
+          "officialTitle": "Audience-restriction of tokens in SBA",
+          "title": "SBA 令牌接收方限制",
+          "description": "研究如何限制访问令牌可用于哪些服务方。"
+        },
+        {
+          "id": "33801-01_5_4_3_4",
+          "number": "4.4",
+          "clause": "5.4.3.4",
+          "officialTitle": "Confidentiality of authorization credentials in SBA",
+          "title": "SBA 授权凭据保密",
+          "description": "研究服务化架构中授权凭据的保密。"
+        },
+        {
+          "id": "33801-01_5_4_3_5",
+          "number": "4.5",
+          "clause": "5.4.3.5",
+          "officialTitle": "Root CA Certificate Distribution for 6G Networks",
+          "title": "根 CA 证书分发",
+          "description": "研究不同信任域之间的根证书分发。"
+        },
+        {
+          "id": "33801-01_5_4_3_6",
+          "number": "4.6",
+          "clause": "5.4.3.6",
+          "officialTitle": "SBA authorization framework revisited",
+          "title": "SBA 授权框架",
+          "description": "重新研究服务消费者访问服务提供方的授权机制。"
+        },
+        {
+          "id": "33801-01_5_4_3_7",
+          "number": "4.7",
+          "clause": "5.4.3.7",
+          "officialTitle": "Inter domain security between localized service networks and PLMN",
+          "title": "本地服务网络跨域安全",
+          "description": "研究本地化服务网络与 PLMN 之间的安全。"
+        },
+        {
+          "id": "33801-01_5_4_3_8",
+          "number": "4.8",
+          "clause": "5.4.3.8",
+          "officialTitle": "Security aspects for the user plane in 6G core networks",
+          "title": "核心网用户面安全",
+          "description": "研究 6G 核心网用户面的保护。"
+        },
+        {
+          "id": "33801-01_5_5_3_1",
+          "number": "5.1",
+          "clause": "5.5.3.1",
+          "officialTitle": "Primary Authentication and Key Agreement",
+          "title": "主认证与密钥协商",
+          "description": "研究终端与网络的主认证及密钥建立。"
+        },
+        {
+          "id": "33801-01_5_5_3_2",
+          "number": "5.2",
+          "clause": "5.5.3.2",
+          "officialTitle": "Untrusted non-3GPP access authentication",
+          "title": "非可信非 3GPP 接入认证",
+          "description": "研究非可信外部接入的认证机制。"
+        },
+        {
+          "id": "33801-01_5_6_3_1",
+          "number": "6.1",
+          "clause": "5.6.3.1",
+          "officialTitle": "Security Aspect of 3rd party AI agent as API invoker in CAPIF",
+          "title": "CAPIF 中第三方 AI Agent 安全",
+          "description": "研究第三方 AI Agent 调用 CAPIF API 的安全。"
+        },
+        {
+          "id": "33801-01_5_6_3_2",
+          "number": "6.2",
+          "clause": "5.6.3.2",
+          "officialTitle": "Security aspects of Capability Exposure to the UE and Application Endpoints",
+          "title": "向终端与应用开放能力的安全",
+          "description": "研究向终端和应用端点开放网络能力的安全。"
+        },
+        {
+          "id": "33801-01_5_6_3_3",
+          "number": "6.3",
+          "clause": "5.6.3.3",
+          "officialTitle": "Security of Agentic exposure via NEF",
+          "title": "NEF 的 Agent 能力开放安全",
+          "description": "研究经 NEF 进行 Agent 能力开放的安全。"
+        },
+        {
+          "id": "33801-01_5_6_3_4",
+          "number": "6.4",
+          "clause": "5.6.3.4",
+          "officialTitle": "security aspects on intent based exposure",
+          "title": "意图式能力开放安全",
+          "description": "研究基于意图的能力开放中的安全和隐私。"
+        },
+        {
+          "id": "33801-01_5_7_3_1",
+          "number": "7.1",
+          "clause": "5.7.3.1",
+          "officialTitle": "Security relevant data collection",
+          "title": "安全相关数据采集",
+          "description": "研究用于安全分析的数据采集。"
+        },
+        {
+          "id": "33801-01_5_8_3_1",
+          "number": "8.1",
+          "clause": "5.8.3.1",
+          "officialTitle": "Transmission Security for UE AI agent",
+          "title": "终端 AI Agent 传输安全",
+          "description": "研究终端 AI Agent 通信时的信任及传输保护。"
+        },
+        {
+          "id": "33801-01_5_8_3_2",
+          "number": "8.2",
+          "clause": "5.8.3.2",
+          "officialTitle": "Key issue on UE AI agent authorization",
+          "title": "终端 AI Agent 授权",
+          "description": "研究终端 AI Agent 执行任务的访问授权。"
+        },
+        {
+          "id": "33801-01_5_9_3_1",
+          "number": "9.1",
+          "clause": "5.9.3.1",
+          "officialTitle": "Authorization of data producers/consumers",
+          "title": "数据生产与消费授权",
+          "description": "研究数据框架中生产者和消费者的访问授权。"
+        },
+        {
+          "id": "33801-01_5_9_3_2",
+          "number": "9.2",
+          "clause": "5.9.3.2",
+          "officialTitle": "Authentication between data provider/consumer and data framework",
+          "title": "数据框架参与方认证",
+          "description": "研究数据提供者、消费者与数据框架之间的认证。"
+        }
+      ]
+    },
+    {
+      "group": "SA5",
+      "spec": "32.801-01",
+      "version": "0.4.0",
+      "release": 20,
+      "project": "6G 管理与编排",
+      "source": "https://www.3gpp.org/ftp/Specs/archive/32_series/32.801-01/32801-01-040.zip",
+      "coverage": "selected-top-level-issues",
+      "entries": [
+        {
+          "id": "32801-01_7_1_2",
+          "number": "1",
+          "clause": "7.1.2",
+          "officialTitle": "Data Management Capabilities",
+          "title": "数据管理能力",
+          "description": "研究数据采集、处理等通用管理能力。"
+        },
+        {
+          "id": "32801-01_7_2_1",
+          "number": "1",
+          "clause": "7.2.1",
+          "officialTitle": "Knowledge Representation and Management",
+          "title": "知识表达与管理",
+          "description": "研究网络管理知识的表达、语义及管理。"
+        },
+        {
+          "id": "32801-01_7_3_2",
+          "number": "1",
+          "clause": "7.3.2",
+          "officialTitle": "Management Agents within the 3GPP Management System",
+          "title": "系统内部管理 Agent",
+          "description": "研究 3GPP 管理系统中 Agent 的概念与管理框架。"
+        },
+        {
+          "id": "32801-01_7_3_3",
+          "number": "2",
+          "clause": "7.3.3",
+          "officialTitle": "Agents External to 3GPP System",
+          "title": "系统外部 Agent",
+          "description": "研究如何向外部 Agent 开放管理能力。"
+        },
+        {
+          "id": "32801-01_7_4_1",
+          "number": "1",
+          "clause": "7.4.1",
+          "officialTitle": "Energy Efficiency Management Architectural Framework",
+          "title": "能效管理架构",
+          "description": "研究 6G 节能和能效管理的架构支持。"
+        },
+        {
+          "id": "32801-01_7_5_1",
+          "number": "1",
+          "clause": "7.5.1",
+          "officialTitle": "Improvements to Sub-network LCM based on NF Deployments",
+          "title": "子网生命周期管理",
+          "description": "研究基于网络功能部署的子网生命周期管理改进。"
+        },
+        {
+          "id": "32801-01_7_6_1",
+          "number": "1",
+          "clause": "7.6.1",
+          "officialTitle": "NDT Capability Enhancement",
+          "title": "网络数字孪生能力增强",
+          "description": "研究网络数字孪生能力的增强。"
+        },
+        {
+          "id": "32801-01_7_7_2",
+          "number": "1",
+          "clause": "7.7.2",
+          "officialTitle": "Investigation on Potential Enhancement to Support Natural Language Intents",
+          "title": "自然语言意图",
+          "description": "研究管理系统对自然语言意图的理解与支持。"
+        },
+        {
+          "id": "32801-01_7_8_1",
+          "number": "1",
+          "clause": "7.8.1",
+          "officialTitle": "6G Management Architectural Framework",
+          "title": "6G 管理架构",
+          "description": "研究现有服务化管理架构的复用与演进。"
+        },
+        {
+          "id": "32801-01_7_9_2",
+          "number": "1",
+          "clause": "7.9.2",
+          "officialTitle": "Context-aware Closed Control Loops",
+          "title": "上下文感知控制闭环",
+          "description": "研究控制闭环如何在分析和决策中使用上下文。"
+        },
+        {
+          "id": "32801-01_7_10_1",
+          "number": "1",
+          "clause": "7.10.1",
+          "officialTitle": "Enhanced LCM for Policy",
+          "title": "策略生命周期管理",
+          "description": "研究策略数量及关系更复杂时的生命周期管理。"
+        },
+        {
+          "id": "32801-01_7_11_1",
+          "number": "1",
+          "clause": "7.11.1",
+          "officialTitle": "Coordinated Handling of Multiple Cross-domain Network Issues",
+          "title": "跨域网络问题协调处理",
+          "description": "研究多个跨域网络问题的协调处置。"
+        }
+      ]
+    },
+    {
+      "group": "CT4",
+      "spec": "29.841",
+      "version": "0.3.1",
+      "release": 20,
+      "project": "6G 核心网用户面协议",
+      "source": "https://www.3gpp.org/ftp/Specs/archive/29_series/29.841/29841-031.zip",
+      "coverage": "numbered-main-issue-headings",
+      "entries": [
+        {
+          "id": "29841_5_1_1",
+          "number": "1",
+          "clause": "5.1.1",
+          "officialTitle": "Study of GTP-U as candidate 6G User Plane Protocol",
+          "title": "GTP-U 作为 6G 用户面协议",
+          "description": "研究 GTP-U 是否适合继续作为 6G 用户面协议。"
+        },
+        {
+          "id": "29841_5_1_2",
+          "number": "2",
+          "clause": "5.1.2",
+          "officialTitle": "Study of SRv6 as candidate 6G User Plane Protocol (replacing GTP-U)",
+          "title": "SRv6 替代 GTP-U",
+          "description": "研究以 SRv6 取代 GTP-U 作为 6G 用户面协议。"
+        },
+        {
+          "id": "29841_5_1_3",
+          "number": "3",
+          "clause": "5.1.3",
+          "officialTitle": "Study of QUIC as underlying protocol of GTP-U",
+          "title": "QUIC 承载 GTP-U",
+          "description": "研究以 QUIC 作为 GTP-U 的底层传输协议。"
+        },
+        {
+          "id": "29841_5_1_4",
+          "number": "4",
+          "clause": "5.1.4",
+          "officialTitle": "Study of QUIC as candidate 6G User Plane Protocol (replacing GTP-U)",
+          "title": "QUIC 替代 GTP-U",
+          "description": "研究以 QUIC 取代 GTP-U 作为 6G 用户面协议。"
+        },
+        {
+          "id": "29841_5_2_1",
+          "number": "1",
+          "clause": "5.2.1",
+          "officialTitle": "Study Enhancements for CP/UP Function Full-Mesh Deployment",
+          "title": "CP/UP 功能全互联部署",
+          "description": "研究控制面与用户面功能全互联部署的协议增强。"
+        },
+        {
+          "id": "29841_5_2_2",
+          "number": "2",
+          "clause": "5.2.2",
+          "officialTitle": "Study of enhancements to PFCP for better support of cloud infrastructure",
+          "title": "PFCP 支持云基础设施",
+          "description": "研究 PFCP 如何更好地支持云化部署、负载均衡和地址变化。"
+        },
+        {
+          "id": "29841_5_2_3",
+          "number": "3",
+          "clause": "5.2.3",
+          "officialTitle": "Study of 6G CP/UP interface improvements to enhance multi-vendor interoperability",
+          "title": "CP/UP 接口多厂家互通",
+          "description": "研究 6G CP/UP 接口如何减少实现差异并提升多厂家互通。"
+        }
+      ]
+    },
+    {
+      "group": "CT4",
+      "spec": "29.842",
+      "version": "0.3.0",
+      "release": 20,
+      "project": "6G 核心网韧性与可靠性",
+      "source": "https://www.3gpp.org/ftp/Specs/archive/29_series/29.842/29842-030.zip",
+      "coverage": "numbered-main-issue-headings",
+      "entries": [
+        {
+          "id": "29842_5_1",
+          "number": "1",
+          "clause": "5.1",
+          "officialTitle": "Study on network failure prevention mechanisms and procedures",
+          "title": "网络故障预防",
+          "description": "研究负载控制、跨域协调及 AI 辅助等故障预防机制。"
+        },
+        {
+          "id": "29842_5_2",
+          "number": "2",
+          "clause": "5.2",
+          "officialTitle": "Study on failure handing mechanisms and procedures during perturbation events",
+          "title": "扰动事件中的故障处置",
+          "description": "研究节点、链路、过载或灾害发生时的故障隔离与处置。"
+        },
+        {
+          "id": "29842_5_3",
+          "number": "3",
+          "clause": "5.3",
+          "officialTitle": "Study on network functionality recovery mechanisms and procedures after perturbation events",
+          "title": "扰动事件后的网络恢复",
+          "description": "研究扰动事件后核心网功能、优先业务和跨运营商协作的恢复机制。"
+        }
+      ]
+    },
+    {
+      "group": "SA6",
+      "spec": "23.801-02",
+      "version": "0.4.1",
+      "release": 20,
+      "project": "6G 应用使能",
+      "source": "https://www.3gpp.org/ftp/Specs/archive/23_series/23.801-02/23801-02-041.zip",
+      "coverage": "numbered-main-issue-headings",
+      "entries": [
+        {
+          "id": "23801-02_4_1_2",
+          "number": "1.1",
+          "clause": "4.1.2",
+          "officialTitle": "Intent-based exposure",
+          "title": "意图式能力开放",
+          "description": "研究应用如何通过表达目标来调用网络能力。"
+        },
+        {
+          "id": "23801-02_4_1_3",
+          "number": "1.2",
+          "clause": "4.1.3",
+          "officialTitle": "Energy considerations in exposure framework",
+          "title": "开放框架的能耗考虑",
+          "description": "研究能力开放中的能源信息和节能支持。"
+        },
+        {
+          "id": "23801-02_4_1_4",
+          "number": "1.3",
+          "clause": "4.1.4",
+          "officialTitle": "Enabling Exposure to 3rd Party AI Agents",
+          "title": "面向第三方 AI Agent 开放",
+          "description": "研究如何向第三方 AI Agent 提供开放能力。"
+        },
+        {
+          "id": "23801-02_4_1_5",
+          "number": "1.4",
+          "clause": "4.1.5",
+          "officialTitle": "Enhancement of the Exposure Framework for Inter-Network Coordination",
+          "title": "跨网络能力开放协作",
+          "description": "研究不同网络间的能力开放与协调。"
+        },
+        {
+          "id": "23801-02_4_1_6",
+          "number": "1.5",
+          "clause": "4.1.6",
+          "officialTitle": "Service API performance",
+          "title": "服务 API 性能",
+          "description": "研究多实体共同处理服务 API 时的性能。"
+        },
+        {
+          "id": "23801-02_4_1_7",
+          "number": "1.6",
+          "clause": "4.1.7",
+          "officialTitle": "Exposure framework support for target UE's status",
+          "title": "目标终端状态感知",
+          "description": "研究调用终端相关能力时如何考虑终端状态。"
+        },
+        {
+          "id": "23801-02_4_1_8",
+          "number": "1.7",
+          "clause": "4.1.8",
+          "officialTitle": "Relationship between CAPIF/CAPIF evolution and 6GS network capability exposure",
+          "title": "CAPIF 与 6G 能力开放的关系",
+          "description": "研究 CAPIF 演进与 6G 网络能力开放的衔接。"
+        },
+        {
+          "id": "23801-02_4_2_2",
+          "number": "2.1",
+          "clause": "4.2.2",
+          "officialTitle": "Application Data Management",
+          "title": "应用数据管理",
+          "description": "研究应用层多种数据的统一管理。"
+        },
+        {
+          "id": "23801-02_4_2_3",
+          "number": "2.2",
+          "clause": "4.2.3",
+          "officialTitle": "Application Enabler layer Support for Energy Efficiency and Energy Saving",
+          "title": "应用使能层节能",
+          "description": "研究应用使能层的能效、节能和韧性支持。"
+        },
+        {
+          "id": "23801-02_4_2_4",
+          "number": "2.3",
+          "clause": "4.2.4",
+          "officialTitle": "Network slice enablement",
+          "title": "网络切片使能",
+          "description": "研究应用使能层对网络切片的支持。"
+        },
+        {
+          "id": "23801-02_4_2_5",
+          "number": "2.4",
+          "clause": "4.2.5",
+          "officialTitle": "Intent-Based Application Enabler Services",
+          "title": "意图式应用使能服务",
+          "description": "研究应用使能服务如何按高层目标提供能力。"
+        },
+        {
+          "id": "23801-02_4_2_6",
+          "number": "2.5",
+          "clause": "4.2.6",
+          "officialTitle": "Application enablement for MMTel",
+          "title": "MMTel 应用使能",
+          "description": "研究多媒体电话业务所需的应用使能支持。"
+        },
+        {
+          "id": "23801-02_4_2_7",
+          "number": "2.6",
+          "clause": "4.2.7",
+          "officialTitle": "Considerations about separated and independent operation of Application Data Management services",
+          "title": "应用数据管理独立运行",
+          "description": "研究应用数据管理服务的分离与独立运行。"
+        },
+        {
+          "id": "23801-02_4_2_8",
+          "number": "2.7",
+          "clause": "4.2.8",
+          "officialTitle": "Application-layer authorization for aggregated data exchange",
+          "title": "聚合数据交换授权",
+          "description": "研究应用层聚合数据交换的授权。"
+        },
+        {
+          "id": "23801-02_4_2_9",
+          "number": "2.8",
+          "clause": "4.2.9",
+          "officialTitle": "capability invocation when real-time request/response is not feasible",
+          "title": "非实时能力调用",
+          "description": "研究无法实时请求和响应时如何调用能力。"
+        },
+        {
+          "id": "23801-02_4_2_10",
+          "number": "2.9",
+          "clause": "4.2.10",
+          "officialTitle": "New KI on application layer streaming and burst data exchange mechanisms",
+          "title": "流式与突发数据交换",
+          "description": "研究应用层流式和突发数据的交换机制。"
+        },
+        {
+          "id": "23801-02_4_3_2",
+          "number": "3.1",
+          "clause": "4.3.2",
+          "officialTitle": "Unavailability of sufficient training data",
+          "title": "训练数据不足",
+          "description": "研究 AI/ML 服务缺少足够训练数据的问题。"
+        },
+        {
+          "id": "23801-02_4_3_3",
+          "number": "3.2",
+          "clause": "4.3.3",
+          "officialTitle": "Exposure of CN AI services",
+          "title": "核心网 AI 服务开放",
+          "description": "研究向应用开放核心网推理和训练服务。"
+        },
+        {
+          "id": "23801-02_4_3_4",
+          "number": "3.3",
+          "clause": "4.3.4",
+          "officialTitle": "AIML support for multimodal context association for AI-enabled services",
+          "title": "多模态上下文关联",
+          "description": "研究 AI 服务所需的多来源、多模态信息关联。"
+        },
+        {
+          "id": "23801-02_4_3_5",
+          "number": "3.4",
+          "clause": "4.3.5",
+          "officialTitle": "AIML support for responsible AI information of AI-enabled services",
+          "title": "负责任 AI 信息支持",
+          "description": "研究辅助选择和使用 AI 服务的相关信息。"
+        },
+        {
+          "id": "23801-02_4_3_6",
+          "number": "3.5",
+          "clause": "4.3.6",
+          "officialTitle": "AI agent protocol compatibility",
+          "title": "AI Agent 协议兼容",
+          "description": "研究不同协议能力的 AI Agent 如何协作。"
+        },
+        {
+          "id": "23801-02_4_3_7",
+          "number": "3.6",
+          "clause": "4.3.7",
+          "officialTitle": "Support Generative AI in 6G",
+          "title": "生成式 AI 支持",
+          "description": "研究应用使能层对生成式 AI 的支持。"
+        },
+        {
+          "id": "23801-02_4_3_8",
+          "number": "3.7",
+          "clause": "4.3.8",
+          "officialTitle": "AIML support for network knowledge augmentation for AI-enabled services",
+          "title": "网络知识增强",
+          "description": "研究如何利用网络知识增强 AI 服务。"
+        },
+        {
+          "id": "23801-02_4_3_9",
+          "number": "3.8",
+          "clause": "4.3.9",
+          "officialTitle": "Support for AI/ML task members discovery",
+          "title": "AI/ML 任务成员发现",
+          "description": "研究按服务需求发现 AI/ML 任务参与方。"
+        },
+        {
+          "id": "23801-02_4_3_10",
+          "number": "3.9",
+          "clause": "4.3.10",
+          "officialTitle": "AI agents coordination in the application enablement layer",
+          "title": "应用使能层 Agent 协调",
+          "description": "研究不同 AI Agent 执行任务时的协调。"
+        },
+        {
+          "id": "23801-02_4_3_11",
+          "number": "3.10",
+          "clause": "4.3.11",
+          "officialTitle": "VAL AI agents support in the application enablement layer",
+          "title": "垂直应用 AI Agent 支持",
+          "description": "研究应用使能层对 VAL AI Agent 的支持。"
+        },
+        {
+          "id": "23801-02_4_4_2",
+          "number": "4.1",
+          "clause": "4.4.2",
+          "officialTitle": "Enhancement to enablement layer assistance for application traffic",
+          "title": "应用流量辅助",
+          "description": "研究应用使能层如何辅助应用流量传输。"
+        },
+        {
+          "id": "23801-02_4_4_3",
+          "number": "4.2",
+          "clause": "4.4.3",
+          "officialTitle": "New KI on traffic transmission enhancement considering the error tolerant traffic",
+          "title": "容错流量传输",
+          "description": "研究可容忍一定错误或缺失的流量传输。"
+        },
+        {
+          "id": "23801-02_4_4_4",
+          "number": "4.3",
+          "clause": "4.4.4",
+          "officialTitle": "application enablement services requirements and potential enhancements considering use cases of satellite access in 6G",
+          "title": "卫星接入应用使能",
+          "description": "研究 6G 卫星接入场景中的应用使能要求。"
+        },
+        {
+          "id": "23801-02_4_5_2",
+          "number": "5.1",
+          "clause": "4.5.2",
+          "officialTitle": "Application enabler aspects to support Compute and Communication",
+          "title": "计算与通信使能",
+          "description": "研究应用使能层对计算与通信协作的支持。"
+        },
+        {
+          "id": "23801-02_4_5_3",
+          "number": "5.2",
+          "clause": "4.5.3",
+          "officialTitle": "Enablement layer supports service continuity for computing",
+          "title": "计算服务连续性",
+          "description": "研究分布式计算过程中的服务连续性。"
+        },
+        {
+          "id": "23801-02_4_5_4",
+          "number": "5.3",
+          "clause": "4.5.4",
+          "officialTitle": "Compute Information Registration",
+          "title": "计算信息注册",
+          "description": "研究计算资源与能力信息的注册。"
+        },
+        {
+          "id": "23801-02_4_5_5",
+          "number": "5.4",
+          "clause": "4.5.5",
+          "officialTitle": "Compute Quantification",
+          "title": "计算能力量化",
+          "description": "研究不同计算能力及应用计算需求的表达。"
+        },
+        {
+          "id": "23801-02_4_5_6",
+          "number": "5.5",
+          "clause": "4.5.6",
+          "officialTitle": "Application-intent-driven compute offloading",
+          "title": "意图驱动的计算卸载",
+          "description": "研究按应用目标把计算任务卸载到合适位置。"
+        },
+        {
+          "id": "23801-02_4_5_7",
+          "number": "5.6",
+          "clause": "4.5.7",
+          "officialTitle": "Application enablement layer support to Users/VAL UEs",
+          "title": "用户与 VAL 终端支持",
+          "description": "研究不同用户和 VAL 终端使用应用使能服务。"
+        },
+        {
+          "id": "23801-02_4_5_8",
+          "number": "5.7",
+          "clause": "4.5.8",
+          "officialTitle": "Privacy-preserving application enablement for distributed computing in untrusted domains",
+          "title": "非可信域分布式计算隐私",
+          "description": "研究非可信计算域中的应用使能隐私保护。"
+        },
+        {
+          "id": "23801-02_4_5_9",
+          "number": "5.8",
+          "clause": "4.5.9",
+          "officialTitle": "UE-hosted Compute Services",
+          "title": "终端托管计算服务",
+          "description": "研究终端为其他终端提供计算服务。"
+        },
+        {
+          "id": "23801-02_4_5_10",
+          "number": "5.9",
+          "clause": "4.5.10",
+          "officialTitle": "Scheduled reservation and management for task offloading",
+          "title": "卸载任务预约",
+          "description": "研究计算卸载的资源预约与管理。"
+        },
+        {
+          "id": "23801-02_4_6_2",
+          "number": "6.1",
+          "clause": "4.6.2",
+          "officialTitle": "Key issue on enablement of non-3GPP sensing in application enablement layer",
+          "title": "非 3GPP 感知使能",
+          "description": "研究应用层对非 3GPP 感知数据和能力的支持。"
+        },
+        {
+          "id": "23801-02_4_6_3",
+          "number": "6.2",
+          "clause": "4.6.3",
+          "officialTitle": "ISAC enablement support for vertical applications",
+          "title": "行业应用通感使能",
+          "description": "研究为垂直行业应用提供通感能力。"
+        },
+        {
+          "id": "23801-02_4_6_4",
+          "number": "6.3",
+          "clause": "4.6.4",
+          "officialTitle": "Key issue on federation and cross-PLMN support for sensing services",
+          "title": "跨运营商感知服务",
+          "description": "研究感知能力跨 PLMN 及跨域联合提供。"
+        },
+        {
+          "id": "23801-02_4_6_5",
+          "number": "6.4",
+          "clause": "4.6.5",
+          "officialTitle": "Sensing result evaluation and validation",
+          "title": "感知结果评价与验证",
+          "description": "研究感知结果的质量评价和验证。"
+        },
+        {
+          "id": "23801-02_4_7_2",
+          "number": "7.1",
+          "clause": "4.7.2",
+          "officialTitle": "Application enablement support for digital twin services",
+          "title": "数字孪生服务使能",
+          "description": "研究应用使能层如何支持数字孪生服务。"
+        },
+        {
+          "id": "23801-02_4_7_3",
+          "number": "7.2",
+          "clause": "4.7.3",
+          "officialTitle": "Enhancing SEAL enablers to leverage Network Digital Twin",
+          "title": "利用网络数字孪生",
+          "description": "研究 SEAL 如何利用网络数字孪生能力。"
+        },
+        {
+          "id": "23801-02_4_8_2",
+          "number": "8.1",
+          "clause": "4.8.2",
+          "officialTitle": "representation of the application enablement layer as part of 3GPP 6G system",
+          "title": "应用使能层的系统定位",
+          "description": "研究应用使能层在整体 6G 系统中的表达。"
+        }
+      ]
+    }
+  ]
+}

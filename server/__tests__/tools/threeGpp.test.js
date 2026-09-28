@@ -16,6 +16,27 @@ const {
 } = require("../../tools/threeGpp");
 
 describe("3GPP Markdown conversion Skill", () => {
+  it("does not confuse nested KI numbers or silently discard meeting suffixes", () => {
+    const { agendaItemsForKi, meetingNumberFromInput } = require("../../tools/threeGpp");
+    const items = ["KI#1", "KI#1.1", "KI#11", "KI#1x1"].map((label) => ({ label }));
+    expect(agendaItemsForKi(items, "KI1")).toEqual([items[0]]);
+    expect(agendaItemsForKi(items, "KI1.1")).toEqual([items[1]]);
+    expect(meetingNumberFromInput("SA2", "SA2#176e")).toBeNull();
+  });
+
+  it("moves image links without corrupting prose or remote URLs", async () => {
+    const { copyConvertedDeliverable } = require("../../tools/threeGpp");
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "3gpp-assets-test-"));
+    try {
+      await fs.mkdir(path.join(root, "tmp/assets"), { recursive: true });
+      await fs.mkdir(path.join(root, "out"));
+      await fs.writeFile(path.join(root, "tmp/conversion-summary.json"), JSON.stringify({ markdown: "input.md" }));
+      await fs.writeFile(path.join(root, "tmp/input.md"), "![image](assets/a.png) prose assets/ [url](https://site/assets/b.png)");
+      await fs.writeFile(path.join(root, "tmp/assets/a.png"), "image");
+      await copyConvertedDeliverable({ validatePath: async (p) => path.join(root, p) }, "tmp", path.join(root, "out"), "S2-260001");
+      expect(await fs.readFile(path.join(root, "out/S2-260001.md"), "utf8")).toBe("![image](S2-260001.assets/assets/a.png) prose assets/ [url](https://site/assets/b.png)");
+    } finally { await fs.rm(root, { recursive: true, force: true }); }
+  });
   const skill = {
     id: 10,
     name: "3gpp-review",

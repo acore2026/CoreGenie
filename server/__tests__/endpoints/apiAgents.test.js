@@ -39,6 +39,11 @@ describe("developer Agent catalog", () => {
 
     await listAgents({}, response);
 
+    expect(PredefinedAgent.all).toHaveBeenCalledWith({
+      enabledOnly: true,
+      rosterOnly: true,
+    });
+
     expect(json).toHaveBeenCalledWith({
       agents: [
         {

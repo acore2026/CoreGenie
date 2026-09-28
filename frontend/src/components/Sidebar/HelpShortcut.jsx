@@ -12,7 +12,7 @@ export default function HelpShortcut({ iconOnly = false }) {
         to={paths.help()}
         aria-label={t("help.navigation")}
         title={t("help.navigation")}
-        className="flex h-10 w-10 items-center justify-center rounded-lg text-theme-text-secondary transition-colors hover:bg-theme-action-menu-item-hover hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70 light:hover:text-theme-text-primary"
+        className="flex h-9 w-9 items-center justify-center rounded-md text-theme-text-secondary transition-colors hover:bg-theme-sidebar-subitem-hover hover:text-theme-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-button-primary"
       >
         <Question size={20} weight="duotone" />
       </Link>
@@ -21,7 +21,7 @@ export default function HelpShortcut({ iconOnly = false }) {
   return (
     <Link
       to={paths.help()}
-      className="mx-3 mb-2 flex min-h-10 items-center gap-2 rounded-lg px-2.5 text-xs font-medium text-theme-text-secondary transition-colors hover:bg-theme-action-menu-item-hover hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70 light:hover:text-theme-text-primary"
+      className="mx-3 mb-2 flex min-h-10 items-center gap-2 rounded-md px-2.5 text-xs font-medium text-theme-text-secondary transition-colors hover:bg-theme-sidebar-subitem-hover hover:text-theme-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-button-primary"
     >
       <Question size={16} weight="duotone" className="shrink-0" />
       <span>{t("help.navigation")}</span>

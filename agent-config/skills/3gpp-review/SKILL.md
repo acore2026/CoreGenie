@@ -13,7 +13,7 @@ allowed-tools: skill.read_resource 3gpp.resolve-meeting 3gpp.download 3gpp.conve
 
 - **Conversion mode**：单个已存在 DOCX 转 Markdown、图片及嵌入对象。读取 [references/conversion.md](references/conversion.md)，优先调用 `3gpp.convert-markdown` 一次；不分析观点、不运行研究 coverage、不自动入库。
 - **批量转换**：读取 conversion 参考，使用本脚本的 `convert-batch --inputs <路径数组JSON> --output <新目录>`。批次选择与重试由 `3gpp-doc2md` 说明。
-- **资料准备**：为矩阵、技术路线或用户要求的文档清单服务。按会议和 KI 获取资料时调用 `3gpp.download`；读取 [references/research-workflow.md](references/research-workflow.md) 中所需的提取、检查和 coverage 步骤；已提供资料时跳过重复获取，不生成或发布中间报告。
+- **资料准备**：为矩阵、技术路线或用户要求的文档清单服务。按会议和 KI 获取资料时调用 `3gpp.download`；读取 [references/research-workflow.md](references/research-workflow.md) 中的检查步骤。当前工具只识别议程引用，尚不能证明 KI 提案集合完整；已提供资料时跳过重复获取，不生成或发布中间报告。
 - **提案分析**：读取 research-workflow；涉及公司主张时再读 [references/stance-evidence.md](references/stance-evidence.md)。分析每篇提案并关联原文，按用户要求交付报告。
 - **已有本地提案**：直接提取用户给出的文件，不为补齐官方 Index 扩大任务。无法验证会议元数据时明确说明；没有官方 manifest 不伪造 coverage 或声称官方资料覆盖完整。
 - **汇报 PPT 的资料准备**：由 `3gpp-proposal-ppt` 负责卡片、排版和交付；本包只提取原文及 `*.source.json`。该索引记录正文块、原图和图片所在位置（含表格内图片），不生成另一份中间分析报告。
@@ -28,4 +28,4 @@ allowed-tools: skill.read_resource 3gpp.resolve-meeting 3gpp.download 3gpp.conve
 - 提取文本保留 `[INS:...]` 和 `[DEL:...]`；它们表示增删动作，不自动等于支持或反对。实质结论引用原文位置。模糊图直接说明，不补画、不推测箭头。
 - coverage 验证 TDoc 集合、非空正文和本次文本哈希，不能证明语义正确或逐篇分析完成。发布前仍要检查报告、引用和重要图表。
 - Workspace 知识库即 RAG：`knowledge.search` 检索，`knowledge.ingest` 入库普通文件，`knowledge.publish` 发布最终报告。个人记忆工具不用于保存提案正文。
-- 报告发布遵循当前任务和 Agent 的约定。资料准备、转换和连续执行实验模式不发布中间报告。发布时传完整 manifest 和 coverage receipt，每次运行只发布一份最终报告；入库失败仍交付已保存的报告及具体原因。
+- 报告发布遵循当前任务和 Agent 的约定。资料准备、转换和连续执行实验模式不发布中间报告。只有来源确为官方 Index 的 manifest 和真实检查通过的 receipt 才可作为 coverage 参数；议程引用清单不能冒充完整 manifest。运行时不要求严格 coverage 时，按实际使用的 TDoc 列表发布并注明范围；运行时要求但缺少材料时，保留报告并说明未入库，不能伪造凭据。每次任务只发布一份最终报告。

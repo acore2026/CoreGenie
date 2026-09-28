@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 
 export default function useTextSize() {
   const [textSize, setTextSize] = useState("normal");
-  const [textSizeClass, setTextSizeClass] = useState("text-[14px]");
+  const [textSizeClass, setTextSizeClass] = useState("text-[15px]");
 
   const getTextSizeClass = (size) => {
     switch (size) {
@@ -11,7 +11,7 @@ export default function useTextSize() {
       case "large":
         return "text-[18px]";
       default:
-        return "text-[14px]";
+        return "text-[15px]";
     }
   };
 

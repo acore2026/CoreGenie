@@ -451,6 +451,8 @@ function adminEndpoints(app) {
             case "memory_auto_extraction":
               requestedSettings[label] = setting?.value ?? "true";
               break;
+            case "lightweight_model_provider":
+            case "lightweight_model_name":
             case "global_system_prompt":
               requestedSettings[label] = setting?.value ?? "";
               break;
@@ -501,8 +503,10 @@ function adminEndpoints(app) {
           updates = filteredUpdates;
         }
 
-        await SystemSettings.updateSettings(updates);
-        response.status(200).json({ success: true, error: null });
+        const result = await SystemSettings.updateSettings(updates);
+        response
+          .status(result?.success === false ? 400 : 200)
+          .json(result || { success: true, error: null });
       } catch (e) {
         console.error(e);
         response.sendStatus(500).end();

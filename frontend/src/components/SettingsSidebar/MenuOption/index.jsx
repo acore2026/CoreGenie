@@ -74,11 +74,11 @@ export default function MenuOption({
       <div
         className={`
           flex items-center justify-between w-full
-          transition-all duration-300
-          rounded-[6px]
+          transition-colors duration-150
+          rounded-lg
           ${
             isActive
-              ? "bg-theme-sidebar-subitem-selected font-medium border-outline"
+              ? "bg-theme-sidebar-subitem-selected text-theme-text-primary"
               : "hover:bg-theme-sidebar-subitem-hover"
           }
         `}
@@ -86,31 +86,37 @@ export default function MenuOption({
         <Link
           ref={ref}
           to={href}
-          className={`flex flex-grow items-center px-[12px] h-[32px] font-medium ${
-            isChild ? "hover:text-white" : "text-white light:text-black"
+          replace
+          className={`flex min-w-0 flex-grow items-center px-3 h-10 font-medium text-theme-text-secondary transition-colors hover:text-theme-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-theme-button-primary ${
+            isChild ? "pl-8" : ""
           }`}
           onClick={hasChildren ? handleClick : undefined}
         >
           {icon}
           <p
             className={`${
-              isChild ? "text-xs" : "text-sm"
-            } leading-loose whitespace-nowrap overflow-hidden ml-2 ${
+              isChild ? "text-[13px]" : "text-sm"
+            } truncate leading-5 ml-2 ${
               isActive
-                ? "text-white font-semibold"
-                : "text-white light:text-black"
-            } ${!icon && "pl-5"}`}
+                ? "text-theme-text-primary font-medium"
+                : "text-theme-text-secondary"
+            } ${!icon && !isChild ? "pl-5" : ""}`}
           >
             {btnText}
           </p>
         </Link>
         {hasChildren && (
-          <button onClick={handleClick} className="p-2 text-white">
+          <button
+            type="button"
+            aria-label={btnText}
+            onClick={handleClick}
+            className="mr-1 flex h-8 w-8 items-center justify-center rounded-md text-theme-text-secondary transition-colors hover:bg-theme-sidebar-subitem-hover hover:text-theme-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-button-primary"
+          >
             <CaretRight
               size={16}
               weight="bold"
               // color={isExpanded ? "#000000" : "var(--theme-sidebar-subitem-icon)"}
-              className={`transition-transform text-white light:text-black ${
+              className={`transition-transform duration-150 ${
                 isExpanded ? "rotate-90" : ""
               }`}
             />
@@ -118,7 +124,7 @@ export default function MenuOption({
         )}
       </div>
       {isExpanded && hasChildren && (
-        <div className="mt-1 rounded-r-lg w-full">
+        <div className="mt-1 w-full space-y-1">
           {childOptions.map((childOption, index) => (
             <MenuOption
               key={index}

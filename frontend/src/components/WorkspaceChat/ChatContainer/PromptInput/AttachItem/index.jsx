@@ -110,11 +110,11 @@ export default function AttachItem({
           setShowMenu((visible) => !visible);
           fetchFiles();
         }}
-        className="group relative flex h-6 w-6 cursor-pointer items-center justify-center rounded-full border-none hover:bg-zinc-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70 light:hover:bg-slate-200"
+        className="group relative flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border-none text-theme-text-secondary transition-colors hover:bg-theme-sidebar-subitem-hover hover:text-theme-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-button-primary"
       >
         <Plus
           size={18}
-          className="pointer-events-none shrink-0 text-zinc-300 group-hover:text-white light:text-slate-600 light:group-hover:text-slate-800"
+          className="pointer-events-none shrink-0 text-current"
           weight="bold"
         />
         {files.length > 0 && (
@@ -136,7 +136,7 @@ export default function AttachItem({
         <div
           role="menu"
           aria-label={t("chat_window.upload_menu.title")}
-          className="fixed bottom-24 left-4 right-4 z-99 w-auto overflow-hidden rounded-xl border border-zinc-700/80 bg-theme-bg-primary sm:absolute sm:bottom-9 sm:left-0 sm:right-auto sm:w-[min(380px,calc(100vw-32px))] light:border-slate-300"
+          className="dsh-menu fixed bottom-24 left-4 right-4 z-99 w-auto overflow-hidden p-0 sm:absolute sm:bottom-9 sm:left-0 sm:right-auto sm:w-[min(380px,calc(100vw-32px))]"
         >
           <div className="flex items-center justify-between border-b border-zinc-800 px-4 py-3 light:border-slate-200">
             <div>
@@ -151,7 +151,7 @@ export default function AttachItem({
               type="button"
               onClick={() => setShowMenu(false)}
               aria-label={t("chat_window.upload_menu.close")}
-              className="flex h-8 w-8 items-center justify-center rounded-lg border-none bg-transparent text-theme-text-secondary hover:bg-theme-bg-secondary hover:text-theme-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70"
+              className="flex h-8 w-8 items-center justify-center rounded-md border-none bg-transparent text-theme-text-secondary hover:bg-theme-sidebar-subitem-hover hover:text-theme-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-button-primary"
             >
               <X size={16} />
             </button>

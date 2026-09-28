@@ -51,6 +51,21 @@ const PredefinedAgent = {
       body: form,
     });
   },
+  createQuickTask: async (payload) =>
+    jsonRequest(`${API_BASE}/admin/predefined-quick-tasks`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  updateQuickTask: async (id, payload) =>
+    jsonRequest(`${API_BASE}/admin/predefined-quick-tasks/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    }),
+  validateQuickTask: async (payload) =>
+    jsonRequest(`${API_BASE}/admin/predefined-quick-tasks/validate`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
   createSkill: async (payload) =>
     jsonRequest(`${API_BASE}/admin/predefined-agent-skills`, {
       method: "POST",

@@ -1,14 +1,12 @@
 import { useEffect, useId, useState } from "react";
 import {
   CaretDown,
-  Check,
   CircleNotch,
   Clock,
   FileText,
   Globe,
   MagnifyingGlass,
   TerminalWindow,
-  WarningCircle,
   Wrench,
 } from "@phosphor-icons/react";
 import { useTranslation } from "react-i18next";
@@ -66,29 +64,11 @@ export default function ToolCallGroup({ callIds, tools, runActive }) {
       }
   );
   const active = executions.some((tool) => ACTIVE.has(tool.status));
-  const failed = executions.filter((tool) => tool.status === "failed").length;
-  const completed = executions.filter(
-    (tool) => tool.status === "completed"
-  ).length;
   const current =
-    executions.find((tool) => ACTIVE.has(tool.status)) ||
-    executions.find((tool) => tool.status === "failed") ||
-    executions.at(-1);
+    executions.find((tool) => ACTIVE.has(tool.status)) || executions.at(-1);
   const { name, Icon } = toolPresentation(current || {}, t);
-  const status = active
-    ? "running"
-    : failed
-      ? "failed"
-      : completed === executions.length
-        ? "completed"
-        : "stopped";
-  const StatusIcon = active
-    ? CircleNotch
-    : failed
-      ? WarningCircle
-      : status === "completed"
-        ? Check
-        : Wrench;
+  const status = active ? "running" : "stopped";
+  const StatusIcon = active ? CircleNotch : Wrench;
   const times = executions
     .map((tool) => Date.parse(tool.startedAt || tool.createdAt))
     .filter(Number.isFinite);
@@ -111,7 +91,7 @@ export default function ToolCallGroup({ callIds, tools, runActive }) {
     now,
     t
   );
-  const detail = current?.error || current?.result_summary;
+  const detail = current?.error ? null : current?.result_summary;
 
   useEffect(() => {
     if (!active) return;
@@ -156,15 +136,9 @@ export default function ToolCallGroup({ callIds, tools, runActive }) {
           <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-theme-text-secondary">
             <span>
               {t("tool_activity.progress", {
-                completed,
                 total: executions.length,
               })}
             </span>
-            {failed > 0 && (
-              <span className="text-red-400 light:text-red-700">
-                {t("tool_activity.failed", { count: failed })}
-              </span>
-            )}
             {elapsed && (
               <span className="inline-flex items-center gap-1 tabular-nums">
                 <Clock size={11} aria-hidden="true" />
@@ -205,15 +179,13 @@ export default function ToolCallGroup({ callIds, tools, runActive }) {
                     <span className="text-xs font-medium text-theme-text-primary">
                       {toolName}
                     </span>
-                    <span
-                      className={`flex items-center gap-2 text-[11px] ${tool.status === "failed" ? "text-red-400 light:text-red-700" : "text-theme-text-secondary"}`}
-                    >
+                    <span className="flex items-center gap-2 text-[11px] text-theme-text-secondary">
                       {toolDuration && (
                         <span className="tabular-nums">{toolDuration}</span>
                       )}
-                      {t(`chat_window.agent_invocation.status.${tool.status}`, {
-                        defaultValue: t("tool_activity.status.unknown"),
-                      })}
+                      {t(
+                        `tool_activity.status.${ACTIVE.has(tool.status) ? "running" : FINISHED.has(tool.status) ? "stopped" : "unknown"}`
+                      )}
                     </span>
                   </div>
                   {summary && (

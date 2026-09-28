@@ -318,7 +318,7 @@ function safeWorkspaceSegment(value) {
 function meetingNumberFromInput(group, value) {
   const match = String(value || "")
     .trim()
-    .match(new RegExp(`^${group}#(\\d+)(?:[A-Za-z]*)$`, "i"));
+    .match(new RegExp(`^${group}#(\\d+)$`, "i"));
   return match ? Number(match[1]) : null;
 }
 
@@ -332,7 +332,11 @@ function kiNumber(value) {
 function agendaItemsForKi(items, ki) {
   const number = kiNumber(ki);
   if (!number) return [];
-  const pattern = new RegExp(`\\b(?:KI\\s*#?\\s*)${number}\\b`, "i");
+  const escaped = number.replace(/\./g, "\\.");
+  const pattern = new RegExp(
+    `\\bKI\\s*#?\\s*${escaped}(?![\\d.]|[A-Za-z])`,
+    "i"
+  );
   return items.filter((item) =>
     pattern.test(
       [item.label, item.title, item.description, item.referenceTitle]
@@ -392,9 +396,10 @@ async function copyConvertedDeliverable(
     const destination = path.join(assetRoot, directory);
     await fs.mkdir(path.dirname(destination), { recursive: true });
     await fs.cp(source, destination, { recursive: true, force: true });
-    markdown = markdown.replaceAll(
-      `${directory}/`,
-      `${tdoc}.assets/${directory}/`
+    // Rewrite only relative link destinations, never prose or remote URLs.
+    markdown = markdown.replace(
+      new RegExp(`(\\]\\(<?|(?:src|href)=["'])${directory}/`, "g"),
+      `$1${tdoc}.assets/${directory}/`
     );
   }
   await fs.writeFile(path.join(proposalRoot, `${tdoc}.md`), markdown, "utf8");
@@ -422,11 +427,12 @@ const downloadProposals = defineTool({
   maxResultBytes: 24 * 1024,
   activity: ({ group, meeting }) => `下载 ${group} ${meeting} 的官方 KI 提案`,
   execute: async ({ group, meeting, ki }, context) => {
-    if (!threeGppCatalog.GROUPS.includes(group))
+    if (!DIRECTORY_BY_GROUP[group])
       return {
         ok: false,
         code: "INVALID_GROUP",
-        summary: "工作组标识无效。",
+        summary:
+          "下载工具目前支持 SA1、SA2、SA3、SA5、CT1、CT4。其他工作组请提供原始文档。",
         retryable: false,
       };
     const number = meetingNumberFromInput(group, meeting);
@@ -453,7 +459,18 @@ const downloadProposals = defineTool({
       };
     await ensureConversionSkill(skill, context);
     const meetings = await threeGppCatalog.meetings(group);
-    const snapshot = meetings.meetings.find((item) => item.number === number);
+    const candidates = meetings.meetings.filter(
+      (item) => item.number === number
+    );
+    if (candidates.length > 1)
+      return {
+        ok: false,
+        code: "AMBIGUOUS_MEETING",
+        summary: "找到多个同号会议目录，不能确定下载范围，请提供原始文档。",
+        data: { candidates },
+        retryable: false,
+      };
+    const snapshot = candidates[0];
     if (!snapshot)
       return {
         ok: false,
@@ -515,9 +532,9 @@ const downloadProposals = defineTool({
           await manager.validatePath(manifestRelative),
           JSON.stringify(
             {
-              schema: "3gpp-review-manifest/v1",
-              excel: "official-agenda-catalog",
-              sheet: snapshot.id,
+              schema: "3gpp-agenda-selection/v1",
+              selectionSource: snapshot.source,
+              completeness: "unknown",
               agenda_filter: requestedKi,
               count: tdocs.length,
               proposals: tdocs.map((tdoc) => ({
@@ -529,10 +546,11 @@ const downloadProposals = defineTool({
                 title:
                   matchingItems.find((item) => item.referenceTdoc === tdoc)
                     ?.referenceTitle || "",
-                source:
+                source: "",
+                referenceUrl:
                   matchingItems.find((item) => item.referenceTdoc === tdoc)
                     ?.source || snapshot.source,
-                status: "available",
+                status: "unknown",
               })),
             },
             null,
@@ -660,7 +678,17 @@ const downloadProposals = defineTool({
         summary: failures.length
           ? `已完成 ${outputs.reduce((sum, item) => sum + item.files.length, 0)} 份提案，另有 ${failures.length} 项未完成。`
           : `已下载并转换 ${outputs.reduce((sum, item) => sum + item.files.length, 0)} 份提案。`,
-        data: { group, meeting: `${group}#${number}`, outputs, failures },
+        data: {
+          group,
+          meeting: `${group}#${number}`,
+          outputs,
+          failures,
+          completeness: "unknown",
+          selectionSource: "agenda-references",
+          warning:
+            "当前仅下载议程中识别到的 TDoc，未比对完整会议 Index，不能视为该 KI 的完整提案集合。",
+          recordPath: `/workspace/_meta/tasks/${runId}.json`,
+        },
         retryable: failures.length > 0,
       };
     } finally {
@@ -1115,6 +1143,9 @@ const convertMarkdown = defineTool({
 });
 
 module.exports = {
+  agendaItemsForKi,
+  meetingNumberFromInput,
+  copyConvertedDeliverable,
   DIRECTORY_BY_GROUP,
   GROUP_BY_TDOC_PREFIX,
   convertMarkdown,

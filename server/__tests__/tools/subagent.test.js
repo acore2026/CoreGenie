@@ -107,3 +107,31 @@ describe("subagent action serialization", () => {
     expect(invokeAgentRuntime).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("subagent run identity", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it("gives each delegated Agent its own durable run id", async () => {
+    const context = new AgentToolContext({
+      run: { id: "parent-run", configuration: {} },
+      workspace: { id: 1 },
+      user: { id: 1 },
+      agent: { id: 1 },
+      emit: jest.fn().mockResolvedValue(null),
+      signal: new AbortController().signal,
+    });
+    resolveAgent.mockResolvedValue({ id: 2, name: "Reader" });
+    invokeAgentRuntime.mockResolvedValue({ kind: "completed", text: "done" });
+    const subagent = createSubagentTool(context, [
+      { id: 2, name: "Reader", description: "Reads files." },
+    ]);
+    await subagent.invoke({ agent_id: 2, task: "Read file A." });
+    const invocation = invokeAgentRuntime.mock.calls[0][0];
+    expect(invocation.runId).toEqual(expect.any(String));
+    expect(invocation.runId).not.toBe("parent-run");
+    expect(invocation.runtimeKey).toBe("default-react");
+    expect(invocation.parentRun.id).toBe("parent-run");
+  });
+});

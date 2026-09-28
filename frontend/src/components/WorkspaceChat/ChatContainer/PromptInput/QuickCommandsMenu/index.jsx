@@ -83,7 +83,7 @@ export default function QuickCommandsMenu({
             event.preventDefault();
         }}
         style={{ maxHeight }}
-        className={`absolute left-2 right-2 z-50 flex flex-col gap-2.5 overflow-hidden rounded-xl border border-zinc-700 bg-zinc-800 p-3 shadow-xl light:border-slate-300 light:bg-white md:left-14 md:right-auto md:w-[400px] ${
+        className={`dsh-menu absolute left-2 right-2 z-50 flex flex-col gap-2.5 overflow-hidden p-3 md:left-14 md:right-auto md:w-[400px] ${
           centered ? "top-full mt-2" : "bottom-full mb-2"
         }`}
       >

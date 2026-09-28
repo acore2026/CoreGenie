@@ -54,6 +54,7 @@ class Synchronizer {
     keys.sort(
       (a, b) =>
         Number(!a.startsWith("skills/")) - Number(!b.startsWith("skills/")) ||
+        Number(a.startsWith("agents/")) - Number(b.startsWith("agents/")) ||
         a.localeCompare(b)
     );
     this.items = [];

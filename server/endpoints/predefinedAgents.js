@@ -4,6 +4,7 @@ const { getType, getExtension } = require("mime");
 const { v4 } = require("uuid");
 const { PredefinedAgent } = require("../models/predefinedAgent");
 const { PredefinedAgentSkill } = require("../models/predefinedAgentSkill");
+const { PredefinedQuickTask } = require("../models/predefinedQuickTask");
 const { reqBody } = require("../utils/http");
 const { validatedRequest } = require("../utils/middleware/validatedRequest");
 const {
@@ -87,6 +88,14 @@ function cleanExamplePrompts(values) {
 }
 
 function validateAgentPayload(body) {
+  if (
+    body.quickTaskIds !== undefined &&
+    (!Array.isArray(body.quickTaskIds) ||
+      body.quickTaskIds.length > 12 ||
+      body.quickTaskIds.some((id) => !Number.isInteger(id) || id < 1) ||
+      new Set(body.quickTaskIds).size !== body.quickTaskIds.length)
+  )
+    return { error: "最多绑定 12 个不重复的快捷任务。" };
   const name = cleanText(body.name, MAX_NAME, { required: true });
   const systemPrompt = cleanText(body.systemPrompt, MAX_PROMPT, {
     required: true,
@@ -114,10 +123,14 @@ function validateAgentPayload(body) {
         : {}),
       tools: body.tools === null ? null : uniqueStrings(body.tools),
       skillIds: uniqueIntegers(body.skillIds),
+      ...(Object.prototype.hasOwnProperty.call(body, "quickTaskIds")
+        ? { quickTaskIds: body.quickTaskIds }
+        : {}),
       systemPrompt,
       runtimeKey,
       runtimeConfig,
       enabled: body.enabled !== false,
+      showInRoster: body.showInRoster !== false,
     },
   };
 }
@@ -136,6 +149,34 @@ function validateSkillPayload(body) {
       instructions,
     },
   };
+}
+
+function validateQuickTaskPayload(body) {
+  const key = cleanText(body.key, 80, { required: true });
+  const title = cleanText(body.title, 100, { required: true });
+  if (!key || key.length > 40 || !/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/.test(key))
+    return {
+      error: "快捷任务标识最多 40 字符，只能使用小写字母、数字和短横线。",
+    };
+  if (!title) return { error: "快捷任务标题不能为空。" };
+  try {
+    const definition = { ...body.definition, id: key, title };
+    if (body.description?.trim())
+      definition.description = cleanText(body.description, MAX_DESCRIPTION);
+    else delete definition.description;
+    PredefinedQuickTask.validateDefinition(definition);
+    return {
+      data: {
+        key,
+        title,
+        description: cleanText(body.description, MAX_DESCRIPTION),
+        definition,
+        archived: body.archived === true,
+      },
+    };
+  } catch (error) {
+    return { error: error.message };
+  }
 }
 
 function iconDirectory() {
@@ -173,6 +214,7 @@ function hasValidImageSignature(file) {
 }
 
 function labelForTool(identifier) {
+  if (identifier === "agent.call") return "调用其他 Agent";
   return String(identifier)
     .replace(/^@@mcp_/, "MCP · ")
     .replace(/^@@/, "Custom · ")
@@ -184,6 +226,7 @@ function labelForTool(identifier) {
 async function activeToolOptions() {
   const values = [
     ...toolRegistry.list().map((tool) => tool.id),
+    "agent.call",
     ...(await new MCPCompatibilityLayer().activeMCPServers()),
   ];
   const identifiers = values
@@ -197,6 +240,16 @@ async function activeToolOptions() {
 
 function predefinedAgentEndpoints(app) {
   if (!app) return;
+  app.post(
+    "/admin/predefined-quick-tasks/validate",
+    [validatedRequest, flexUserRoleValid(EDIT_ROLES)],
+    (request, response) => {
+      const { data, error } = validateQuickTaskPayload(reqBody(request));
+      return response
+        .status(error ? 400 : 200)
+        .json({ success: !error, error, definition: data?.definition });
+    }
+  );
 
   app.get(
     "/predefined-agents",
@@ -204,7 +257,7 @@ function predefinedAgentEndpoints(app) {
     async (_request, response) => {
       await require("../agent-skills/seed").seedBuiltinSkills();
       const [agents, defaultAgentId] = await Promise.all([
-        PredefinedAgent.all({ enabledOnly: true }),
+        PredefinedAgent.all({ enabledOnly: true, rosterOnly: true }),
         PredefinedAgent.defaultId(),
       ]);
       return response.status(200).json({
@@ -218,6 +271,7 @@ function predefinedAgentEndpoints(app) {
             wizard,
             iconUrl,
             enabled,
+            showInRoster,
             isBuiltinDefault,
             runtimeKey,
             runtimeConfig,
@@ -230,6 +284,7 @@ function predefinedAgentEndpoints(app) {
             wizard,
             iconUrl,
             enabled,
+            showInRoster,
             isBuiltinDefault,
             runtimeKey,
             attachmentMode: runtimeConfig?.attachmentMode || "parsed",
@@ -246,17 +301,25 @@ function predefinedAgentEndpoints(app) {
     async (_request, response) => {
       await require("../agent-skills/seed").seedBuiltinSkills();
       await ModelCapability.seedBuiltins();
-      const [agents, skills, tools, defaultAgentId, modelCapabilities] =
-        await Promise.all([
-          PredefinedAgent.all(),
-          PredefinedAgentSkill.all(),
-          activeToolOptions(),
-          PredefinedAgent.defaultId(),
-          ModelCapability.list(),
-        ]);
+      const [
+        agents,
+        skills,
+        quickTasks,
+        tools,
+        defaultAgentId,
+        modelCapabilities,
+      ] = await Promise.all([
+        PredefinedAgent.all(),
+        PredefinedAgentSkill.all(),
+        PredefinedQuickTask.all({ includeArchived: true }),
+        activeToolOptions(),
+        PredefinedAgent.defaultId(),
+        ModelCapability.list(),
+      ]);
       return response.status(200).json({
         agents,
         skills: skills.map((skill) => publicSkill(skill)),
+        quickTasks,
         tools,
         runtimes: runtimeOptions(),
         defaultAgentId,
@@ -294,12 +357,51 @@ function predefinedAgentEndpoints(app) {
   );
 
   app.post(
+    "/admin/predefined-quick-tasks",
+    [validatedRequest, flexUserRoleValid(EDIT_ROLES)],
+    async (request, response) => {
+      const { data, error } = validateQuickTaskPayload(reqBody(request));
+      if (error) return response.status(400).json({ success: false, error });
+      try {
+        const task = await PredefinedQuickTask.create(data);
+        return response.status(200).json({ success: true, quickTask: task });
+      } catch (e) {
+        return response.status(400).json({ success: false, error: e.message });
+      }
+    }
+  );
+
+  app.put(
+    "/admin/predefined-quick-tasks/:id",
+    [validatedRequest, flexUserRoleValid(EDIT_ROLES)],
+    async (request, response) => {
+      const { data, error } = validateQuickTaskPayload(reqBody(request));
+      if (error) return response.status(400).json({ success: false, error });
+      try {
+        const task = await PredefinedQuickTask.update(request.params.id, data);
+        return response
+          .status(task ? 200 : 404)
+          .json({ success: !!task, quickTask: task });
+      } catch (e) {
+        return response.status(400).json({ success: false, error: e.message });
+      }
+    }
+  );
+
+  app.post(
     "/admin/predefined-agents",
     [validatedRequest, flexUserRoleValid(EDIT_ROLES)],
     async (request, response) => {
       const { data, error } = validateAgentPayload(reqBody(request));
       if (error) return response.status(400).json({ success: false, error });
-      const agent = await PredefinedAgent.create(data);
+      let agent;
+      try {
+        agent = await PredefinedAgent.create(data);
+      } catch (error) {
+        return response
+          .status(400)
+          .json({ success: false, error: error.message });
+      }
       return response.status(agent ? 200 : 500).json({
         success: !!agent,
         agent,
@@ -319,7 +421,14 @@ function predefinedAgentEndpoints(app) {
         return response
           .status(404)
           .json({ success: false, error: "Agent not found." });
-      const agent = await PredefinedAgent.update(request.params.id, data);
+      let agent;
+      try {
+        agent = await PredefinedAgent.update(request.params.id, data);
+      } catch (error) {
+        return response
+          .status(400)
+          .json({ success: false, error: error.message });
+      }
       return response.status(agent ? 200 : 404).json({
         success: !!agent,
         agent,
@@ -511,6 +620,7 @@ function predefinedAgentEndpoints(app) {
 }
 
 module.exports = {
+  activeToolOptions,
   cleanExamplePrompts,
   predefinedAgentEndpoints,
   validateAgentPayload,

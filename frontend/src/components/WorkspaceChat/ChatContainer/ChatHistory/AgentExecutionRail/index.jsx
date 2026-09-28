@@ -84,9 +84,9 @@ const statusMeta = {
     tone: "text-zinc-500 light:text-slate-500",
   },
   partial: {
-    Icon: WarningCircle,
-    labelKey: "partial",
-    tone: "text-amber-300 light:text-amber-700",
+    Icon: CheckCircle,
+    labelKey: "completed",
+    tone: "text-emerald-400 light:text-emerald-700",
   },
 };
 
@@ -150,7 +150,7 @@ function ToolExecutionRow({ tool, t }) {
   const tone = active
     ? "text-cyan-300 light:text-cyan-700"
     : failed
-      ? "text-amber-300 light:text-amber-700"
+      ? "text-zinc-400 light:text-slate-600"
       : cancelled
         ? "text-zinc-500 light:text-slate-500"
         : skipped
@@ -170,9 +170,7 @@ function ToolExecutionRow({ tool, t }) {
           {toolName(tool.tool_id)}
         </span>
         {detail && (
-          <span
-            className={`mt-0.5 block truncate text-[11px] leading-4 ${failed ? "text-amber-300 light:text-amber-700" : "text-theme-text-secondary"}`}
-          >
+          <span className="mt-0.5 block truncate text-[11px] leading-4 text-theme-text-secondary">
             {detail}
           </span>
         )}
@@ -188,18 +186,14 @@ function ToolExecutionRow({ tool, t }) {
 
 function stateFromSnapshot(snapshot) {
   if (!snapshot?.run) return null;
-  const fallbackSummary =
-    snapshot.run.status === "partial"
-      ? "Finished with partial results"
-      : TERMINAL.has(snapshot.run.status)
-        ? "Agent work complete"
-        : "Restoring Agent work";
-  const fallbackSummaryKey =
-    snapshot.run.status === "partial"
-      ? "run_partial"
-      : TERMINAL.has(snapshot.run.status)
-        ? `run_${snapshot.run.status}`
-        : "restoring";
+  const fallbackSummary = TERMINAL.has(snapshot.run.status)
+    ? "Agent work complete"
+    : "Restoring Agent work";
+  const fallbackSummaryKey = TERMINAL.has(snapshot.run.status)
+    ? snapshot.run.status === "partial"
+      ? "run_completed"
+      : `run_${snapshot.run.status}`
+    : "restoring";
   const replayed = (snapshot.events || []).reduce(reduceAgentRunState, {
     runId: snapshot.run.id,
     status: snapshot.run.status,
@@ -407,7 +401,12 @@ export default function AgentExecutionRail({
     }
   }, [expansionWasChosen, state]);
 
-  const tasks = state?.tasks || [];
+  const allTasks = state?.tasks || [];
+  const tasks = allTasks.filter((task) =>
+    state?.runtimeKey === "default-react"
+      ? String(task.id).includes(":plan:")
+      : !String(task.id).includes(":plan:")
+  );
   const evidence = state?.evidence || [];
   const tools = state?.toolExecutions || [];
   const resourceTraces = state?.resourceTraces || [];
@@ -416,9 +415,6 @@ export default function AgentExecutionRail({
   );
   const doneTools = tools.filter(
     (tool) => !ACTIVE_TOOL_STATUSES.has(tool.status || "requested")
-  );
-  const doneToolsNeedAttention = doneTools.some((tool) =>
-    ["failed", "cancelled"].includes(tool.status)
   );
   const completed = tasks.filter((task) => task.status === "completed").length;
   const runActive = state ? !TERMINAL.has(state.status) : false;
@@ -432,11 +428,13 @@ export default function AgentExecutionRail({
     )
     .slice(-3);
   const localizedSummary = localizedActivity(
-    {
-      summary: state?.summary,
-      summaryKey: state?.summaryKey,
-      summaryArgs: state?.summaryArgs,
-    },
+    state?.status === "partial"
+      ? { summaryKey: "run_completed" }
+      : {
+          summary: state?.summary,
+          summaryKey: state?.summaryKey,
+          summaryArgs: state?.summaryArgs,
+        },
     t
   );
   const currentTask = useMemo(
@@ -505,7 +503,7 @@ export default function AgentExecutionRail({
               {duration}
             </span>
           )}
-          {tasks.length > 0 && (
+          {tasks.length > 0 && state.status !== "partial" && (
             <span className="text-[10px]">
               {completed}/{tasks.length}
             </span>
@@ -651,23 +649,15 @@ export default function AgentExecutionRail({
                   <button
                     type="button"
                     onClick={() => setDoneToolsExpanded((value) => !value)}
-                    className={`flex min-h-9 w-full items-center justify-between rounded-md px-1 text-left text-[10px] font-semibold uppercase tracking-[0.1em] outline-none focus-visible:ring-2 ${
-                      doneToolsNeedAttention
-                        ? "text-amber-300 hover:bg-amber-400/[0.06] focus-visible:ring-amber-400/60 light:text-amber-700 light:hover:bg-amber-50"
-                        : "text-theme-text-secondary hover:bg-white/[0.035] focus-visible:ring-cyan-400/60 light:hover:bg-slate-100"
-                    }`}
+                    className="flex min-h-9 w-full items-center justify-between rounded-md px-1 text-left text-[10px] font-semibold uppercase tracking-[0.1em] text-theme-text-secondary outline-none hover:bg-white/[0.035] focus-visible:ring-2 focus-visible:ring-cyan-400/60 light:hover:bg-slate-100"
                     aria-expanded={doneToolsExpanded}
                   >
                     <span className="flex items-center gap-2">
-                      {doneToolsNeedAttention ? (
-                        <WarningCircle size={14} weight="fill" />
-                      ) : (
-                        <CheckCircle
-                          size={14}
-                          weight="fill"
-                          className="text-emerald-400 light:text-emerald-700"
-                        />
-                      )}
+                      <CheckCircle
+                        size={14}
+                        weight="fill"
+                        className="text-emerald-400 light:text-emerald-700"
+                      />
                       {t("chat_window.agent_invocation.status.completed")}
                     </span>
                     <span className="flex items-center gap-2 font-mono tabular-nums">

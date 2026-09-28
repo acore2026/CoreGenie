@@ -62,7 +62,6 @@ jobs:
       - name: Install collector dependencies
         run: cd collector && yarn install --frozen-lockfile
         env:
-          PUPPETEER_SKIP_DOWNLOAD: "true"
           SHARP_IGNORE_GLOBAL_LIBVIPS: "true"
 
       - name: Lint server

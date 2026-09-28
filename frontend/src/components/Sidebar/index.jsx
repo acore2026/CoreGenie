@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { List } from "@phosphor-icons/react";
+import { List, MagnifyingGlass, X } from "@phosphor-icons/react";
 import NewWorkspaceModal, {
   useNewWorkspaceModal,
 } from "../Modals/NewWorkspace";
@@ -9,14 +9,21 @@ import Footer from "../Footer";
 import { Link, useLocation } from "react-router-dom";
 import paths from "@/utils/paths";
 import { useSidebarToggle, ToggleSidebarButton } from "./SidebarToggle";
-import SearchBox from "./SearchBox";
+import SearchBox, { CreateMenuButton } from "./SearchBox";
 import { Tooltip } from "react-tooltip";
 import { createPortal } from "react-dom";
 import HelpShortcut from "./HelpShortcut";
 import { CLOSE_MOBILE_SIDEBAR_EVENT } from "./events";
+import { useTranslation } from "react-i18next";
+import { ModalPortalContext } from "@/components/ModalWrapper";
+import UserButton from "@/components/UserMenu/UserButton";
+
+const navControl =
+  "flex h-10 items-center gap-2.5 rounded-md px-2.5 text-sm text-theme-text-primary transition-colors hover:bg-theme-sidebar-item-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-button-primary";
 
 export default function Sidebar() {
-  const { logo } = useLogo();
+  const { logo, isCustomLogo } = useLogo();
+  const { t } = useTranslation();
   const sidebarRef = useRef(null);
   const { showSidebar, setShowSidebar, canToggleSidebar } = useSidebarToggle();
   const {
@@ -24,67 +31,114 @@ export default function Sidebar() {
     showModal: showNewWsModal,
     hideModal: hideNewWsModal,
   } = useNewWorkspaceModal();
+  const expanded = showSidebar || !canToggleSidebar;
+
+  function openSearch() {
+    setShowSidebar(true);
+    requestAnimationFrame(() =>
+      sidebarRef.current?.querySelector('input[type="search"]')?.focus()
+    );
+  }
 
   return (
     <>
-      <div
-        style={{
-          width: showSidebar ? "292px" : "0px",
-          paddingLeft: showSidebar ? "0px" : "16px",
-        }}
-        className="relative transition-all duration-500"
+      <aside
+        aria-label={t("workbench_nav.label")}
+        data-sidebar-expanded={expanded}
+        style={{ width: expanded ? "288px" : "56px" }}
+        className="relative flex h-full shrink-0 flex-col border-r border-theme-sidebar-border bg-theme-bg-chat"
       >
-        {canToggleSidebar && (
-          <ToggleSidebarButton
-            showSidebar={showSidebar}
-            setShowSidebar={setShowSidebar}
-          />
-        )}
-        <div className="overflow-hidden h-full">
-          <div className="flex shrink-0 w-full justify-center my-[18px]">
-            <div className="flex w-[250px] min-w-[250px]">
-              <Link to={paths.home()} aria-label="Home">
-                <img
-                  src={logo}
-                  alt="品牌标志"
-                  className={`rounded max-h-[32px] object-contain transition-opacity duration-500 ${showSidebar ? "opacity-100" : "opacity-0"}`}
-                />
+        <div
+          className={`shrink-0 ${expanded ? "flex h-16 items-center gap-2 px-3" : "flex flex-col items-center gap-1 py-3"}`}
+        >
+          {expanded && (
+            <>
+              <Link
+                to={paths.home()}
+                aria-label={t("workbench_nav.home")}
+                className="min-w-0 flex-1 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-button-primary"
+              >
+                <SidebarBrand logo={logo} isCustomLogo={isCustomLogo} />
               </Link>
-            </div>
-          </div>
-          <div
-            ref={sidebarRef}
-            className="relative m-[16px] rounded-[16px] bg-theme-bg-sidebar light:bg-slate-200 border-[2px] border-theme-sidebar-border light:border-none min-w-[250px] p-[10px] h-[calc(100%-84px)]"
-          >
-            <div className="flex flex-col h-full overflow-hidden">
-              <div className="flex-grow flex flex-col min-w-[235px] min-h-0">
-                <div className="relative h-[calc(100%-60px)] flex flex-col w-full justify-between pt-[10px] overflow-y-scroll no-scroll">
-                  <div className="flex flex-col gap-y-[14px]">
-                    <SearchBox showNewWsModal={showNewWsModal} />
-                    <ActiveWorkspaces />
-                  </div>
+            </>
+          )}
+          {!expanded && (
+            <Link to={paths.home()} aria-label={t("workbench_nav.home")}>
+              <img src="/coregenie-mark.svg" alt="" className="h-9 w-9" />
+            </Link>
+          )}
+          {canToggleSidebar && (
+            <ToggleSidebarButton
+              showSidebar={expanded}
+              setShowSidebar={setShowSidebar}
+            />
+          )}
+        </div>
+        <div
+          ref={sidebarRef}
+          id="workspace-navigation"
+          hidden={!expanded}
+          className="min-h-0 flex-1"
+        >
+          <div className="flex h-full min-h-0 flex-col">
+            <div className="px-3 pb-4">
+              <div className="flex items-center gap-1">
+                <div className="min-w-0 flex-1">
+                  <SearchBox />
                 </div>
-                <div className="absolute bottom-0 left-0 right-0 pb-3 rounded-b-[16px] bg-theme-bg-sidebar light:bg-slate-200 bg-opacity-80 backdrop-filter backdrop-blur-md z-10">
-                  <HelpShortcut />
-                  <Footer />
-                </div>
+                <CreateMenuButton showNewWsModal={showNewWsModal} />
               </div>
+            </div>
+            <div className="sidebar-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain border-t border-theme-sidebar-border px-3 py-3">
+              <ActiveWorkspaces />
+            </div>
+            <div className="shrink-0 border-t border-theme-sidebar-border px-3 pb-2 pt-3">
+              <div className="flex items-center gap-1 pb-2">
+                <div className="min-w-0 flex-1">
+                  <UserButton
+                    inline
+                    menuAlign="left"
+                    menuPlacement="top"
+                    showName
+                  />
+                </div>
+                <HelpShortcut iconOnly />
+              </div>
+              <Footer />
             </div>
           </div>
         </div>
+        {!expanded && (
+          <div className="flex flex-1 flex-col items-center gap-2 pb-3">
+            <CreateMenuButton showNewWsModal={showNewWsModal} />
+            <button
+              type="button"
+              onClick={openSearch}
+              aria-label={t("workbench_nav.search")}
+              title={t("workbench_nav.search")}
+              className={`${navControl} w-10 justify-center !px-0`}
+            >
+              <MagnifyingGlass size={20} />
+            </button>
+            <div className="mt-auto flex flex-col items-center gap-2">
+              <UserButton inline menuAlign="left" menuPlacement="top" />
+              <HelpShortcut iconOnly />
+            </div>
+          </div>
+        )}
         {showingNewWsModal && <NewWorkspaceModal hideModal={hideNewWsModal} />}
-      </div>
+      </aside>
       <WorkspaceAndThreadTooltips />
     </>
   );
 }
 
 export function SidebarMobileHeader() {
-  const { logo } = useLogo();
+  const { logo, isCustomLogo } = useLogo();
+  const { t } = useTranslation();
   const { pathname } = useLocation();
-  const sidebarRef = useRef(null);
+  const [dialog, setDialog] = useState(null);
   const [showSidebar, setShowSidebar] = useState(false);
-  const [showBgOverlay, setShowBgOverlay] = useState(false);
   const {
     showing: showingNewWsModal,
     showModal: showNewWsModal,
@@ -92,8 +146,10 @@ export function SidebarMobileHeader() {
   } = useNewWorkspaceModal();
 
   useEffect(() => {
-    setShowBgOverlay(showSidebar);
-  }, [showSidebar]);
+    if (!dialog) return;
+    if (showSidebar && !dialog.open) dialog.showModal();
+    if (!showSidebar && dialog.open) dialog.close();
+  }, [showSidebar, dialog]);
 
   useEffect(() => {
     setShowSidebar(false);
@@ -108,78 +164,114 @@ export function SidebarMobileHeader() {
 
   return (
     <>
-      <div
-        aria-label="Show sidebar"
-        className="fixed top-0 left-0 right-0 z-10 flex items-center justify-between px-4 py-2 bg-theme-bg-sidebar light:bg-white text-slate-200 shadow-lg h-16"
-      >
+      <div className="fixed top-0 left-0 right-0 z-10 flex h-16 items-center justify-between border-b border-theme-sidebar-border bg-theme-bg-chat px-4 py-2 text-theme-text-primary">
         <div className="flex items-center">
           <button
+            type="button"
+            aria-label={t("workbench_nav.expand")}
+            aria-expanded={showSidebar}
+            aria-controls="mobile-workspace-navigation"
             onClick={() => setShowSidebar(true)}
-            className="rounded-md p-2 flex items-center justify-center text-theme-text-secondary"
+            className={`${navControl} w-10 justify-center !px-0`}
           >
             <List className="h-6 w-6" />
           </button>
           <HelpShortcut iconOnly />
         </div>
         <div className="pointer-events-none absolute left-1/2 flex -translate-x-1/2 items-center justify-center">
-          <img
-            src={logo}
-            alt="品牌标志"
-            className="block mx-auto h-8 w-auto"
-            style={{ maxHeight: "40px", objectFit: "contain" }}
-          />
+          <SidebarBrand logo={logo} isCustomLogo={isCustomLogo} compact />
         </div>
         <span className="h-10 w-10" aria-hidden="true" />
       </div>
-      <div
-        style={{
-          transform: showSidebar ? `translateX(0vw)` : `translateX(-100vw)`,
+      <dialog
+        ref={setDialog}
+        id="mobile-workspace-navigation"
+        aria-label={t("workbench_nav.label")}
+        onClose={() => setShowSidebar(false)}
+        onClick={(event) => {
+          if (event.target === event.currentTarget) setShowSidebar(false);
         }}
-        className="z-99 fixed left-0 top-0 h-[100vh] w-[100vw] transition-transform duration-200"
+        className="fixed inset-y-0 left-0 m-0 h-[100dvh] max-h-none w-[min(320px,88vw)] max-w-none !items-stretch !justify-start !overflow-x-hidden border-0 border-r border-theme-sidebar-border bg-theme-bg-chat p-0 text-theme-text-primary backdrop:bg-black/40"
       >
-        <div
-          className={`${
-            showBgOverlay
-              ? "transition-opacity opacity-1"
-              : "transition-none opacity-0"
-          } fixed left-0 top-0 h-screen w-screen bg-theme-bg-secondary bg-opacity-75 duration-200`}
-          onClick={() => setShowSidebar(false)}
-        />
-        <div
-          ref={sidebarRef}
-          className="relative h-[100vh] fixed top-0 left-0  rounded-r-[26px] bg-theme-bg-sidebar w-[80%] p-[18px] "
-        >
-          <div className="w-full h-full flex flex-col overflow-x-hidden items-between">
-            {/* Header Information */}
-            <div className="flex w-full items-center justify-between gap-x-4">
-              <div className="flex shrink-1 w-fit items-center justify-start">
-                <img
-                  src={logo}
-                  alt="品牌标志"
-                  className="rounded w-full max-h-[48px]"
-                  style={{ objectFit: "contain" }}
-                />
+        <ModalPortalContext.Provider value={dialog}>
+          <div className="flex h-full min-h-0 flex-col">
+            <div className="flex h-16 shrink-0 items-center gap-2 px-3">
+              <Link
+                to={paths.home()}
+                onClick={() => setShowSidebar(false)}
+                className="min-w-0 flex-1 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-button-primary"
+              >
+                <SidebarBrand logo={logo} isCustomLogo={isCustomLogo} />
+              </Link>
+              <button
+                type="button"
+                onClick={() => setShowSidebar(false)}
+                aria-label={t("workbench_nav.close")}
+                className={`${navControl} w-10 justify-center !px-0`}
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="px-3 pb-4">
+              <div className="flex items-center gap-1">
+                <div className="min-w-0 flex-1">
+                  <SearchBox />
+                </div>
+                <CreateMenuButton showNewWsModal={showNewWsModal} />
               </div>
             </div>
-
-            {/* Primary Body */}
-            <div className="h-full flex flex-col w-full justify-between pt-4 ">
-              <div className="h-auto md:sidebar-items">
-                <div className=" flex flex-col gap-y-4 overflow-y-scroll no-scroll pb-[60px]">
-                  <SearchBox showNewWsModal={showNewWsModal} />
-                  <ActiveWorkspaces />
+            <div className="sidebar-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain border-t border-theme-sidebar-border px-3 py-3">
+              <ActiveWorkspaces />
+            </div>
+            <div className="shrink-0 border-t border-theme-sidebar-border px-3 pb-4 pt-3">
+              <div className="flex items-center gap-1 pb-2">
+                <div className="min-w-0 flex-1">
+                  <UserButton
+                    inline
+                    menuAlign="left"
+                    menuPlacement="top"
+                    showName
+                  />
                 </div>
+                <HelpShortcut iconOnly />
               </div>
-              <div className="z-99 absolute bottom-0 left-0 right-0 pt-2 pb-6 rounded-br-[26px] bg-theme-bg-sidebar bg-opacity-80 backdrop-filter backdrop-blur-md">
-                <HelpShortcut />
-                <Footer />
-              </div>
+              <Footer />
             </div>
           </div>
-        </div>
-        {showingNewWsModal && <NewWorkspaceModal hideModal={hideNewWsModal} />}
-      </div>
+          {showingNewWsModal && (
+            <NewWorkspaceModal hideModal={hideNewWsModal} />
+          )}
+        </ModalPortalContext.Provider>
+      </dialog>
+      <WorkspaceAndThreadTooltips />
     </>
+  );
+}
+
+function SidebarBrand({ logo, isCustomLogo, compact = false }) {
+  if (isCustomLogo) {
+    return (
+      <img
+        src={logo}
+        alt="品牌标志"
+        className={`${compact ? "h-8" : "h-9"} max-w-[188px] object-contain`}
+      />
+    );
+  }
+
+  return (
+    <span className="flex min-w-0 items-center gap-2.5">
+      <img
+        src="/coregenie-mark.svg"
+        alt=""
+        className={`${compact ? "h-8 w-8" : "h-9 w-9"} shrink-0`}
+      />
+      <span
+        className={`${compact ? "text-xl" : "text-[22px]"} truncate font-bold leading-none tracking-[-0.04em] text-theme-text-primary`}
+      >
+        Core<span className="text-sky-400 light:text-sky-600">Genie</span>
+      </span>
+    </span>
   );
 }
 

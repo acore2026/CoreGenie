@@ -280,6 +280,7 @@ class MetaGenerator {
    */
   async generate(response, code = 200) {
     if (this.#customConfig === null) await this.#fetchConfg();
+    response.setHeader("Cache-Control", "no-store");
     response.status(code).send(`
        <!DOCTYPE html>
         <html lang="en">

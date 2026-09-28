@@ -541,16 +541,28 @@ function shouldRecallPersonalMemory(
 
 function knowledgeToolGuidance(visibleToolIds = new Set()) {
   const visible = new Set(visibleToolIds);
-  const operations = [
+  const workspaceOperations = [
     ["knowledge.ingest", "adds regular document files"],
     ["knowledge.search", "retrieves already indexed passages"],
     ["knowledge.publish", "embeds one final Markdown report"],
   ]
     .filter(([toolId]) => visible.has(toolId))
     .map(([toolId, purpose]) => `${toolId} ${purpose}`);
-  return operations.length
-    ? `Workspace knowledge is the RAG knowledge base: ${operations.join("; ")}. Personal memory is only for user facts and preferences; document ingestion always belongs to Workspace RAG.`
-    : "Workspace knowledge is the RAG knowledge base. Personal memory is only for user facts and preferences; document ingestion always belongs to Workspace RAG.";
+  const globalOperations = [
+    ["knowledge.global.list", "lists shared documents"],
+    ["knowledge.global.ingest", "adds explicitly shared files"],
+    ["knowledge.global.replace", "replaces one shared document"],
+    ["knowledge.global.remove", "removes one shared document"],
+  ]
+    .filter(([toolId]) => visible.has(toolId))
+    .map(([toolId, purpose]) => `${toolId} ${purpose}`);
+  const workspaceGuidance = workspaceOperations.length
+    ? `Workspace knowledge is the RAG knowledge base: ${workspaceOperations.join("; ")}.`
+    : "Workspace knowledge is the RAG knowledge base.";
+  const globalGuidance = globalOperations.length
+    ? ` Shared global RAG is visible in every Workspace: ${globalOperations.join("; ")}. Only change it when the user explicitly requests a global change.`
+    : "";
+  return `${workspaceGuidance}${globalGuidance} Personal memory is only for user facts and preferences; document ingestion belongs to Workspace RAG unless the user explicitly requests global sharing.`;
 }
 
 function shouldRetrieveWorkspaceContext(

@@ -46,20 +46,26 @@ export async function copyTextToClipboard(text) {
  * @returns {Promise<void>}
  */
 export async function copyMarkdownAsRichText(markdownString) {
-  try {
-    const htmlContent = renderMarkdown(markdownString);
-    const blobHTML = new Blob([htmlContent], { type: "text/html" });
-    const blobText = new Blob([markdownString], { type: "text/plain" });
+  if (navigator.clipboard?.write && typeof ClipboardItem !== "undefined") {
+    try {
+      const htmlContent = renderMarkdown(markdownString);
+      const blobHTML = new Blob([htmlContent], { type: "text/html" });
+      const blobText = new Blob([markdownString], { type: "text/plain" });
 
-    const data = [
-      new ClipboardItem({
-        "text/html": blobHTML,
-        "text/plain": blobText,
-      }),
-    ];
+      const data = [
+        new ClipboardItem({
+          "text/html": blobHTML,
+          "text/plain": blobText,
+        }),
+      ];
 
-    await navigator.clipboard.write(data);
-  } catch (error) {
-    console.error("Failed to copy markdown as rich text: ", error);
+      await navigator.clipboard.write(data);
+      return true;
+    } catch {
+      // Rich clipboard support is inconsistent across browsers and permission
+      // policies. Fall back to the plain-text path while the click is active.
+    }
   }
+
+  return copyTextToClipboard(markdownString);
 }

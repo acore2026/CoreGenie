@@ -143,7 +143,7 @@ export default function WorkspaceChat({
       );
     if (hasPendingMessage) {
       return (
-        <div className="transition-all duration-500 relative md:ml-[2px] md:mr-[16px] md:my-[16px] md:rounded-[16px] bg-theme-bg-secondary w-full h-full" />
+        <div className="relative min-w-0 flex-1 bg-theme-bg-chat h-full" />
       );
     }
     return <LoadingChat />;

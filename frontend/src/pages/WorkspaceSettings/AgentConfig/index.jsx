@@ -78,7 +78,7 @@ export default function WorkspaceAgentConfiguration({ workspace }) {
         onSubmit={handleUpdate}
         onChange={() => setHasChanges(true)}
         id="agent-settings-form"
-        className="w-1/2 flex flex-col gap-y-6"
+        className="flex w-full max-w-2xl flex-col gap-y-6"
       >
         <AgentLLMSelection
           settings={settings}
@@ -122,7 +122,7 @@ export default function WorkspaceAgentConfiguration({ workspace }) {
 function LoadingSkeleton() {
   return (
     <div id="workspace-agent-settings-container">
-      <div className="w-1/2 flex flex-col gap-y-6">
+      <div className="flex w-full max-w-2xl flex-col gap-y-6">
         <Skeleton.default
           height={100}
           width="100%"

@@ -39,6 +39,20 @@ function safeWorkspaceFileName(value) {
   return [".", ".."].includes(filename) ? "file" : filename;
 }
 
+function safeWorkspaceEntryName(value) {
+  const name = String(value || "").trim();
+  if (
+    !name ||
+    [".", ".."].includes(name) ||
+    path.basename(name) !== name ||
+    /[<>:"/\\|?*]/.test(name) ||
+    [...name].some((character) => character.charCodeAt(0) < 32) ||
+    Buffer.byteLength(name, "utf8") > 180
+  )
+    return null;
+  return name;
+}
+
 function isInboxFilePath(value) {
   const normalized = String(value || "")
     .replace(/^\/workspace\/?/, "")
@@ -89,10 +103,7 @@ function isProbablyText(buffer) {
   return replacementCount / Math.max(decoded.length, 1) < 0.01;
 }
 
-function registerWorkspaceFileRoutes(
-  app,
-  { prefix, middleware, allowAnyFileDelete = false }
-) {
+function registerWorkspaceFileRoutes(app, { prefix, middleware }) {
   if (!app) return;
 
   app.post(
@@ -146,45 +157,133 @@ function registerWorkspaceFileRoutes(
     }
   );
 
-  app.delete(
-    allowAnyFileDelete ? prefix : `${prefix}/upload`,
-    middleware,
-    async (request, response) => {
-      try {
-        const relative = allowAnyFileDelete
-          ? String(request.query.path || "").trim()
-          : isRemovableUploadPath(request.query.path);
-        if (!relative)
-          return response.status(400).json({
-            success: false,
-            error: allowAnyFileDelete
-              ? "File path is required."
-              : "只能移除尚未发送的上传文件。",
-          });
-        const { manager, root } = await workspaceFilesystem(response);
-        const target = await manager.validatePath(relative);
-        if (!relativeWorkspacePath(root, target))
-          return response.status(400).json({
-            success: false,
-            error: "Workspace root cannot be deleted.",
-          });
-        const stats = await fs.stat(target);
-        if (!stats.isFile())
-          return response
-            .status(400)
-            .json({ success: false, error: "目标不是文件。" });
-        await fs.unlink(target);
-        if (!allowAnyFileDelete)
-          await fs.rmdir(path.dirname(target)).catch(() => {});
-        return response.status(200).json({ success: true });
-      } catch (error) {
-        const status = error.code === "ENOENT" ? 404 : 400;
+  app.delete(`${prefix}/upload`, middleware, async (request, response) => {
+    try {
+      const relative = isRemovableUploadPath(request.query.path);
+      if (!relative)
+        return response.status(400).json({
+          success: false,
+          error: "只能移除尚未发送的上传文件。",
+        });
+      const { manager } = await workspaceFilesystem(response);
+      const target = await manager.validatePath(relative);
+      const stats = await fs.stat(target);
+      if (!stats.isFile())
         return response
-          .status(status)
-          .json({ success: false, error: "文件不存在或已经移除。" });
-      }
+          .status(400)
+          .json({ success: false, error: "目标不是文件。" });
+      await fs.unlink(target);
+      await fs.rmdir(path.dirname(target)).catch(() => {});
+      return response.status(200).json({ success: true });
+    } catch (error) {
+      const status = error.code === "ENOENT" ? 404 : 400;
+      return response
+        .status(status)
+        .json({ success: false, error: "文件不存在或已经移除。" });
     }
-  );
+  });
+
+  app.patch(prefix, middleware, async (request, response) => {
+    try {
+      const requestedPath = String(request.body?.path || "").trim();
+      const name = safeWorkspaceEntryName(request.body?.name);
+      if (!requestedPath || !name)
+        return response.status(400).json({
+          success: false,
+          error: "请输入有效的文件或文件夹名称。",
+        });
+
+      const { manager, root } = await workspaceFilesystem(response);
+      const source = path.resolve(root, requestedPath);
+      await manager.validatePath(source);
+      if (!relativeWorkspacePath(root, source))
+        return response.status(400).json({
+          success: false,
+          error: "不能重命名工作区根目录。",
+        });
+
+      const stats = await fs.stat(source);
+      const destination = path.resolve(path.dirname(source), name);
+      await manager.validatePath(destination);
+      if (destination === source)
+        return response.status(200).json({
+          success: true,
+          entry: {
+            name,
+            path: relativeWorkspacePath(root, source),
+            type: stats.isDirectory() ? "directory" : "file",
+            size: stats.size,
+            modified: stats.mtime.toISOString(),
+          },
+        });
+
+      try {
+        await fs.access(destination);
+        return response.status(409).json({
+          success: false,
+          error: "当前文件夹中已有同名项目。",
+        });
+      } catch (error) {
+        if (error.code !== "ENOENT") throw error;
+      }
+
+      await fs.rename(source, destination);
+      const renamedStats = await fs.stat(destination);
+      return response.status(200).json({
+        success: true,
+        entry: {
+          name,
+          path: relativeWorkspacePath(root, destination),
+          type: renamedStats.isDirectory() ? "directory" : "file",
+          size: renamedStats.size,
+          modified: renamedStats.mtime.toISOString(),
+        },
+      });
+    } catch (error) {
+      const status = error.code === "ENOENT" ? 404 : 400;
+      return response.status(status).json({
+        success: false,
+        error:
+          error.code === "ENOENT"
+            ? "文件或文件夹不存在。"
+            : "无法重命名，请重试。",
+      });
+    }
+  });
+
+  app.delete(prefix, middleware, async (request, response) => {
+    try {
+      const requestedPath = String(request.query.path || "").trim();
+      if (!requestedPath)
+        return response.status(400).json({
+          success: false,
+          error: "请选择要删除的文件或文件夹。",
+        });
+
+      const { manager, root } = await workspaceFilesystem(response);
+      const target = path.resolve(root, requestedPath);
+      await manager.validatePath(target);
+      if (!relativeWorkspacePath(root, target))
+        return response.status(400).json({
+          success: false,
+          error: "不能删除工作区根目录。",
+        });
+
+      const stats = await fs.lstat(target);
+      if (stats.isDirectory()) await fs.rm(target, { recursive: true });
+      else await fs.unlink(target);
+      return response.status(200).json({ success: true });
+    } catch (error) {
+      const status = error.code === "ENOENT" ? 404 : 400;
+      return response.status(status).json({
+        success: false,
+        error:
+          error.code === "ENOENT"
+            ? "文件或文件夹不存在。"
+            : "无法删除，请重试。",
+      });
+    }
+  });
 
   app.get(prefix, middleware, async (request, response) => {
     try {
@@ -380,7 +479,6 @@ function apiWorkspaceFileEndpoints(app) {
   registerWorkspaceFileRoutes(app, {
     prefix: "/v1/workspace/:slug/files",
     middleware: [validApiKey, loadApiWorkspace],
-    allowAnyFileDelete: true,
   });
 }
 
@@ -390,6 +488,7 @@ module.exports = {
   loadApiWorkspace,
   registerWorkspaceFileRoutes,
   safeWorkspaceFileName,
+  safeWorkspaceEntryName,
   isInboxFilePath,
   isRemovableUploadPath,
 };

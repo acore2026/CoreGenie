@@ -18,6 +18,9 @@ import { LAST_VISITED_WORKSPACE } from "@/utils/constants";
 import { safeJsonParse } from "@/utils/request";
 import showToast from "@/utils/toast";
 import { THREAD_CREATED_EVENT } from "../events";
+import useUser from "@/hooks/useUser";
+import useAdminView from "@/hooks/useAdminView";
+import { assignedAdminWorkspaces } from "@/utils/adminView";
 
 const DEFAULT_SEARCH_RESULTS = {
   workspaces: [],
@@ -25,8 +28,10 @@ const DEFAULT_SEARCH_RESULTS = {
 };
 
 const SEARCH_RESULT_SELECTED = "search-result-selected";
-export default function SearchBox({ showNewWsModal }) {
+export default function SearchBox() {
   const { t } = useTranslation();
+  const { user } = useUser();
+  const { adminView, canUseAdminView } = useAdminView(user);
   const searchRef = useRef(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(false);
@@ -38,9 +43,27 @@ export default function SearchBox({ showNewWsModal }) {
       const searchValue = e.target.value;
       setSearchTerm(searchValue);
       setLoading(true);
-      const searchResults =
-        await Workspace.searchWorkspaceOrThread(searchValue);
-      setSearchResults(searchResults);
+      const [searchResults, assignedWorkspaces] = await Promise.all([
+        Workspace.searchWorkspaceOrThread(searchValue),
+        canUseAdminView && !adminView
+          ? assignedAdminWorkspaces(user.id)
+          : Promise.resolve(null),
+      ]);
+      if (!assignedWorkspaces) {
+        setSearchResults(searchResults);
+        return;
+      }
+      const assignedSlugs = new Set(
+        assignedWorkspaces.map((workspace) => workspace.slug)
+      );
+      setSearchResults({
+        workspaces: searchResults.workspaces.filter((workspace) =>
+          assignedSlugs.has(workspace.slug)
+        ),
+        threads: searchResults.threads.filter((thread) =>
+          assignedSlugs.has(thread.workspace?.slug)
+        ),
+      });
     } catch (error) {
       console.error(error);
       setSearchResults(DEFAULT_SEARCH_RESULTS);
@@ -63,25 +86,25 @@ export default function SearchBox({ showNewWsModal }) {
   }, []);
 
   return (
-    <div className="relative flex gap-x-[5px] w-full items-center h-[32px] z-[12]">
+    <div className="relative flex gap-x-1 w-full items-center h-10 z-[12]">
       <div className="relative h-full w-full flex">
         <input
           ref={searchRef}
           type="search"
+          aria-label={t("workbench_nav.search")}
           placeholder={t("common.search")}
           onChange={handleSearch}
           onReset={handleReset}
           onFocus={(e) => e.target.select()}
-          className="border-none w-full h-full rounded-lg bg-theme-sidebar-item-default pl-9 focus:pl-4 pr-1 placeholder:text-white/50 light:placeholder:text-slate-500 placeholder:font-semibold outline-none text-theme-text-primary search-input peer text-sm"
+          className="border-none w-full h-full rounded-md bg-transparent pl-9 pr-2 placeholder:text-theme-text-secondary outline-none focus-visible:ring-2 focus-visible:ring-theme-button-primary text-theme-text-primary text-sm"
         />
         <MagnifyingGlass
           size={14}
-          className="absolute left-3 top-1/2 transform -translate-y-1/2 text-theme-settings-input-placeholder peer-focus:invisible"
+          className="pointer-events-none absolute left-3 top-1/2 transform -translate-y-1/2 text-theme-text-secondary"
           weight="bold"
           hidden={!!searchTerm}
         />
       </div>
-      <CreateMenuButton showNewWsModal={showNewWsModal} />
       <SearchResults
         searchResults={searchResults}
         searchTerm={searchTerm}
@@ -197,8 +220,10 @@ function SearchResultItem({ to, name, hint }) {
   );
 }
 
-function CreateMenuButton({ showNewWsModal }) {
+export function CreateMenuButton({ showNewWsModal }) {
   const { t } = useTranslation();
+  const { user } = useUser();
+  const { adminView, canUseAdminView } = useAdminView(user);
   const navigate = useNavigate();
   const { slug = null } = useParams();
   const menuRef = useRef(null);
@@ -226,8 +251,16 @@ function CreateMenuButton({ showNewWsModal }) {
     const lastVisited = safeJsonParse(
       localStorage.getItem(LAST_VISITED_WORKSPACE)
     );
-    if (lastVisited?.slug) return lastVisited.slug;
-    const workspaces = Workspace.orderWorkspaces(await Workspace.all());
+    const visibleWorkspaces =
+      canUseAdminView && !adminView
+        ? await assignedAdminWorkspaces(user.id)
+        : await Workspace.all();
+    const workspaces = Workspace.orderWorkspaces(visibleWorkspaces);
+    if (
+      lastVisited?.slug &&
+      workspaces.some((workspace) => workspace.slug === lastVisited.slug)
+    )
+      return lastVisited.slug;
     return workspaces[0]?.slug || null;
   }
 
@@ -265,7 +298,7 @@ function CreateMenuButton({ showNewWsModal }) {
   }
 
   return (
-    <div ref={menuRef} className="relative h-full shrink-0">
+    <div ref={menuRef} className="relative h-9 shrink-0">
       <button
         type="button"
         aria-haspopup="menu"
@@ -274,32 +307,28 @@ function CreateMenuButton({ showNewWsModal }) {
         data-tooltip-id="sidebar-create-tooltip"
         data-tooltip-content={t("sidebar-create.title")}
         onClick={() => setOpen((value) => !value)}
-        className={`border-none h-full min-w-[38px] flex items-center justify-center gap-0.5 rounded-lg px-2 transition-all duration-200 ${open ? "bg-white/90 shadow-[0_5px_16px_rgba(0,0,0,0.24)]" : "bg-white hover:bg-white/80 light:hover:bg-slate-300"}`}
+        className={`flex h-9 min-w-9 items-center justify-center gap-0.5 rounded-md border-none px-2 text-theme-text-secondary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-button-primary ${open ? "bg-theme-sidebar-item-hover text-theme-text-primary" : "hover:bg-theme-sidebar-item-hover hover:text-theme-text-primary"}`}
       >
-        <Plus
-          size={16}
-          weight="bold"
-          className="text-black light:text-slate-500"
-        />
+        <Plus size={16} weight="bold" className="text-theme-text-primary" />
         <CaretDown
           size={9}
           weight="bold"
-          className={`text-black/55 light:text-slate-500 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+          className={`transition-transform duration-150 ${open ? "rotate-180" : ""}`}
         />
       </button>
       {open && (
         <div
           role="menu"
-          className="absolute top-[38px] right-0 w-[190px] rounded-xl border border-white/10 light:border-slate-300 bg-zinc-900 light:bg-white p-1.5 shadow-[0_18px_45px_rgba(0,0,0,0.4)] z-[60]"
+          className="dsh-menu absolute right-0 top-10 z-[60] w-[190px]"
         >
           <button
             type="button"
             role="menuitem"
             disabled={creatingThread}
             onClick={createThread}
-            className="group w-full flex items-center gap-3 rounded-lg px-2.5 py-2 text-left text-sm text-white light:text-slate-800 hover:bg-white/10 light:hover:bg-slate-100 disabled:opacity-60"
+            className="dsh-menu-item group disabled:opacity-60"
           >
-            <span className="flex h-7 w-7 items-center justify-center rounded-md bg-sky-400/15 text-sky-300 light:text-sky-700">
+            <span className="flex h-7 w-7 items-center justify-center rounded-md text-theme-text-secondary">
               {creatingThread ? (
                 <CircleNotch size={16} className="animate-spin" />
               ) : (
@@ -312,7 +341,7 @@ function CreateMenuButton({ showNewWsModal }) {
                   ? t("sidebar-create.creating-thread")
                   : t("sidebar-create.thread")}
               </span>
-              <span className="mt-0.5 text-[11px] text-zinc-400 light:text-slate-500">
+              <span className="mt-0.5 text-[11px] text-theme-text-secondary">
                 {t("sidebar-create.thread-hint")}
               </span>
             </span>
@@ -321,16 +350,16 @@ function CreateMenuButton({ showNewWsModal }) {
             type="button"
             role="menuitem"
             onClick={createWorkspace}
-            className="group w-full flex items-center gap-3 rounded-lg px-2.5 py-2 text-left text-sm text-white light:text-slate-800 hover:bg-white/10 light:hover:bg-slate-100"
+            className="dsh-menu-item group"
           >
-            <span className="flex h-7 w-7 items-center justify-center rounded-md bg-amber-400/15 text-amber-300 light:text-amber-700">
+            <span className="flex h-7 w-7 items-center justify-center rounded-md text-theme-text-secondary">
               <FolderPlus size={16} weight="bold" />
             </span>
             <span className="flex flex-col leading-tight">
               <span className="font-semibold">
                 {t("sidebar-create.workspace")}
               </span>
-              <span className="mt-0.5 text-[11px] text-zinc-400 light:text-slate-500">
+              <span className="mt-0.5 text-[11px] text-theme-text-secondary">
                 {t("sidebar-create.workspace-hint")}
               </span>
             </span>

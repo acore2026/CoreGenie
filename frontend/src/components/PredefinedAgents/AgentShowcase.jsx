@@ -1,16 +1,20 @@
 import { Check, Plus } from "@phosphor-icons/react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import useUser from "@/hooks/useUser";
 import usePredefinedAgent from "@/hooks/usePredefinedAgent";
 import paths from "@/utils/paths";
 import AgentAvatar from "./AgentAvatar";
 
 export default function AgentShowcase() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { user } = useUser();
   const { agents, loading, selectedAgentId, selectAgent } =
     usePredefinedAgent();
-  const visibleAgents = agents.filter((agent) => !agent.isBuiltinDefault);
+  const visibleAgents = agents.filter(
+    (agent) => !agent.isBuiltinDefault && agent.showInRoster !== false
+  );
 
   if (loading) return <div className="h-[104px]" />;
   if (!visibleAgents.length && user?.role !== "admin") return null;
@@ -20,10 +24,10 @@ export default function AgentShowcase() {
       <div className="mb-2.5 flex items-end justify-between px-1">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-300/80 light:text-cyan-700">
-            Agent roster
+            {t("predefined_agents.roster_title")}
           </p>
           <p className="mt-0.5 text-sm text-zinc-400 light:text-slate-500">
-            选择一个专属 Agent 开始对话
+            {t("predefined_agents.roster_hint")}
           </p>
         </div>
         {user?.role === "admin" && (
@@ -56,7 +60,7 @@ export default function AgentShowcase() {
                   {agent.name}
                 </span>
                 <span className="mt-1 block line-clamp-2 text-xs leading-4 text-zinc-500 light:text-slate-500">
-                  {agent.description || "Ready to help"}
+                  {agent.description || t("predefined_agents.ready")}
                 </span>
               </span>
               {active && (

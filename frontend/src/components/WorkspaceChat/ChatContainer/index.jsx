@@ -509,17 +509,14 @@ export default function ChatContainer({
   if (isEmpty) {
     return (
       <ChatSidebarProvider>
-        <div
-          style={{ height: isMobile ? "100%" : "calc(100% - 32px)" }}
-          className="relative flex lg:gap-3 md:ml-[2px] md:mr-[16px] md:my-[16px] w-full h-full z-[2]"
-        >
+        <div className="relative flex min-w-0 flex-1 h-full z-[2]">
           <div className="relative flex-1 min-w-0 h-full">
             <ChatSettingsMenu
               hasHistory={chatHistory.length > 0}
               workspace={workspace}
               threadSlug={activeThreadSlug}
             />
-            <div className="relative md:rounded-[16px] bg-zinc-900 light:bg-white w-full h-full overflow-hidden border-none light:border-solid light:border light:border-theme-modal-border">
+            <div className="relative bg-theme-bg-chat w-full h-full overflow-hidden">
               {isMobile && <SidebarMobileHeader />}
               <DnDFileUploaderWrapper>
                 <div className="flex flex-col h-full w-full items-center justify-center">
@@ -572,17 +569,14 @@ export default function ChatContainer({
 
   return (
     <ChatSidebarProvider>
-      <div
-        style={{ height: isMobile ? "100%" : "calc(100% - 32px)" }}
-        className="relative flex lg:gap-3 md:ml-[2px] md:mr-[16px] md:my-[16px] w-full h-full z-[2]"
-      >
+      <div className="relative flex min-w-0 flex-1 h-full z-[2]">
         <div className="relative flex-1 min-w-0 h-full">
           <ChatSettingsMenu
             hasHistory={chatHistory.length > 0}
             workspace={workspace}
             threadSlug={activeThreadSlug}
           />
-          <div className="relative md:rounded-[16px] bg-zinc-900 light:bg-white text-white light:text-slate-900 h-full overflow-hidden border-none light:border-solid light:border light:border-theme-modal-border">
+          <div className="relative bg-theme-bg-chat text-theme-text-primary h-full overflow-hidden">
             {isMobile && <SidebarMobileHeader />}
             <DnDFileUploaderWrapper>
               <div className="flex flex-col h-full w-full pb-20 md:pb-0">

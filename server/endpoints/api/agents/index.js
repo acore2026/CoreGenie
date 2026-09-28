@@ -35,7 +35,7 @@ async function loadApiConversation(request, response, next) {
 async function listAgents(_request, response) {
   await require("../../../agent-skills/seed").seedBuiltinSkills();
   const [agents, defaultAgentId] = await Promise.all([
-    PredefinedAgent.all({ enabledOnly: true }),
+    PredefinedAgent.all({ enabledOnly: true, rosterOnly: true }),
     PredefinedAgent.defaultId(),
   ]);
   const safeAgents = await Promise.all(

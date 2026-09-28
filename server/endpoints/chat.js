@@ -157,6 +157,24 @@ function chatEndpoints(app) {
           return;
         }
 
+        // Naming must not wait for a potentially long-running response.
+        void WorkspaceThread.autoRenameThread({
+          prompt: message,
+          thread,
+          workspace,
+          user,
+          onRename: (thread) => {
+            if (response.writableEnded || response.destroyed) return;
+            writeResponseChunk(response, {
+              action: "rename_thread",
+              thread: {
+                slug: thread.slug,
+                name: thread.name,
+              },
+            });
+          },
+        }).catch((error) => console.error(error.message));
+
         await streamChatWithWorkspace(
           response,
           workspace,
@@ -167,22 +185,6 @@ function chatEndpoints(app) {
           attachments,
           predefinedAgentId
         );
-
-        // If thread was renamed emit event to frontend via special `action` response.
-        await WorkspaceThread.autoRenameThread({
-          thread,
-          workspace,
-          user,
-          onRename: (thread) => {
-            writeResponseChunk(response, {
-              action: "rename_thread",
-              thread: {
-                slug: thread.slug,
-                name: thread.name,
-              },
-            });
-          },
-        });
 
         await Telemetry.sendTelemetry("sent_chat", {
           multiUserMode: multiUserMode(response),

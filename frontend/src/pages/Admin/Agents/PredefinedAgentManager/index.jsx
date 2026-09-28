@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   ChatCircleText,
   Check,
@@ -22,11 +23,15 @@ import System from "@/models/system";
 import useGetProviderModels from "@/hooks/useGetProvidersModels";
 import Workspace from "@/models/workspace";
 import ConfigSyncPanel from "../ConfigSyncPanel";
+import FullscreenEditor from "@/components/FullscreenEditor";
+import QuickTaskEditor from "./QuickTaskEditor";
 
 export default function PredefinedAgentManager({ view = "agents" }) {
+  const { t } = useTranslation();
   const [data, setData] = useState({
     agents: [],
     skills: [],
+    quickTasks: [],
     tools: [],
     runtimes: [],
     modelCapabilities: [],
@@ -39,6 +44,7 @@ export default function PredefinedAgentManager({ view = "agents" }) {
   const [workspaceSlug, setWorkspaceSlug] = useState("");
   const [workspaceSkills, setWorkspaceSkills] = useState([]);
   const showingSkills = view === "skills";
+  const showingQuickTasks = view === "quick-tasks";
 
   async function refresh() {
     const [next, availableWorkspaces] = await Promise.all([
@@ -57,8 +63,10 @@ export default function PredefinedAgentManager({ view = "agents" }) {
   }
 
   useEffect(() => {
+    setEditor(null);
+    setLoading(true);
     refresh();
-  }, []);
+  }, [view]);
 
   useEffect(() => {
     if (!showingSkills || !workspaceSlug) {
@@ -92,22 +100,30 @@ export default function PredefinedAgentManager({ view = "agents" }) {
 
   return (
     <div className="flex h-full w-full flex-col overflow-hidden rounded-2xl bg-theme-bg-secondary text-theme-text-primary">
-      <header className="flex shrink-0 items-center justify-between border-b border-white/[0.08] px-6 py-4 light:border-slate-200">
+      <header className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-white/[0.08] px-6 py-4 light:border-slate-200">
         <div>
           <div className="flex items-center gap-2">
             {showingSkills ? (
               <Sparkle size={22} weight="duotone" className="text-amber-300" />
+            ) : showingQuickTasks ? (
+              <FileText size={22} className="text-theme-text-secondary" />
             ) : (
               <Robot size={22} weight="duotone" className="text-cyan-300" />
             )}
             <h1 className="text-lg font-semibold">
-              {showingSkills ? "Skills" : "Predefined Agents"}
+              {showingSkills
+                ? "Skills"
+                : showingQuickTasks
+                  ? t("quick_tasks.title")
+                  : "Predefined Agents"}
             </h1>
           </div>
           <p className="mt-1 text-xs text-theme-text-secondary">
             {showingSkills
               ? "创建可被多个 Agent 复用的专业知识与行为指令。"
-              : "为不同任务配置独立的身份、Skill、工具权限和开场白。"}
+              : showingQuickTasks
+                ? t("quick_tasks.description")
+                : "为不同任务配置独立的身份、Skill、工具权限和开场白。"}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -121,6 +137,15 @@ export default function PredefinedAgentManager({ view = "agents" }) {
             >
               <Plus size={14} weight="bold" /> 新建 Skill
             </button>
+          ) : showingQuickTasks ? (
+            <button
+              type="button"
+              disabled={loading}
+              onClick={() => setEditor({ type: "quick-task", item: null })}
+              className="dsh-control min-h-[40px] px-3 text-sm hover:bg-theme-sidebar-subitem-hover focus-visible:ring-2 focus-visible:ring-primary-button disabled:opacity-50"
+            >
+              {t("quick_tasks.create")}
+            </button>
           ) : (
             <>
               <label className="flex h-9 items-center gap-2 rounded-xl border border-white/10 px-3 text-xs text-theme-text-secondary light:border-slate-200">
@@ -130,7 +155,10 @@ export default function PredefinedAgentManager({ view = "agents" }) {
                   value={data.defaultAgentId || ""}
                   onChange={setDefaultAgent}
                   disabled={
-                    loading || !data.agents.some((agent) => agent.enabled)
+                    loading ||
+                    !data.agents.some(
+                      (agent) => agent.enabled && agent.showInRoster !== false
+                    )
                   }
                   className="max-w-40 bg-transparent font-medium text-theme-text-primary outline-none"
                 >
@@ -140,7 +168,9 @@ export default function PredefinedAgentManager({ view = "agents" }) {
                     </option>
                   )}
                   {data.agents
-                    .filter((agent) => agent.enabled)
+                    .filter(
+                      (agent) => agent.enabled && agent.showInRoster !== false
+                    )
                     .map((agent) => (
                       <option key={agent.id} value={agent.id}>
                         {agent.name}
@@ -162,7 +192,7 @@ export default function PredefinedAgentManager({ view = "agents" }) {
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         <ConfigSyncPanel onResolved={refresh} />
-        {!showingSkills && (
+        {!showingSkills && !showingQuickTasks && (
           <section className="p-5">
             <div className="mb-4 flex items-center justify-between">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-theme-text-secondary">
@@ -172,7 +202,7 @@ export default function PredefinedAgentManager({ view = "agents" }) {
             {loading ? (
               <div className="h-32 animate-pulse rounded-2xl bg-white/5 light:bg-slate-100" />
             ) : data.agents.length ? (
-              <div className="grid gap-3 xl:grid-cols-2 2xl:grid-cols-3">
+              <div className="grid gap-3 md:grid-cols-2">
                 {data.agents.map((agent) => (
                   <button
                     key={agent.id}
@@ -182,13 +212,18 @@ export default function PredefinedAgentManager({ view = "agents" }) {
                   >
                     <AgentAvatar agent={agent} size={50} />
                     <span className="min-w-0 flex-1">
-                      <span className="flex items-center gap-2">
-                        <span className="truncate text-sm font-semibold">
-                          {agent.name}
-                        </span>
+                      <span className="block truncate pr-6 text-sm font-semibold">
+                        {agent.name}
+                      </span>
+                      <span className="mt-1.5 flex min-h-4 flex-wrap items-center gap-1.5">
                         {!agent.enabled && (
                           <span className="rounded-full bg-zinc-700 px-1.5 py-0.5 text-[9px] text-zinc-400 light:bg-slate-100 light:text-slate-500">
-                            Disabled
+                            {t("predefined_agents.disabled_badge")}
+                          </span>
+                        )}
+                        {agent.enabled && agent.showInRoster === false && (
+                          <span className="rounded-full bg-zinc-700 px-1.5 py-0.5 text-[9px] text-zinc-300 light:bg-slate-100 light:text-slate-600">
+                            {t("predefined_agents.hidden_badge")}
                           </span>
                         )}
                         {agent.id === data.defaultAgentId && (
@@ -205,7 +240,7 @@ export default function PredefinedAgentManager({ view = "agents" }) {
                           {runtimeLabels[agent.runtimeKey] || agent.runtimeKey}
                         </span>
                       </span>
-                      <span className="mt-1.5 block line-clamp-2 text-xs leading-5 text-theme-text-secondary">
+                      <span className="mt-2 block line-clamp-2 text-xs leading-5 text-theme-text-secondary">
                         {agent.description || "暂无描述"}
                       </span>
                       <span className="mt-3 flex flex-wrap gap-1.5 text-[10px] text-theme-text-secondary">
@@ -286,7 +321,7 @@ export default function PredefinedAgentManager({ view = "agents" }) {
                 )}
               </div>
             </div>
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid gap-3 md:grid-cols-2">
               {visibleSkills.map((skill) => (
                 <button
                   key={`${skillScope}:${skill.id || skill.name}`}
@@ -326,12 +361,42 @@ export default function PredefinedAgentManager({ view = "agents" }) {
             </div>
           </section>
         )}
+
+        {showingQuickTasks && (
+          <section className="grid gap-2 p-4 sm:grid-cols-2 lg:grid-cols-3">
+            {(data.quickTasks || []).map((task) => (
+              <button
+                key={task.id}
+                type="button"
+                onClick={() => setEditor({ type: "quick-task", item: task })}
+                className="rounded-xl border border-white/10 p-3 text-left hover:border-cyan-300/60 light:border-slate-200"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="truncate text-sm font-medium">
+                    {task.title}
+                    {task.archived ? ` · ${t("quick_tasks.archived")}` : ""}
+                  </span>
+                  <NotePencil size={14} />
+                </div>
+                <p className="mt-1 text-xs leading-4 text-theme-text-secondary">
+                  {task.description || task.key}
+                </p>
+              </button>
+            ))}
+            {!loading && !(data.quickTasks || []).length && (
+              <p className="text-sm text-theme-text-secondary">
+                {t("quick_tasks.empty")}
+              </p>
+            )}
+          </section>
+        )}
       </div>
 
       {editor?.type === "agent" && (
         <AgentEditor
           agent={editor.item}
           skills={data.skills}
+          quickTasks={data.quickTasks}
           tools={data.tools}
           runtimes={data.runtimes}
           defaultAgentId={data.defaultAgentId}
@@ -340,6 +405,13 @@ export default function PredefinedAgentManager({ view = "agents" }) {
             setEditor(null);
             await refresh();
           }}
+        />
+      )}
+      {editor?.type === "quick-task" && (
+        <QuickTaskEditor
+          task={editor.item}
+          onClose={() => setEditor(null)}
+          onSaved={refresh}
         />
       )}
       {editor?.type === "skill" && (
@@ -545,12 +617,14 @@ function ModalShell({ title, subtitle, onClose, children, wide = false }) {
 function AgentEditor({
   agent,
   skills,
+  quickTasks = [],
   tools,
   runtimes,
   defaultAgentId,
   onClose,
   onSaved,
 }) {
+  const { t } = useTranslation();
   const isCurrentDefault = agent?.id === defaultAgentId;
   const [form, setForm] = useState({
     name: agent?.name || "",
@@ -565,9 +639,11 @@ function AgentEditor({
     }),
     systemPrompt: agent?.systemPrompt || "",
     enabled: agent?.enabled ?? true,
+    showInRoster: agent?.showInRoster ?? true,
     allTools: agent?.tools === null || !agent,
     tools: agent?.tools || [],
     skillIds: agent?.skillIds || [],
+    quickTaskIds: agent?.quickTaskIds || [],
     runtimeKey: agent?.runtimeKey || "governed-agent",
     runtimeConfig: agent?.runtimeConfig || {},
     makeDefault: isCurrentDefault,
@@ -673,8 +749,10 @@ function AgentEditor({
       ),
       systemPrompt: form.systemPrompt,
       enabled: form.enabled,
+      showInRoster: form.showInRoster,
       tools: form.allTools ? null : form.tools,
       skillIds: form.skillIds,
+      quickTaskIds: form.quickTaskIds,
       runtimeKey: form.runtimeKey,
       runtimeConfig: form.runtimeConfig,
     };
@@ -696,6 +774,7 @@ function AgentEditor({
     }
     if (
       form.enabled &&
+      form.showInRoster &&
       form.makeDefault &&
       result.agent.id !== defaultAgentId
     ) {
@@ -773,27 +852,56 @@ function AgentEditor({
                 placeholder="说明这个 Agent 擅长什么"
               />
             </Field>
-            <label className="flex items-center gap-2 text-xs text-zinc-400 light:text-slate-600">
-              <input
-                type="checkbox"
-                checked={form.enabled}
-                disabled={saving}
-                onChange={(event) => {
-                  const enabled = event.target.checked;
-                  setForm({
-                    ...form,
-                    enabled,
-                    makeDefault: enabled ? form.makeDefault : false,
-                  });
-                }}
-                className="accent-cyan-300 disabled:cursor-not-allowed disabled:opacity-50"
-              />
-              {agent?.isBuiltinDefault
-                ? "在 Agent 列表中启用内置通用助手"
-                : isCurrentDefault
-                  ? "停用后，不再作为全局默认 Agent"
-                  : "在 Agent 展示区启用"}
-            </label>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <label className="flex min-h-[72px] cursor-pointer items-start gap-3 rounded-xl border border-white/10 bg-white/[0.02] p-3 transition hover:border-cyan-300/30 focus-within:ring-2 focus-within:ring-cyan-300/40 light:border-slate-200 light:bg-slate-50">
+                <input
+                  type="checkbox"
+                  checked={form.enabled}
+                  disabled={saving}
+                  onChange={(event) => {
+                    const enabled = event.target.checked;
+                    setForm({
+                      ...form,
+                      enabled,
+                      makeDefault: enabled ? form.makeDefault : false,
+                    });
+                  }}
+                  className="mt-0.5 accent-cyan-300 disabled:cursor-not-allowed disabled:opacity-50"
+                />
+                <span>
+                  <span className="block text-xs font-semibold text-theme-text-primary">
+                    {t("predefined_agents.enabled_label")}
+                  </span>
+                  <span className="mt-1 block text-[11px] leading-4 text-theme-text-secondary">
+                    {t("predefined_agents.enabled_description")}
+                  </span>
+                </span>
+              </label>
+              <label className="flex min-h-[72px] cursor-pointer items-start gap-3 rounded-xl border border-white/10 bg-white/[0.02] p-3 transition hover:border-cyan-300/30 focus-within:ring-2 focus-within:ring-cyan-300/40 light:border-slate-200 light:bg-slate-50">
+                <input
+                  type="checkbox"
+                  checked={form.showInRoster}
+                  disabled={saving}
+                  onChange={(event) => {
+                    const showInRoster = event.target.checked;
+                    setForm({
+                      ...form,
+                      showInRoster,
+                      makeDefault: showInRoster ? form.makeDefault : false,
+                    });
+                  }}
+                  className="mt-0.5 accent-cyan-300 disabled:cursor-not-allowed disabled:opacity-50"
+                />
+                <span>
+                  <span className="block text-xs font-semibold text-theme-text-primary">
+                    {t("predefined_agents.roster_label")}
+                  </span>
+                  <span className="mt-1 block text-[11px] leading-4 text-theme-text-secondary">
+                    {t("predefined_agents.roster_description")}
+                  </span>
+                </span>
+              </label>
+            </div>
           </div>
         </div>
 
@@ -967,15 +1075,17 @@ function AgentEditor({
             </div>
           </Field>
           <Field label="System Prompt">
-            <textarea
-              required
-              value={form.systemPrompt}
-              onChange={(event) =>
-                setForm({ ...form, systemPrompt: event.target.value })
-              }
-              className={`${inputClass} min-h-36 resize-y leading-5`}
-              placeholder="定义角色、工作方式、输出要求和边界……"
-            />
+            <FullscreenEditor title="System Prompt">
+              <textarea
+                required
+                value={form.systemPrompt}
+                onChange={(event) =>
+                  setForm({ ...form, systemPrompt: event.target.value })
+                }
+                className={`${inputClass} min-h-36 resize-y leading-5`}
+                placeholder="定义角色、工作方式、输出要求和边界……"
+              />
+            </FullscreenEditor>
           </Field>
 
           {!agent?.isBuiltinDefault && (
@@ -995,6 +1105,9 @@ function AgentEditor({
                     ...form,
                     makeDefault: event.target.checked,
                     enabled: event.target.checked ? true : form.enabled,
+                    showInRoster: event.target.checked
+                      ? true
+                      : form.showInRoster,
                   })
                 }
                 className="mt-0.5 accent-cyan-300 disabled:cursor-not-allowed"
@@ -1030,6 +1143,28 @@ function AgentEditor({
               {!skills.length && (
                 <p className="text-xs text-zinc-500">
                   请先在 Skill library 创建 Skill。
+                </p>
+              )}
+            </div>
+          </Field>
+
+          <Field
+            label={t("quick_tasks.title")}
+            hint={t("quick_tasks.bind_hint")}
+          >
+            <div className="grid gap-2 sm:grid-cols-2">
+              {quickTasks.map((task) => (
+                <CheckCard
+                  key={task.id}
+                  checked={form.quickTaskIds.includes(task.id)}
+                  title={task.title}
+                  description={task.description || task.key}
+                  onClick={() => toggleList("quickTaskIds", task.id)}
+                />
+              ))}
+              {!quickTasks.length && (
+                <p className="text-xs text-zinc-500">
+                  {t("quick_tasks.empty")}
                 </p>
               )}
             </div>
@@ -1317,17 +1452,19 @@ function SkillEditor({ skill, scope, workspaceSlug, onClose, onSaved }) {
             {loading ? (
               <div className="flex-1 animate-pulse rounded-xl bg-white/5 light:bg-slate-100" />
             ) : selectedPath === "SKILL.md" || selectedFile?.text !== false ? (
-              <textarea
-                required={selectedPath === "SKILL.md"}
-                spellCheck={false}
-                value={
-                  selectedPath === "SKILL.md"
-                    ? skillMd
-                    : selectedFile?.content || ""
-                }
-                onChange={(event) => updateSelected(event.target.value)}
-                className={`${inputClass} min-h-0 flex-1 resize-none whitespace-pre font-mono text-xs leading-5`}
-              />
+              <FullscreenEditor title={selectedPath}>
+                <textarea
+                  required={selectedPath === "SKILL.md"}
+                  spellCheck={false}
+                  value={
+                    selectedPath === "SKILL.md"
+                      ? skillMd
+                      : selectedFile?.content || ""
+                  }
+                  onChange={(event) => updateSelected(event.target.value)}
+                  className={`${inputClass} min-h-[360px] w-full resize-y whitespace-pre font-mono text-sm leading-6`}
+                />
+              </FullscreenEditor>
             ) : (
               <div className="flex flex-1 items-center justify-center rounded-xl border border-dashed border-white/10 text-xs text-theme-text-secondary light:border-slate-300">
                 Binary asset · {selectedFile?.size || 0} bytes
@@ -1397,14 +1534,14 @@ function CheckCard({ checked, title, description, onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className={`flex min-h-14 items-start gap-2.5 rounded-xl border p-2.5 text-left transition ${
+      className={`flex min-h-11 items-center gap-2 rounded-xl border p-2 text-left transition ${
         checked
           ? "border-cyan-300/35 bg-cyan-300/[0.07]"
           : "border-white/[0.08] hover:border-white/20 light:border-slate-200 light:hover:border-slate-300"
       }`}
     >
       <span
-        className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+        className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
           checked
             ? "border-cyan-300 bg-cyan-300 text-zinc-950"
             : "border-zinc-600 light:border-slate-300"

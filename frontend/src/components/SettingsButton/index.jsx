@@ -15,15 +15,12 @@ export default function SettingsButton() {
       <div className="flex w-fit">
         <Link
           to={paths.home()}
-          className="transition-all duration-300 p-2 rounded-full bg-theme-sidebar-footer-icon hover:bg-theme-sidebar-footer-icon-hover"
+          className="flex h-9 w-9 items-center justify-center rounded-md border border-transparent text-theme-text-secondary transition-colors duration-150 hover:bg-theme-sidebar-subitem-hover hover:text-theme-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-button-primary"
           aria-label="Home"
           data-tooltip-id="footer-item"
           data-tooltip-content="Back to workspaces"
         >
-          <ArrowUUpLeft
-            className="h-5 w-5 text-white light:text-slate-800"
-            weight="fill"
-          />
+          <ArrowUUpLeft className="h-[18px] w-[18px]" />
         </Link>
       </div>
     );
@@ -32,15 +29,12 @@ export default function SettingsButton() {
     <div className="flex w-fit">
       <Link
         to={paths.settings.interface()}
-        className="transition-all duration-300 p-2 rounded-full bg-theme-sidebar-footer-icon hover:bg-theme-sidebar-footer-icon-hover"
+        className="flex h-9 w-9 items-center justify-center rounded-md border border-transparent text-theme-text-secondary transition-colors duration-150 hover:bg-theme-sidebar-subitem-hover hover:text-theme-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-button-primary"
         aria-label="Settings"
         data-tooltip-id="footer-item"
         data-tooltip-content="Open settings"
       >
-        <Wrench
-          className="h-5 w-5 text-white light:text-slate-800"
-          weight="fill"
-        />
+        <Wrench className="h-[18px] w-[18px]" />
       </Link>
     </div>
   );

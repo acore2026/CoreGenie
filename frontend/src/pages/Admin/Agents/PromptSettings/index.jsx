@@ -6,6 +6,7 @@ import Sidebar from "@/components/SettingsSidebar";
 import Admin from "@/models/admin";
 import showToast from "@/utils/toast";
 import ConfigSyncPanel from "../ConfigSyncPanel";
+import FullscreenEditor from "@/components/FullscreenEditor";
 
 const MAX_PROMPT_LENGTH = 40_000;
 
@@ -103,15 +104,17 @@ export default function AgentPromptSettings() {
               <p className="mt-1.5 text-xs leading-5 text-theme-text-secondary">
                 {t("agent_prompts.global_help")}
               </p>
-              <textarea
-                id="global-system-prompt"
-                value={prompt}
-                onChange={(event) => setPrompt(event.target.value)}
-                maxLength={MAX_PROMPT_LENGTH}
-                disabled={loading || saving}
-                placeholder={t("agent_prompts.placeholder")}
-                className="mt-4 min-h-[360px] w-full resize-y rounded-xl border border-white/10 bg-theme-settings-input-bg p-4 text-sm leading-6 text-theme-text-primary outline-none transition placeholder:text-theme-settings-input-placeholder focus:border-cyan-300/50 focus:ring-2 focus:ring-cyan-300/10 light:border-slate-300"
-              />
+              <FullscreenEditor title={t("agent_prompts.global_label")}>
+                <textarea
+                  id="global-system-prompt"
+                  value={prompt}
+                  onChange={(event) => setPrompt(event.target.value)}
+                  maxLength={MAX_PROMPT_LENGTH}
+                  disabled={loading || saving}
+                  placeholder={t("agent_prompts.placeholder")}
+                  className="mt-4 min-h-[360px] w-full resize-y rounded-xl border border-white/10 bg-theme-settings-input-bg p-4 text-sm leading-6 text-theme-text-primary outline-none transition placeholder:text-theme-settings-input-placeholder focus:border-cyan-300/50 focus:ring-2 focus:ring-cyan-300/10 light:border-slate-300"
+                />
+              </FullscreenEditor>
               <div className="mt-4 flex justify-end">
                 <button
                   type="submit"

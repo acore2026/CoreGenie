@@ -21,12 +21,9 @@ RUN sed -i -E \
 # hadolint ignore=DL3008,DL3013
 RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -yq --no-install-recommends \
-        unzip curl gnupg libgfortran5 libgbm1 tzdata netcat-openbsd poppler-utils \
-        libasound2t64 libatk1.0-0 libc6 libcairo2 libcups2 libdbus-1-3 libexpat1 libfontconfig1 \
-        libgcc1 libglib2.0-0 libgtk-3-0 libnspr4 libpango-1.0-0 libx11-6 libx11-xcb1 libxcb1 \
-        libxcomposite1 libxcursor1 libxdamage1 libxext6 libxfixes3 libxi6 libxrandr2 libxrender1 \
-        libxss1 libxtst6 ca-certificates fonts-liberation libappindicator3-1 libnss3 lsb-release \
-        xdg-utils git build-essential pkg-config libcairo2-dev libpango1.0-dev \
+        unzip curl gnupg libgfortran5 tzdata netcat-openbsd poppler-utils \
+        libc6 libcairo2 libexpat1 libfontconfig1 libgcc1 libglib2.0-0 libpango-1.0-0 \
+        ca-certificates fonts-liberation git build-essential pkg-config libcairo2-dev libpango1.0-dev \
         libjpeg-dev libgif-dev librsvg2-dev ffmpeg && \
     mkdir -p /etc/apt/keyrings && \
     curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg && \
@@ -62,23 +59,6 @@ COPY --chown=anythingllm:anythingllm ./docker/.env.example /app/server/.env
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh && \
     chmod +x /usr/local/bin/docker-healthcheck.sh
 
-USER anythingllm
-WORKDIR /app
-
-# Puppeteer does not ship with an ARM86 compatible build for Chromium
-# so web-scraping would be broken in arm docker containers unless we patch it
-# by manually installing a compatible chromedriver.
-RUN echo "Need to patch Puppeteer x Chromium support for ARM86 - installing dep!" && \
-    curl -fSL https://webassets.anythingllm.com/chromium-1088-linux-arm64.zip -o chrome-linux.zip && \
-    unzip chrome-linux.zip && \
-    rm -rf chrome-linux.zip
-
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
-ENV CHROME_PATH=/app/chrome-linux/chrome
-ENV PUPPETEER_EXECUTABLE_PATH=/app/chrome-linux/chrome
-
-RUN echo "Done running arm64 specific installation steps"
-
 #############################################
 
 # amd64-specific stage
@@ -98,12 +78,9 @@ RUN sed -i -E \
 # hadolint ignore=DL3008,DL3013
 RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -yq --no-install-recommends \
-        unzip curl gnupg libgfortran5 libgbm1 tzdata netcat-openbsd poppler-utils \
-        libasound2t64 libatk1.0-0 libc6 libcairo2 libcups2 libdbus-1-3 libexpat1 libfontconfig1 \
-        libgcc1 libglib2.0-0 libgtk-3-0 libnspr4 libpango-1.0-0 libx11-6 libx11-xcb1 libxcb1 \
-        libxcomposite1 libxcursor1 libxdamage1 libxext6 libxfixes3 libxi6 libxrandr2 libxrender1 \
-        libxss1 libxtst6 ca-certificates fonts-liberation libappindicator3-1 libnss3 lsb-release \
-        xdg-utils git build-essential pkg-config libcairo2-dev libpango1.0-dev \
+        unzip curl gnupg libgfortran5 tzdata netcat-openbsd poppler-utils \
+        libc6 libcairo2 libexpat1 libfontconfig1 libgcc1 libglib2.0-0 libpango-1.0-0 \
+        ca-certificates fonts-liberation git build-essential pkg-config libcairo2-dev libpango1.0-dev \
         libjpeg-dev libgif-dev librsvg2-dev ffmpeg && \
     mkdir -p /etc/apt/keyrings && \
     curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg && \
@@ -192,17 +169,27 @@ RUN case "$TARGETARCH" in \
     curl -fsSL --retry 4 --retry-all-errors \
       "https://github.com/microsoft/ripgrep-prebuilt/releases/download/${VSCODE_RIPGREP_RELEASE}/${ripgrep_asset}" \
       -o "$ripgrep_cache/$ripgrep_asset"
+# Yarn 1 installs both glibc and musl LanceDB optional packages on Linux.
+# Ubuntu uses glibc, so retain only the native package for the target CPU.
 RUN sed -i \
       -e "s#https://registry.yarnpkg.com#${YARN_REGISTRY}#g" \
       -e "s#https://registry.npmjs.org#${YARN_REGISTRY}#g" \
       yarn.lock && \
-    yarn install --production --frozen-lockfile --network-timeout 100000 && yarn cache clean
+    yarn install --production --frozen-lockfile --network-timeout 100000 && \
+    case "$TARGETARCH" in \
+      amd64) lancedb_native_package=lancedb-linux-x64-gnu ;; \
+      arm64) lancedb_native_package=lancedb-linux-arm64-gnu ;; \
+      *) echo "Unsupported LanceDB build architecture: $TARGETARCH" >&2; exit 1 ;; \
+    esac && \
+    find node_modules/@lancedb -mindepth 1 -maxdepth 1 -type d \
+      -name 'lancedb-*' ! -name "$lancedb_native_package" -exec rm -rf {} + && \
+    test -d "node_modules/@lancedb/$lancedb_native_package" && \
+    node -e "require('@lancedb/lancedb')" && \
+    yarn cache clean
 
-# Install collector dependencies before copying either source tree. This layer
-# includes large browser/native packages and must remain cached even when only
-# server source changes.
+# Install collector dependencies before copying either source tree so this
+# layer remains cached when only server source changes.
 WORKDIR /app/collector
-ENV PUPPETEER_DOWNLOAD_BASE_URL=https://storage.googleapis.com/chrome-for-testing-public
 COPY --chown=anythingllm:anythingllm ./collector/package.json ./collector/yarn.lock ./
 RUN sed -i \
       -e "s#https://registry.yarnpkg.com#${YARN_REGISTRY}#g" \

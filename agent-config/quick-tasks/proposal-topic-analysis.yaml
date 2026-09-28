@@ -1,0 +1,705 @@
+id: proposal-topic-analysis
+title: 下载分析提案（按议题）
+description: 选会议和 KI，梳理方案、分歧与会议结果。
+instructions: 根据任务动作处理所选会议与官方 KI 的 3GPP 提案。仅下载时下载并整理官方资料，不生成分析报告；下载并分析时继续生成中文 Markdown 报告。单独分析只处理一场会议；对比分析必须分别处理两场会议，并重点说明第二场相对第一场的新增、删除和变化。列出所用 TDoc 和会议材料，区分公司提案与会议已通过的结论。手动填写的会议和议题要先查官方资料确认；资料缺失时明确说明，不要猜测。所选 KI 来自列明 TR 版本的官方研究报告，中文标题和说明为简述。使用时保留 TR、版本和章节，不得跨项目套用编号；KI 是研究问题，不代表相关方案已被采纳。手动补充的 KI 须先查原文确认。
+version: 1
+fields:
+  - id: action
+    type: single
+    label: 任务动作
+    hint: 先决定只保存官方资料，还是下载后立即进入分析。
+    required: true
+    options:
+      - value: download
+        label: 仅下载
+        description: 下载并整理所选会议的官方资料，不生成分析报告。
+      - value: download_analyze
+        label: 下载并分析
+        description: 下载资料后继续生成分析报告。
+  - id: analysis_mode
+    type: single
+    label: 分析方式
+    hint: 对比分析会把两次会议的新增和变化分开说明；单独分析只处理一次会议。
+    required: true
+    when:
+      - field: action
+        values:
+          - download_analyze
+    options:
+      - value: compare
+        label: 对比分析
+        description: 最多选择两次会议，触发两次会议的增量分析。
+      - value: single
+        label: 单独分析
+        description: 只分析一次会议的提案和会议结果。
+  - id: group
+    type: single
+    label: 工作组
+    hint: 核心网相关组默认显示；其他工作组可展开选择。选择后显示已收录的官方 KI，会议列表自动读取。
+    required: true
+    optionGroups:
+      - id: core
+        label: 核心网相关
+        description: 架构、安全、管理计费及核心网协议工作组。
+      - id: other
+        label: 其他工作组
+        description: 包括需求、媒体、应用、卡和无线接入网工作组。
+        collapsed: true
+    options:
+      - value: SA2
+        label: SA2
+        description: 核心网总体架构、网络功能及流程（Stage 2）。
+        group: core
+      - value: SA3
+        label: SA3
+        description: 安全与隐私，包括认证、授权和接口安全。
+        group: core
+      - value: SA5
+        label: SA5
+        description: 管理、编排与计费，包括网元、切片和运维。
+        group: core
+      - value: CT1
+        label: CT1
+        description: 终端与核心网协议，包括 NAS、注册、移动性和会话管理。
+        group: core
+      - value: CT3
+        label: CT3
+        description: 外部网络互通、策略与计费控制协议。
+        group: core
+      - value: CT4
+        label: CT4
+        description: 核心网内部协议，包括 SBI、GTP、PFCP 和网元间接口。
+        group: core
+      - value: SA
+        label: SA
+        description: SA 全会，协调并批准 SA 各工作组成果。
+        group: other
+      - value: SA1
+        label: SA1
+        description: 业务场景和服务需求（Stage 1）。
+        group: other
+      - value: SA4
+        label: SA4
+        description: 语音、音频、视频编解码及多媒体系统。
+        group: other
+      - value: SA6
+        label: SA6
+        description: 应用使能与关键通信应用，不负责通用核心网架构。
+        group: other
+      - value: CT
+        label: CT
+        description: CT 全会，协调并批准核心网与终端协议成果。
+        group: other
+      - value: CT6
+        label: CT6
+        description: USIM、ISIM 等智能卡应用及终端与卡的交互。
+        group: other
+      - value: RAN
+        label: RAN
+        description: 无线接入网全会。
+        group: other
+      - value: RAN1
+        label: RAN1
+        description: 无线物理层。
+        group: other
+      - value: RAN2
+        label: RAN2
+        description: 无线接口层 2 和层 3 协议。
+        group: other
+      - value: RAN3
+        label: RAN3
+        description: 无线接入网架构及网元间接口。
+        group: other
+      - value: RAN4
+        label: RAN4
+        description: 无线性能和射频要求。
+        group: other
+      - value: RAN5
+        label: RAN5
+        description: 终端一致性测试。
+        group: other
+  - id: meeting
+    type: meeting
+    groupField: group
+    label: 会议
+    hint: 按年份选择官方资料目录中的会议；上一次／下一次切换相邻场次。列表不代表完整会议日历，尚未建立资料目录的会议可手动填写。
+    required: true
+    multiple: true
+    maxSelectionsBy:
+      action:
+        download: 999
+      analysis_mode:
+        single: 1
+        compare: 2
+    placeholder: 例如：SA2#176
+    examples:
+      - SA2#176（示例，需与所选工作组一致）
+  - id: ki_sa2_0
+    type: multi
+    label: KI · 6G 系统架构（TR 23.801-01 V0.8.0）
+    hint: 官方 KI，可多选；中文为简述。编号须连同 TR 和章节使用，不代表已采纳结论。未选时不限定 KI。
+    required: false
+    when:
+      - field: group
+        values:
+          - SA2
+    options:
+      - value: 23801-01_5_1
+        label: KI#1 · 控制信令（§5.1）
+        description: 研究 6G 控制信令及 NAS 功能的组织方式。
+      - value: 23801-01_5_2
+        label: KI#2 · 服务化架构框架（§5.2）
+        description: 研究网络功能注册、发现、选择及服务韧性。
+      - value: 23801-01_5_3
+        label: KI#3 · 网络切片（§5.3）
+        description: 研究 6G 切片设计、简化及业务流量映射。
+      - value: 23801-01_5_4
+        label: KI#4 · 用户面架构（§5.4）
+        description: 研究控制面与用户面分工、交互及用户面功能选择。
+      - value: 23801-01_5_5
+        label: KI#5 · QoS 框架（§5.5）
+        description: 研究新业务流量需要的服务质量能力。
+      - value: 23801-01_5_6
+        label: KI#6 · 策略与计费控制（§5.6）
+        description: 研究策略、计费控制框架的简化和功能支持。
+      - value: 23801-01_5_7
+        label: KI#7 · 网络能力开放（§5.7）
+        description: 研究统一开放框架及新旧网络能力的开放。
+      - value: 23801-01_5_8
+        label: KI#8 · 网络共享（§5.8）
+        description: 研究多运营商核心网及间接网络共享。
+      - value: 23801-01_5_9
+        label: KI#9 · 本地化服务接入（§5.9）
+        description: 研究本地服务接入、授权及移动中的服务连续性。
+      - value: 23801-01_5_10
+        label: KI#10 · 固定无线接入（§5.10）
+        description: 分析 5G FWA 部署问题及对 6G 架构的要求。
+      - value: 23801-01_5_11
+        label: KI#11 · 非 3GPP 接入（§5.11）
+        description: 研究非 3GPP 接入及不同接入间的服务连续性。
+      - value: 23801-01_5_12
+        label: KI#12 · 语音业务（§5.12）
+        description: 研究 6G 对 IMS 语音及相关接入的支持。
+      - value: 23801-01_5_13
+        label: KI#13 · 紧急语音业务（§5.13）
+        description: 研究紧急呼叫识别、接入和会话建立。
+      - value: 23801-01_5_14
+        label: KI#14 · 定位业务（§5.14）
+        description: 研究定位架构、紧急业务定位及定位能力开放。
+      - value: 23801-01_5_15
+        label: KI#15 · 消息业务（§5.15）
+        description: 研究 6G 系统对短信服务的支持。
+      - value: 23801-01_5_16
+        label: KI#16 · 其他基础与监管业务（§5.16）
+        description: 研究多媒体优先业务及关键通信的优先处理。
+      - value: 23801-01_5_17
+        label: KI#17 · 迁移与互通（§5.17）
+        description: 研究向 6G 迁移及与现有系统的互通。
+      - value: 23801-01_5_18
+        label: KI#18 · AI 支持 6G 架构（§5.18）
+        description: 研究如何在 6G 架构中使用 AI 和 AI Agent。
+      - value: 23801-01_5_19
+        label: KI#19 · 6G 网络支持 AI（§5.19）
+        description: 研究网络为 AI 应用和 Agent 提供的支持。
+      - value: 23801-01_5_20
+        label: KI#20 · 通感一体化（§5.20）
+        description: 研究感知服务架构、授权及感知实体协作。
+      - value: 23801-01_5_21
+        label: KI#21 · 6G 数据框架（§5.21）
+        description: 研究核心网中的通用数据处理能力及相关用例。
+      - value: 23801-01_5_22
+        label: KI#22 · 6G 计算支持（§5.22）
+        description: 研究终端、核心网和应用服务器间的计算协作。
+      - value: 23801-01_5_23
+        label: KI#23 · 6G 非地面网络（§5.23）
+        description: 研究 6G 卫星等非地面接入及服务连续性。
+      - value: 23801-01_5_24
+        label: KI#24 · 5GS 物联网能力分析（§5.24）
+        description: 分析哪些 5G 蜂窝物联网能力适用于 6G。
+  - id: ki_sa3_0
+    type: multi
+    label: KI · 6G 系统安全（TR 33.801-01 V0.6.0） · 1
+    hint: 官方 KI，可多选；中文为简述。编号须连同 TR 和章节使用，不代表已采纳结论。未选时不限定 KI。
+    required: false
+    when:
+      - field: group
+        values:
+          - SA3
+    options:
+      - value: 33801-01_5_1_3_1
+        label: KI#1.1 · 安全域与信任锚（§5.1.3.1）
+        description: 研究 6G 安全域的划分及信任基础。
+      - value: 33801-01_5_1_3_2
+        label: KI#1.2 · 密钥层次（§5.1.3.2）
+        description: 研究 6G 系统的密钥层次设计。
+      - value: 33801-01_5_1_3_3
+        label: KI#1.3 · AS 与 NAS 安全算法（§5.1.3.3）
+        description: 研究接入层及非接入层的安全算法支持。
+      - value: 33801-01_5_1_3_4
+        label: KI#1.4 · 安全锚点（§5.1.3.4）
+        description: 研究安全锚点的职责及架构安排。
+      - value: 33801-01_5_1_3_5
+        label: KI#1.5 · 消息认证码长度（§5.1.3.5）
+        description: 研究 AS 与 NAS 消息认证码的长度。
+      - value: 33801-01_5_2_3_1
+        label: KI#2.1 · MAC 控制单元安全（§5.2.3.1）
+        description: 研究 MAC CE 控制信息的威胁及保护。
+      - value: 33801-01_5_2_3_2
+        label: KI#2.2 · 无线移动性安全（§5.2.3.2）
+        description: 研究切换中的安全上下文和密钥处理。
+      - value: 33801-01_5_2_3_3
+        label: KI#2.3 · 初始无线消息安全（§5.2.3.3）
+        description: 研究 AS 安全启用前的初始无线消息保护。
+      - value: 33801-01_5_3_3_1
+        label: KI#3.1 · NAS 安全（§5.3.3.1）
+        description: 研究终端与核心网之间的 NAS 信令保护。
+      - value: 33801-01_5_3_3_2
+        label: KI#3.2 · 系统互通安全（§5.3.3.2）
+        description: 研究 6G 与现有系统互通时的安全上下文处理。
+      - value: 33801-01_5_3_3_3
+        label: KI#3.3 · 归属网与终端安全传参（§5.3.3.3）
+        description: 研究归属网和终端间通用的安全参数传送。
+      - value: 33801-01_5_3_3_4
+        label: KI#3.4 · 终端与核心网通用交互安全（§5.3.3.4）
+        description: 研究通用终端—核心网交互机制的安全。
+      - value: 33801-01_5_3_3_5
+        label: KI#3.5 · NAS 标识隐私（§5.3.3.5）
+        description: 研究终端 NAS 标识的隐私保护。
+      - value: 33801-01_5_3_3_6
+        label: KI#3.6 · 跨网络欺诈防范（§5.3.3.6）
+        description: 研究运营商间信任被滥用时的检测与防范。
+      - value: 33801-01_5_3_3_7
+        label: KI#3.7 · NAS 密钥分离（§5.3.3.7）
+        description: 研究不同 NAS 安全用途之间的密钥分离。
+      - value: 33801-01_5_4_3_1
+        label: KI#4.1 · 网络功能认证与授权关联（§5.4.3.1）
+        description: 研究如何把网络功能身份认证与访问授权关联。
+      - value: 33801-01_5_4_3_2
+        label: KI#4.2 · SBA 令牌重放防护（§5.4.3.2）
+        description: 研究间接通信和互联场景中的令牌重放风险。
+      - value: 33801-01_5_4_3_3
+        label: KI#4.3 · SBA 令牌接收方限制（§5.4.3.3）
+        description: 研究如何限制访问令牌可用于哪些服务方。
+      - value: 33801-01_5_4_3_4
+        label: KI#4.4 · SBA 授权凭据保密（§5.4.3.4）
+        description: 研究服务化架构中授权凭据的保密。
+      - value: 33801-01_5_4_3_5
+        label: KI#4.5 · 根 CA 证书分发（§5.4.3.5）
+        description: 研究不同信任域之间的根证书分发。
+      - value: 33801-01_5_4_3_6
+        label: KI#4.6 · SBA 授权框架（§5.4.3.6）
+        description: 重新研究服务消费者访问服务提供方的授权机制。
+      - value: 33801-01_5_4_3_7
+        label: KI#4.7 · 本地服务网络跨域安全（§5.4.3.7）
+        description: 研究本地化服务网络与 PLMN 之间的安全。
+      - value: 33801-01_5_4_3_8
+        label: KI#4.8 · 核心网用户面安全（§5.4.3.8）
+        description: 研究 6G 核心网用户面的保护。
+      - value: 33801-01_5_5_3_1
+        label: KI#5.1 · 主认证与密钥协商（§5.5.3.1）
+        description: 研究终端与网络的主认证及密钥建立。
+      - value: 33801-01_5_5_3_2
+        label: KI#5.2 · 非可信非 3GPP 接入认证（§5.5.3.2）
+        description: 研究非可信外部接入的认证机制。
+      - value: 33801-01_5_6_3_1
+        label: KI#6.1 · CAPIF 中第三方 AI Agent 安全（§5.6.3.1）
+        description: 研究第三方 AI Agent 调用 CAPIF API 的安全。
+      - value: 33801-01_5_6_3_2
+        label: KI#6.2 · 向终端与应用开放能力的安全（§5.6.3.2）
+        description: 研究向终端和应用端点开放网络能力的安全。
+      - value: 33801-01_5_6_3_3
+        label: KI#6.3 · NEF 的 Agent 能力开放安全（§5.6.3.3）
+        description: 研究经 NEF 进行 Agent 能力开放的安全。
+      - value: 33801-01_5_6_3_4
+        label: KI#6.4 · 意图式能力开放安全（§5.6.3.4）
+        description: 研究基于意图的能力开放中的安全和隐私。
+      - value: 33801-01_5_7_3_1
+        label: KI#7.1 · 安全相关数据采集（§5.7.3.1）
+        description: 研究用于安全分析的数据采集。
+  - id: ki_sa3_1
+    type: multi
+    label: KI · 6G 系统安全（TR 33.801-01 V0.6.0） · 2
+    hint: 官方 KI，可多选；中文为简述。编号须连同 TR 和章节使用，不代表已采纳结论。未选时不限定 KI。
+    required: false
+    when:
+      - field: group
+        values:
+          - SA3
+    options:
+      - value: 33801-01_5_8_3_1
+        label: KI#8.1 · 终端 AI Agent 传输安全（§5.8.3.1）
+        description: 研究终端 AI Agent 通信时的信任及传输保护。
+      - value: 33801-01_5_8_3_2
+        label: KI#8.2 · 终端 AI Agent 授权（§5.8.3.2）
+        description: 研究终端 AI Agent 执行任务的访问授权。
+      - value: 33801-01_5_9_3_1
+        label: KI#9.1 · 数据生产与消费授权（§5.9.3.1）
+        description: 研究数据框架中生产者和消费者的访问授权。
+      - value: 33801-01_5_9_3_2
+        label: KI#9.2 · 数据框架参与方认证（§5.9.3.2）
+        description: 研究数据提供者、消费者与数据框架之间的认证。
+  - id: ki_sa5_0
+    type: multi
+    label: KI · 6G 管理与编排（TR 32.801-01 V0.4.0）
+    hint: 官方 KI，可多选；中文为简述。编号须连同 TR 和章节使用，不代表已采纳结论。未选时不限定 KI。
+    required: false
+    when:
+      - field: group
+        values:
+          - SA5
+    options:
+      - value: 32801-01_7_1_2
+        label: KI#1 · 数据管理能力（§7.1.2）
+        description: 研究数据采集、处理等通用管理能力。
+      - value: 32801-01_7_2_1
+        label: KI#1 · 知识表达与管理（§7.2.1）
+        description: 研究网络管理知识的表达、语义及管理。
+      - value: 32801-01_7_3_2
+        label: KI#1 · 系统内部管理 Agent（§7.3.2）
+        description: 研究 3GPP 管理系统中 Agent 的概念与管理框架。
+      - value: 32801-01_7_3_3
+        label: KI#2 · 系统外部 Agent（§7.3.3）
+        description: 研究如何向外部 Agent 开放管理能力。
+      - value: 32801-01_7_4_1
+        label: KI#1 · 能效管理架构（§7.4.1）
+        description: 研究 6G 节能和能效管理的架构支持。
+      - value: 32801-01_7_5_1
+        label: KI#1 · 子网生命周期管理（§7.5.1）
+        description: 研究基于网络功能部署的子网生命周期管理改进。
+      - value: 32801-01_7_6_1
+        label: KI#1 · 网络数字孪生能力增强（§7.6.1）
+        description: 研究网络数字孪生能力的增强。
+      - value: 32801-01_7_7_2
+        label: KI#1 · 自然语言意图（§7.7.2）
+        description: 研究管理系统对自然语言意图的理解与支持。
+      - value: 32801-01_7_8_1
+        label: KI#1 · 6G 管理架构（§7.8.1）
+        description: 研究现有服务化管理架构的复用与演进。
+      - value: 32801-01_7_9_2
+        label: KI#1 · 上下文感知控制闭环（§7.9.2）
+        description: 研究控制闭环如何在分析和决策中使用上下文。
+      - value: 32801-01_7_10_1
+        label: KI#1 · 策略生命周期管理（§7.10.1）
+        description: 研究策略数量及关系更复杂时的生命周期管理。
+      - value: 32801-01_7_11_1
+        label: KI#1 · 跨域网络问题协调处理（§7.11.1）
+        description: 研究多个跨域网络问题的协调处置。
+  - id: ki_sa6_0
+    type: multi
+    label: KI · 6G 应用使能（TR 23.801-02 V0.4.1） · 1
+    hint: 官方 KI，可多选；中文为简述。编号须连同 TR 和章节使用，不代表已采纳结论。未选时不限定 KI。
+    required: false
+    when:
+      - field: group
+        values:
+          - SA6
+    options:
+      - value: 23801-02_4_1_2
+        label: KI#1.1 · 意图式能力开放（§4.1.2）
+        description: 研究应用如何通过表达目标来调用网络能力。
+      - value: 23801-02_4_1_3
+        label: KI#1.2 · 开放框架的能耗考虑（§4.1.3）
+        description: 研究能力开放中的能源信息和节能支持。
+      - value: 23801-02_4_1_4
+        label: KI#1.3 · 面向第三方 AI Agent 开放（§4.1.4）
+        description: 研究如何向第三方 AI Agent 提供开放能力。
+      - value: 23801-02_4_1_5
+        label: KI#1.4 · 跨网络能力开放协作（§4.1.5）
+        description: 研究不同网络间的能力开放与协调。
+      - value: 23801-02_4_1_6
+        label: KI#1.5 · 服务 API 性能（§4.1.6）
+        description: 研究多实体共同处理服务 API 时的性能。
+      - value: 23801-02_4_1_7
+        label: KI#1.6 · 目标终端状态感知（§4.1.7）
+        description: 研究调用终端相关能力时如何考虑终端状态。
+      - value: 23801-02_4_1_8
+        label: KI#1.7 · CAPIF 与 6G 能力开放的关系（§4.1.8）
+        description: 研究 CAPIF 演进与 6G 网络能力开放的衔接。
+      - value: 23801-02_4_2_2
+        label: KI#2.1 · 应用数据管理（§4.2.2）
+        description: 研究应用层多种数据的统一管理。
+      - value: 23801-02_4_2_3
+        label: KI#2.2 · 应用使能层节能（§4.2.3）
+        description: 研究应用使能层的能效、节能和韧性支持。
+      - value: 23801-02_4_2_4
+        label: KI#2.3 · 网络切片使能（§4.2.4）
+        description: 研究应用使能层对网络切片的支持。
+      - value: 23801-02_4_2_5
+        label: KI#2.4 · 意图式应用使能服务（§4.2.5）
+        description: 研究应用使能服务如何按高层目标提供能力。
+      - value: 23801-02_4_2_6
+        label: KI#2.5 · MMTel 应用使能（§4.2.6）
+        description: 研究多媒体电话业务所需的应用使能支持。
+      - value: 23801-02_4_2_7
+        label: KI#2.6 · 应用数据管理独立运行（§4.2.7）
+        description: 研究应用数据管理服务的分离与独立运行。
+      - value: 23801-02_4_2_8
+        label: KI#2.7 · 聚合数据交换授权（§4.2.8）
+        description: 研究应用层聚合数据交换的授权。
+      - value: 23801-02_4_2_9
+        label: KI#2.8 · 非实时能力调用（§4.2.9）
+        description: 研究无法实时请求和响应时如何调用能力。
+      - value: 23801-02_4_2_10
+        label: KI#2.9 · 流式与突发数据交换（§4.2.10）
+        description: 研究应用层流式和突发数据的交换机制。
+      - value: 23801-02_4_3_2
+        label: KI#3.1 · 训练数据不足（§4.3.2）
+        description: 研究 AI/ML 服务缺少足够训练数据的问题。
+      - value: 23801-02_4_3_3
+        label: KI#3.2 · 核心网 AI 服务开放（§4.3.3）
+        description: 研究向应用开放核心网推理和训练服务。
+      - value: 23801-02_4_3_4
+        label: KI#3.3 · 多模态上下文关联（§4.3.4）
+        description: 研究 AI 服务所需的多来源、多模态信息关联。
+      - value: 23801-02_4_3_5
+        label: KI#3.4 · 负责任 AI 信息支持（§4.3.5）
+        description: 研究辅助选择和使用 AI 服务的相关信息。
+      - value: 23801-02_4_3_6
+        label: KI#3.5 · AI Agent 协议兼容（§4.3.6）
+        description: 研究不同协议能力的 AI Agent 如何协作。
+      - value: 23801-02_4_3_7
+        label: KI#3.6 · 生成式 AI 支持（§4.3.7）
+        description: 研究应用使能层对生成式 AI 的支持。
+      - value: 23801-02_4_3_8
+        label: KI#3.7 · 网络知识增强（§4.3.8）
+        description: 研究如何利用网络知识增强 AI 服务。
+      - value: 23801-02_4_3_9
+        label: KI#3.8 · AI/ML 任务成员发现（§4.3.9）
+        description: 研究按服务需求发现 AI/ML 任务参与方。
+      - value: 23801-02_4_3_10
+        label: KI#3.9 · 应用使能层 Agent 协调（§4.3.10）
+        description: 研究不同 AI Agent 执行任务时的协调。
+      - value: 23801-02_4_3_11
+        label: KI#3.10 · 垂直应用 AI Agent 支持（§4.3.11）
+        description: 研究应用使能层对 VAL AI Agent 的支持。
+      - value: 23801-02_4_4_2
+        label: KI#4.1 · 应用流量辅助（§4.4.2）
+        description: 研究应用使能层如何辅助应用流量传输。
+      - value: 23801-02_4_4_3
+        label: KI#4.2 · 容错流量传输（§4.4.3）
+        description: 研究可容忍一定错误或缺失的流量传输。
+      - value: 23801-02_4_4_4
+        label: KI#4.3 · 卫星接入应用使能（§4.4.4）
+        description: 研究 6G 卫星接入场景中的应用使能要求。
+      - value: 23801-02_4_5_2
+        label: KI#5.1 · 计算与通信使能（§4.5.2）
+        description: 研究应用使能层对计算与通信协作的支持。
+  - id: ki_sa6_1
+    type: multi
+    label: KI · 6G 应用使能（TR 23.801-02 V0.4.1） · 2
+    hint: 官方 KI，可多选；中文为简述。编号须连同 TR 和章节使用，不代表已采纳结论。未选时不限定 KI。
+    required: false
+    when:
+      - field: group
+        values:
+          - SA6
+    options:
+      - value: 23801-02_4_5_3
+        label: KI#5.2 · 计算服务连续性（§4.5.3）
+        description: 研究分布式计算过程中的服务连续性。
+      - value: 23801-02_4_5_4
+        label: KI#5.3 · 计算信息注册（§4.5.4）
+        description: 研究计算资源与能力信息的注册。
+      - value: 23801-02_4_5_5
+        label: KI#5.4 · 计算能力量化（§4.5.5）
+        description: 研究不同计算能力及应用计算需求的表达。
+      - value: 23801-02_4_5_6
+        label: KI#5.5 · 意图驱动的计算卸载（§4.5.6）
+        description: 研究按应用目标把计算任务卸载到合适位置。
+      - value: 23801-02_4_5_7
+        label: KI#5.6 · 用户与 VAL 终端支持（§4.5.7）
+        description: 研究不同用户和 VAL 终端使用应用使能服务。
+      - value: 23801-02_4_5_8
+        label: KI#5.7 · 非可信域分布式计算隐私（§4.5.8）
+        description: 研究非可信计算域中的应用使能隐私保护。
+      - value: 23801-02_4_5_9
+        label: KI#5.8 · 终端托管计算服务（§4.5.9）
+        description: 研究终端为其他终端提供计算服务。
+      - value: 23801-02_4_5_10
+        label: KI#5.9 · 卸载任务预约（§4.5.10）
+        description: 研究计算卸载的资源预约与管理。
+      - value: 23801-02_4_6_2
+        label: KI#6.1 · 非 3GPP 感知使能（§4.6.2）
+        description: 研究应用层对非 3GPP 感知数据和能力的支持。
+      - value: 23801-02_4_6_3
+        label: KI#6.2 · 行业应用通感使能（§4.6.3）
+        description: 研究为垂直行业应用提供通感能力。
+      - value: 23801-02_4_6_4
+        label: KI#6.3 · 跨运营商感知服务（§4.6.4）
+        description: 研究感知能力跨 PLMN 及跨域联合提供。
+      - value: 23801-02_4_6_5
+        label: KI#6.4 · 感知结果评价与验证（§4.6.5）
+        description: 研究感知结果的质量评价和验证。
+      - value: 23801-02_4_7_2
+        label: KI#7.1 · 数字孪生服务使能（§4.7.2）
+        description: 研究应用使能层如何支持数字孪生服务。
+      - value: 23801-02_4_7_3
+        label: KI#7.2 · 利用网络数字孪生（§4.7.3）
+        description: 研究 SEAL 如何利用网络数字孪生能力。
+      - value: 23801-02_4_8_2
+        label: KI#8.1 · 应用使能层的系统定位（§4.8.2）
+        description: 研究应用使能层在整体 6G 系统中的表达。
+  - id: ki_ct4_29841_0
+    type: multi
+    label: KI · 6G 核心网用户面协议（TR 29.841 V0.3.1）
+    hint: CT4 官方 KI，可多选；中文为简述。同一 TR 中 KI 编号会在不同主题下重复，必须连同章节使用。
+    required: false
+    when:
+      - field: group
+        values:
+          - CT4
+    options:
+      - value: 29841_5_1_1
+        label: KI#1 · GTP-U 作为 6G 用户面协议（§5.1.1）
+        description: 研究 GTP-U 是否适合继续作为 6G 用户面协议。
+      - value: 29841_5_1_2
+        label: KI#2 · SRv6 替代 GTP-U（§5.1.2）
+        description: 研究以 SRv6 取代 GTP-U 作为 6G 用户面协议。
+      - value: 29841_5_1_3
+        label: KI#3 · QUIC 承载 GTP-U（§5.1.3）
+        description: 研究以 QUIC 作为 GTP-U 的底层传输协议。
+      - value: 29841_5_1_4
+        label: KI#4 · QUIC 替代 GTP-U（§5.1.4）
+        description: 研究以 QUIC 取代 GTP-U 作为 6G 用户面协议。
+      - value: 29841_5_2_1
+        label: KI#1 · CP/UP 功能全互联部署（§5.2.1）
+        description: 研究控制面与用户面功能全互联部署的协议增强。
+      - value: 29841_5_2_2
+        label: KI#2 · PFCP 支持云基础设施（§5.2.2）
+        description: 研究 PFCP 如何更好地支持云化部署、负载均衡和地址变化。
+      - value: 29841_5_2_3
+        label: KI#3 · CP/UP 接口多厂家互通（§5.2.3）
+        description: 研究 6G CP/UP 接口如何减少实现差异并提升多厂家互通。
+  - id: ki_ct4_29842_0
+    type: multi
+    label: KI · 6G 核心网韧性与可靠性（TR 29.842 V0.3.0）
+    hint: CT4 官方 KI，可多选；中文为简述。编号须连同 TR 和章节使用，不代表已采纳结论。
+    required: false
+    when:
+      - field: group
+        values:
+          - CT4
+    options:
+      - value: 29842_5_1
+        label: KI#1 · 网络故障预防（§5.1）
+        description: 研究负载控制、跨域协调及 AI 辅助等故障预防机制。
+      - value: 29842_5_2
+        label: KI#2 · 扰动事件中的故障处置（§5.2）
+        description: 研究节点、链路、过载或灾害发生时的故障隔离与处置。
+      - value: 29842_5_3
+        label: KI#3 · 扰动事件后的网络恢复（§5.3）
+        description: 研究扰动事件后核心网功能、优先业务和跨运营商协作的恢复机制。
+  - id: ki_manual
+    type: text
+    label: 官方 KI（手动补充）
+    hint: 当前未收录这个工作组的官方 KI 清单；这不表示该工作组没有 KI。可填写已知的 TR、版本和 KI 编号，助手会先查原文。
+    placeholder: 填写研究项目、TR 版本和 KI 编号
+    required: false
+    when:
+      - field: group
+        values:
+          - SA
+          - SA1
+          - SA4
+          - RAN
+          - RAN1
+          - RAN2
+          - RAN3
+          - RAN4
+          - RAN5
+          - CT
+          - CT1
+          - CT3
+          - CT6
+  - id: companies
+    type: multi
+    label: 关注的公司
+    hint: 可多选。留空表示不按公司筛选；名单不是所选会议的实际参会或提交名单。
+    required: false
+    options:
+      - value: company_0
+        label: Huawei（华为）
+      - value: company_1
+        label: ZTE（中兴）
+      - value: company_2
+        label: Ericsson（爱立信）
+      - value: company_3
+        label: Nokia（诺基亚）
+      - value: company_4
+        label: Samsung（三星）
+      - value: company_5
+        label: Qualcomm（高通）
+      - value: company_6
+        label: Intel（英特尔）
+      - value: company_7
+        label: LG Electronics
+      - value: company_8
+        label: MediaTek（联发科）
+      - value: company_9
+        label: China Mobile（中国移动）
+      - value: company_10
+        label: China Telecom（中国电信）
+      - value: company_11
+        label: China Unicom（中国联通）
+      - value: company_12
+        label: NTT DOCOMO
+      - value: company_13
+        label: Orange
+      - value: company_14
+        label: Vodafone
+      - value: company_15
+        label: Deutsche Telekom
+      - value: company_16
+        label: AT&T
+      - value: other
+        label: 其他公司
+  - id: other_companies
+    type: text
+    label: 其他公司名称
+    hint: 填写公司名称或提案中使用的署名，多个名称用逗号分隔。
+    required: true
+    placeholder: 例如：Apple、KDDI
+    examples:
+      - Apple、KDDI
+    when:
+      - field: companies
+        values:
+          - other
+  - id: focus
+    type: multi
+    label: 分析重点
+    hint: 选择需要重点回答的问题，可多选。
+    required: false
+    options:
+      - value: solution
+        label: 方案与技术路线
+        description: 比较方案目标、架构选择和适用条件。
+      - value: flow
+        label: 网络功能、接口与信令
+        description: 检查原图与原文，说明流程和接口差异。
+      - value: positions
+        label: 公司立场与分歧
+        description: 区分明确主张、反对意见和未表态。
+      - value: decisions
+        label: 会议结果与未决问题
+        description: 以会议结果确认采纳状态，不把公司建议当作共识。
+  - id: detail
+    type: single
+    label: 报告详细程度
+    hint: 选择希望的阅读深度；两种形式都会列出所用资料。
+    required: false
+    options:
+      - value: overview
+        label: 重点结论与对比表
+        description: 先看主要差异和需要关注的问题。
+      - value: detailed
+        label: 逐篇分析并汇总比较
+        description: 逐篇整理依据，再做跨提案比较。
+  - id: notes
+    type: textarea
+    label: 补充要求
+    hint: 可选。补充重点问题、排除范围或报告结构。
+    placeholder: 例如：重点比较用户面功能划分，不讨论计费。
+    examples:
+      - 重点比较用户面功能划分，不讨论计费。
+archived: false

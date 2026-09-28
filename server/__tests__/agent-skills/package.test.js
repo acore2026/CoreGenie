@@ -8,6 +8,7 @@ const {
   readPackageResource,
   saveWorkspacePackage,
   workspaceSkillNameExists,
+  loadPackage,
 } = require("../../agent-skills/package");
 
 describe("Agent Skills packages", () => {
@@ -81,6 +82,27 @@ describe("Agent Skills packages", () => {
         files: [{ path: "../escape.py", content: "bad" }],
       })
     ).rejects.toThrow("Invalid package path");
+  });
+
+  it("excludes Python caches from package revisions and resource discovery", async () => {
+    const saved = await saveWorkspacePackage(3, {
+      skillMd:
+        "---\nname: demo-skill\ndescription: A test skill.\n---\nRun the helper.\n",
+      files: [{ path: "scripts/demo.py", content: "print('ok')\n" }],
+    });
+    await fs.mkdir(path.join(saved.root, "scripts/__pycache__"));
+    await fs.writeFile(
+      path.join(saved.root, "scripts/__pycache__/demo.pyc"),
+      "cache"
+    );
+    const loaded = await loadPackage(saved.root);
+    expect(loaded.sha256).toBe(saved.sha256);
+    expect(loaded.files.map((file) => file.path)).toEqual(
+      expect.arrayContaining(["SKILL.md", "scripts/demo.py"])
+    );
+    expect(loaded.files.some((file) => file.path.includes("__pycache__"))).toBe(
+      false
+    );
   });
 
   it("does not let supplemental files overwrite SKILL.md", async () => {

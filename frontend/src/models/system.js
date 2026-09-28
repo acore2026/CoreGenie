@@ -940,6 +940,51 @@ const System = {
       .catch((e) => ({ text: null, error: e.message }));
   },
 
+  globalKnowledge: async function () {
+    const response = await fetch(`${API_BASE}/system/global-knowledge`, {
+      headers: baseHeaders(),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "无法读取公共知识库。");
+    return data.documents || [];
+  },
+
+  uploadGlobalKnowledge: async function (file) {
+    const body = new FormData();
+    body.append("file", file, file.name);
+    const response = await fetch(`${API_BASE}/system/global-knowledge/upload`, {
+      method: "POST",
+      headers: baseHeaders(),
+      body,
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "文档无法加入公共知识库。");
+    return data;
+  },
+
+  downloadGlobalKnowledge: async function (id) {
+    const response = await fetch(
+      `${API_BASE}/system/global-knowledge/${id}/download`,
+      { headers: baseHeaders() }
+    );
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data.error || "文档下载失败，请重试。");
+    }
+    return response.blob();
+  },
+
+  removeGlobalKnowledge: async function (id) {
+    const response = await fetch(`${API_BASE}/system/global-knowledge/${id}`, {
+      method: "DELETE",
+      headers: baseHeaders(),
+    });
+    const data = await response.json();
+    if (!response.ok)
+      throw new Error(data.error || "无法从公共知识库移除文档。");
+    return data;
+  },
+
   experimentalFeatures: {
     liveSync: LiveDocumentSync,
     agentPlugins: AgentPlugins,

@@ -19,7 +19,6 @@ describe("3gpp-position-evolution repository Skill", () => {
       expect.arrayContaining([
         "SKILL.md",
         "scripts/3gpp_evolution.py",
-        "references/evidence-taxonomy.md",
         "references/status-semantics.md",
         "references/report-contract.md",
       ])

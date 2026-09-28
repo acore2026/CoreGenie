@@ -11,26 +11,25 @@ The Workspace knowledge base is the RAG knowledge base. Use `knowledge.search` t
 
 Produce a longitudinal, evidence-linked Chinese analysis for one or more companies and a KI, WI, SID, solution, or technical topic. Separate deterministic source tracking from analytical synthesis: first build the TDoc ledger, then derive company positions from the ledger and extracted primary documents.
 
-Before planning, the governed runtime must also activate the bound 3GPP review Skill when official meeting indexes or TDocs must be located, downloaded, or extracted. Its current name is `3gpp-review`; an upgraded installation may retain the legacy name `3gpp-tdocs`. If neither is available, work from user-provided indexes and documents and disclose the limitation.
+Before planning, also activate the bound 3GPP review Skill for shared stance rules and any needed source acquisition. Its current name is `3gpp-review`; an upgraded installation may retain the legacy name `3gpp-tdocs`. If neither is available, explain that the shared rules are unavailable and restrict work to organizing supplied source facts; do not invent a replacement opposition taxonomy.
 
-The helper is [scripts/3gpp_evolution.py](scripts/3gpp_evolution.py). Before classifying opposition, read [references/evidence-taxonomy.md](references/evidence-taxonomy.md). Before interpreting meeting outcomes, read [references/status-semantics.md](references/status-semantics.md). Before writing the report, read [references/report-contract.md](references/report-contract.md).
+The helper is [scripts/3gpp_evolution.py](scripts/3gpp_evolution.py). Before classifying opposition, use `read_skill_resource` to read `references/stance-evidence.md` from the activated review package. These are the shared stance rules for review and matrices; do not run its report workflow merely to read them. Before interpreting meeting outcomes, read [references/status-semantics.md](references/status-semantics.md). Before writing the report, read [references/report-contract.md](references/report-contract.md).
 
-Skill activation is complete before the task plan is created and must never appear as a plan task. Put reads of `status-semantics.md`, `evidence-taxonomy.md`, `report-contract.md`, and `company-aliases.json` in the first relevant evidence-preparation task. Do not repeat the same resource read in one run.
+Skill activation is complete before the task plan is created and must never appear as a plan task. Read status rules, shared stance rules, the report contract, and company aliases when each becomes relevant. Reuse already read resources.
 
 ## Workspace
 
-The Skill package is read-only. Run its script with `cwd=skill://3gpp-position-evolution` and keep research artifacts under:
+The Skill package is read-only. Use the exact activated skillRoot as the Bash tool's cwd. Keep ledgers, source snapshots, extracted texts and validation under `/workspace/_meta/tasks/<run-id>/evolution/`; keep downloaded proposal files in the meeting/KI directories returned by `3gpp.download`. The internal research layout is:
 
 ```text
-/workspace/3gpp-position-evolution/<wg>/<topic>/<company>/
+/workspace/_meta/tasks/<run-id>/evolution/<company>/
 ├── scope.json
 ├── meetings/
 ├── texts/
 ├── tdoc-ledger.json
 ├── stance-events.jsonl
 ├── terminology.json
-├── validation.json
-└── reports/
+└── validation.json
 ```
 
 Reuse cached official sources. Never overwrite an earlier report; use a UTC timestamp in the filename.
@@ -52,7 +51,7 @@ For a company comparison, build one scope and ledger per target company from the
 
 ## 2. Build a complete meeting evidence set
 
-Resolve every meeting in the requested interval from the official 3GPP FTP listing. For each meeting, use the bound 3GPP review Skill (`3gpp-review` or legacy `3gpp-tdocs`) to retain the official Index, relevant agenda page or `TdocsByAgenda` page, and extracted TDocs.
+Resolve every meeting in the requested interval from official sources. Use `3gpp.download` for meeting/KI acquisition through the bound review Skill. Its current selection is based on agenda references, not a complete Index. Retain actual official metadata separately; do not treat a download record as a complete meeting manifest. If official Index manifests are unavailable, analyze the supplied documents with explicit range limits and skip ledger commands requiring those manifests; never fabricate Index rows, company sources or meeting outcomes.
 
 The candidate set must include more than target-company documents:
 
@@ -70,10 +69,10 @@ Build the ordered ledger from the per-meeting manifests. Preserve manifest order
 
 ```bash
 python3 scripts/3gpp_evolution.py build-ledger \
-  --scope /workspace/3gpp-position-evolution/SA2/KI18/Huawei/scope.json \
-  --meeting-manifest 'SA2#170=/workspace/.../SA2-170/proposals.json' \
-  --meeting-manifest 'SA2#171=/workspace/.../SA2-171/proposals.json' \
-  --output /workspace/3gpp-position-evolution/SA2/KI18/Huawei/tdoc-ledger.json
+  --scope '/workspace/_meta/tasks/<run-id>/evolution/Huawei/scope.json' \
+  --meeting-manifest 'SA2#170=/workspace/_meta/tasks/<run-id>/evolution/Huawei/meetings/SA2-170.json' \
+  --meeting-manifest 'SA2#171=/workspace/_meta/tasks/<run-id>/evolution/Huawei/meetings/SA2-171.json' \
+  --output '/workspace/_meta/tasks/<run-id>/evolution/Huawei/tdoc-ledger.json'
 ```
 
 The script normalizes TDoc identifiers, source roles, status semantics, and explicit relation fields already present in manifests. Add missing `revises`, `revised_to`, `merged_into`, `supersedes`, `alternative_to`, `supports`, `objects_to`, `contributes_to_baseline`, or `approved_as` edges only when an Index row, meeting comment, or document explicitly supports the relation. Attach the evidence TDoc or official page to each manually added edge.
@@ -96,7 +95,7 @@ Distinguish the contributor's proposal, jointly authored text, meeting agreement
 
 ## 5. Record stance evidence
 
-Write one JSON object per evidence event to `stance-events.jsonl` using the schema and classification rules in `evidence-taxonomy.md`. An event addresses one issue dimension; a company can support the overall direction while opposing terminology or a mandatory dependency.
+Write one JSON object per evidence event to `stance-events.jsonl` using the schema and classification rules in the review package's `references/stance-evidence.md`. An event addresses one issue dimension; a company can support the overall direction while opposing terminology or a mandatory dependency.
 
 Only an event with `stance: "oppose"` and `strength: "explicit"` may support the label “主要反对者”. Use `alternative` for a competing design without explicit rejection language, and `concern` for questions, risks, or reservations. Keep quoted evidence short; prefer a precise paraphrase plus locator.
 
@@ -121,7 +120,7 @@ python3 scripts/3gpp_evolution.py term-timeline \
   --output /workspace/.../terminology.json
 ```
 
-Occurrence is evidence that a term appears, not proof of a rename. Infer a rename, replacement, or semantic narrowing only after comparing normative definitions, architecture, and procedure changes. Track both stable principles and changes in function boundaries, interfaces, operator control, fallback behavior, determinism, and deployment assumptions.
+Occurrence is evidence that a term appears, not proof of a rename. Counts include tracked deletions and moves; check the surrounding revision markers before interpreting first/last appearance as current usage. Infer a rename, replacement, or semantic narrowing only after comparing normative definitions, architecture, and procedure changes. Track both stable principles and changes in function boundaries, interfaces, operator control, fallback behavior, determinism, and deployment assumptions.
 
 ## 7. Validate before synthesis
 
@@ -135,7 +134,7 @@ python3 scripts/3gpp_evolution.py validate \
   --output /workspace/.../validation.json
 ```
 
-Resolve every validation error before reporting. Warnings must either be resolved or disclosed. In particular, never convert `not_handled`, `postponed`, `merged`, `withdrawn`, or `baseline` into “rejected” without separate explicit evidence.
+Resolve every validation error before reporting. Warnings must either be resolved or disclosed. Validation checks record structure and ledger membership; it does not prove the evidence text is genuine or that it supports the stance. Check each claim against the original source and locator separately. In particular, never convert `not_handled`, `postponed`, `merged`, `withdrawn`, or `baseline` into “rejected” without separate explicit evidence.
 
 For an incremental rerun, preserve the previous ledger and generate a deterministic delta:
 
@@ -150,4 +149,4 @@ python3 scripts/3gpp_evolution.py snapshot-diff \
 
 Follow `report-contract.md`. Every material conclusion must cite at least one TDoc or official meeting artifact. Provide coverage and evidence-strength tables, and mark analysis of an ongoing meeting as provisional.
 
-Write the versioned Markdown report under `reports/`, rerun validation, and call `knowledge.publish` exactly once with the report path and the complete TDoc list. The task is not complete until publication to the current Workspace knowledge base succeeds. If publication fails, preserve the report and state the failure without claiming it was published.
+Write the versioned final Markdown report under `/workspace/3gpp/comparisons/<run-id>/analysis/`. Run applicable checks for the actual inputs. Publish once only if the user requests knowledge-base storage, with the actual TDoc list; do not invent coverage receipts. If publication fails, preserve the report and state that it was not indexed. Download-only tasks do not enter this analysis workflow.

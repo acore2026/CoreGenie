@@ -41,6 +41,25 @@ describe("Agent tool visibility", () => {
     });
   });
 
+  it("registers shared global knowledge tools", () => {
+    expect(toolRegistry.get("knowledge.global.list")).toMatchObject({
+      action: false,
+      effect: "read",
+    });
+    expect(toolRegistry.get("knowledge.global.ingest")).toMatchObject({
+      action: true,
+      effect: "write",
+    });
+    expect(toolRegistry.get("knowledge.global.replace")).toMatchObject({
+      action: true,
+      effect: "destructive",
+    });
+    expect(toolRegistry.get("knowledge.global.remove")).toMatchObject({
+      action: true,
+      effect: "destructive",
+    });
+  });
+
   it("offers workspace scheduling to regular chat Agents", () => {
     const visible = visibleToolDescriptorsForAgent({ tools: [] }).map(
       (descriptor) => descriptor.id
@@ -83,7 +102,7 @@ describe("Agent tool visibility", () => {
       "knowledge.publish",
     ]) {
       expect(toolRegistry.get(toolId)?.description).toMatch(
-        /Workspace RAG knowledge base/
+        /Workspace.*RAG knowledge base/i
       );
     }
   });

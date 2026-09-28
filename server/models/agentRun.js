@@ -27,6 +27,7 @@ const AgentRun = {
   TERMINAL_STATUSES,
 
   create: async function ({
+    id = null,
     workspaceId,
     threadId = null,
     userId = null,
@@ -42,11 +43,11 @@ const AgentRun = {
     parentRunId = null,
     policySnapshot = {},
   }) {
-    const id = uuidv4();
+    const runId = id || uuidv4();
     const run = await withPrismaRetry(() =>
       prisma.agent_runs.create({
         data: {
-          id,
+          id: runId,
           workspace_id: Number(workspaceId),
           thread_id: threadId ? Number(threadId) : null,
           user_id: userId ? Number(userId) : null,

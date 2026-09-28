@@ -3,11 +3,9 @@ import { FolderOpen, SlidersHorizontal } from "@phosphor-icons/react";
 import TextSizeRow from "./TextSize";
 import MemoriesRow from "./Memories";
 import ExportRow from "./Export";
-import SettingsButton from "@/components/SettingsButton";
 import ShareChatButton from "../ShareChatButton";
 import { useWorkspaceFilesSidebar } from "../ChatSidebar";
 import { useTranslation } from "react-i18next";
-import UserButton from "@/components/UserMenu/UserButton";
 
 function ChatSettingsMenu({
   hasHistory = false,
@@ -38,16 +36,16 @@ function ChatSettingsMenu({
   }, [showMenu]);
 
   return (
-    <div className="absolute right-4 top-3 z-40 flex items-center gap-2 md:right-6 md:top-5">
+    <div className="absolute right-4 top-3 z-40 flex items-center gap-1 md:right-6 md:top-4">
       <button
         type="button"
         onClick={toggleFiles}
         title={t("chat_window.workspace_files.open")}
         aria-label={t("chat_window.workspace_files.open")}
-        className={`lg:hidden group border-none cursor-pointer flex items-center justify-center w-[35px] h-[35px] rounded-full transition-all ${
+        className={`group flex h-9 w-9 cursor-pointer items-center justify-center rounded-md border border-transparent text-theme-text-secondary transition-colors duration-150 hover:bg-theme-sidebar-subitem-hover hover:text-theme-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-button-primary lg:hidden ${
           filesOpen
-            ? "bg-emerald-500/20 text-emerald-400 light:text-emerald-700"
-            : "text-zinc-300 light:text-slate-600 hover:bg-zinc-700 light:hover:bg-slate-200"
+            ? "bg-theme-sidebar-subitem-selected text-theme-text-primary"
+            : ""
         }`}
       >
         <FolderOpen size={19} weight={filesOpen ? "fill" : "regular"} />
@@ -58,26 +56,20 @@ function ChatSettingsMenu({
           ref={buttonRef}
           type="button"
           onClick={() => setShowMenu(!showMenu)}
-          className={`group border-none cursor-pointer flex items-center justify-center w-[35px] h-[35px] rounded-full transition-all ${
+          aria-label={t("keyboard-shortcuts.shortcuts.chatSettings")}
+          className={`group flex h-9 w-9 cursor-pointer items-center justify-center rounded-md border border-transparent text-theme-text-secondary transition-colors duration-150 hover:bg-theme-sidebar-subitem-hover hover:text-theme-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-button-primary ${
             showMenu
-              ? "bg-zinc-700 light:bg-slate-200"
-              : "hover:bg-zinc-700 light:hover:bg-slate-200"
+              ? "bg-theme-sidebar-subitem-selected text-theme-text-primary"
+              : ""
           }`}
         >
-          <SlidersHorizontal
-            size={18}
-            className={
-              showMenu
-                ? "text-white light:text-slate-800"
-                : "text-zinc-300 light:text-slate-600 group-hover:text-white light:group-hover:text-slate-800"
-            }
-          />
+          <SlidersHorizontal size={18} className="text-current" />
         </button>
 
         {showMenu && (
           <div
             ref={menuRef}
-            className="absolute right-0 top-[42px] bg-zinc-800 light:bg-slate-50 border border-zinc-700 light:border-slate-300 rounded-lg p-3.5 w-[226px] flex flex-col gap-1.5 shadow-lg"
+            className="dsh-menu absolute right-0 top-10 flex w-[226px] flex-col gap-1"
           >
             <TextSizeRow />
             <MemoriesRow onClose={() => setShowMenu(false)} />
@@ -90,8 +82,6 @@ function ChatSettingsMenu({
           </div>
         )}
       </div>
-      <SettingsButton />
-      <UserButton inline />
     </div>
   );
 }

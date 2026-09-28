@@ -3,7 +3,7 @@ const path = require("path");
 const { loadPackage } = require("../../agent-skills/package");
 
 describe("3gpp-review-direct repository Skill", () => {
-  it("keeps the original helper in a valid single-context package", async () => {
+  it("keeps the continuous mode without a duplicate extraction helper", async () => {
     const root = path.join(
       __dirname,
       "../../../agent-config/skills/3gpp-review-direct"
@@ -18,8 +18,6 @@ describe("3gpp-review-direct repository Skill", () => {
     expect(pkg.manifest.allowedTools).not.toContain("knowledge.publish");
     expect(pkg.body).toContain("one continuous Agent conversation");
     expect(pkg.body).toContain("Do not delegate batches");
-    expect(pkg.files.map((file) => file.path)).toEqual(
-      expect.arrayContaining(["SKILL.md", "scripts/3gpp_tdocs.py"])
-    );
+    expect(pkg.files.map((file) => file.path)).toEqual(["SKILL.md"]);
   });
 });

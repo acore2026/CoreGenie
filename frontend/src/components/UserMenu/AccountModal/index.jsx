@@ -77,165 +77,193 @@ export default function AccountModal({ user, hideModal }) {
   };
   return (
     <ModalWrapper isOpen={true}>
-      <div className="w-full max-w-2xl bg-theme-bg-secondary rounded-lg shadow border-2 border-theme-modal-border overflow-hidden">
-        <div className="relative p-6 border-b rounded-t border-theme-modal-border">
-          <div className="w-full flex gap-x-2 items-center">
-            <h3 className="text-xl font-semibold text-white overflow-hidden overflow-ellipsis whitespace-nowrap">
-              {t("profile_settings.edit_account")}
-            </h3>
-          </div>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="account-settings-title"
+        className="personal-settings-panel flex h-[min(720px,calc(100vh-32px))] w-[min(860px,calc(100vw-32px))] flex-col overflow-hidden rounded-2xl border border-theme-sidebar-border bg-theme-bg-secondary text-theme-text-primary"
+      >
+        <header className="flex h-14 shrink-0 items-center justify-between px-5">
+          <h2
+            id="account-settings-title"
+            className="truncate text-base font-semibold"
+          >
+            {t("profile_settings.edit_account")}
+          </h2>
           <button
             onClick={hideModal}
             type="button"
-            className="absolute top-4 right-4 transition-all duration-300 bg-transparent rounded-lg text-sm p-1 inline-flex items-center hover:bg-theme-modal-border hover:border-theme-modal-border hover:border-opacity-50 border-transparent border"
+            aria-label={t("profile_settings.cancel")}
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-theme-text-secondary transition-colors duration-150 hover:bg-theme-sidebar-subitem-hover hover:text-theme-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-button-primary"
           >
-            <X size={24} weight="bold" className="text-white" />
+            <X size={16} weight="bold" />
           </button>
-        </div>
-        <div
-          className="h-full w-full overflow-y-auto"
-          style={{ maxHeight: "calc(100vh - 200px)" }}
-        >
-          <form onSubmit={handleUpdate} className="space-y-6">
-            <div className="flex flex-col md:flex-row items-center justify-center gap-8">
-              <div className="flex flex-col items-center">
-                <label className="group w-48 h-48 flex flex-col items-center justify-center bg-theme-bg-primary hover:bg-theme-bg-secondary transition-colors duration-300 rounded-full mt-8 border-2 border-dashed border-white light:border-[#686C6F] light:bg-[#E0F2FE] light:hover:bg-transparent cursor-pointer hover:opacity-60">
-                  <input
-                    id="logo-upload"
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handleFileUpload}
+        </header>
+        <div className="flex min-h-0 flex-1 max-md:flex-col">
+          <aside className="flex w-[220px] shrink-0 flex-col items-center border-r border-theme-sidebar-border px-6 py-8 max-md:w-full max-md:flex-row max-md:justify-start max-md:border-b max-md:border-r-0 max-md:py-4">
+            <div className="flex flex-col items-center max-md:flex-row max-md:gap-4">
+              <label className="group relative flex h-24 w-24 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full border border-theme-sidebar-border bg-theme-control-bg transition-colors duration-150 hover:border-theme-button-primary focus-within:ring-2 focus-within:ring-theme-button-primary">
+                <input
+                  id="logo-upload"
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleFileUpload}
+                />
+                {pfp ? (
+                  <img
+                    src={pfp}
+                    alt="用户头像"
+                    className="h-full w-full object-cover"
                   />
-                  {pfp ? (
-                    <img
-                      src={pfp}
-                      alt="用户头像"
-                      className="w-48 h-48 rounded-full object-cover bg-white"
-                    />
-                  ) : (
-                    <div className="flex flex-col items-center justify-center p-3">
-                      <Plus className="w-8 h-8 text-theme-text-secondary m-2" />
-                      <span className="text-theme-text-secondary text-opacity-80 text-sm font-semibold">
-                        {t("profile_settings.profile_picture")}
-                      </span>
-                      <span className="text-theme-text-secondary text-opacity-60 text-xs">
-                        800 x 800
-                      </span>
-                    </div>
-                  )}
-                </label>
+                ) : (
+                  <div className="flex flex-col items-center justify-center p-3 text-center">
+                    <Plus className="mb-1 h-5 w-5 text-theme-text-secondary" />
+                    <span className="text-xs font-medium text-theme-text-secondary">
+                      {t("profile_settings.profile_picture")}
+                    </span>
+                  </div>
+                )}
+              </label>
+              <div className="mt-4 min-w-0 text-center max-md:mt-0 max-md:text-left">
+                <p className="truncate text-sm font-semibold text-theme-text-primary">
+                  {user.username}
+                </p>
+                <p className="mt-1 text-xs text-theme-text-secondary">
+                  {t("profile_settings.profile_picture_hint")}
+                </p>
                 {pfp && (
                   <button
                     type="button"
                     onClick={handleRemovePfp}
-                    className="mt-3 text-theme-text-secondary text-opacity-60 text-sm font-medium hover:underline"
+                    className="mt-3 rounded-md text-xs font-medium text-theme-text-secondary transition-colors hover:text-theme-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-button-primary"
                   >
                     {t("profile_settings.remove_profile_picture")}
                   </button>
                 )}
               </div>
             </div>
-            <div className="flex flex-col gap-y-4 px-6">
-              <div>
-                <label
-                  htmlFor="username"
-                  className="block mb-2 text-sm font-medium text-theme-text-primary"
-                >
-                  {t("profile_settings.username")}
-                </label>
-                <input
-                  name="username"
-                  type="text"
-                  className="border-none bg-theme-settings-input-bg placeholder:text-theme-settings-input-placeholder border-gray-500 text-white text-sm rounded-lg focus:outline-primary-button active:outline-primary-button outline-none block w-full p-2.5"
-                  placeholder="User's username"
-                  minLength={USERNAME_MIN_LENGTH}
-                  maxLength={USERNAME_MAX_LENGTH}
-                  pattern={USERNAME_PATTERN}
-                  defaultValue={user.username}
-                  required
-                  autoComplete="off"
-                />
-                <p className="mt-2 text-xs text-white/60">
-                  {t("common.username_requirements")}
-                </p>
-              </div>
-              <div>
-                <label
-                  htmlFor="password"
-                  className="block mb-2 text-sm font-medium text-white"
-                >
-                  {t("profile_settings.new_password")}
-                </label>
-                <input
-                  name="password"
-                  type="text"
-                  className="border-none bg-theme-settings-input-bg placeholder:text-theme-settings-input-placeholder border-gray-500 text-white text-sm rounded-lg focus:outline-primary-button active:outline-primary-button outline-none block w-full p-2.5"
-                  placeholder={`${user.username} 的新密码`}
-                  minLength={8}
-                />
-                <p className="mt-2 text-xs text-white/60">
-                  {t("profile_settings.password_description")}
-                </p>
-              </div>
-              <div>
-                <label
-                  htmlFor="bio"
-                  className="block mb-2 text-sm font-medium text-white"
-                >
-                  个人简介
-                </label>
-                <textarea
-                  name="bio"
-                  className="border-none bg-theme-settings-input-bg placeholder:text-theme-settings-input-placeholder border-gray-500 text-white text-sm rounded-lg focus:outline-primary-button active:outline-primary-button outline-none block w-full p-2.5 min-h-[100px] resize-y"
-                  placeholder="介绍一下自己…"
-                  defaultValue={user.bio}
-                />
-              </div>
-              <div>
-                <label
-                  htmlFor="systemPrompt"
-                  className="block mb-2 text-sm font-medium text-white"
-                >
-                  {t("profile_settings.system_prompt")}
-                </label>
-                <textarea
-                  id="systemPrompt"
-                  name="systemPrompt"
-                  maxLength={40000}
-                  className="border-none bg-theme-settings-input-bg placeholder:text-theme-settings-input-placeholder border-gray-500 text-white text-sm rounded-lg focus:outline-primary-button active:outline-primary-button outline-none block w-full p-2.5 min-h-[140px] resize-y"
-                  placeholder={t("profile_settings.system_prompt_placeholder")}
-                  defaultValue={user.systemPrompt || ""}
-                />
-                <p className="mt-2 text-xs text-white/60">
-                  {t("profile_settings.system_prompt_description")}
-                </p>
-              </div>
-              <div className="flex gap-x-16">
-                <div className="flex flex-col gap-y-6">
-                  <ThemePreference />
+          </aside>
+          <form
+            onSubmit={handleUpdate}
+            className="flex min-h-0 min-w-0 flex-1 flex-col"
+          >
+            <div className="sidebar-scrollbar min-h-0 flex-1 overflow-y-auto px-6 pb-8">
+              <section>
+                <h3 className="mb-4 text-sm font-semibold text-theme-text-primary">
+                  {t("profile_settings.account")}
+                </h3>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <label
+                      htmlFor="username"
+                      className="mb-2 block text-sm font-medium text-theme-text-primary"
+                    >
+                      {t("profile_settings.username")}
+                    </label>
+                    <input
+                      id="username"
+                      name="username"
+                      type="text"
+                      className="dsh-control block h-10 w-full px-3 text-sm"
+                      placeholder={t("profile_settings.username_placeholder")}
+                      minLength={USERNAME_MIN_LENGTH}
+                      maxLength={USERNAME_MAX_LENGTH}
+                      pattern={USERNAME_PATTERN}
+                      defaultValue={user.username}
+                      required
+                      autoComplete="off"
+                    />
+                    <p className="mt-2 text-xs leading-5 text-theme-text-secondary">
+                      {t("common.username_requirements")}
+                    </p>
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="password"
+                      className="mb-2 block text-sm font-medium text-theme-text-primary"
+                    >
+                      {t("profile_settings.new_password")}
+                    </label>
+                    <input
+                      id="password"
+                      name="password"
+                      type="password"
+                      className="dsh-control block h-10 w-full px-3 text-sm"
+                      placeholder={t(
+                        "profile_settings.new_password_placeholder"
+                      )}
+                      minLength={8}
+                      autoComplete="new-password"
+                    />
+                    <p className="mt-2 text-xs leading-5 text-theme-text-secondary">
+                      {t("profile_settings.password_description")}
+                    </p>
+                  </div>
                 </div>
-                <div className="flex flex-col gap-y-6">
+                <div className="mt-5">
+                  <label
+                    htmlFor="bio"
+                    className="mb-2 block text-sm font-medium text-theme-text-primary"
+                  >
+                    {t("profile_settings.bio")}
+                  </label>
+                  <textarea
+                    id="bio"
+                    name="bio"
+                    className="dsh-control block min-h-20 w-full resize-y px-3 py-2.5 text-sm"
+                    placeholder={t("profile_settings.bio_placeholder")}
+                    defaultValue={user.bio}
+                  />
+                </div>
+                <div className="mt-5">
+                  <label
+                    htmlFor="systemPrompt"
+                    className="mb-2 block text-sm font-medium text-theme-text-primary"
+                  >
+                    {t("profile_settings.system_prompt")}
+                  </label>
+                  <textarea
+                    id="systemPrompt"
+                    name="systemPrompt"
+                    maxLength={40000}
+                    className="dsh-control block min-h-28 w-full resize-y px-3 py-2.5 text-sm"
+                    placeholder={t(
+                      "profile_settings.system_prompt_placeholder"
+                    )}
+                    defaultValue={user.systemPrompt || ""}
+                  />
+                  <p className="mt-2 text-xs leading-5 text-theme-text-secondary">
+                    {t("profile_settings.system_prompt_description")}
+                  </p>
+                </div>
+              </section>
+              <section className="mt-8 border-t border-theme-sidebar-border pt-6">
+                <h3 className="mb-4 text-sm font-semibold text-theme-text-primary">
+                  {t("profile_settings.preferences")}
+                </h3>
+                <div className="space-y-1">
+                  <ThemePreference />
                   <AutoSubmitPreference />
                   <AutoSpeakPreference />
                 </div>
-              </div>
+              </section>
             </div>
-            <div className="flex justify-between items-center border-t border-theme-modal-border pt-4 p-6">
+            <footer className="flex shrink-0 items-center justify-end gap-2 border-t border-theme-sidebar-border px-6 py-4">
               <button
                 onClick={hideModal}
                 type="button"
-                className="transition-all duration-300 text-white hover:bg-zinc-700 px-4 py-2 rounded-lg text-sm"
+                className="h-9 rounded-lg px-4 text-sm font-medium text-theme-text-secondary transition-colors duration-150 hover:bg-theme-sidebar-subitem-hover hover:text-theme-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-button-primary"
               >
                 {t("profile_settings.cancel")}
               </button>
               <button
                 type="submit"
-                className="transition-all duration-300 bg-white text-black hover:opacity-60 px-4 py-2 rounded-lg text-sm"
+                className="h-9 rounded-lg bg-theme-button-primary px-4 text-sm font-semibold text-black transition-opacity duration-150 hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-button-primary focus-visible:ring-offset-2 focus-visible:ring-offset-theme-bg-secondary"
               >
                 {t("profile_settings.update_account")}
               </button>
-            </div>
+            </footer>
           </form>
         </div>
       </div>
@@ -247,10 +275,10 @@ function ThemePreference() {
   const { theme, setTheme, availableThemes } = useTheme();
   const { t } = useTranslation();
   return (
-    <div>
+    <div className="flex min-h-12 items-center justify-between gap-4 rounded-lg px-2 py-2 hover:bg-theme-sidebar-subitem-hover">
       <label
         htmlFor="theme"
-        className="block mb-2 text-sm font-medium text-white"
+        className="text-sm font-medium text-theme-text-primary"
       >
         {t("profile_settings.theme")}
       </label>
@@ -258,7 +286,7 @@ function ThemePreference() {
         name="theme"
         value={theme}
         onChange={(e) => setTheme(e.target.value)}
-        className="border-none bg-theme-settings-input-bg w-fit px-4 focus:outline-primary-button active:outline-primary-button outline-none text-white text-sm rounded-lg block py-2"
+        className="dsh-control h-9 w-fit px-3 text-sm"
       >
         {Object.entries(availableThemes).map(([key, value]) => (
           <option key={key} value={key}>
@@ -285,20 +313,20 @@ function AutoSubmitPreference() {
   };
 
   return (
-    <div>
-      <div className="flex items-center gap-x-1 mb-2">
+    <div className="flex min-h-12 items-center justify-between gap-4 rounded-lg px-2 py-2 hover:bg-theme-sidebar-subitem-hover">
+      <div className="flex items-center gap-1">
         <label
           htmlFor="autoSubmit"
-          className="block text-sm font-medium text-white"
+          className="text-sm font-medium text-theme-text-primary"
         >
           {t("customization.chat.auto_submit.title")}
         </label>
         <div
           data-tooltip-id="auto-submit-info"
           data-tooltip-content={t("customization.chat.auto_submit.description")}
-          className="cursor-pointer h-fit"
+          className="h-fit cursor-help"
         >
-          <Info size={16} weight="bold" className="text-white" />
+          <Info size={15} className="text-theme-text-secondary" />
         </div>
       </div>
       <Toggle size="lg" enabled={autoSubmitSttInput} onChange={handleChange} />
@@ -330,20 +358,20 @@ function AutoSpeakPreference() {
   };
 
   return (
-    <div>
-      <div className="flex items-center gap-x-1 mb-2">
+    <div className="flex min-h-12 items-center justify-between gap-4 rounded-lg px-2 py-2 hover:bg-theme-sidebar-subitem-hover">
+      <div className="flex items-center gap-1">
         <label
           htmlFor="autoSpeak"
-          className="block text-sm font-medium text-white"
+          className="text-sm font-medium text-theme-text-primary"
         >
           {t("customization.chat.auto_speak.title")}
         </label>
         <div
           data-tooltip-id="auto-speak-info"
           data-tooltip-content={t("customization.chat.auto_speak.description")}
-          className="cursor-pointer h-fit"
+          className="h-fit cursor-help"
         >
-          <Info size={16} weight="bold" className="text-white" />
+          <Info size={15} className="text-theme-text-secondary" />
         </div>
       </div>
       <Toggle

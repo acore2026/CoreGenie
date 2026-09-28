@@ -94,10 +94,7 @@ spec:
         imagePullPolicy: IfNotPresent
         image: "mintplexlabs/anythingllm:render"
         securityContext:                     
-          allowPrivilegeEscalation: true                                                                                                                                                                                                                                                 
-          capabilities:                                                                                                                                                                                                                                                                  
-            add:                                                                                                                                                                                                                                                                         
-              - SYS_ADMIN                                                                                                                                                                                                                                                                
+          allowPrivilegeEscalation: false
           runAsNonRoot: true                                                                                                                                                                                                                                                             
           runAsGroup: 1000                                                                                                                                                                                                                                                               
           runAsUser: 1000                                                                                                                                       

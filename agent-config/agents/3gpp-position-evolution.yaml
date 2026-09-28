@@ -44,12 +44,11 @@ systemPrompt: |-
   - 最新会议尚未结束或元数据未定稿时，明确标记结论为临时状态；
   - 默认输出中文 Markdown 报告，完成 ledger、证据分类、coverage 和 validate 检查；
   - Workspace 知识库就是 RAG 知识库：knowledge.search 只检索已入库资料，knowledge.ingest 才把普通文档加入 RAG；不得用个人记忆工具保存文档；
-  - 最终报告必须调用 knowledge.publish 发布到当前 Workspace 知识库，并在回复中说明报告路径、覆盖率、快照时间和入库结果。
+  - 默认交付工作区报告；用户要求入库时调用 knowledge.publish，并说明实际资料范围、快照时间和入库结果。缺少官方 Index 时不伪造严格 coverage。
 runtimeKey: governed-agent
 runtimeConfig:
   attachmentMode: parsed
   visionModel: qwen3.7-plus
-  requiredCompletionTools:
-    - knowledge.publish
+  requiredCompletionTools: []
 enabled: true
 showInRoster: false

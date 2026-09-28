@@ -1,4 +1,4 @@
-import React, { Suspense, useDeferredValue, useEffect } from "react";
+import React, { Suspense, useDeferredValue, useEffect, useState } from "react";
 import { useLocation, useOutlet } from "react-router-dom";
 import { I18nextProvider } from "react-i18next";
 import { AuthProvider } from "@/AuthContext";
@@ -17,6 +17,7 @@ import { ErrorBoundary } from "react-error-boundary";
 import ErrorBoundaryFallback from "./components/ErrorBoundaryFallback";
 import { SETTINGS_RETURN_PATH } from "@/utils/constants";
 import NetworkAuthGuard from "@/components/NetworkAuthGuard";
+import { isSettingsModalPath } from "@/utils/settingsModal";
 
 export default function App() {
   const location = useLocation();
@@ -63,13 +64,33 @@ export default function App() {
 }
 
 function StableOutlet() {
+  const location = useLocation();
   const outlet = useOutlet();
   const deferredOutlet = useDeferredValue(outlet);
   const transitioning = outlet !== deferredOutlet;
+  const settingsOpen = isSettingsModalPath(location.pathname);
+  const [backgroundOutlet, setBackgroundOutlet] = useState(() =>
+    settingsOpen ? null : outlet
+  );
+
+  useEffect(() => {
+    if (!settingsOpen) setBackgroundOutlet(outlet);
+    // The outlet element gets a new identity when providers render. Cache it
+    // only when navigation changes, otherwise this effect loops indefinitely.
+  }, [location.key, location.pathname, settingsOpen]);
+
+  const visibleOutlet = settingsOpen ? backgroundOutlet : outlet;
 
   return (
     <>
-      {deferredOutlet}
+      <div
+        className="contents"
+        aria-hidden={settingsOpen ? "true" : undefined}
+        inert={settingsOpen ? "" : undefined}
+      >
+        {visibleOutlet}
+      </div>
+      {settingsOpen && outlet}
       {transitioning && (
         <div
           className="pointer-events-none fixed inset-x-0 top-0 z-[999999] h-[2px] overflow-hidden bg-cyan-950/30"

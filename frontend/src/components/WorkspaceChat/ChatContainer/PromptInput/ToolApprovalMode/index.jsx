@@ -60,10 +60,10 @@ export default function ToolApprovalMode() {
         aria-label={tooltip}
         data-tooltip-id="tool-approval-mode-tooltip"
         data-tooltip-content={tooltip}
-        className={`group border-none flex items-center justify-center gap-x-1 h-6 px-2 rounded-full transition-colors ${
+        className={`group flex h-7 items-center justify-center gap-x-1 rounded-md border-none px-2 transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-button-primary ${
           alwaysAllow
-            ? "bg-amber-500/20 text-amber-300 light:bg-amber-100 light:text-amber-700"
-            : "text-zinc-300 light:text-slate-600 hover:bg-zinc-700 light:hover:bg-slate-200"
+            ? "bg-amber-500/10 text-amber-300 light:text-amber-700"
+            : "text-theme-text-secondary hover:bg-theme-sidebar-subitem-hover hover:text-theme-text-primary"
         } ${loading || !canManage ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}
       >
         {alwaysAllow ? (

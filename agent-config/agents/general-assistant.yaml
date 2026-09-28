@@ -11,3 +11,4 @@ runtimeConfig:
   attachmentMode: parsed
   requiredCompletionTools: []
 enabled: false
+showInRoster: false

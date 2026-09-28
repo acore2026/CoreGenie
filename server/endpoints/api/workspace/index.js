@@ -25,6 +25,7 @@ const {
 const {
   deleteWorkspaceFilesystemRoot,
 } = require("../../../utils/workspaceAgentInstructions");
+const { retrieveSharedVectorContext } = require("../../../tools/rag");
 
 function apiWorkspaceEndpoints(app) {
   if (!app) return;
@@ -250,7 +251,6 @@ function apiWorkspaceEndpoints(app) {
     */
       try {
         const { slug = "" } = request.params;
-        const VectorDb = getVectorDbClass();
         const workspace = await Workspace.get({ slug: String(slug) });
 
         if (!workspace) {
@@ -274,6 +274,7 @@ function apiWorkspaceEndpoints(app) {
           workspaceName: workspace?.name || "Unknown Workspace",
         });
         try {
+          const VectorDb = getVectorDbClass();
           await VectorDb["delete-namespace"]({ namespace: slug });
         } catch (e) {
           console.error(e.message);
@@ -974,16 +975,6 @@ function apiWorkspaceEndpoints(app) {
             message: "Query parameter cannot be empty.",
           });
 
-        const VectorDb = getVectorDbClass();
-        const hasVectorizedSpace = await VectorDb.hasNamespace(workspace.slug);
-        const embeddingsCount = await VectorDb.namespaceCount(workspace.slug);
-
-        if (!hasVectorizedSpace || embeddingsCount === 0)
-          return response.status(200).json({
-            results: [],
-            message: "No embeddings found for this workspace.",
-          });
-
         const parseSimilarityThreshold = () => {
           let input = parseFloat(scoreThreshold);
           if (isNaN(input) || input < 0 || input > 1)
@@ -1002,19 +993,18 @@ function apiWorkspaceEndpoints(app) {
           prompt: String(query),
         });
 
-        const results = await VectorDb.performSimilaritySearch({
-          namespace: workspace.slug,
-          input: String(query),
+        const entries = await retrieveSharedVectorContext({
+          workspace,
+          query: String(query),
           LLMConnector,
           similarityThreshold: parseSimilarityThreshold(),
           topN: parseTopN(),
-          rerank: workspace?.vectorSearchMode === "rerank",
         });
 
         response.status(200).json({
-          results: results.sources.map((source) => ({
+          results: entries.map(({ text, source }) => ({
             id: source.id,
-            text: source.text,
+            text,
             metadata: {
               url: source.url,
               title: source.title,
@@ -1025,6 +1015,7 @@ function apiWorkspaceEndpoints(app) {
               published: source.published,
               wordCount: source.wordCount,
               tokenCount: source.token_count_estimate,
+              ragScope: source.ragScope,
             },
             distance: source._distance,
             score: source.score,

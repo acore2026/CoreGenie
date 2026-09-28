@@ -50,9 +50,11 @@ export default function AdminAgents() {
   const { pathname } = useLocation();
   const settingsView = pathname.endsWith("/skills")
     ? "skills"
-    : pathname.endsWith("/tools")
-      ? "tools"
-      : "agents";
+    : pathname.endsWith("/quick-tasks")
+      ? "quick-tasks"
+      : pathname.endsWith("/tools")
+        ? "tools"
+        : "agents";
 
   const [agentSkills, setAgentSkills] = useState([]);
   const [importedSkills, setImportedSkills] = useState([]);
@@ -316,7 +318,7 @@ export default function AdminAgents() {
     );
   }
 
-  if (settingsView === "agents" || settingsView === "skills") {
+  if (["agents", "skills", "quick-tasks"].includes(settingsView)) {
     return (
       <SkillLayout
         hasChanges={false}

@@ -216,20 +216,17 @@ function WizardTask({ agent, wizard, disabled, onUse }) {
         ref={trigger}
         type="button"
         disabled={disabled}
-        className="group flex min-h-[72px] min-w-0 items-start gap-3 rounded-lg border border-theme-chat-input-border bg-theme-bg-primary p-3 text-left hover:bg-theme-sidebar-subitem-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-button disabled:cursor-not-allowed disabled:opacity-50"
+        className="group flex min-h-[56px] min-w-0 items-center gap-2.5 rounded-lg border border-theme-chat-input-border bg-theme-bg-primary p-2.5 text-left hover:bg-theme-sidebar-subitem-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-button disabled:cursor-not-allowed disabled:opacity-50"
         aria-label={wizard.title}
         onClick={() => setOpen(true)}
       >
-        <ListChecks
-          size={18}
-          className="mt-0.5 shrink-0 text-theme-text-secondary"
-        />
+        <ListChecks size={18} className="shrink-0 text-theme-text-secondary" />
         <span className="min-w-0">
           <span className="block text-sm font-semibold text-theme-text-primary">
             {wizard.title}
           </span>
           {wizard.description && (
-            <span className="mt-1 block text-xs leading-5 text-theme-text-secondary">
+            <span className="mt-0.5 block text-xs leading-4 text-theme-text-secondary">
               {wizard.description}
             </span>
           )}

@@ -39,19 +39,19 @@ export default function NewWorkspaceModal({ hideModal = noop }) {
 
   return (
     <ModalWrapper isOpen={true}>
-      <div className="w-full max-w-2xl bg-theme-bg-secondary rounded-lg shadow border-2 border-theme-modal-border overflow-hidden">
-        <div className="relative p-6 border-b rounded-t border-theme-modal-border">
+      <div className="dsh-dialog mx-4 w-full max-w-xl">
+        <div className="relative border-b border-theme-sidebar-border px-5 py-4">
           <div className="w-full flex gap-x-2 items-center">
-            <h3 className="text-xl font-semibold text-white overflow-hidden overflow-ellipsis whitespace-nowrap">
+            <h3 className="overflow-hidden text-ellipsis whitespace-nowrap text-base font-semibold text-theme-text-primary">
               {t("new-workspace.title")}
             </h3>
           </div>
           <button
             onClick={hideModal}
             type="button"
-            className="absolute top-4 right-4 transition-all duration-300 bg-transparent rounded-lg text-sm p-1 inline-flex items-center hover:bg-theme-modal-border hover:border-theme-modal-border hover:border-opacity-50 border-transparent border"
+            className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-md text-theme-text-secondary transition-colors hover:bg-theme-sidebar-subitem-hover hover:text-theme-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-button-primary"
           >
-            <X size={24} weight="bold" className="text-white" />
+            <X size={17} weight="bold" />
           </button>
         </div>
         <div
@@ -59,12 +59,12 @@ export default function NewWorkspaceModal({ hideModal = noop }) {
           style={{ maxHeight: "calc(100vh - 200px)" }}
         >
           <form ref={formEl} onSubmit={handleCreate}>
-            <div className="py-7 px-9 space-y-2 flex-col">
+            <div className="flex-col space-y-2 px-5 py-5">
               <div className="w-full flex flex-col gap-y-4">
                 <div>
                   <label
                     htmlFor="name"
-                    className="block mb-2 text-sm font-medium text-white"
+                    className="mb-2 block text-sm font-medium text-theme-text-primary"
                   >
                     {t("common.workspaces-name")}
                   </label>
@@ -72,7 +72,7 @@ export default function NewWorkspaceModal({ hideModal = noop }) {
                     name="name"
                     type="text"
                     id="name"
-                    className="border-none bg-theme-settings-input-bg w-full text-white placeholder:text-theme-settings-input-placeholder text-sm rounded-lg focus:outline-primary-button active:outline-primary-button outline-none block w-full p-2.5"
+                    className="dsh-control block h-10 w-full px-3 text-sm placeholder:text-theme-settings-input-placeholder"
                     placeholder={t("new-workspace.placeholder")}
                     required={true}
                     autoComplete="off"
@@ -80,15 +80,17 @@ export default function NewWorkspaceModal({ hideModal = noop }) {
                   />
                 </div>
                 {error && (
-                  <p className="text-red-400 text-sm">Error: {error}</p>
+                  <p className="text-sm text-red-300 light:text-red-700">
+                    {error}
+                  </p>
                 )}
               </div>
             </div>
-            <div className="flex w-full justify-end items-center p-6 space-x-2 border-t border-theme-modal-border rounded-b">
+            <div className="flex w-full items-center justify-end space-x-2 border-t border-theme-sidebar-border px-5 py-4">
               <button
                 type="submit"
                 disabled={creating}
-                className="transition-all duration-300 bg-white text-black hover:opacity-80 disabled:opacity-60 px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2"
+                className="flex h-9 items-center gap-2 rounded-md bg-theme-button-primary px-4 text-sm font-semibold text-zinc-950 transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-button-primary focus-visible:ring-offset-2 focus-visible:ring-offset-theme-bg-primary disabled:cursor-wait disabled:opacity-50"
               >
                 {creating && <CircleNotch size={15} className="animate-spin" />}
                 {creating

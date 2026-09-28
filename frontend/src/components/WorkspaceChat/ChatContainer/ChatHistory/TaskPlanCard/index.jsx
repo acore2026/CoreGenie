@@ -19,7 +19,7 @@ export default function TaskPlanCard({ tasks = [] }) {
         aria-expanded={expanded}
       >
         <ListChecks size={17} aria-hidden="true" />
-        <span className="flex-1 text-left font-medium">
+        <span className="flex-1 text-left text-sm font-semibold leading-5">
           {t("task_plan.title")}
         </span>
         <span className="text-xs font-normal tabular-nums text-theme-text-secondary">
@@ -32,7 +32,7 @@ export default function TaskPlanCard({ tasks = [] }) {
         />
       </button>
       {expanded && (
-        <ol className="m-0 list-none px-3 pb-2 pt-0">
+        <ol className="m-0 list-none px-1 pb-1 pt-0">
           {ordered.map((task, index) => {
             const status = task.status || "pending";
             const current = ["running", "retrying"].includes(status);
@@ -48,17 +48,17 @@ export default function TaskPlanCard({ tasks = [] }) {
                 </span>
                 <div className="min-w-0 flex-1">
                   <p
-                    className={`m-0 break-words text-[13px] leading-5 ${current ? "font-medium text-theme-text-primary" : "text-theme-text-secondary"}`}
+                    className={`m-0 break-words text-[13px] leading-4 ${current ? "font-medium text-theme-text-primary" : "text-theme-text-secondary"}`}
                   >
                     {task.title}
                   </p>
                   {(task.error || task.progress) && (
-                    <p className="mb-0 mt-1 break-words text-xs leading-5 text-theme-text-secondary">
+                    <p className="mb-0 mt-0.5 break-words text-xs leading-4 text-theme-text-secondary">
                       {task.error || task.progress}
                     </p>
                   )}
                 </div>
-                <span className="flex shrink-0 items-center gap-1 pt-0.5 text-[11px] text-theme-text-secondary">
+                <span className="flex shrink-0 items-center gap-1 text-[11px] text-theme-text-secondary">
                   {status === "completed" && (
                     <Check size={12} aria-hidden="true" />
                   )}

@@ -10,6 +10,7 @@ const roleModelSchema = z
     attachmentMode: z.enum(["parsed", "workspace_file"]).default("parsed"),
     workflow: z.enum(["3gpp-markdown-conversion"]).optional(),
     thinking: z.boolean().optional(),
+    publicationRequiresCoverage: z.boolean().optional(),
     plannerModel: z.string().trim().min(1).nullable().optional(),
     controllerModel: z.string().trim().min(1).nullable().optional(),
     workerModel: z.string().trim().min(1).nullable().optional(),
@@ -35,6 +36,7 @@ runtimeRegistry.register({
   configSchema: z
     .object({
       maxRuntimeMs: z.number().int().min(60_000).max(3_600_000).optional(),
+      attachmentMode: z.enum(["parsed", "workspace_file"]).optional(),
       maxModelCallsPerTask: z.number().int().min(1).max(60).optional(),
       disableModelCallLimit: z.boolean().optional(),
       visionModel: z.string().trim().min(1).nullable().optional(),

@@ -318,10 +318,11 @@ const Workspace = {
       .then((res) => res.ok)
       .catch(() => false);
   },
-  listFiles: async function (slug, path = "") {
+  listFiles: async function (slug, path = "", { signal } = {}) {
     const query = new URLSearchParams({ path });
     return fetch(`${API_BASE}/workspace/${slug}/files?${query}`, {
       headers: baseHeaders(),
+      signal,
     })
       .then(async (response) => {
         const data = await response.json();
@@ -329,7 +330,11 @@ const Workspace = {
           throw new Error(data.error || "Unable to open workspace folder.");
         return data;
       })
-      .catch((error) => ({ entries: [], path, error: error.message }));
+      .catch((error) =>
+        error.name === "AbortError"
+          ? { entries: [], path, aborted: true }
+          : { entries: [], path, error: error.message }
+      );
   },
   previewFile: async function (slug, path) {
     const query = new URLSearchParams({ path });
@@ -368,6 +373,24 @@ const Workspace = {
       body: formData,
       headers: baseHeaders(),
     });
+    const data = await response.json();
+    return { response, data };
+  },
+  renameWorkspaceEntry: async function (slug, path, name) {
+    const response = await fetch(`${API_BASE}/workspace/${slug}/files`, {
+      method: "PATCH",
+      body: JSON.stringify({ path, name }),
+      headers: baseHeaders(),
+    });
+    const data = await response.json();
+    return { response, data };
+  },
+  deleteWorkspaceEntry: async function (slug, path) {
+    const query = new URLSearchParams({ path });
+    const response = await fetch(
+      `${API_BASE}/workspace/${slug}/files?${query}`,
+      { method: "DELETE", headers: baseHeaders() }
+    );
     const data = await response.json();
     return { response, data };
   },

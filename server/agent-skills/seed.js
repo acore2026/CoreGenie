@@ -3,7 +3,7 @@ const prisma = require("../utils/prisma");
 
 // Replaces the three independent 3GPP seed versions. Bump this when changing
 // bundled definitions for installations that do not use repository sync.
-const SEED_SETTING = "agent_config_seed_v6";
+const SEED_SETTING = "agent_config_seed_v13";
 const CONFIG_ROOT = path.resolve(__dirname, "../../agent-config");
 const LEGACY_NAMES = {
   "skills/3gpp-review": ["3gpp-tdocs"],
@@ -28,6 +28,7 @@ async function seedRepositoryConfig() {
   const keys = Object.keys(definitions).sort(
     (a, b) =>
       Number(!a.startsWith("skills/")) - Number(!b.startsWith("skills/")) ||
+      Number(a.startsWith("agents/")) - Number(b.startsWith("agents/")) ||
       a.localeCompare(b)
   );
   if (
@@ -44,7 +45,9 @@ async function seedRepositoryConfig() {
     if (key === "global-prompt") continue;
     names[key] = key.startsWith("skills/")
       ? parseSkillMarkdown(value.skillMd).manifest.name
-      : value.name;
+      : key.startsWith("quick-tasks/")
+        ? value.id
+        : value.name;
     const identity = `${key.split("/")[0]}:${names[key]}`;
     if (seen.has(identity))
       throw new Error(`Duplicate bundled name: ${identity}`);
@@ -53,6 +56,10 @@ async function seedRepositoryConfig() {
       for (const skill of value.skills)
         if (!definitions[`skills/${skill}`])
           throw new Error(`Missing bundled Skill ${skill} for ${key}`);
+    if (key.startsWith("agents/"))
+      for (const task of value.quickTasks || [])
+        if (!definitions[`quick-tasks/${task}`])
+          throw new Error(`Missing bundled quick task ${task} for ${key}`);
   }
 
   // Seed definitions and the version marker together. Existing revision files
@@ -70,6 +77,7 @@ async function seedRepositoryConfig() {
       const records = {
         agents: await client.predefined_agents.findMany(),
         skills: await client.predefined_agent_skills.findMany(),
+        "quick-tasks": await client.predefined_quick_tasks.findMany(),
       };
       const state = { entries: {}, keys: {} };
       const database = new ConfigDatabase(prisma);
@@ -80,7 +88,8 @@ async function seedRepositoryConfig() {
         const kind = key.split("/")[0];
         const candidates = records[kind].filter(
           (record) =>
-            record.name === names[key] ||
+            (kind === "quick-tasks" ? record.key : record.name) ===
+              names[key] ||
             (LEGACY_NAMES[key] || []).includes(record.name) ||
             (key === "agents/general-assistant" && record.isBuiltinDefault)
         );
@@ -113,7 +122,25 @@ async function seedRepositoryConfig() {
           state
         );
         state.entries[key] = { id };
+        if (key.startsWith("agents/") && ids[key]) {
+          const existing = records.agents.find(
+            (agent) => agent.id === ids[key]
+          );
+          if (
+            existing.wizard ||
+            JSON.parse(existing.quickTaskIds || "[]").length
+          ) {
+            await client.predefined_agents.update({
+              where: { id },
+              data: {
+                wizard: existing.wizard,
+                quickTaskIds: existing.quickTaskIds || "[]",
+              },
+            });
+          }
+        }
       }
+      await require("../models/predefinedQuickTask").migrateLegacy(client);
       await client.system_settings.upsert({
         where: { label: SEED_SETTING },
         create: { label: SEED_SETTING, value: "complete" },

@@ -1,5 +1,12 @@
 /* eslint-env jest, node */
+jest.mock("../../utils/MCP", () =>
+  jest.fn().mockImplementation(() => ({
+    activeMCPServers: jest.fn().mockResolvedValue([]),
+  }))
+);
+
 const {
+  activeToolOptions,
   cleanExamplePrompts,
   predefinedAgentEndpoints,
   validateAgentPayload,
@@ -31,6 +38,29 @@ describe("predefined Agent example prompts", () => {
 });
 
 describe("predefined Agent availability", () => {
+  it("keeps runtime availability separate from roster visibility", () => {
+    expect(
+      validateAgentPayload({
+        name: "内部研究助手",
+        systemPrompt: "完成委派的研究任务。",
+        enabled: true,
+        showInRoster: false,
+      })
+    ).toEqual({
+      data: expect.objectContaining({
+        enabled: true,
+        showInRoster: false,
+      }),
+    });
+  });
+
+  it("offers Agent delegation as an explicit tool permission", async () => {
+    await expect(activeToolOptions()).resolves.toContainEqual({
+      id: "agent.call",
+      name: "调用其他 Agent",
+    });
+  });
+
   it("allows the built-in global default Agent to be disabled", async () => {
     const routes = new Map();
     const app = {

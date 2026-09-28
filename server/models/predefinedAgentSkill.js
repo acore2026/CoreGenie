@@ -99,7 +99,10 @@ async function hydrate(record, { editor = false } = {}) {
   const packaged = await ensurePackaged(record);
   if (!packaged?.activeRevision) return null;
   const root = globalRevisionRoot(packaged.id, packaged.activeRevision);
-  const pkg = editor ? await packageForEditor(root) : await loadPackage(root);
+  const options = { expectedSha256: packaged.activeRevision };
+  const pkg = editor
+    ? await packageForEditor(root, options)
+    : await loadPackage(root, options);
   return {
     ...packaged,
     scope: "global",
@@ -121,7 +124,7 @@ const PredefinedAgentSkill = {
     const revision = await revisionRecord(id, sha256);
     if (!revision) return null;
     const root = globalRevisionRoot(id, sha256);
-    const pkg = await loadPackage(root);
+    const pkg = await loadPackage(root, { expectedSha256: sha256 });
     if (!pkg.valid || pkg.sha256 !== sha256)
       throw new Error("Skill revision is missing or has been modified.");
     return {

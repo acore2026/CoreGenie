@@ -1,7 +1,4 @@
 const { v4 } = require("uuid");
-const {
-  PuppeteerWebBaseLoader,
-} = require("langchain/document_loaders/web/puppeteer");
 const { writeToServerDocuments } = require("../../utils/files");
 const { tokenizeString } = require("../../utils/tokenizer");
 const { default: slugify } = require("slugify");
@@ -13,8 +10,8 @@ const {
 const {
   loadYouTubeTranscript,
 } = require("../../utils/extensions/YoutubeTranscript");
-const RuntimeSettings = require("../../utils/runtimeSettings");
 const { htmlToMarkdown } = require("../helpers/htmlToMarkdown");
+const { fetchPageHtml } = require("../../utils/fetchPage");
 
 /**
  * Scrape a generic URL and return the content in the specified format
@@ -136,105 +133,18 @@ function validatedHeaders(headers = {}) {
  */
 async function getPageContent({ link, captureAs = "text", headers = {} }) {
   try {
-    let pageContents = [];
-    const runtimeSettings = new RuntimeSettings();
-
-    /** @type {import('puppeteer').PuppeteerLaunchOptions} */
-    let launchConfig = { headless: "new" };
-
-    /* On MacOS 15.1, the headless=new option causes the browser to crash immediately.
-     * It is not clear why this is the case, but it is reproducible. Since AnythinglLM
-     * in production runs in a container, we can disable headless mode to workaround the issue for development purposes.
-     *
-     * This may show a popup window when scraping a page in development mode.
-     * This is expected behavior if seen in development mode on MacOS 15+
-     */
-    if (
-      process.platform === "darwin" &&
-      process.env.NODE_ENV === "development"
-    ) {
-      console.log(
-        "Darwin Development Mode: Disabling headless mode to prevent Chromium from crashing."
-      );
-      launchConfig.headless = "false";
-    }
-
-    const loader = new PuppeteerWebBaseLoader(link, {
-      launchOptions: {
-        headless: launchConfig.headless,
-        ignoreHTTPSErrors: true,
-        args: runtimeSettings.get("browserLaunchArgs"),
-      },
-      gotoOptions: {
-        waitUntil: "networkidle2",
-      },
-      async evaluate(page, browser) {
-        const innerHTML = await page.evaluate(
-          () => document.documentElement.innerHTML
-        );
-        await browser.close();
-        if (captureAs === "html") return innerHTML;
-        return htmlToMarkdown(innerHTML, link);
-      },
+    const pageHtml = await fetchPageHtml(link, {
+      headers: validatedHeaders(headers),
     });
-
-    // Override scrape method if headers are available
-    let overrideHeaders = validatedHeaders(headers);
-    if (Object.keys(overrideHeaders).length > 0) {
-      loader.scrape = async function () {
-        const { launch } = await PuppeteerWebBaseLoader.imports();
-        const browser = await launch({
-          headless: "new",
-          defaultViewport: null,
-          ignoreDefaultArgs: ["--disable-extensions"],
-          ...this.options?.launchOptions,
-        });
-        const page = await browser.newPage();
-        await page.setExtraHTTPHeaders(overrideHeaders);
-
-        await page.goto(this.webPath, {
-          timeout: 180000,
-          waitUntil: "networkidle2",
-          ...this.options?.gotoOptions,
-        });
-
-        const bodyHTML = this.options?.evaluate
-          ? await this.options.evaluate(page, browser)
-          : await page.evaluate(() => document.body.innerHTML);
-
-        await browser.close();
-        return bodyHTML;
-      };
-    }
-
-    const docs = await loader.load();
-    for (const doc of docs) pageContents.push(doc.pageContent);
-    return pageContents.join(" ");
+    return captureAs === "html" ? pageHtml : htmlToMarkdown(pageHtml, link);
   } catch (error) {
-    console.error(
-      "getPageContent failed to be fetched by puppeteer - falling back to fetch!",
-      error
-    );
-  }
-
-  try {
-    const pageText = await fetch(link, {
-      method: "GET",
-      headers: {
-        "Content-Type": "text/plain",
-        "User-Agent":
-          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/85.0.4183.83 Safari/537.36,gzip(gfe)",
-        ...validatedHeaders(headers),
-      },
-    }).then((res) => res.text());
-    return htmlToMarkdown(pageText, link);
-  } catch (error) {
-    console.error("getPageContent failed to be fetched by any method.", error);
+    console.error("getPageContent failed to fetch the page.", error);
   }
 
   return null;
 }
 
 module.exports = {
+  getPageContent,
   scrapeGenericUrl,
 };

@@ -1,6 +1,6 @@
 import Workspace from "@/models/workspace";
-import { ChatCircleText, CircleNotch, Trash } from "@phosphor-icons/react";
-import { useEffect, useState } from "react";
+import { Plus, CircleNotch, Trash } from "@phosphor-icons/react";
+import { useEffect, useRef, useState } from "react";
 import ThreadItem from "./ThreadItem";
 import { useNavigate, useParams } from "react-router-dom";
 import useHoverMetaKey from "./hooks";
@@ -11,40 +11,46 @@ import { useTranslation } from "react-i18next";
 
 export { THREAD_CREATED_EVENT, THREAD_RENAME_EVENT } from "../../events";
 
-const threadCache = new Map();
-
-export default function ThreadContainer({ workspace, canCreate = true }) {
+export default function ThreadContainer({ workspace, expanded = true }) {
   const { t } = useTranslation();
-  const { threadSlug = null } = useParams();
+  const { slug, threadSlug = null } = useParams();
   const navigate = useNavigate();
-  const cached = threadCache.get(workspace.slug);
-  const [threads, setThreads] = useState(() => cached?.threads || []);
-  const [defaultThreadHasChats, setDefaultThreadHasChats] = useState(
-    () => cached?.defaultThreadHasChats || false
-  );
-  const [loading, setLoading] = useState(() => !cached);
-  const [creatingThread, setCreatingThread] = useState(false);
+  const [threads, setThreads] = useState([]);
+  const [defaultThreadHasChats, setDefaultThreadHasChats] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [showAll, setShowAll] = useState(false);
+  const [retry, setRetry] = useState(0);
+  const [deleting, setDeleting] = useState(false);
+  // Fetch on first expansion, then retain state while this workspace is folded.
+  const [activated, setActivated] = useState(expanded);
+  const revision = useRef(0);
+  useEffect(() => {
+    if (expanded) setActivated(true);
+    else {
+      setShowAll(false);
+      setThreads((current) =>
+        current.some((thread) => thread.deleted)
+          ? current.map((thread) => ({ ...thread, deleted: false }))
+          : current
+      );
+    }
+  }, [expanded]);
 
   function updateThreads(updater) {
-    setThreads((current) => {
-      const next = updater(current);
-      const previousCache = threadCache.get(workspace.slug) || {};
-      threadCache.set(workspace.slug, {
-        ...previousCache,
-        threads: next,
-      });
-      return next;
-    });
+    revision.current += 1;
+    setThreads(updater);
   }
 
   const { containerRef, ctrlPressed } = useHoverMetaKey(
     updateThreads,
-    !loading
+    !loading && expanded
   );
 
   useEffect(() => {
     const chatHandler = (event) => {
-      const { threadSlug, newName } = event.detail;
+      const { threadSlug, newName, workspaceSlug } = event.detail || {};
+      if (workspaceSlug && workspaceSlug !== workspace.slug) return;
       updateThreads((prevThreads) =>
         prevThreads.map((thread) => {
           if (thread.slug === threadSlug) {
@@ -61,7 +67,7 @@ export default function ThreadContainer({ workspace, canCreate = true }) {
       updateThreads((current) =>
         current.some((item) => item.slug === thread.slug)
           ? current
-          : [...current, thread]
+          : [thread, ...current]
       );
     };
 
@@ -75,21 +81,37 @@ export default function ThreadContainer({ workspace, canCreate = true }) {
   }, [workspace.slug]);
 
   useEffect(() => {
+    if (!activated) return;
+    let cancelled = false;
     async function fetchThreads() {
       if (!workspace.slug) return;
-      const { threads: nextThreads, defaultThreadChatCount } =
-        await Workspace.threads.all(workspace.slug);
-      const nextDefaultThreadHasChats = defaultThreadChatCount > 0;
-      threadCache.set(workspace.slug, {
-        threads: nextThreads,
-        defaultThreadHasChats: nextDefaultThreadHasChats,
-      });
-      setLoading(false);
-      setThreads(nextThreads);
-      setDefaultThreadHasChats(nextDefaultThreadHasChats);
+      setError(false);
+      setLoading(true);
+      const startedRevision = revision.current;
+      try {
+        const result = await Workspace.threads.all(workspace.slug, {
+          throwOnError: true,
+        });
+        if (cancelled) return;
+        if (!Array.isArray(result?.threads)) throw new Error("Invalid threads");
+        // A creation/rename that finished during this request must not be overwritten.
+        if (revision.current !== startedRevision) {
+          setRetry((value) => value + 1);
+          return;
+        }
+        setThreads(result.threads);
+        setDefaultThreadHasChats(result.defaultThreadChatCount > 0);
+      } catch {
+        if (!cancelled) setError(true);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     }
     fetchThreads();
-  }, [workspace.slug]);
+    return () => {
+      cancelled = true;
+    };
+  }, [workspace.slug, activated, retry]);
 
   const toggleForDeletion = (id) => {
     updateThreads((prev) =>
@@ -101,13 +123,22 @@ export default function ThreadContainer({ workspace, canCreate = true }) {
   };
 
   const handleDeleteAll = async () => {
+    if (deleting) return;
     const slugs = threads.filter((t) => t.deleted === true).map((t) => t.slug);
-    await Workspace.threads.deleteBulk(workspace.slug, slugs);
-    updateThreads((prev) => prev.filter((t) => !t.deleted));
-
-    // Only redirect if current thread is being deleted
-    if (slugs.includes(threadSlug)) {
-      navigate(paths.workspace.chat(workspace.slug));
+    setDeleting(true);
+    try {
+      const success = await Workspace.threads.deleteBulk(workspace.slug, slugs);
+      if (!success) throw new Error("Delete failed");
+      updateThreads((prev) =>
+        prev.filter((thread) => !slugs.includes(thread.slug))
+      );
+      if (slug === workspace.slug && slugs.includes(threadSlug)) {
+        navigate(paths.workspace.chat(workspace.slug));
+      }
+    } catch {
+      showToast(t("workspace_list.delete_failed"), "error");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -116,12 +147,93 @@ export default function ThreadContainer({ workspace, canCreate = true }) {
   }
 
   function getActiveThreadIdx() {
+    if (slug !== workspace.slug) return -1;
     const idx = threads.findIndex((t) => t?.slug === threadSlug);
     if (idx >= 0) return idx + (defaultThreadHasChats ? 1 : 0);
     if (!threadSlug && defaultThreadHasChats) return 0;
     return -1;
   }
 
+  if (!expanded) return null;
+
+  if (loading) {
+    return (
+      <p role="status" className="py-2 pl-12 text-xs text-theme-text-secondary">
+        {t("workspace_list.loading")}
+      </p>
+    );
+  }
+  if (error) {
+    return (
+      <button
+        type="button"
+        onClick={() => setRetry((value) => value + 1)}
+        className="min-h-10 w-full px-8 text-left text-xs text-theme-text-secondary hover:bg-theme-sidebar-subitem-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-button-primary"
+      >
+        {t("workspace_list.retry")}
+      </button>
+    );
+  }
+
+  const activeThreadIdx = getActiveThreadIdx();
+  const rows = defaultThreadHasChats
+    ? [{ slug: null, name: t("workspace_list.default_thread") }, ...threads]
+    : threads;
+  const visibleRows =
+    showAll || ctrlPressed
+      ? rows
+      : rows.filter((_, index) => index < 5 || index === activeThreadIdx);
+  const hiddenCount = rows.length - visibleRows.length;
+
+  return (
+    <div
+      ref={containerRef}
+      className="flex flex-col"
+      role="list"
+      aria-label={t("workspace_list.threads", { name: workspace.name })}
+    >
+      {visibleRows.map((thread) => (
+        <ThreadItem
+          key={thread.slug ?? "default"}
+          ctrlPressed={ctrlPressed}
+          toggleMarkForDeletion={toggleForDeletion}
+          isActive={slug === workspace.slug && thread.slug === threadSlug}
+          workspace={workspace}
+          onRemove={removeThread}
+          thread={thread}
+        />
+      ))}
+      {rows.length === 0 && (
+        <p className="py-2 pl-12 text-xs text-theme-text-secondary">
+          {t("workspace_list.empty")}
+        </p>
+      )}
+      {!ctrlPressed && (hiddenCount > 0 || showAll) && (
+        <button
+          type="button"
+          aria-expanded={showAll}
+          onClick={() => setShowAll((value) => !value)}
+          className="min-h-10 w-full pl-12 pr-2 text-left text-xs text-theme-text-secondary hover:bg-theme-sidebar-subitem-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-theme-button-primary"
+        >
+          {showAll
+            ? t("workspace_list.show_less")
+            : t("workspace_list.show_more", { count: hiddenCount })}
+        </button>
+      )}
+      <DeleteAllThreadButton
+        ctrlPressed={ctrlPressed}
+        threads={threads}
+        onDelete={handleDeleteAll}
+        deleting={deleting}
+      />
+    </div>
+  );
+}
+
+export function CreateThreadButton({ workspace, onCreated }) {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const [creatingThread, setCreatingThread] = useState(false);
   async function createThread() {
     if (creatingThread) return;
     setCreatingThread(true);
@@ -138,91 +250,48 @@ export default function ThreadContainer({ workspace, canCreate = true }) {
           detail: { workspaceSlug: workspace.slug, thread },
         })
       );
+      onCreated?.();
       navigate(paths.workspace.thread(workspace.slug, thread.slug));
+    } catch {
+      showToast(t("sidebar-create.thread-failed"), "error", { clear: true });
     } finally {
       setCreatingThread(false);
     }
   }
 
-  if (loading) {
-    return (
-      <div className="flex flex-col bg-pulse w-full h-10 items-center justify-center">
-        <p className="text-xs text-white animate-pulse">loading threads....</p>
-      </div>
-    );
-  }
-
-  const activeThreadIdx = getActiveThreadIdx();
-
   return (
-    <div
-      ref={containerRef}
-      className="flex flex-col"
-      role="list"
-      aria-label="Threads"
+    <button
+      type="button"
+      onClick={createThread}
+      disabled={creatingThread}
+      aria-busy={creatingThread}
+      aria-label={t("workspace_list.create_thread", { name: workspace.name })}
+      title={t("sidebar-create.thread")}
+      className="flex h-9 w-8 shrink-0 items-center justify-center text-theme-text-secondary hover:bg-theme-sidebar-subitem-hover hover:text-theme-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-theme-button-primary disabled:cursor-wait disabled:opacity-50"
     >
-      {canCreate && (
-        <div role="listitem" className="flex h-[38px] w-full items-center">
-          <div className="w-[34px] shrink-0" aria-hidden="true" />
-          <button
-            type="button"
-            onClick={createThread}
-            disabled={creatingThread}
-            aria-busy={creatingThread}
-            className="group flex min-h-8 min-w-0 flex-1 items-center gap-2 rounded-[4px] px-2 text-left text-sm font-semibold text-cyan-300 transition-[background-color,color,transform] duration-150 hover:bg-cyan-300/10 hover:text-cyan-200 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan-300/50 disabled:cursor-not-allowed disabled:opacity-50 light:text-cyan-700 light:hover:bg-cyan-50 light:hover:text-cyan-800"
-          >
-            {creatingThread ? (
-              <CircleNotch size={16} weight="bold" className="animate-spin" />
-            ) : (
-              <ChatCircleText size={16} weight="bold" />
-            )}
-            <span className="truncate">
-              {creatingThread
-                ? t("sidebar-create.creating-thread")
-                : t("sidebar-create.thread")}
-            </span>
-          </button>
-        </div>
+      {creatingThread ? (
+        <CircleNotch size={16} weight="bold" className="animate-spin" />
+      ) : (
+        <Plus size={16} />
       )}
-      {defaultThreadHasChats && (
-        <ThreadItem
-          idx={0}
-          activeIdx={activeThreadIdx}
-          isActive={activeThreadIdx === 0}
-          workspace={workspace}
-          thread={{ slug: null, name: "default" }}
-          hasNext={threads.length > 0}
-        />
-      )}
-      {threads.map((thread, i) => (
-        <ThreadItem
-          key={thread.slug}
-          idx={i + (defaultThreadHasChats ? 1 : 0)}
-          ctrlPressed={ctrlPressed}
-          toggleMarkForDeletion={toggleForDeletion}
-          activeIdx={activeThreadIdx}
-          isActive={activeThreadIdx === i + (defaultThreadHasChats ? 1 : 0)}
-          workspace={workspace}
-          onRemove={removeThread}
-          thread={thread}
-          hasNext={i !== threads.length - 1}
-        />
-      ))}
-      <DeleteAllThreadButton
-        ctrlPressed={ctrlPressed}
-        threads={threads}
-        onDelete={handleDeleteAll}
-      />
-    </div>
+      <span className="sr-only">
+        {creatingThread
+          ? t("sidebar-create.creating-thread")
+          : t("sidebar-create.thread")}
+      </span>
+    </button>
   );
 }
 
-function DeleteAllThreadButton({ ctrlPressed, threads, onDelete }) {
+function DeleteAllThreadButton({ ctrlPressed, threads, onDelete, deleting }) {
+  const { t } = useTranslation();
   if (!ctrlPressed || threads.filter((t) => t.deleted).length === 0)
     return null;
   return (
     <button
       type="button"
+      disabled={deleting}
+      aria-busy={deleting}
       onClick={onDelete}
       className="w-full relative flex h-[40px] items-center border-none hover:bg-red-400/20 rounded-lg group"
     >
@@ -235,7 +304,7 @@ function DeleteAllThreadButton({ ctrlPressed, threads, onDelete }) {
           />
         </div>
         <p className="text-white light:text-theme-text-secondary text-left text-sm group-hover:text-red-400">
-          Delete Selected
+          {t("workspace_list.delete_selected")}
         </p>
       </div>
     </button>

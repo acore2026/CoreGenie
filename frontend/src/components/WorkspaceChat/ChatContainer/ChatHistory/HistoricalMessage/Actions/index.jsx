@@ -5,6 +5,7 @@ import { EditMessageAction } from "./EditMessage";
 import RenderMetrics from "./RenderMetrics";
 import ActionMenu from "./ActionMenu";
 import { useTranslation } from "react-i18next";
+import showToast from "@/utils/toast";
 
 const Actions = ({
   message,
@@ -61,24 +62,24 @@ function CopyMessage({ message }) {
   const { copied, copyText } = useCopyText();
   const { t } = useTranslation();
 
+  const handleCopy = async () => {
+    if (await copyText(message)) return;
+    showToast(t("chat_window.copy_failed"), "error", { clear: true });
+  };
+
   return (
-    <>
-      <div className="mt-3 relative">
-        <button
-          onClick={() => copyText(message)}
-          data-tooltip-id="copy-assistant-text"
-          data-tooltip-content={t("chat_window.copy")}
-          className="text-zinc-300 light:text-slate-500"
-          aria-label={t("chat_window.copy")}
-        >
-          {copied ? (
-            <Check size={20} className="mb-1" />
-          ) : (
-            <Copy size={20} className="mb-1" />
-          )}
-        </button>
-      </div>
-    </>
+    <div className="relative mt-2">
+      <button
+        type="button"
+        onClick={handleCopy}
+        data-tooltip-id="copy-assistant-text"
+        data-tooltip-content={t("chat_window.copy")}
+        className="flex h-9 w-9 items-center justify-center rounded-lg text-zinc-400 transition-colors hover:bg-white/[0.06] hover:text-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70 light:text-slate-500 light:hover:bg-slate-200 light:hover:text-slate-900"
+        aria-label={t("chat_window.copy")}
+      >
+        {copied ? <Check size={18} /> : <Copy size={18} />}
+      </button>
+    </div>
   );
 }
 

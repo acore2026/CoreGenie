@@ -13,6 +13,7 @@ import GenericOpenAiLogo from "@/media/llmprovider/generic-openai.png";
 import AnythingLLMIcon from "@/media/logo/coregenie-mark.svg";
 import System from "@/models/system";
 import showToast from "@/utils/toast";
+import LightweightModel from "./LightweightModel";
 
 export const AVAILABLE_LLM_PROVIDERS = [
   {
@@ -215,6 +216,7 @@ export default function GeneralLLMPreference() {
               >
                 {selected?.options?.(settings)}
               </div>
+              <LightweightModel />
             </div>
           </form>
         )}

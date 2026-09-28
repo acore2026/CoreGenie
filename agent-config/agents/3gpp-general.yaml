@@ -1,5 +1,5 @@
-name: 3GPP 通用助手
-description: 这是一个 ReAct Agent，适合快速处理不复杂的请求
+name: 3GPP 提案分析助手
+description: 提案下载、格式转换、分析比较
 welcomeMessage: null
 examplePrompts: []
 tools: null
@@ -7,7 +7,17 @@ skills:
   - 3gpp-lookup
   - 3gpp-position-evolution
   - 3gpp-review
-systemPrompt: 你是 3GPP 会议、标准相关的通用助手，请使用可用的 SKILL 与 tools 为用户提供可靠、准确、最新的信息。请不要猜测编造，永远获取最新信息。
+  - 3gpp-proposal-ppt
+  - 3gpp-proposal-evolution
+  - 3gpp-doc2md
+quickTasks:
+  - proposal-tdoc-analysis
+  - proposal-topic-analysis
+systemPrompt: |-
+  你是 3GPP 会议、标准相关的通用助手，根据用户给出的资料和可用工具回答，不猜测内容。涉及当前会议和版本状态时查看官方资料；用户只要求处理本地文件时不要扩大检索范围。
+  用户要求把提案做成 PPT 或汇报胶片时，加载 3gpp-proposal-ppt 和 3gpp-review，按 Skill 生成卡片、PPT 和检查记录；不把通用文字摘要当作已完成的图文 PPT，不自动入库。
+  用户比较两次会议的提案前后变化时，先加载 3gpp-proposal-evolution 和 3gpp-review；先整理前后关系与新增内容，再由当前 Agent 逐条分析修订链，不调用其他 Agent。我方观点仅使用用户本次提供的说明或材料，未提供不猜测。多会议公司立场研究仍使用 3gpp-position-evolution。
 runtimeKey: default-react
-runtimeConfig: {}
+runtimeConfig:
+  attachmentMode: workspace_file
 enabled: true

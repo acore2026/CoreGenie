@@ -9,6 +9,9 @@ const {
 } = require("../../agent-system/runtimes/registry");
 
 describe("Agent runtime registry", () => {
+  it("keeps original-file uploads available to ReAct document skills", () => {
+    expect(normalizeRuntimeConfig(LEGACY_DEFAULT_RUNTIME_KEY, { attachmentMode: "workspace_file" })).toEqual({ attachmentMode: "workspace_file" });
+  });
   it("exposes every selectable Agent runtime", () => {
     expect(runtimeOptions()).toEqual([
       expect.objectContaining({
@@ -83,6 +86,30 @@ describe("Agent runtime registry", () => {
       disableModelCallLimit: true,
       visionModel: "qwen3.7-plus",
     });
+  });
+
+  it("allows bounded proposal analysis without claiming full meeting coverage", () => {
+    const fs = require("fs");
+    const path = require("path");
+    const YAML = require("yaml");
+    const agent = YAML.parse(
+      fs.readFileSync(
+        path.resolve(
+          __dirname,
+          "../../../agent-config/agents/3gpp-review.yaml"
+        ),
+        "utf8"
+      )
+    );
+    expect(
+      normalizeRuntimeConfig(agent.runtimeKey, agent.runtimeConfig)
+    ).toMatchObject({ publicationRequiresCoverage: false });
+    expect(
+      normalizeRuntimeConfig(agent.runtimeKey, {
+        ...agent.runtimeConfig,
+        publicationRequiresCoverage: true,
+      })
+    ).toMatchObject({ publicationRequiresCoverage: true });
   });
 
   it("never silently changes a snapshotted runtime version", () => {

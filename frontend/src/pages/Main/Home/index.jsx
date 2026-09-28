@@ -1,7 +1,5 @@
 import React, { useState, useEffect, useRef, useContext } from "react";
 import { useNavigate } from "react-router-dom";
-import { isMobile } from "react-device-detect";
-import { SidebarMobileHeader } from "@/components/Sidebar";
 import PromptInput, {
   PROMPT_INPUT_EVENT,
   PROMPT_INPUT_ID,
@@ -138,10 +136,7 @@ export default function Home() {
 
   if (workspaceLoading) {
     return (
-      <div
-        style={{ height: isMobile ? "100%" : "calc(100% - 32px)" }}
-        className="transition-all duration-500 relative md:ml-[2px] md:mr-[16px] md:my-[16px] md:rounded-[16px] bg-zinc-900 light:bg-white w-full h-full overflow-hidden"
-      />
+      <div className="relative min-w-0 flex-1 bg-theme-bg-chat h-full overflow-hidden" />
     );
   }
 
@@ -300,14 +295,10 @@ function HomeContent({ workspace, setWorkspace, threadSlug, setThreadSlug }) {
 
   return (
     <ChatSidebarProvider>
-      <div
-        style={{ height: isMobile ? "100%" : "calc(100% - 32px)" }}
-        className="relative flex w-full h-full z-[2] md:ml-[2px] md:mr-[16px] md:my-[16px] lg:gap-3"
-      >
+      <div className="relative flex min-w-0 flex-1 h-full z-[2]">
         <div className="relative h-full min-w-0 flex-1">
           <ChatSettingsMenu workspace={workspace} threadSlug={threadSlug} />
-          <div className="relative h-full w-full min-w-0 flex-1 overflow-hidden border-none bg-zinc-900 transition-all duration-500 light:bg-white light:border light:border-solid light:border-theme-modal-border md:rounded-[16px]">
-            {isMobile && <SidebarMobileHeader />}
+          <div className="relative h-full w-full min-w-0 flex-1 overflow-hidden bg-theme-bg-chat">
             <DnDFileUploaderWrapper>
               <div className="flex flex-col h-full w-full items-center justify-center">
                 <div className="flex flex-col items-center w-full max-w-[750px]">
@@ -347,10 +338,7 @@ function HomeContent({ workspace, setWorkspace, threadSlug, setThreadSlug }) {
 function NoWorkspacesAssigned() {
   const { t } = useTranslation();
   return (
-    <div
-      style={{ height: isMobile ? "100%" : "calc(100% - 32px)" }}
-      className="transition-all duration-500 relative md:ml-[2px] md:mr-[16px] md:my-[16px] md:rounded-[16px] bg-zinc-900 light:bg-white w-full h-full overflow-hidden"
-    >
+    <div className="relative min-w-0 flex-1 bg-theme-bg-chat h-full overflow-hidden">
       <div className="flex flex-col h-full w-full items-center justify-center">
         <p className="text-white/60 text-sm text-center whitespace-pre-line">
           {t("home.notAssigned")}

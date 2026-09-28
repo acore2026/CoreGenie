@@ -208,6 +208,33 @@ describe("governed tool execution policy", () => {
     expect(second).toMatchObject({ ok: false, code: "NO_PROGRESS" });
   });
 
+  it.each(["failed", "skipped", "cancelled", "completed"])(
+    "still blocks a persisted non-retryable %s read without a usable result",
+    async (status) => {
+      const execute = jest.fn().mockResolvedValue("unexpected retry");
+      AgentToolExecution.findOperation.mockResolvedValueOnce([
+        { status, result: null, retryable: false },
+      ]);
+      const wrapped = toLangChainTool(
+        defineTool({
+          id: "read.persisted-failure",
+          description: "Read a previously failed value",
+          schema: z.object({}),
+          execute,
+          action: false,
+        }),
+        context()
+      );
+
+      const result = JSON.parse(
+        await wrapped.func({}, undefined, { toolCall: { id: "new-call" } })
+      );
+
+      expect(result).toMatchObject({ ok: false, code: "NO_PROGRESS" });
+      expect(execute).not.toHaveBeenCalled();
+    }
+  );
+
   it("blocks a failed capability without executing more variants", async () => {
     const emit = jest.fn().mockResolvedValue(undefined);
     const execute = jest.fn().mockResolvedValue({

@@ -1,4 +1,8 @@
 import { createPortal } from "react-dom";
+import { createContext, useContext } from "react";
+
+// Nested modals must stay inside a native dialog's top layer.
+export const ModalPortalContext = createContext(null);
 /**
  * @typedef {Object} ModalWrapperProps
  * @property {import("react").ReactComponentElement} children - The DOM/JSX to render
@@ -16,20 +20,21 @@ import { createPortal } from "react-dom";
  * @todo Add a closeModal prop to the ModalWrapper component so we can escape dismiss anywhere this is used
  */
 export default function ModalWrapper({ children, isOpen, noPortal = false }) {
+  const portalTarget = useContext(ModalPortalContext);
   if (!isOpen) return null;
 
   if (noPortal) {
     return (
-      <div className="bg-black/60 backdrop-blur-sm fixed top-0 left-0 outline-none w-screen h-screen flex items-center justify-center z-99">
+      <div className="fixed left-0 top-0 z-99 flex h-screen w-screen items-center justify-center bg-black/55 outline-none backdrop-blur-[2px]">
         {children}
       </div>
     );
   }
 
   return createPortal(
-    <div className="bg-black/60 backdrop-blur-sm fixed top-0 left-0 outline-none w-screen h-screen flex items-center justify-center z-99">
+    <div className="fixed left-0 top-0 z-99 flex h-screen w-screen items-center justify-center bg-black/55 outline-none backdrop-blur-[2px]">
       {children}
     </div>,
-    document.getElementById("root")
+    portalTarget || document.getElementById("root")
   );
 }

@@ -48,29 +48,32 @@ export default function MicButton({
 
   const active = listening || processing;
   return (
-    <div
+    <button
+      type="button"
+      disabled={processing}
       data-tooltip-id="tooltip-microphone-btn"
       data-tooltip-content={`${t("chat_window.microphone")} (CTRL + M)`}
       aria-label={t("chat_window.microphone")}
+      aria-pressed={listening}
       onClick={toggle}
-      className={`group border-none relative flex justify-center items-center cursor-pointer w-8 h-8 rounded-full hover:bg-zinc-700 light:hover:bg-slate-200 ${
-        active ? "bg-zinc-700 light:bg-slate-200" : ""
+      className={`group relative flex h-8 w-8 items-center justify-center rounded-md border-none text-theme-text-secondary transition-colors duration-150 hover:bg-theme-sidebar-subitem-hover hover:text-theme-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-button-primary disabled:cursor-wait disabled:opacity-60 ${
+        active
+          ? "bg-theme-sidebar-subitem-selected text-theme-text-primary"
+          : ""
       }`}
     >
       {processing ? (
         <CircleNotch
           size={18}
           weight="bold"
-          className="pointer-events-none text-white light:text-slate-800 animate-spin shrink-0"
+          className="pointer-events-none shrink-0 animate-spin text-current"
         />
       ) : (
         <Microphone
           weight="regular"
           size={18}
-          className={`pointer-events-none text-zinc-300 light:text-slate-600 group-hover:text-white light:group-hover:text-slate-600 shrink-0 ${
-            listening
-              ? "animate-pulse-glow !text-white light:!text-slate-800"
-              : ""
+          className={`pointer-events-none shrink-0 text-current ${
+            listening ? "animate-pulse-glow" : ""
           }`}
         />
       )}
@@ -80,6 +83,6 @@ export default function MicButton({
         delayShow={300}
         className="tooltip !text-xs z-99"
       />
-    </div>
+    </button>
   );
 }

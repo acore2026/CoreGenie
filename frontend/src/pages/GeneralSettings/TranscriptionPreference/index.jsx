@@ -6,10 +6,8 @@ import showToast from "@/utils/toast";
 import PreLoader from "@/components/Preloader";
 import OpenAiLogo from "@/media/llmprovider/openai.png";
 import GenericOpenAiLogo from "@/media/llmprovider/generic-openai.png";
-import AnythingLLMIcon from "@/media/logo/coregenie-mark.svg";
 import OpenAiWhisperOptions from "@/components/TranscriptionSelection/OpenAiOptions";
 import GenericOpenAiWhisperOptions from "@/components/TranscriptionSelection/GenericOpenAiOptions";
-import NativeTranscriptionOptions from "@/components/TranscriptionSelection/NativeTranscriptionOptions";
 import LLMItem from "@/components/LLMSelection/LLMItem";
 import { CaretUpDown, MagnifyingGlass, X } from "@phosphor-icons/react";
 import CTAButton from "@/components/lib/CTAButton";
@@ -30,13 +28,6 @@ const PROVIDERS = [
     options: (settings) => <GenericOpenAiWhisperOptions settings={settings} />,
     description:
       "Transcribe audio using any OpenAI-compatible API via custom configuration.",
-  },
-  {
-    name: "AnythingLLM Built-In",
-    value: "local",
-    logo: AnythingLLMIcon,
-    options: (settings) => <NativeTranscriptionOptions settings={settings} />,
-    description: "Run a built-in whisper model on this instance privately.",
   },
 ];
 
@@ -91,7 +82,12 @@ export default function TranscriptionModelPreference() {
     async function fetchKeys() {
       const _settings = await System.keys();
       setSettings(_settings);
-      setSelectedProvider(_settings?.WhisperProvider || "local");
+      const configuredProvider = PROVIDERS.some(
+        (provider) => provider.value === _settings?.WhisperProvider
+      )
+        ? _settings.WhisperProvider
+        : "openai";
+      setSelectedProvider(configuredProvider);
       setLoading(false);
     }
     fetchKeys();

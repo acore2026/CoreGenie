@@ -5,7 +5,73 @@ import {
   missingFields,
   pruneAnswers,
   visibleFields,
+  updateAnswer,
+  wizardTasks,
 } from "./agentWizard.mjs";
+
+test("multiple quick tasks preserve identity and old single forms still work", () => {
+  assert.deepEqual(wizardTasks(null), []);
+  assert.equal(wizardTasks({ title: "旧任务" })[0].id, "default");
+  const tasks = [{ id: "one" }, { id: "two" }];
+  assert.deepEqual(wizardTasks(tasks), tasks);
+});
+
+test("changing group clears meeting and KI; changing meeting clears only KI", () => {
+  const config = {
+    fields: [
+      { id: "group" },
+      { id: "meeting", type: "meeting", groupField: "group" },
+      {
+        id: "ki",
+        type: "agenda",
+        groupField: "group",
+        meetingField: "meeting",
+      },
+      { id: "notes" },
+    ],
+  };
+  const answers = {
+    group: "SA2",
+    meeting: { id: "176" },
+    ki: [{ value: "1" }],
+    notes: "keep",
+  };
+  assert.deepEqual(updateAnswer(config, answers, "group", "RAN1"), {
+    group: "RAN1",
+    notes: "keep",
+  });
+  assert.deepEqual(updateAnswer(config, answers, "meeting", { id: "177" }), {
+    group: "SA2",
+    meeting: { id: "177" },
+    notes: "keep",
+  });
+});
+
+test("catalog selections include source and KI context in generated prompt", () => {
+  const config = {
+    instructions: "分析",
+    fields: [
+      { id: "meeting", type: "meeting", label: "会议", required: true },
+      { id: "ki", type: "agenda", label: "KI", required: true },
+    ],
+  };
+  assert.equal(
+    generatePrompt(config, { meeting: { label: "SA2#176" }, ki: [] }),
+    null
+  );
+  const prompt = generatePrompt(config, {
+    meeting: { label: "SA2#176", source: "https://www.3gpp.org/ftp/meeting/" },
+    ki: [
+      {
+        label: "KI#1",
+        description: "study A",
+        source: "https://www.3gpp.org/ftp/agenda.htm",
+      },
+    ],
+  });
+  assert.match(prompt, /KI#1（study A）/);
+  assert.match(prompt, /来源：https:\/\/www.3gpp.org\/ftp\/agenda.htm/);
+});
 
 const wizard = {
   instructions: "分析任务",

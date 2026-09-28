@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CoreGenie · 实验首页原型</title>
+  <style>
+    :root { color-scheme: light; --page:#fafafa; --panel:#fff; --input:#fff; --hover:#eeeeef; --ink:#242629; --secondary:#62676e; --muted:#767b83; --line:#e4e5e7; --accent:#087e96; --tint:#eaf5f7; --focus:#168ca5; --error:#b94545; }
+    :root[data-theme="dark"] { color-scheme:dark; --page:#191b1e; --panel:#202226; --input:#24262a; --hover:#2b2e33; --ink:#e8eaed; --secondary:#b1b6be; --muted:#9299a4; --line:#35383e; --accent:#70cbdc; --tint:#23383d; --focus:#70cbdc; --error:#ed9999; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--page); color:var(--ink); font:14px/1.6 "Plus Jakarta Sans","PingFang SC","Microsoft YaHei",sans-serif; }
+    button,input,textarea,select { font:inherit; color:inherit; }
+    button,select { cursor:pointer; }
+    button { border:0; background:none; border-radius:8px; min-height:40px; padding:8px 12px; transition:background-color .15s,color .15s; }
+    button:hover { background:var(--hover); }
+    button:active { background:var(--line); }
+    button:disabled { cursor:not-allowed; opacity:.4; }
+    :focus-visible { outline:2px solid var(--focus); outline-offset:3px; }
+    svg { width:18px; height:18px; flex-shrink:0; fill:none; stroke:currentColor; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
+    .icon { display:inline-flex; align-items:center; justify-content:center; width:40px; height:40px; padding:0; flex-shrink:0; }
+    .app { display:grid; grid-template-columns:240px minmax(0,1fr); min-height:100dvh; }
+    .sidebar { padding:16px 14px; display:flex; flex-direction:column; border-right:1px solid var(--line); height:100dvh; position:sticky; top:0; }
+    .sidebar .nav-content { display:flex; flex-direction:column; flex:1; min-height:0; }
+    .brand { display:flex; align-items:center; gap:10px; font-size:18px; font-weight:650; letter-spacing:-.6px; padding:4px 8px 28px; }
+    .brand img { width:27px; height:27px; }
+    .new { width:100%; display:flex; gap:10px; align-items:center; border:1px solid var(--line); background:var(--panel); font-weight:550; }
+    .search { display:flex; align-items:center; gap:10px; padding:8px 10px; margin:12px 0 28px; border-radius:8px; }
+    .search:focus-within { outline:2px solid var(--focus); outline-offset:2px; }
+    .search input { width:100%; min-width:0; border:0; background:none; outline:none; font-size:13px; }
+    .section-label { display:block; font-size:11px; color:var(--muted); margin:0 10px 8px; }
+    .recent { display:flex; flex-direction:column; gap:2px; }
+    .recent button { text-align:left; width:100%; display:flex; align-items:center; gap:8px; padding:10px; font-size:13px; }
+    .recent .title { overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+    .recent svg { width:15px; height:15px; color:var(--muted); }
+    .later { margin-top:24px; }
+    .sidebar-bottom { margin-top:auto; padding-top:24px; }
+    .sidebar-bottom button { display:flex; width:100%; align-items:center; gap:10px; color:var(--secondary); font-size:13px; }
+    .avatar { display:grid; place-items:center; width:26px; height:26px; background:var(--hover); border:1px solid var(--line); border-radius:50%; font-size:11px; }
+    main { display:flex; flex-direction:column; min-width:0; min-height:100dvh; }
+    header { height:72px; padding:16px 28px; display:flex; align-items:center; justify-content:space-between; gap:12px; }
+    .heading { display:flex; align-items:center; gap:10px; color:var(--secondary); font-size:13px; }
+    .badge { border:1px solid var(--line); font-size:10px; padding:1px 6px; border-radius:5px; color:var(--muted); }
+    .header-actions { display:flex; align-items:center; gap:8px; }
+    .with-icon { display:inline-flex; align-items:center; gap:7px; font-size:13px; color:var(--secondary); }
+    .hero { flex:1; display:flex; align-items:center; justify-content:center; padding:24px 40px 96px; }
+    .stack { width:100%; max-width:720px; }
+    .intro { text-align:center; margin-bottom:36px; }
+    .intro .mark { width:40px; height:40px; margin-bottom:12px; }
+    h1 { font-size:28px; font-weight:550; line-height:1.4; letter-spacing:-.6px; margin:0 0 10px; }
+    .intro p { color:var(--muted); margin:0; font-size:13px; }
+    .workspace-row { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:0 4px 10px; }
+    .select-wrap { display:flex; align-items:center; gap:8px; min-width:0; color:var(--secondary); }
+    select { background:none; border:0; min-height:40px; padding:6px 24px 6px 4px; font-size:13px; max-width:100%; }
+    option { background:var(--panel); color:var(--ink); }
+    .scope { font-size:11px; color:var(--muted); white-space:nowrap; }
+    .composer { border:1px solid var(--line); background:var(--input); border-radius:16px; padding:16px; }
+    .composer:focus-within { border-color:var(--focus); }
+    textarea { display:block; width:100%; min-height:94px; max-height:260px; resize:vertical; border:0; outline:none; background:none; line-height:1.8; font-size:15px; padding:2px 4px; }
+    textarea::placeholder { color:var(--muted); }
+    .toolbar { display:flex; align-items:center; justify-content:space-between; gap:8px; padding-top:10px; }
+    .toolbar-group { display:flex; align-items:center; gap:4px; min-width:0; }
+    .toolbar select { max-width:170px; }
+    .send { background:var(--ink); color:var(--panel); border-radius:50%; }
+    .send:hover:not(:disabled) { background:var(--accent); color:var(--panel); }
+    .examples { margin:20px 0 0; display:flex; gap:8px; justify-content:center; flex-wrap:wrap; }
+    .examples button { display:flex; align-items:center; gap:8px; border:1px solid var(--line); border-radius:8px; font-size:12px; color:var(--secondary); padding:8px 12px; }
+    .examples svg { width:15px; height:15px; }
+    .keyboard-hint { font-size:11px; color:var(--muted); text-align:center; margin:18px 0 0; }
+    .attachment { font-size:12px; color:var(--secondary); display:flex; align-items:center; gap:8px; border:1px solid var(--line); border-radius:8px; padding:2px 8px; max-width:100%; }
+    .attachment span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .attachment button { min-height:32px; width:32px; padding:0; }
+    #attachments { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px; }
+    #attachments:empty { display:none; }
+    footer { display:flex; align-items:center; justify-content:center; padding:12px 20px 20px; font-size:11px; color:var(--muted); gap:8px; }
+    .dot { width:4px; height:4px; border-radius:50%; background:var(--muted); }
+    .mobile-nav { display:none; }
+    dialog { border:1px solid var(--line); border-radius:16px; background:var(--panel); color:var(--ink); width:min(520px,calc(100vw - 32px)); max-height:85dvh; padding:24px; }
+    dialog::backdrop { background:rgb(0 0 0 / .25); }
+    .dialog-top { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; }
+    h2 { font-size:18px; font-weight:550; margin:0; }
+    .dialog-note { font-size:12px; color:var(--muted); margin:0 0 20px; }
+    .file-row { display:flex; align-items:center; width:100%; text-align:left; gap:12px; padding:12px 8px; border-bottom:1px solid var(--line); border-radius:0; }
+    .file-row .file-icon { display:grid; place-items:center; color:var(--accent); background:var(--tint); border-radius:6px; width:36px; height:40px; flex-shrink:0; }
+    .file-row strong { display:block; font-size:13px; font-weight:500; }
+    .file-row small { display:block; color:var(--muted); font-size:11px; }
+    .draft { white-space:pre-wrap; overflow-wrap:anywhere; font-size:14px; background:var(--page); padding:16px; border-radius:8px; }
+    .preview-note { border-left:2px solid var(--accent); padding-left:12px; color:var(--secondary); font-size:13px; }
+    #nav-dialog { margin:0; height:100dvh; max-height:none; width:280px; border-radius:0; padding:16px; }
+    #nav-dialog .nav-content { display:flex; flex-direction:column; min-height:calc(100dvh - 88px); }
+    .empty { color:var(--muted); font-size:12px; padding:8px 10px; }
+    body.nav-collapsed .app { grid-template-columns:72px minmax(0,1fr); }
+    body.nav-collapsed .sidebar { align-items:center; padding:16px 8px; }
+    body.nav-collapsed .sidebar .brand { padding:4px 0 28px; }
+    body.nav-collapsed .sidebar .brand span,body.nav-collapsed .sidebar .nav-content { display:none; }
+    .rail-new { display:none; }
+    body.nav-collapsed .rail-new { display:flex; margin-top:12px; }
+    @media(min-width:769px) { .sidebar .collapse { position:absolute; bottom:16px; right:12px; } .sidebar-bottom { padding-bottom:48px; } }
+    @media(max-width:768px) { .app,body.nav-collapsed .app { grid-template-columns:1fr; } .sidebar { display:none; } .mobile-nav { display:inline-flex; } header { padding:12px 16px; height:64px; } .heading { gap:6px; } .hero { padding:32px 20px 64px; } h1 { font-size:24px; } .intro { margin-bottom:28px; } .scope { display:none; } .header-actions { gap:0; } .header-actions .with-icon span { display:none; } .header-actions .with-icon { width:40px; justify-content:center; padding:0; } .composer { padding:12px; } .toolbar select { max-width:142px; } .keyboard-hint { display:none; } .examples { gap:6px; } .examples button { padding:8px 10px; } footer { flex-wrap:wrap; text-align:center; } .intro p { max-width:240px; margin:auto; } }
+    @media(max-height:650px) { .hero { align-items:flex-start; padding-top:20px; padding-bottom:24px; } .intro { margin-bottom:20px; } }
+    @media(max-width:768px) { .intro p { max-width:300px; text-wrap:balance; } }
+    @media(prefers-reduced-motion:reduce) { * { transition:none!important; scroll-behavior:auto!important; } }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar" aria-label="主导航">
+      <div class="brand"><img src="../../frontend/src/media/logo/coregenie-mark.svg" alt=""><span>CoreGenie</span></div>
+      <div class="nav-content"></div>
+      <button class="icon collapse" data-action="collapse" aria-label="折叠导航" aria-expanded="true"></button>
+      <button class="icon rail-new" data-action="new" aria-label="新对话"></button>
+    </aside>
+    <main>
+      <header>
+        <div class="heading"><button class="icon mobile-nav" data-action="nav" aria-label="打开导航"></button><span>新对话</span><span class="badge">实验首页</span></div>
+        <div class="header-actions"><button class="with-icon" data-action="files"></button><button class="icon" data-action="theme" aria-label="切换为深色主题"></button></div>
+      </header>
+      <section class="hero" aria-labelledby="greeting"><div class="stack">
+        <div class="intro"><img class="mark" src="../../frontend/src/media/logo/coregenie-mark.svg" alt=""><h1 id="greeting">今天想完成什么？</h1><p>从一个问题、一份提案，或一个想法开始。</p></div>
+        <div class="workspace-row"><label class="select-wrap" id="workspace-label"><span id="workspace-icon"></span><select id="workspace" aria-label="当前工作区"><option>SA2 技术研究</option><option>我的工作区</option></select></label><span class="scope">对话将保存在此工作区</span></div>
+        <form class="composer" id="composer">
+          <div id="attachments"></div>
+          <textarea id="prompt" aria-label="输入问题" placeholder="描述你想完成的事，或添加文件…"></textarea>
+          <div class="toolbar"><div class="toolbar-group"><button type="button" class="icon" data-action="attach" aria-label="添加附件"></button><select id="agent" aria-label="选择助手"><option>通用助手</option><option>提案格式转换</option><option>提案分析</option><option>技术路线分析</option></select></div><button class="icon send" type="submit" id="send" aria-label="预览发送" disabled></button></div>
+        </form>
+        <input type="file" id="file-input" multiple hidden>
+        <div class="examples" aria-label="任务示例"></div>
+        <p class="keyboard-hint">Enter 发送 · Shift + Enter 换行</p>
+      </div></section>
+      <footer><span>交互原型</span><span class="dot"></span><span>示例数据 · 不发送消息或上传文件</span></footer>
+    </main>
+  </div>
+  <dialog id="files-dialog" aria-labelledby="files-title"><div class="dialog-top"><h2 id="files-title">工作区资料</h2><button class="icon" data-action="close" aria-label="关闭资料"></button></div><p class="dialog-note" id="files-note"></p><div id="file-list"></div></dialog>
+  <dialog id="detail-dialog" aria-labelledby="detail-title"><div class="dialog-top"><h2 id="detail-title"></h2><button class="icon" data-action="close" aria-label="关闭预览"></button></div><div id="detail-body"></div></dialog>
+  <dialog id="nav-dialog" aria-label="导航"><div class="dialog-top"><h2>CoreGenie</h2><button class="icon" data-action="close" aria-label="关闭导航"></button></div><div class="nav-content"></div></dialog>
+  <script>
+    // Prototype-only Simplified Chinese copy and fixtures. Production copy belongs in locales/zh/common.js.
+    const zh = {
+      new:'新对话', search:'搜索示例对话', recent:'最近对话', earlier:'更早', help:'使用帮助', profile:'研究员', files:'资料', empty:'没有匹配的对话',
+      examples:[['转换文档','请将上传的提案转换为 Markdown，保留原图和嵌入对象。',1,'doc'],['对比提案','请对比这些提案的技术方案、共同点和分歧，并列出所用 TDoc。',2,'compare'],['分析技术路线','请根据我提供的 TDoc，分析这家公司在不同会议中的技术路线变化。',3,'route']],
+      history:['对比两份 SA2 提案','整理提案中的流程说明','公司技术路线变化','将会议材料转为 Markdown','梳理下一轮讨论问题'],
+      filesData:[['提案对比报告.md','生成文件 · 示例'],['会议材料','文件夹 · 示例'],['参考提案.docx','上传资料 · 示例']],
+      draftTitle:'发送预览', draftNote:'这里只展示发送前的信息，不调用模型。接入后会在当前工作区新建对话。', loading:'准备预览…',
+      historyNote:'这是示例对话入口。接入后会打开原有会话，保留历史记录和运行状态。', fileNote:'这是资料预览示例。原型不会读取本机文件内容。',
+      helpText:'选择工作区后输入问题，也可以点击任务示例修改内容。资料按钮用于查看工作区文件；添加附件只选择本次对话使用的文件。',
+      profileText:'接入后这里提供账户、个人设置和返回现有首页的入口。', remove:'移除附件', noDraft:'请输入问题后再预览。',
+    };
+    const paths={plus:'M12 5v14M5 12h14',search:'M21 21l-5-5M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0',panel:'M9 3v18M3 3h18v18H3z',folder:'M3 6h6l2 2h10v12H3z',moon:'M20 15a8 8 0 0 1-11-11 9 9 0 1 0 11 11',sun:'M12 3v2M12 19v2M3 12h2M19 12h2M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0',arrow:'M12 19V5m-6 6 6-6 6 6',close:'m6 6 12 12M6 18 18 6',doc:'M5 3h10l4 4v14H5zM14 3v5h5M8 12h8M8 16h6',compare:'M4 4h6v16H4zM14 4h6v16h-6z',route:'M5 18h14M6 14l5-6 4 3 4-7',chat:'M4 4h16v13H9l-5 4z',help:'M9 9a3 3 0 1 1 4 3v2M13 17h0M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0'};
+    const icon=name=>'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="'+paths[name]+'"/></svg>';
+    const $=selector=>document.querySelector(selector);
+    const nav=()=>'<button class="new" data-action="new">'+icon('plus')+zh.new+'</button><label class="search">'+icon('search')+'<input type="search" aria-label="'+zh.search+'" placeholder="'+zh.search+'"></label><span class="section-label">'+zh.recent+'</span><div class="recent">'+zh.history.map((title,i)=>(i===3?'<span class="section-label later">'+zh.earlier+'</span>':'')+'<button data-history="'+i+'">'+icon('chat')+'<span class="title">'+title+'</span></button>').join('')+'<p class="empty" hidden>'+zh.empty+'</p></div><div class="sidebar-bottom"><button data-action="help">'+icon('help')+zh.help+'</button><button data-action="profile"><span class="avatar">研</span>'+zh.profile+'</button></div>';
+    document.querySelectorAll('.nav-content').forEach(el=>el.innerHTML=nav());
+    const actionIcons={collapse:'panel',new:'plus',nav:'panel',files:'folder',theme:'moon',attach:'plus',close:'close'};
+    document.querySelectorAll('.icon[data-action]').forEach(el=>el.innerHTML=icon(actionIcons[el.dataset.action]));
+    $('[data-action="files"]').innerHTML=icon('folder')+'<span>'+zh.files+'</span>';
+    $('#workspace-icon').innerHTML=icon('folder'); $('#send').innerHTML=icon('arrow');
+    $('.examples').innerHTML=zh.examples.map(([label,,,glyph],i)=>'<button data-example="'+i+'">'+icon(glyph)+label+'</button>').join('');
+    let attachments=[],busy=false;
+    const sync=()=>$('#send').disabled=busy||!$('#prompt').value.trim();
+    function paragraph(text,className='') { const p=document.createElement('p'); p.textContent=text; p.className=className; return p; }
+    function detail(title,paragraphs) { $('#detail-title').textContent=title; $('#detail-body').replaceChildren(...paragraphs); $('#detail-dialog').showModal(); }
+    function drawFiles() { $('#files-note').textContent=$('#workspace').value+' · 示例资料'; $('#file-list').replaceChildren(); const rows=$('#workspace').selectedIndex===0?zh.filesData:[]; if(!rows.length) $('#file-list').append(paragraph('这个工作区还没有资料。','dialog-note')); rows.forEach(([name,info],i)=>{const b=document.createElement('button');b.className='file-row';b.dataset.file=i;b.innerHTML='<span class="file-icon">'+icon(i===1?'folder':'doc')+'</span><span><strong>'+name+'</strong><small>'+info+'</small></span>';$('#file-list').append(b);}); }
+    function drawAttachments() { $('#attachments').replaceChildren();attachments.forEach((file,i)=>{const chip=document.createElement('div');chip.className='attachment';const name=document.createElement('span');name.textContent=file.name;const remove=document.createElement('button');remove.type='button';remove.dataset.remove=i;remove.setAttribute('aria-label',zh.remove+' '+file.name);remove.innerHTML=icon('close');chip.append(name,remove);$('#attachments').append(chip);}); }
+    function closeNav() { if($('#nav-dialog').open) $('#nav-dialog').close(); }
+    document.addEventListener('click',event=>{
+      const b=event.target.closest('button');if(!b)return;
+      if(b.dataset.example!==undefined){const [,prompt,agent]=zh.examples[Number(b.dataset.example)];$('#prompt').value=prompt;$('#agent').selectedIndex=agent;$('#prompt').focus();sync();return;}
+      if(b.dataset.history!==undefined){closeNav();detail(zh.history[Number(b.dataset.history)],[paragraph(zh.historyNote,'preview-note')]);return;}
+      if(b.dataset.file!==undefined){detail(zh.filesData[Number(b.dataset.file)][0],[paragraph(zh.fileNote,'preview-note')]);return;}
+      if(b.dataset.remove!==undefined){attachments.splice(Number(b.dataset.remove),1);drawAttachments();return;}
+      switch(b.dataset.action){
+        case 'collapse':{const collapsed=document.body.classList.toggle('nav-collapsed');b.setAttribute('aria-expanded',String(!collapsed));b.setAttribute('aria-label',collapsed?'展开导航':'折叠导航');break;}
+        case 'nav':$('#nav-dialog').showModal();break;
+        case 'close':b.closest('dialog').close();break;
+        case 'new':closeNav();$('#prompt').value='';attachments=[];drawAttachments();$('#agent').selectedIndex=0;sync();$('#prompt').focus();break;
+        case 'theme':{const dark=document.documentElement.dataset.theme!=='dark';document.documentElement.dataset.theme=dark?'dark':'light';b.innerHTML=icon(dark?'sun':'moon');b.setAttribute('aria-label',dark?'切换为浅色主题':'切换为深色主题');break;}
+        case 'files':drawFiles();$('#files-dialog').showModal();break;
+        case 'attach':$('#file-input').click();break;
+        case 'help':closeNav();detail(zh.help,[paragraph(zh.helpText)]);break;
+        case 'profile':closeNav();detail(zh.profile,[paragraph(zh.profileText)]);break;
+      }
+    });
+    document.addEventListener('input',event=>{if(event.target.matches('.search input')){const recent=event.target.closest('.nav-content').querySelector('.recent');let count=0;recent.querySelectorAll('button').forEach(b=>{b.hidden=!b.textContent.includes(event.target.value.trim());b.style.display=b.hidden?'none':'';if(!b.hidden)count++;});recent.querySelector('.empty').hidden=count!==0;recent.querySelector('.later').hidden=!!event.target.value;}});
+    $('#prompt').addEventListener('input',sync);
+    $('#prompt').addEventListener('keydown',event=>{if(event.key==='Enter'&&!event.shiftKey&&!event.isComposing){event.preventDefault();if(!$('#send').disabled)$('#composer').requestSubmit();}});
+    $('#file-input').addEventListener('change',event=>{attachments.push(...event.target.files);drawAttachments();event.target.value='';});
+    $('#composer').addEventListener('submit',event=>{event.preventDefault();if(busy||!$('#prompt').value.trim())return;const draft=$('#prompt').value;const scope=$('#workspace').value+' / '+$('#agent').value;busy=true;sync();$('#send').setAttribute('aria-busy','true');$('#send').setAttribute('aria-label',zh.loading);setTimeout(()=>{busy=false;sync();$('#send').removeAttribute('aria-busy');$('#send').setAttribute('aria-label','预览发送');detail(zh.draftTitle,[paragraph(zh.draftNote,'dialog-note'),paragraph(scope,'preview-note'),paragraph(draft,'draft'),...(attachments.length?[paragraph('所选附件：'+attachments.map(f=>f.name).join('、'),'dialog-note')]:[])]);},350);});
+  </script>
+</body>
+</html>

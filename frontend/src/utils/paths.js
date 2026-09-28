@@ -120,6 +120,7 @@ export default {
     workspaces: () => {
       return `/settings/workspaces`;
     },
+    globalKnowledge: () => `/settings/global-knowledge`,
     chats: () => {
       return "/settings/workspace-chats";
     },
@@ -160,6 +161,7 @@ export default {
     predefinedAgentSkills: () => {
       return "/settings/agents/skills";
     },
+    quickTasks: () => "/settings/agents/quick-tasks",
     agentTools: () => {
       return "/settings/agents/tools";
     },

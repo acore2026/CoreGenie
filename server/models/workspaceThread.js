@@ -35,22 +35,26 @@ function cleanGeneratedTitle(value = "") {
 }
 
 async function summarizeThreadTitle({ workspace, prompt, response }) {
-  const { createChatModel } = require("../resources/models");
+  const { createLightweightChatModel } = require("../resources/models");
   const exchange = [
     `User: ${String(prompt).slice(0, 2_000)}`,
     response ? `Assistant: ${String(response).slice(0, 2_000)}` : null,
   ]
     .filter(Boolean)
     .join("\n\n");
-  const completion = await createChatModel({
+  const model = await createLightweightChatModel({
     workspace,
     temperature: 0,
     maxTokens: 64,
     thinking: false,
-  }).invoke([
-    { role: "system", content: TITLE_GENERATION_PROMPT },
-    { role: "user", content: exchange },
-  ]);
+  });
+  const completion = await model.invoke(
+    [
+      { role: "system", content: TITLE_GENERATION_PROMPT },
+      { role: "user", content: exchange },
+    ],
+    { signal: AbortSignal.timeout(8000) }
+  );
   return cleanGeneratedTitle(completion?.content);
 }
 
@@ -172,22 +176,21 @@ const WorkspaceThread = {
     }
   },
 
-  // Fires after the first exchange and uses the active chat model to create a
-  // concise thread title. The provider call explicitly disables thinking.
+  // The first accepted prompt supplies an immediate title. Refinement runs
+  // independently of the main response and never overwrites a manual rename.
   autoRenameThread: async function ({
     workspace = null,
     thread = null,
     user = null,
     onRename = null,
+    prompt: initialPrompt = null,
   }) {
     if (!workspace || !thread) return false;
     if (thread.name !== this.defaultName) return false; // don't rename if already named.
 
     const { WorkspaceChats } = require("./workspaceChats");
-    // Always derive the title input from the first completed database record.
-    // Agent requests hand off to a socket before their response is persisted,
-    // so using the endpoint's current prompt here can pair a later prompt with
-    // an earlier response and produce a misleading title.
+    // Existing conversations use their first saved exchange; new conversations
+    // can be named before any assistant response has been persisted.
     const firstChat = await WorkspaceChats.get(
       {
         workspaceId: workspace.id,
@@ -198,14 +201,31 @@ const WorkspaceThread = {
       null,
       { id: "asc" }
     );
-    if (!firstChat) return { renamed: false, thread };
+    if (!firstChat && !initialPrompt) return { renamed: false, thread };
 
     const { safeJsonParse } = require("../utils/http");
     const response = safeJsonParse(firstChat?.response, {})?.text || "";
-    const prompt = firstChat.prompt;
-    if (typeof prompt !== "string" || !prompt.trim() || !response.trim())
+    const prompt = firstChat?.prompt || initialPrompt;
+    if (typeof prompt !== "string" || !prompt.trim())
       return { renamed: false, thread };
     let title = fallbackTitle(prompt);
+    if (title === this.defaultName) title = `${title}…`;
+    // Atomic claim also prevents concurrent requests from naming the same thread.
+    const claimed = await prisma.workspace_threads.updateMany({
+      where: { id: thread.id, name: this.defaultName },
+      data: { name: title },
+    });
+    if (!claimed.count)
+      return { renamed: false, thread: await this.get({ id: thread.id }) };
+    const provisionalTitle = title;
+    const notify = async (name) => {
+      try {
+        await onRename?.({ ...thread, name });
+      } catch (error) {
+        console.error(`Failed to notify thread rename: ${error.message}`);
+      }
+    };
+    await notify(provisionalTitle);
     try {
       title =
         (await summarizeThreadTitle({
@@ -219,16 +239,16 @@ const WorkspaceThread = {
       console.error(`Failed to generate thread title: ${error.message}`);
     }
 
-    // Do not overwrite a title the user changed while generation was running.
-    const currentThread = await this.get({ id: thread.id });
-    if (!currentThread || currentThread.name !== this.defaultName)
-      return { renamed: false, thread: currentThread || thread };
-    const { thread: updatedThread } = await this.update(thread, {
-      name: title,
-    });
-
-    if (updatedThread) onRename?.(updatedThread);
-    return { renamed: Boolean(updatedThread), thread: updatedThread || thread };
+    if (title === this.defaultName) title = provisionalTitle;
+    const refined =
+      title !== provisionalTitle
+        ? await prisma.workspace_threads.updateMany({
+            where: { id: thread.id, name: provisionalTitle },
+            data: { name: title },
+          })
+        : { count: 0 };
+    if (refined.count) await notify(title);
+    return { renamed: true, thread: await this.get({ id: thread.id }) };
   },
 };
 

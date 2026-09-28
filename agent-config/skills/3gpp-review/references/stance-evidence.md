@@ -1,5 +1,7 @@
 # Position and opposition evidence
 
+Shared by proposal review, feature matrices, and longitudinal analysis. Read this resource from the activated `3gpp-review` package. Loading these rules alone does not request a full review or publication workflow.
+
 An event represents one company's stance toward one claim or issue dimension at one point in time. Do not assign one permanent stance to a company when evidence is issue-specific.
 
 ## Event schema
@@ -46,6 +48,10 @@ Write UTF-8 JSON Lines. Each non-empty line must be an object:
 - Co-signing a merged/baseline TDoc is support for that document, not automatically for every earlier proposal.
 - A revision submitted by another company is not opposition unless its evidence explicitly rejects or replaces the target claim.
 - Absence of a company's name is not opposition or support.
+- Tracked insertion/deletion marks record an edit, not its intent. A substantive deletion may be a relocation, merger, or rewrite; require explicit rejection of the specific claim before recording opposition.
+- Supporting an alternative option does not establish opposition to another option, even when the options appear mutually exclusive.
+- An unmarked new proposal can express a position; distinguish its explicit requested changes from inherited background. Missing revision marks are not proof of a neutral position.
+- For matrix cells without evidence, distinguish unknown coverage from reviewed material that does not address the dimension. Neither is opposition.
 - Split mixed evidence into separate dimensions such as architecture, terminology, interface, procedure granularity, operator control, security, or deployment dependency.
 - Keep `evidence.text` short. The TDoc plus locator is the durable citation; a long copied passage is not needed.
 

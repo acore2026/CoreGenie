@@ -22,6 +22,7 @@ RUN sed -i \
       dnsutils \
       fd-find \
       file \
+      fonts-noto-cjk \
       findutils \
       gawk \
       git \
@@ -32,6 +33,8 @@ RUN sed -i \
       jq \
       less \
       libreoffice-writer \
+      libreoffice-impress \
+      libreoffice-draw \
       lsof \
       make \
       netcat-openbsd \

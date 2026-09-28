@@ -7,7 +7,6 @@ import ChatHistorySettings from "./ChatHistorySettings";
 import ChatTemperatureSettings from "./ChatTemperatureSettings";
 import ChatModeSelection from "./ChatModeSelection";
 import WorkspaceLLMSelection from "./WorkspaceLLMSelection";
-import ChatQueryRefusalResponse from "./ChatQueryRefusalResponse";
 import CTAButton from "@/components/lib/CTAButton";
 
 export default function ChatSettings({ workspace }) {
@@ -52,7 +51,7 @@ export default function ChatSettings({ workspace }) {
         ref={formEl}
         onSubmit={handleUpdate}
         id="chat-settings-form"
-        className="w-1/2 flex flex-col gap-y-[32px]"
+        className="flex w-full max-w-2xl flex-col gap-y-8"
       >
         {hasChanges && (
           <div className="absolute top-0 right-0">
@@ -66,15 +65,8 @@ export default function ChatSettings({ workspace }) {
           workspace={workspace}
           setHasChanges={setHasChanges}
         />
-        <ChatModeSelection
-          workspace={workspace}
-          setHasChanges={setHasChanges}
-        />
+        <ChatModeSelection />
         <ChatHistorySettings
-          workspace={workspace}
-          setHasChanges={setHasChanges}
-        />
-        <ChatQueryRefusalResponse
           workspace={workspace}
           setHasChanges={setHasChanges}
         />

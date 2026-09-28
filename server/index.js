@@ -118,6 +118,7 @@ memoryEndpoints(apiRouter);
 publicChatShareEndpoints(apiRouter);
 workspaceFileEndpoints(apiRouter);
 predefinedAgentEndpoints(apiRouter);
+require("./endpoints/threeGppCatalog").threeGppCatalogEndpoints(apiRouter);
 workspaceSkillEndpoints(apiRouter);
 agentFeedbackEndpoints(apiRouter);
 require("./endpoints/configSync").configSyncEndpoints(apiRouter);
@@ -141,13 +142,39 @@ if (process.env.NODE_ENV !== "development") {
   app.use(
     express.static(path.resolve(__dirname, "public"), {
       extensions: ["js"],
-      setHeaders: (res) => {
+      setHeaders: (res, filePath) => {
         // Disable I-framing of entire site UI
         res.removeHeader("X-Powered-By");
         res.setHeader("X-Frame-Options", "DENY");
+        if (filePath.endsWith("/index.js") || filePath.endsWith("/index.css")) {
+          res.setHeader("Cache-Control", "no-cache, must-revalidate");
+        }
       },
     })
   );
+
+  app.use("/assets", function (request, response) {
+    response.setHeader("Cache-Control", "no-store");
+    if (request.path.endsWith(".js")) {
+      response.type("application/javascript").status(200).send(`
+const recoveryKey = "coregenie_chunk_recovery";
+const recoveryWindow = 60000;
+let shouldReload = false;
+try {
+  const previous = JSON.parse(sessionStorage.getItem(recoveryKey) || "null");
+  const now = Date.now();
+  shouldReload = !previous || previous.href !== location.href || now - previous.attemptedAt >= recoveryWindow;
+  if (shouldReload) {
+    sessionStorage.setItem(recoveryKey, JSON.stringify({ href: location.href, attemptedAt: now }));
+  }
+} catch {}
+if (shouldReload) location.reload();
+export default function StaleAssetRecovery() { return null; }
+`);
+      return;
+    }
+    response.status(404).end();
+  });
 
   app.get("/robots.txt", function (_, response) {
     response.type("text/plain");
