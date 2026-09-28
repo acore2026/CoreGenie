@@ -64,8 +64,8 @@ const AgentRun = {
           policySnapshot: JSON.stringify(policySnapshot || {}),
           checkpointThreadId:
             runtimeKey === "evidence-research"
-              ? `custom:${Number(runtimeVersion) || 1}:${id}`
-              : `agent-run:${id}`,
+              ? `custom:${Number(runtimeVersion) || 1}:${runId}`
+              : `agent-run:${runId}`,
         },
       })
     );
