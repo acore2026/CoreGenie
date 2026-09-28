@@ -41,3 +41,4 @@ done
 echo "Error: app did not become ready." >&2
 docker logs --tail 50 "${CONTAINER_NAME}" >&2
 exit 1
+# 更新后建议清理旧镜像：docker image prune -f
