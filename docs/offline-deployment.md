@@ -88,7 +88,7 @@ tar -xzf anythingllm-offline.tar.gz
 5. 导入全局数据库记录、全局文件和全局向量数据；
 6. 启动 Sandbox broker 和 AnythingLLM。
 
-默认数据目录是 `$HOME/anythingllm`，端口是 `7555`。可以在执行前设置 `STORAGE_LOCATION`、`HOST_PORT`、`POSTGRES_PASSWORD`、`CONTAINER_NAME` 等环境变量。
+默认数据目录是 `$HOME/anythingllm`，端口是 `80`。可以在执行前设置 `STORAGE_LOCATION`、`HOST_PORT`、`POSTGRES_PASSWORD`、`CONTAINER_NAME` 等环境变量。
 
 ### Sandbox 代理
 

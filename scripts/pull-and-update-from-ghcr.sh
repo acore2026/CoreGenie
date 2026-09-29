@@ -23,7 +23,7 @@ docker run -d \
   --name "${CONTAINER_NAME}" \
   --restart unless-stopped \
   --network anythingllm-db \
-  --publish "${HOST_PORT:-7555}:3001" \
+  --publish "${HOST_PORT:-80}:3001" \
   --add-host host.docker.internal:host-gateway \
   --volume "${STORAGE_LOCATION}:/app/server/storage" \
   --volume "${STORAGE_LOCATION}/.env:/app/server/.env" \
@@ -42,7 +42,7 @@ docker run -d \
   "${IMAGE}"
 
 for _ in $(seq 1 60); do
-  if curl --fail --silent --max-time 2 "http://localhost:${HOST_PORT:-7555}/api/ping" >/dev/null; then
+  if curl --fail --silent --max-time 2 "http://localhost:${HOST_PORT:-80}/api/ping" >/dev/null; then
     echo "AnythingLLM is up on ${IMAGE}"
     exit 0
   fi
