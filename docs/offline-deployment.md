@@ -101,6 +101,22 @@ SANDBOX_PROXY=http://172.17.0.1:7890 \
 
 设置 `SANDBOX_PROXY=""` 可以禁用 runner 代理。代理只作用于 Sandbox 内执行的代码；应用容器本身的代理用 `ANYTHINGLLM_PROXY` 控制，同样在安装前设置。
 
+代理对 HTTPS 做透明 MITM（如 SWG）时，runner 镜像还需要信任代理的根证书，否则容器内所有 https 请求都会证书校验失败。在目标机上给 runner 镜像追加一层 CA：
+
+```bash
+cd /root/CoreGenie  # 需要 swg-ca/ 目录（从宿主机 /usr/local/share/ca-certificates/ 复制）
+cat > /tmp/Dockerfile.sandbox-ca <<'EOF'
+FROM anythingllm-sandbox:local
+USER root
+COPY swg-ca/ /usr/local/share/ca-certificates/
+RUN update-ca-certificates
+USER sandbox:sandbox
+EOF
+docker build -t anythingllm-sandbox:local -f /tmp/Dockerfile.sandbox-ca .
+```
+
+注意保持镜像的 `USER`（`sandbox:sandbox`）和 CMD（`python3 -I -B -`）不变；不要用 `docker commit` 固化临时容器的 ENTRYPOINT，会破坏 broker 启动 runner 的方式。broker 的 `--proxy-url` 已经把代理传给 runner 的环境变量。
+
 ## 通过 GitHub 镜像更新
 
 代码推送到 GitHub 后，`build-and-push-image.yaml` 会构建应用镜像并发布到 `ghcr.io/acore2026/coregenie`（`latest` 和 `master` 两个标签）。目标机不需要重新执行离线安装，直接拉取新镜像重建容器：
@@ -118,6 +134,23 @@ bash pull-and-update-from-ghcr.sh
 1. 镜像是多架构的（amd64/arm64），目标机会自动拉取对应架构。
 2. `agent-config/` 不在镜像里，仓库中该目录有更新时需要单独同步到目标机的挂载目录。
 3. 该 workflow 也支持在 GitHub 页面手动触发（workflow_dispatch），适合不改代码重建镜像的场景。
+4. 目标机出网需要走认证代理时，脚本默认给应用容器配置 `PROXY`（默认 `http://172.17.0.1:3128`，即宿主机 cntlm 经 docker0 网关）。代理对 HTTPS 做透明 MITM 时，脚本同时挂载宿主机 CA bundle 并设置 `NODE_EXTRA_CA_CERTS`。内网地址（模型端点、数据库、向量库）走 `NO_PROXY` 直连。
+5. 使用 cntlm 且 Docker 容器需要经它出网时，`/etc/cntlm.conf` 的 `Allow` 列表需要包含容器网段（如 `172.17.0.0/16`、`172.18.0.0/16`），否则返回 407。
+
+## 在目标服务器直接构建镜像
+
+目标机能访问 GitHub 但不便使用 GHCR 镜像时，可以直接 clone 仓库构建。`/root/build-local-from-github.sh`（目标机）封装了完整流程，处理了三类网络差异：
+
+1. 构建容器需要信任 MITM 代理的根证书：先构建预置宿主机 SWG CA 的 base 镜像（`ubuntu-swg-base:noble`、`node-swg:24-slim`），并设置 `NODE_EXTRA_CA_CERTS`。
+2. `docker build --network=host` 让 RUN 步骤使用宿主网络栈，代理用 `127.0.0.1:3128`；Ubuntu 源覆盖为 `archive.ubuntu.com`（默认的 aliyun 源在该网络不可达）。
+3. `server/yarn.lock` 中指向 `repo.huaweicloud.com` 的 `resolved` 条目在该网络不可达，构建时替换为 npmmirror；`require('@lancedb/lancedb')` 的构建自检在无 AVX 的机器上会 SIGILL，构建时移除（运行时使用 Qdrant，不需要该库）。
+
+```bash
+bash /root/build-local-from-github.sh          # 默认 master
+bash /root/build-local-from-github.sh v1.15.0  # 指定分支或标签
+```
+
+SWG 对 npm CDN 限速明显，冷构建约 30–40 分钟（依赖层有缓存后只需 3–5 分钟）。构建完成后按脚本末尾打印的 `docker run` 命令重建应用容器，或使用上文带代理配置的 `pull-and-update-from-ghcr.sh`（把 `IMAGE` 换成本地标签）。
 
 ## 安全和检查
 
