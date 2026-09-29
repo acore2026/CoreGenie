@@ -56,6 +56,19 @@ export default function CatalogField({ field, answers, onChange, invalid }) {
       ? entries.findIndex((entry) => entry.id === value?.id)
       : -1;
   const selectedMeetings = multiple ? (Array.isArray(value) ? value : []) : [];
+  // 按当前日期识别最近一次已召开的会议和最近一次未召开的会议。
+  // 目录按场次序号升序，date 形如 "2026-08"；无日期的场次不参与判断。
+  const now = new Date();
+  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const datedMeetings = entries.filter(
+    (item) => typeof item.date === "string" && /^\d{4}-\d{2}/.test(item.date)
+  );
+  const lastMeeting = [...datedMeetings]
+    .filter((item) => item.date.slice(0, 7) <= currentMonth)
+    .pop();
+  const nextMeeting = datedMeetings.find(
+    (item) => item.date.slice(0, 7) > currentMonth
+  );
   const limit = field.maxSelectionsBy
     ? Object.entries(field.maxSelectionsBy).reduce(
         (result, [fieldId, values]) => {
@@ -70,6 +83,13 @@ export default function CatalogField({ field, answers, onChange, invalid }) {
     multiple
       ? onChange([...selectedMeetings, { ...entry, group }])
       : onChange({ ...entry, group });
+  // 多选时“上一次／下一次”只作用于唯一选中的会议，替换为相邻场次。
+  const shiftSelectedMeeting = (offset) => {
+    const current = selectedMeetings[0];
+    const index = entries.findIndex((item) => item.id === current?.id);
+    const adjacent = entries[index + offset];
+    if (adjacent) onChange([{ ...adjacent, group }]);
+  };
   const filtered = entries.filter((item) =>
     `${item.label} ${item.description || ""}`
       .toLowerCase()
@@ -161,21 +181,45 @@ export default function CatalogField({ field, answers, onChange, invalid }) {
             value={query}
             onChange={(event) => setQuery(event.target.value)}
           />
-          {isMeeting && !multiple ? (
+          {isMeeting ? (
             <>
               <select
                 className={input}
                 aria-label={field.label}
                 aria-invalid={invalid}
-                value={value?.id || ""}
+                value={
+                  multiple
+                    ? selectedMeetings[selectedMeetings.length - 1]?.id || ""
+                    : value?.id || ""
+                }
                 onChange={(event) => {
                   const entry = entries.find(
                     (item) => item.id === event.target.value
                   );
-                  onChange(entry ? { ...entry, group } : null);
+                  if (multiple) {
+                    // 多选：保留下拉的单选外观，点选即加入或移除已选会议。
+                    if (!entry) return;
+                    onChange(
+                      selectedMeetings.some((item) => item.id === entry.id)
+                        ? selectedMeetings.filter(
+                            (item) => item.id !== entry.id
+                          )
+                        : selectedMeetings.length < limit
+                          ? [...selectedMeetings, { ...entry, group }]
+                          : selectedMeetings
+                    );
+                  } else {
+                    onChange(entry ? { ...entry, group } : null);
+                  }
                 }}
               >
-                <option value="">{t("agent_wizard.choose_meeting")}</option>
+                <option value="">
+                  {t(
+                    multiple
+                      ? "agent_wizard.choose_meeting_multi"
+                      : "agent_wizard.choose_meeting"
+                  )}
+                </option>
                 {years.map((year) => (
                   <optgroup
                     key={year || "unknown"}
@@ -188,29 +232,74 @@ export default function CatalogField({ field, answers, onChange, invalid }) {
                       .map((item) => (
                         <option key={item.id} value={item.id}>
                           {item.label}
+                          {item.id === lastMeeting?.id
+                            ? ` · ${t("agent_wizard.last_meeting_tag")}`
+                            : item.id === nextMeeting?.id
+                              ? ` · ${t("agent_wizard.next_meeting_tag")}`
+                              : ""}
                         </option>
                       ))}
                   </optgroup>
                 ))}
-                {value?.id &&
-                  !filtered.some((item) => item.id === value.id) && (
-                    <option value={value.id}>{value.label}</option>
-                  )}
+                {(multiple ? selectedMeetings : [value])
+                  .filter(
+                    (item) =>
+                      item?.id && !filtered.some((e) => e.id === item.id)
+                  )
+                  .map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.label}
+                    </option>
+                  ))}
               </select>
+              {(lastMeeting || nextMeeting) && (
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  {lastMeeting && (
+                    <span
+                      className="rounded-full border border-theme-chat-input-border bg-theme-sidebar-item-default-selected px-2 py-0.5 text-theme-text-primary"
+                      title={t("agent_wizard.last_meeting_hint")}
+                    >
+                      {t("agent_wizard.last_meeting_tag")}：{lastMeeting.label}
+                    </span>
+                  )}
+                  {nextMeeting && (
+                    <span
+                      className="rounded-full border border-theme-chat-input-border bg-theme-sidebar-item-hover px-2 py-0.5 text-theme-text-primary"
+                      title={t("agent_wizard.next_meeting_hint")}
+                    >
+                      {t("agent_wizard.next_meeting_tag")}：{nextMeeting.label}
+                    </span>
+                  )}
+                </div>
+              )}
               <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
                   className={button}
-                  disabled={selected <= 0}
-                  onClick={() => chooseMeeting(entries[selected - 1])}
+                  disabled={
+                    multiple ? selectedMeetings.length !== 1 : selected <= 0
+                  }
+                  onClick={() =>
+                    multiple
+                      ? shiftSelectedMeeting(-1)
+                      : chooseMeeting(entries[selected - 1])
+                  }
                 >
                   {t("agent_wizard.previous_meeting")}
                 </button>
                 <button
                   type="button"
                   className={button}
-                  disabled={selected < 0 || selected >= entries.length - 1}
-                  onClick={() => chooseMeeting(entries[selected + 1])}
+                  disabled={
+                    multiple
+                      ? selectedMeetings.length !== 1
+                      : selected < 0 || selected >= entries.length - 1
+                  }
+                  onClick={() =>
+                    multiple
+                      ? shiftSelectedMeeting(1)
+                      : chooseMeeting(entries[selected + 1])
+                  }
                 >
                   {t("agent_wizard.next_meeting")}
                 </button>

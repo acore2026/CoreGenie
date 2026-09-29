@@ -3,7 +3,7 @@ const prisma = require("../utils/prisma");
 
 // Replaces the three independent 3GPP seed versions. Bump this when changing
 // bundled definitions for installations that do not use repository sync.
-const SEED_SETTING = "agent_config_seed_v13";
+const SEED_SETTING = "agent_config_seed_v14";
 const CONFIG_ROOT = path.resolve(__dirname, "../../agent-config");
 const LEGACY_NAMES = {
   "skills/3gpp-review": ["3gpp-tdocs"],

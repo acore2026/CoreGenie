@@ -152,7 +152,7 @@ fields:
     type: meeting
     groupField: group
     label: 会议
-    hint: 按年份选择官方资料目录中的会议；上一次／下一次切换相邻场次。列表不代表完整会议日历，尚未建立资料目录的会议可手动填写。
+    hint: 按年份选择官方资料目录中的会议，从新到旧排列；上一次／下一次会议按当前日期自动标出。列表不代表完整会议日历，尚未建立资料目录的会议可手动填写。
     required: false
     placeholder: 例如：SA2#176
     examples:

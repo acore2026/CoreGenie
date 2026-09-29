@@ -64,7 +64,7 @@ describe("single-source repository seeds", () => {
   });
 
   it("seeds exactly the canonical prompts, settings, bindings and complete packages", async () => {
-    expect(SEED_SETTING).toBe("agent_config_seed_v13");
+    expect(SEED_SETTING).toBe("agent_config_seed_v14");
     await seedRepositoryConfig();
     expect(await mockPrisma.predefined_agents.count()).toBe(10);
     expect(await mockPrisma.predefined_agent_skills.count()).toBe(9);
