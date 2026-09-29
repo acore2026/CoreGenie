@@ -129,6 +129,8 @@ bash pull-and-update-from-ghcr.sh
 
 脚本（`scripts/pull-and-update-from-ghcr.sh`）会拉取镜像、删除旧容器、按原配置重建并等待健康检查通过。数据目录、`.env`、agent-config 挂载和数据库都不变。
 
+注意：数据库连接（`DATABASE_PROVIDER=postgresql`、`DATABASE_URL`、`LANGGRAPH_CHECKPOINT_BACKEND`）是容器环境变量，不在 `.env` 里。手动重建容器时必须带上这三个变量，否则应用会退回 SQLite、丢失全部业务数据（容器入口按 `DATABASE_PROVIDER` 选择 Prisma schema）。脚本默认从 `POSTGRES_PASSWORD` 环境变量组装连接串，也可以直接设置 `DATABASE_URL` 覆盖。
+
 注意事项：
 
 1. 镜像是多架构的（amd64/arm64），目标机会自动拉取对应架构。

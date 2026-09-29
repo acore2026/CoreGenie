@@ -34,6 +34,9 @@ docker run -d \
   --env AGENT_CONFIG_SYNC_DIR=/app/agent-config \
   --env SANDBOX_BROKER_SOCKET=/app/server/storage/sandbox/run.sock \
   --env SANDBOX_BROKER_TOKEN_FILE=/app/server/storage/sandbox/token \
+  --env DATABASE_PROVIDER="${DATABASE_PROVIDER:-postgresql}" \
+  --env "DATABASE_URL=${DATABASE_URL:-postgresql://anythingllm:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@anythingllm-postgres:5432/anythingllm}" \
+  --env LANGGRAPH_CHECKPOINT_BACKEND=postgresql \
   --env "HTTP_PROXY=${PROXY}" --env "HTTPS_PROXY=${PROXY}" \
   --env "http_proxy=${PROXY}" --env "https_proxy=${PROXY}" \
   --env "NO_PROXY=${NO_PROXY_LIST}" --env "no_proxy=${NO_PROXY_LIST}" \
