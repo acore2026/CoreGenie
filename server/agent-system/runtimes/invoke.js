@@ -28,7 +28,8 @@ async function invokeAgentRuntime({
     configuration: parentRun.configuration,
   });
   const effectiveRunId = runId || parentRun.id;
-  const effectiveRuntimeKey = runtimeKey || parentRun.runtimeKey || "default-react";
+  const effectiveRuntimeKey =
+    runtimeKey || parentRun.runtimeKey || "default-react";
   let childRun = await AgentRun.get(effectiveRunId);
   if (!childRun) {
     childRun = await AgentRun.create({
@@ -93,8 +94,7 @@ async function invokeAgentRuntime({
       maxLocalToolCalls,
     });
     await AgentRun.update(effectiveRunId, {
-      status:
-        result.kind === "interrupt" ? "waiting_for_input" : "completed",
+      status: result.kind === "interrupt" ? "waiting_for_input" : "completed",
       completedAt: result.kind === "interrupt" ? null : new Date(),
       finalResponse: result.kind === "interrupt" ? null : result.text || "",
     });

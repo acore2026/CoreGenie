@@ -43,12 +43,24 @@ function patchSdkTimeouts() {
 
   const humanSecs = `${(timeoutMs / 1000).toFixed(0)}s`;
   try {
-    const { Agent, setGlobalDispatcher } = require("undici");
-    setGlobalDispatcher(
-      new Agent({ headersTimeout: timeoutMs, bodyTimeout: timeoutMs })
-    );
+    // Node 24 的原生 fetch 只有在 NODE_USE_ENV_PROXY=1 时才读取代理环境变量，
+    // 而 setGlobalDispatcher(plain Agent) 会把全局 dispatcher 换成不带代理的实例，
+    // 之后所有 fetch（包括 3GPP 官方目录工具）都绕开代理直连，在只能经代理出网
+    // 的环境里表现为 "fetch failed"（UND_ERR_CONNECT_TIMEOUT）。
+    // 这里在保留超时设置的同时维持 Node 默认的代理感知 dispatcher。
+    const { getGlobalDispatcher, setGlobalDispatcher } = require("undici");
+    const current = getGlobalDispatcher();
+    const options = { headersTimeout: timeoutMs, bodyTimeout: timeoutMs };
+    const { EnvHttpProxyAgent } = require("undici");
+    const dispatcher =
+      current instanceof EnvHttpProxyAgent
+        ? current
+        : // EnvHttpProxyAgent 不能重复包裹；当前 dispatcher 不是代理感知类型时
+          // （例如被其他代码替换成普通 Agent），恢复 Node 的默认代理行为。
+          new EnvHttpProxyAgent(options);
+    setGlobalDispatcher(dispatcher);
     console.log(
-      `${LOG_PREFIX} undici global dispatcher — headersTimeout & bodyTimeout ${humanSecs}`
+      `${LOG_PREFIX} undici global dispatcher — headersTimeout & bodyTimeout ${humanSecs} (proxy-aware)`
     );
   } catch {
     console.warn(
