@@ -24,6 +24,7 @@ export default {
     return "/";
   },
   help: () => "/help",
+  tools: () => "/tools",
   login: (noTry = false) => {
     return `/login${noTry ? "?nt=1" : ""}`;
   },

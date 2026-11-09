@@ -33,6 +33,13 @@ const router = createBrowserRouter([
         },
       },
       {
+        path: "/tools",
+        lazy: async () => {
+          const { default: LocalTools } = await import("@/pages/LocalTools");
+          return { element: <PrivateRoute Component={LocalTools} /> };
+        },
+      },
+      {
         path: "/help",
         lazy: async () => {
           const { default: Help } = await import("@/pages/Help");

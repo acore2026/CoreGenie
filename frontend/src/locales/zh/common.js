@@ -1,5 +1,129 @@
 // Anything with "null" requires a translation. Contribute to translation via a PR!
 const TRANSLATIONS = {
+  local_tools: {
+    nav: "日常工具",
+    title: "提案编号回填",
+    description:
+      "选择自己的 3GPP 会议清单和 Word 提案，填写编号、CR 号和版本，并批量重命名。",
+    privacy:
+      "文件只在当前浏览器中处理，不上传到后台，不发送给 AI。导出副本，原文件保持不变。",
+    select_files: "选择本地文件",
+    meeting_title: "会议清单",
+    meeting_hint:
+      "请添加你从 3GPP 下载的 TDoc_List 清单，可多选 .xlsx 或选择文件夹，不限于某次会议。每批最多 20 份、每份不超过 20 MB、总计不超过 100 MB；工具只读取你选择的本地文件。",
+    choose_excel: "选择 Excel",
+    choose_meeting_folder: "选择清单文件夹",
+    clear_meetings: "清空会议清单",
+    meeting_files: "已添加的会议清单",
+    remove_meeting: "移除会议清单 {{name}}",
+    meeting_loaded: "已读取 {{files}} 份清单，共 {{count}} 条 CR 记录",
+    meeting_record_count: "{{count}} 条 CR 记录",
+    read_meeting_progress: "正在读取第 {{current}} / {{total}} 份会议清单…",
+    choose_meeting_first: "请先添加会议清单",
+    record_source: "所用清单：{{name}} / TDoc_List / 第 {{row}} 行",
+    documents_title: "待填写的提案",
+    documents_hint:
+      "先添加会议清单，再选择 .docx 文件或文件夹。每批最多 50 份，每份不超过 20 MB，总计不超过 100 MB。",
+    choose_documents: "选择 Word 文件",
+    choose_folder: "选择文件夹",
+    rules_title: "查看填写规则与支持范围",
+    rules:
+      "当前支持与 CR-Form-v13.0.1 结构相同的 CR 封面：编号位于文档开头，CR、rev 和 Current version 位于表格中。根据标题、规范号、Release 和来源匹配；多份清单中的同名提案会分别列出，无法唯一匹配时请根据清单文件名和行号选择记录，不会自动采用最新文件。添加、移除或清空会议清单后，会重新匹配并清除已有确认。空白或占位符会补齐，已有正式值不同时需要确认。Excel 的 CR revision 为空时保留原值。只填写这四项，不修改规范号、Release、来源或正文中的 API 版本。其他模板、旧版 .doc、受保护字段和带签名的文件暂不支持；页眉中的编号暂不处理。选择文件夹时会一并读取子目录中的相应 Excel 或 Word 文件，并忽略以 ~$ 开头的临时文件。",
+    reading: "正在读取本地文件…",
+    exporting: "正在生成…",
+    read_progress: "正在读取第 {{current}} / {{total}} 份提案…",
+    export_progress: "正在生成第 {{current}} / {{total}} 份提案…",
+    preview: "检查匹配和修改 · {{count}} 份文件",
+    clear: "清空文件",
+    remove_file: "移除 {{name}}",
+    naming: "导出文件名",
+    name_number: "只保留提案编号，例如 C4-265196.docx",
+    name_preserve: "替换开头的编号，保留文件名其余部分",
+    matching_record: "对应的会议清单记录",
+    choose_record: "请选择记录",
+    no_match: "未找到同标题记录，请检查会议清单或文档标题",
+    ambiguous: "找到多条对应记录，请选择",
+    metadata_conflict: "同标题记录的规范号、Release 或来源不同，请检查后选择",
+    row: "第 {{row}} 行",
+    field: "字段",
+    before: "原值",
+    after: "导出值",
+    state: "处理方式",
+    blank: "空白",
+    conflict: "需要确认",
+    fill: "填写",
+    unchanged: "保持",
+    metadata_difference:
+      "{{field}} 不同：文档为 {{before}}，清单为 {{after}}；此项不会修改。",
+    confirm_conflicts:
+      "我已检查对应关系，同意使用这条记录，并覆盖上表中不同的编号、CR、rev 或 Current version。",
+    output_name: "导出文件名：{{name}}",
+    exclude: "本次不导出此文件",
+    excluded: "用户选择跳过",
+    pending: "未完成匹配或确认",
+    export: "生成并下载 ZIP",
+    export_hint:
+      "点击后生成已确认的文件和处理清单；有错误、重名或尚未确认的文件会跳过。请用 Word 检查导出文件后再提交。",
+    export_done:
+      "已生成 {{count}} 份文件，跳过 {{skipped}} 份。ZIP 中包含处理清单。",
+    empty: "选择会议清单和 Word 提案后，在这里检查匹配结果和字段变化。",
+    fields: {
+      tdoc: "提案编号",
+      cr: "CR 号",
+      revision: "CR 修订号（rev）",
+      version: "规范版本（Current version）",
+      spec: "规范号",
+      release: "Release",
+      source: "来源",
+    },
+    report: {
+      original: "原文件",
+      output: "导出文件",
+      status: "处理结果",
+      record: "所用记录",
+      changes: "字段变化",
+      field: "字段",
+      before: "原值",
+      after: "导出值",
+      success: "已生成",
+    },
+    errors: {
+      file_type: "文件格式不支持，请选择 {{extension}} 文件。",
+      file_size: "文件超过 20 MB，请缩小文件后重试。",
+      expanded_size: "文件展开后过大或包含过多内容，暂时无法处理。",
+      invalid_package:
+        "无法读取文件，请检查它是否完整、未加密，并且能在 Excel 或 Word 中打开。",
+      missing_sheet:
+        "未找到 TDoc_List 工作表，请选择 3GPP 导出的会议提案清单。",
+      missing_columns:
+        "会议清单缺少所需列：TDoc、Title、Source、Spec、Release、Version、CR 或 CR revision。",
+      no_records: "会议清单中没有可读取的 CR 记录。",
+      no_documents: "所选文件夹中没有 .docx 文件。",
+      no_meeting_files: "所选文件夹中没有 .xlsx 清单文件。",
+      meeting_count:
+        "每批最多添加 20 份会议清单，请减少文件或先移除已添加的清单。",
+      meeting_size: "会议清单总计超过 100 MB，请分批添加。",
+      batch_count: "每批最多处理 50 份文件，请减少文件或先清空当前列表。",
+      batch_size: "本批文件总计超过 100 MB，请分批处理。",
+      signed_document: "此文件包含数字签名或宏，暂不支持修改。",
+      protected_document:
+        "此文件启用了文档保护，请先在 Word 中另存为可编辑的副本。",
+      template:
+        "无法唯一定位 CR 封面表格，当前只支持一份文件对应一张 CR 封面。",
+      metadata: "无法从封面读取标题、规范号、Release 或来源，请检查文档模板。",
+      tdoc_location:
+        "无法唯一定位文档开头的提案编号，请保留类似 C4-26xxx 的占位编号后重试。",
+      complex_field:
+        "待填写字段包含修订、内容控件或自动域，暂不支持修改。正文中的修订会保留。",
+      record_values:
+        "所选记录的提案编号、CR 号或版本缺失或格式不支持，请检查 Excel。",
+      unconfirmed: "请先确认有冲突的字段。",
+      duplicate:
+        "多个文件将导出为同一文件名。请移除或跳过重复文件，或改用保留文件名其余部分。",
+      no_output: "没有成功生成文件，请检查各文件显示的原因后重试。",
+      read_failed: "无法处理此文件，请确认文件可正常打开后重试。",
+    },
+  },
   lightweight_model: {
     title: "轻量任务模型",
     description:

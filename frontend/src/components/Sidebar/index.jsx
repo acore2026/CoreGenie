@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { List, MagnifyingGlass, X } from "@phosphor-icons/react";
+import { List, MagnifyingGlass, Wrench, X } from "@phosphor-icons/react";
 import NewWorkspaceModal, {
   useNewWorkspaceModal,
 } from "../Modals/NewWorkspace";
@@ -82,6 +82,7 @@ export default function Sidebar() {
         >
           <div className="flex h-full min-h-0 flex-col">
             <div className="px-3 pb-4">
+              <LocalToolsLink />
               <div className="flex items-center gap-1">
                 <div className="min-w-0 flex-1">
                   <SearchBox />
@@ -110,6 +111,7 @@ export default function Sidebar() {
         </div>
         {!expanded && (
           <div className="flex flex-1 flex-col items-center gap-2 pb-3">
+            <LocalToolsLink iconOnly />
             <CreateMenuButton showNewWsModal={showNewWsModal} />
             <button
               type="button"
@@ -213,6 +215,7 @@ export function SidebarMobileHeader() {
               </button>
             </div>
             <div className="px-3 pb-4">
+              <LocalToolsLink />
               <div className="flex items-center gap-1">
                 <div className="min-w-0 flex-1">
                   <SearchBox />
@@ -302,5 +305,23 @@ function WorkspaceAndThreadTooltips() {
       />
     </React.Fragment>,
     document.body
+  );
+}
+
+function LocalToolsLink({ iconOnly = false }) {
+  const { t } = useTranslation();
+  const { pathname } = useLocation();
+  const active = pathname === paths.tools();
+  return (
+    <Link
+      to={paths.tools()}
+      aria-label={t("local_tools.nav")}
+      aria-current={active ? "page" : undefined}
+      title={iconOnly ? t("local_tools.nav") : undefined}
+      className={`${navControl} focus-visible:ring-primary-button ${iconOnly ? "w-10 justify-center !px-0" : "mb-3"} ${active ? "bg-theme-sidebar-item-selected" : ""}`}
+    >
+      <Wrench size={20} />
+      {!iconOnly && t("local_tools.nav")}
+    </Link>
   );
 }
