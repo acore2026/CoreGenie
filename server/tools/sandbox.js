@@ -7,8 +7,8 @@ const {
 } = require("./sandboxResult");
 const { resolveActivatedSkillSnapshot } = require("../agent-skills/registry");
 
-const DEFAULT_TIMEOUT_SECONDS = 300;
-const MAX_TIMEOUT_SECONDS = 1800;
+const DEFAULT_TIMEOUT_SECONDS = 900;
+const MAX_TIMEOUT_SECONDS = 7200;
 
 async function resolveSkillMount(cwd, context) {
   if (cwd === "/workspace") return { skill: null, result: null };

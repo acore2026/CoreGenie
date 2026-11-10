@@ -7,6 +7,7 @@ const mockCollector = {
   online: jest.fn(),
   parseDocument: jest.fn(),
 };
+jest.mock("../../models/agentToolExecution", () => ({ AgentToolExecution: {} }));
 
 jest.mock("fs/promises", () => ({
   lstat: jest.fn(),
@@ -34,6 +35,7 @@ jest.mock("../../utils/files", () => ({
   directUploadsPath: "/storage/direct-uploads",
   documentsPath: "/storage/documents",
 }));
+jest.mock("../../models/systemSettings", () => ({ SystemSettings: { isMultiUserMode: jest.fn(async () => true) } }));
 
 const fs = require("fs/promises");
 const { GlobalDocument } = require("../../models/globalDocuments");
@@ -56,6 +58,7 @@ function context() {
 function record(id, docpath = "global-rag-ingest/hash-document.pdf.json") {
   return {
     id,
+    createdBy: 9,
     docId: `doc-${id}`,
     filename: pathBasename(docpath),
     docpath,
@@ -196,5 +199,15 @@ describe("global knowledge Agent tools", () => {
     expect(ingestGlobalKnowledge.effect).toBe("write");
     expect(replaceGlobalKnowledge.effect).toBe("destructive");
     expect(removeGlobalKnowledge.effect).toBe("destructive");
+  });
+
+  it.each(["remove", "replace"])("blocks %s of another user's document before any write", async action => {
+    GlobalDocument.get.mockResolvedValue({ ...record(5), createdBy: 10 });
+    const tool = action === "remove" ? removeGlobalKnowledge : replaceGlobalKnowledge;
+    const result = await tool.execute({ id: 5, path: "uploads/document.pdf" }, context());
+    expect(result.code).toBe("GLOBAL_DOCUMENT_FORBIDDEN");
+    expect(GlobalDocument.delete).not.toHaveBeenCalled();
+    expect(GlobalDocument.addDocuments).not.toHaveBeenCalled();
+    expect(mockCollector.parseDocument).not.toHaveBeenCalled();
   });
 });

@@ -53,13 +53,22 @@ async function userFromSession(request, response = null) {
     return null;
   }
 
+  if (!(await require("../idaas/sessions").validOAuthSession(valid)))
+    return null;
+
   const user = await User.get({ id: valid.id });
-  return user;
+  return user?.suspended ? null : user;
 }
 
 function decodeJWT(jwtToken) {
   try {
-    return JWT.verify(jwtToken, process.env.JWT_SECRET);
+    const claims = JWT.verify(jwtToken, process.env.JWT_SECRET);
+    if (
+      require("../idaas/config").oauthOnly() &&
+      claims.authProvider !== "idaas"
+    )
+      return { id: null, p: null };
+    return claims;
   } catch {}
   return { p: null, id: null, username: null };
 }

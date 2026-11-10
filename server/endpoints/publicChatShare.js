@@ -30,7 +30,7 @@ function publicChatShareEndpoints(app) {
             workspace_id: workspace.id,
             user_id: user?.id || null,
           });
-          if (!thread)
+          if (!thread || !thread.submittedAt)
             return response.status(404).json({
               success: false,
               error: "Workspace thread does not exist.",
@@ -74,7 +74,7 @@ function publicChatShareEndpoints(app) {
             workspace_id: share.workspace_id,
           })
         : null;
-      if (!workspace || (share.thread_id && !thread))
+      if (!workspace || (share.thread_id && (!thread || !thread.submittedAt)))
         return response.status(404).json({
           success: false,
           error: "This shared conversation is unavailable.",

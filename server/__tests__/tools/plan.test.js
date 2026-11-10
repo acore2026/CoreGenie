@@ -105,7 +105,7 @@ describe("ReAct progress plans", () => {
     ).toBe(false);
     expect(
       planSchema.safeParse({
-        tasks: Array.from({ length: 13 }, (_, i) => ({
+        tasks: Array.from({ length: 25 }, (_, i) => ({
           ...steps()[0],
           id: `step${i}`,
           status: "pending",

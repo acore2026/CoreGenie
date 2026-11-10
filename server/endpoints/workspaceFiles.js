@@ -118,11 +118,14 @@ function registerWorkspaceFileRoutes(app, { prefix, middleware }) {
         const filename = safeWorkspaceFileName(request.file.originalname);
         const { manager, root } = await workspaceFilesystem(response);
         const attachmentUpload = request.body?.destination === "attachment";
+        const conversationUpload = request.body?.destination === "conversation";
         const targetDirectory = attachmentUpload
           ? `uploads/${uuidv4()}`
-          : String(request.body?.path || ".");
+          : conversationUpload
+            ? `upload/${uuidv4()}`
+            : String(request.body?.path || ".");
         const directory = await manager.validatePath(targetDirectory);
-        if (!attachmentUpload) {
+        if (!attachmentUpload && !conversationUpload) {
           const directoryStats = await fs.stat(directory);
           if (!directoryStats.isDirectory())
             return response

@@ -233,7 +233,14 @@ function adminEndpoints(app) {
     async (_request, response) => {
       try {
         const workspaces = await Workspace.whereWithUsers();
-        response.status(200).json({ workspaces });
+        const user = await userFromSession(_request, response);
+        response.status(200).json({
+          workspaces:
+            await require("../models/workspaceListRelation").withWorkspaceListRelation(
+              workspaces,
+              user
+            ),
+        });
       } catch (e) {
         console.error(e);
         response.sendStatus(500).end();

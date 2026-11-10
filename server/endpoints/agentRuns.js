@@ -26,6 +26,7 @@ const { AgentSkillWhitelist } = require("../models/agentSkillWhitelist");
 const { submitAgentRun } = require("../agent-system/service");
 const { agentTraceId } = require("../agent-system/observability");
 const { isTransientPrismaError } = require("../utils/prismaRetry");
+const { canCollaborateOnThread } = require("../utils/workspaceCollaboration");
 
 const ACTIVE_STATUSES = [
   "queued",
@@ -45,9 +46,26 @@ async function authorizedRun(
   if (!multiUserMode(response)) return run;
   const user = await userFromSession(request, response);
   if (!user) return null;
-  const workspace = await Workspace.getWithUser(user, { id: run.workspace_id });
-  if (!workspace) return null;
+  const workspace = await Workspace.get({ id: run.workspace_id });
+  const access = await Workspace.accessForUser(user, workspace);
+  if (!access) return null;
+  // Default conversations remain personal; named threads are shared with
+  // everyone who can view their workspace.
+  if (
+    !run.thread_id &&
+    run.user_id !== user.id &&
+    ![ROLES.admin, ROLES.manager].includes(user.role)
+  )
+    return null;
   if (requireManage) {
+    if (access === "public_readonly") return null;
+    if (
+      canCollaborateOnThread(user, workspace, {
+        id: run.thread_id,
+        workspace_id: run.workspace_id,
+      })
+    )
+      return run;
     const ownsThread = run.thread_id
       ? Boolean(
           await WorkspaceThread.get({
@@ -116,7 +134,7 @@ async function createRun(request, response) {
       attachments: Array.isArray(body?.attachments) ? body.attachments : [],
       configuration: {
         approvalMode,
-        maxToolCalls: Math.min(Number(body?.maxToolCalls) || 2_500, 2_500),
+        maxToolCalls: Math.min(Number(body?.maxToolCalls) || 10_000, 10_000),
         ...(body?.maxRuntimeMs
           ? { maxRuntimeMs: Number(body.maxRuntimeMs) }
           : {}),
@@ -303,20 +321,28 @@ async function handleCommandRun(request, response) {
       approval?.payload?.actionRequests?.length || 1,
       1
     );
-    await AgentRun.update(run.id, {
-      status: "queued",
-      configuration: {
-        ...run.configuration,
-        recover: false,
-        resume: {
-          decisions: Array.from({ length: actionCount }, () =>
-            command.approved
-              ? { type: "approve" }
-              : { type: "reject", message: "Rejected by user." }
-          ),
+    const resumed = await AgentRun.update(
+      run.id,
+      {
+        status: "queued",
+        configuration: {
+          ...run.configuration,
+          recover: false,
+          resume: {
+            decisions: Array.from({ length: actionCount }, () =>
+              command.approved
+                ? { type: "approve" }
+                : { type: "reject", message: "Rejected by user." }
+            ),
+          },
         },
       },
-    });
+      { onlyActive: true }
+    );
+    if (!resumed) {
+      await AgentRunCommand.complete(persistedCommand.id, { success: false });
+      return response.status(409).json({ success: false });
+    }
     await AgentRunEvent.append(run.id, "approval.resolved", {
       requestId: command.requestId,
       approved: Boolean(command.approved),
@@ -329,17 +355,25 @@ async function handleCommandRun(request, response) {
     ["clarificationResponse", "input.respond"].includes(commandType) &&
     run.status === "waiting_for_input"
   ) {
-    await AgentRun.update(run.id, {
-      status: "queued",
-      configuration: {
-        ...run.configuration,
-        recover: false,
-        resume: {
-          skipped: Boolean(command.skipped),
-          answers: command.answers || [],
+    const resumed = await AgentRun.update(
+      run.id,
+      {
+        status: "queued",
+        configuration: {
+          ...run.configuration,
+          recover: false,
+          resume: {
+            skipped: Boolean(command.skipped),
+            answers: command.answers || [],
+          },
         },
       },
-    });
+      { onlyActive: true }
+    );
+    if (!resumed) {
+      await AgentRunCommand.complete(persistedCommand.id, { success: false });
+      return response.status(409).json({ success: false });
+    }
     await AgentRunEvent.append(run.id, "input.resolved", {
       requestId: command.requestId,
       skipped: Boolean(command.skipped),

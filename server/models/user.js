@@ -97,9 +97,10 @@ const User = {
     const {
       password: _password,
       web_push_subscription_config: _web_push_subscription_config,
+      oauthSubject: _oauthSubject,
       ...rest
     } = user;
-    return { ...rest };
+    return { ...rest, authProvider: _oauthSubject ? "idaas" : "local" };
   },
   _identifyErrorAndFormatMessage: function (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
@@ -168,6 +169,12 @@ const User = {
         where: { id: parseInt(userId) },
       });
       if (!currentUser) return { success: false, error: "User not found" };
+      if (
+        currentUser.oauthSubject &&
+        (updates.password ||
+          (updates.username && updates.username !== currentUser.username))
+      )
+        return { success: false, error: "姓名和账号由华为统一登录管理。" };
 
       // We previously had more lenient username validation, but now with more strict validation
       // we dont want to break existing users by changing non-username fields.

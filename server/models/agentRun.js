@@ -2,6 +2,7 @@ const prisma = require("../utils/prisma");
 const { v4: uuidv4 } = require("uuid");
 const { safeJsonParse } = require("../utils/http");
 const { withPrismaRetry } = require("../utils/prismaRetry");
+const { safeJSONStringify } = require("../utils/helpers/chat/responses");
 
 const TERMINAL_STATUSES = new Set([
   "completed",
@@ -78,7 +79,7 @@ const AgentRun = {
     );
   },
 
-  update: async function (id, data = {}) {
+  update: async function (id, data = {}, { onlyActive = false } = {}) {
     const updates = { ...data, lastUpdatedAt: new Date() };
     if (Object.hasOwn(updates, "attachments"))
       updates.attachments = JSON.stringify(updates.attachments || []);
@@ -88,12 +89,107 @@ const AgentRun = {
       updates.runtimeSnapshot = JSON.stringify(updates.runtimeSnapshot || {});
     if (Object.hasOwn(updates, "policySnapshot"))
       updates.policySnapshot = JSON.stringify(updates.policySnapshot || {});
+    if (onlyActive) {
+      const changed = await withPrismaRetry(() =>
+        prisma.agent_runs.updateMany({
+          where: {
+            id: String(id),
+            status: { notIn: [...TERMINAL_STATUSES] },
+          },
+          data: updates,
+        })
+      );
+      return changed.count ? this.get(id) : null;
+    }
     return normalizeRun(
       await withPrismaRetry(() =>
         prisma.agent_runs.update({
           where: { id: String(id) },
           data: updates,
         })
+      )
+    );
+  },
+
+  // The conditional update locks the run until both its terminal state and chat
+  // are committed. A late worker or a second cancel cannot save another reply.
+  finalizeWithResponse: async function (
+    id,
+    {
+      response,
+      status,
+      terminationReason,
+      error = null,
+      recoverCancelled = false,
+    }
+  ) {
+    if (!TERMINAL_STATUSES.has(status))
+      throw new Error("An Agent response requires a terminal status.");
+    if (recoverCancelled && status !== "cancelled")
+      throw new Error("Only cancelled Agent runs can be recovered.");
+    return withPrismaRetry(() =>
+      prisma.$transaction(
+        async (tx) => {
+          const changed = await tx.agent_runs.updateMany({
+            where: {
+              id: String(id),
+              ...(recoverCancelled
+                ? { status: "cancelled", finalResponse: null }
+                : { status: { notIn: [...TERMINAL_STATUSES] } }),
+            },
+            data: {
+              status,
+              phase: "complete",
+              terminationReason,
+              error,
+              finalResponse: response.text,
+              lastUpdatedAt: new Date(),
+              ...(!recoverCancelled ? { completedAt: new Date() } : {}),
+            },
+          });
+          if (!changed.count) return null;
+          const run = normalizeRun(
+            await tx.agent_runs.findUnique({ where: { id: String(id) } })
+          );
+          let chat = null;
+          if (run.configuration?.persistChat !== false) {
+            // Older versions could save a chat without setting finalResponse.
+            // Keep that existing record, including any user edits or deletions.
+            if (recoverCancelled) {
+              chat = await tx.workspace_chats.findFirst({
+                where: {
+                  workspaceId: run.workspace_id,
+                  thread_id: run.thread_id,
+                  response: {
+                    contains: `"agentRunId":${JSON.stringify(run.id)}`,
+                  },
+                },
+              });
+            }
+            if (!chat) {
+              chat = await tx.workspace_chats.create({
+                data: {
+                  workspaceId: run.workspace_id,
+                  thread_id: run.thread_id,
+                  user_id: run.user_id,
+                  prompt: run.prompt,
+                  response: safeJSONStringify(response),
+                  include: run.configuration?.include ?? true,
+                  api_session_id: run.configuration?.apiSessionId || null,
+                  ...(recoverCancelled ? { createdAt: run.createdAt } : {}),
+                },
+              });
+            } else {
+              run.finalResponse = safeJsonParse(chat.response, {}).text || "";
+              await tx.agent_runs.update({
+                where: { id: run.id },
+                data: { finalResponse: run.finalResponse },
+              });
+            }
+          }
+          return { run, chat };
+        },
+        { maxWait: 30_000, timeout: 60_000 }
       )
     );
   },

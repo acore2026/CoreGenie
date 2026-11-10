@@ -24,22 +24,25 @@ const AgentRunEvent = {
       .catch(() => null)
       .then(async () => {
         const row = await withPrismaRetry(() =>
-          prisma.$transaction(async (tx) => {
-            const run = await tx.agent_runs.update({
-              where: { id },
-              data: { nextEventSequence: { increment: 1 } },
-              select: { nextEventSequence: true },
-            });
-            return tx.agent_run_events.create({
-              data: {
-                run_id: id,
-                sequence: run.nextEventSequence,
-                version: 2,
-                type: String(type),
-                payload: JSON.stringify(payload || {}),
-              },
-            });
-          })
+          prisma.$transaction(
+            async (tx) => {
+              const run = await tx.agent_runs.update({
+                where: { id },
+                data: { nextEventSequence: { increment: 1 } },
+                select: { nextEventSequence: true },
+              });
+              return tx.agent_run_events.create({
+                data: {
+                  run_id: id,
+                  sequence: run.nextEventSequence,
+                  version: 2,
+                  type: String(type),
+                  payload: JSON.stringify(payload || {}),
+                },
+              });
+            },
+            { maxWait: 30_000, timeout: 60_000 }
+          )
         );
         const event = normalizeEvent(row);
         agentRunEventBus.publish(event);

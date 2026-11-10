@@ -13,6 +13,29 @@ const { Workspace } = require("../../models/workspace");
 describe("developer workspace file API", () => {
   afterEach(() => jest.restoreAllMocks());
 
+  it("stores conversation drops under upload with unique paths and original bytes", async () => {
+    let upload;
+    registerWorkspaceFileRoutes({ get: jest.fn(), patch: jest.fn(), delete: jest.fn(), post: (_path, _middleware, handler) => { upload = handler; } }, { prefix: "/files", middleware: [] });
+    const root = "/tmp/workspace-drop-test";
+    jest.spyOn(filesystem, "forWorkspace").mockReturnValue({
+      ensureInitialized: jest.fn(), getAllowedDirectories: () => [root],
+      validatePath: async (target) => path.resolve(root, target),
+    });
+    jest.spyOn(fs, "mkdir").mockResolvedValue();
+    jest.spyOn(fs, "writeFile").mockResolvedValue();
+    jest.spyOn(fs, "stat").mockResolvedValue({ size: 3 });
+    const request = { body: { destination: "conversation", path: "../../ignored" }, file: { originalname: "会议.pdf", buffer: Buffer.from("PDF") } };
+    const first = mockResponse({ id: 1 });
+    const second = mockResponse({ id: 1 });
+    await upload(request, first);
+    await upload(request, second);
+    const file = first.json.mock.calls[0][0].file;
+    expect(file.path).toMatch(/^upload\/[a-f0-9-]+\/会议.pdf$/);
+    expect(second.json.mock.calls[0][0].file.path).not.toBe(file.path);
+    expect(fs.writeFile).toHaveBeenCalledWith(path.join(root, file.path), Buffer.from("PDF"), { flag: "wx" });
+    expect(first.status).toHaveBeenCalledWith(200);
+  });
+
   it("registers API-key upload, file-manager, preview, download, archive, and delete routes", () => {
     const routes = [];
     const app = {

@@ -8,13 +8,13 @@ const {
 
 describe("governed execution bounds", () => {
   it("keeps ordinary Agent runs within practical limits", () => {
-    expect(DEFAULTS.maxTasks).toBe(8);
+    expect(DEFAULTS.maxTasks).toBe(24);
     expect(DEFAULTS.maxReviewRounds).toBe(1);
-    expect(DEFAULTS.maxTaskToolCalls).toBe(40);
-    expect(DEFAULTS.maxTaskModelCalls).toBe(16);
-    expect(DEFAULTS.maxTaskMs).toBe(8 * 60 * 1_000);
-    expect(DEFAULTS.maxRunMs).toBe(15 * 60 * 1_000);
-    expect(DEFAULTS.maxConsecutiveNoProgress).toBe(3);
+    expect(DEFAULTS.maxTaskToolCalls).toBe(200);
+    expect(DEFAULTS.maxTaskModelCalls).toBe(80);
+    expect(DEFAULTS.maxTaskMs).toBe(60 * 60 * 1_000);
+    expect(DEFAULTS.maxRunMs).toBe(4 * 60 * 60 * 1_000);
+    expect(DEFAULTS.maxConsecutiveNoProgress).toBe(8);
   });
 
   it("cascades skipped dependencies without dispatching their children", () => {

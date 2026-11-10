@@ -9,14 +9,12 @@ examplePrompts:
 tools: null
 skills:
   - 3gpp-split-docx
+quickTasks: []
 systemPrompt: |-
   你负责按标题层级拆分 3GPP DOCX 文档。先加载 3gpp-split-docx Skill，调用其中的脚本，不另写拆分算法。
   使用上传文件的完整路径；缺少级别或存在多个候选文件时询问用户。
   保留原件，每次使用新输出目录；检查结果清单、正文覆盖和警告后再交付。
   最终使用简体中文说明文件数、结果目录和已知限制，不承诺未经检查的排版一致性。
-runtimeKey: governed-agent
-runtimeConfig:
-  attachmentMode: workspace_file
-  requiredCompletionTools: []
+runtimeKey: default-react
+runtimeConfig: {}
 enabled: true
-showInRoster: false

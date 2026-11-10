@@ -52,10 +52,15 @@ async function invokeAgentRuntime({
       policySnapshot: parentRun.policySnapshot || {},
     });
   }
-  await AgentRun.update(effectiveRunId, {
-    status: "running",
-    startedAt: childRun.startedAt || new Date(),
-  });
+  childRun = await AgentRun.update(
+    effectiveRunId,
+    {
+      status: "running",
+      startedAt: childRun.startedAt || new Date(),
+    },
+    { onlyActive: true }
+  );
+  if (!childRun || AgentRun.isTerminal(childRun.status)) return childRun;
   const run = {
     ...childRun,
     id: effectiveRunId,
@@ -93,18 +98,26 @@ async function invokeAgentRuntime({
       depth,
       maxLocalToolCalls,
     });
-    await AgentRun.update(effectiveRunId, {
-      status: result.kind === "interrupt" ? "waiting_for_input" : "completed",
-      completedAt: result.kind === "interrupt" ? null : new Date(),
-      finalResponse: result.kind === "interrupt" ? null : result.text || "",
-    });
+    await AgentRun.update(
+      effectiveRunId,
+      {
+        status: result.kind === "interrupt" ? "waiting_for_input" : "completed",
+        completedAt: result.kind === "interrupt" ? null : new Date(),
+        finalResponse: result.kind === "interrupt" ? null : result.text || "",
+      },
+      { onlyActive: true }
+    );
     return result;
   } catch (error) {
-    await AgentRun.update(effectiveRunId, {
-      status: "failed",
-      error: error.message,
-      completedAt: new Date(),
-    });
+    await AgentRun.update(
+      effectiveRunId,
+      {
+        status: "failed",
+        error: error.message,
+        completedAt: new Date(),
+      },
+      { onlyActive: true }
+    );
     throw error;
   }
 }

@@ -3,6 +3,10 @@ const mockCreate = jest.fn();
 const mockAppend = jest.fn();
 const mockEnqueue = jest.fn();
 
+jest.mock("../../models/threadLifecycle", () => ({
+  acceptThreadSubmission: jest.fn().mockResolvedValue(undefined),
+}));
+
 jest.mock("../../models/agentRun", () => ({
   AgentRun: {
     activeForConversation: jest.fn().mockResolvedValue(null),
@@ -38,6 +42,7 @@ jest.mock("../../models/systemSettings", () => ({
 const { submitAgentRun } = require("../../agent-system/service");
 const { resolveAgent } = require("../../resources/agents");
 const { SystemSettings } = require("../../models/systemSettings");
+const { acceptThreadSubmission } = require("../../models/threadLifecycle");
 
 describe("submitAgentRun execution limit override", () => {
   beforeEach(() => {
@@ -55,6 +60,7 @@ describe("submitAgentRun execution limit override", () => {
       configuration: { approvalMode: "always_allow" },
     });
 
+    expect(acceptThreadSubmission).toHaveBeenCalledWith(104);
     expect(mockCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         configuration: expect.objectContaining({
@@ -97,6 +103,44 @@ describe("submitAgentRun execution limit override", () => {
       })
     );
   });
+
+  it.each([
+    [
+      {},
+      {
+        maxRuntimeMs: 14_400_000,
+        maxModelCallsPerTask: 80,
+        maxToolCalls: 10_000,
+      },
+    ],
+    [
+      { maxRuntimeMs: 600_000, maxModelCallsPerTask: 12, maxToolCalls: 50 },
+      { maxRuntimeMs: 600_000, maxModelCallsPerTask: 12, maxToolCalls: 50 },
+    ],
+    [
+      {
+        maxRuntimeMs: 100_000_000,
+        maxModelCallsPerTask: 999,
+        maxToolCalls: 99_999,
+      },
+      {
+        maxRuntimeMs: 86_400_000,
+        maxModelCallsPerTask: 500,
+        maxToolCalls: 10_000,
+      },
+    ],
+  ])(
+    "uses generous defaults while respecting explicit budgets",
+    async (configuration, expected) => {
+      SystemSettings.agentExecutionLimitsDisabled.mockResolvedValueOnce(false);
+      await submitAgentRun({
+        workspace: { id: 7 },
+        prompt: "分析提案",
+        configuration,
+      });
+      expect(mockCreate.mock.calls[0][0].configuration).toMatchObject(expected);
+    }
+  );
 
   it("allows a single-context Agent to disable only the model call limit", async () => {
     SystemSettings.agentExecutionLimitsDisabled.mockResolvedValueOnce(false);

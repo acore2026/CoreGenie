@@ -43,6 +43,22 @@ it("leaves the main model untouched", () => {
   );
   expect(SystemSettings.getValueOrFallback).not.toHaveBeenCalled();
 });
+it.each(["glm-5.3", "glm-5.3-flash", "glm-5.3-flashx"])(
+  "uses supported lightweight reasoning parameters for %s",
+  (model) => {
+    createChatModel({
+      workspace: { agentProvider: "generic-openai" },
+      model,
+      thinking: false,
+    });
+    expect(ChatOpenAI).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model,
+        modelKwargs: { thinking: { type: "enabled" }, reasoning_effort: "low" },
+      })
+    );
+  }
+);
 it("inherits the conversation model when configuration is empty", async () => {
   SystemSettings.getValueOrFallback.mockResolvedValue("");
   await createLightweightChatModel({

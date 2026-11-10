@@ -9,6 +9,18 @@ const { bash } = require("../../tools/sandbox");
 describe("sandbox descriptor broker failures", () => {
   beforeEach(() => jest.clearAllMocks());
 
+  it("allows long conversions and retains an explicit execution deadline", () => {
+    expect(bash.schema.parse({ code: "echo ready" }).timeout_seconds).toBe(900);
+    expect(
+      bash.schema.safeParse({ code: "echo ready", timeout_seconds: 7200 })
+        .success
+    ).toBe(true);
+    expect(
+      bash.schema.safeParse({ code: "echo ready", timeout_seconds: 7201 })
+        .success
+    ).toBe(false);
+  });
+
   it("returns a retryable result when broker capacity is busy", async () => {
     sandboxClient.run.mockRejectedValue(
       Object.assign(new Error("sandbox capacity is busy; retry shortly"), {

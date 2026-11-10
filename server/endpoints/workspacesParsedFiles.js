@@ -11,6 +11,10 @@ const { validWorkspaceSlug } = require("../utils/middleware/validWorkspace");
 const { CollectorApi } = require("../utils/collectorApi");
 const { WorkspaceThread } = require("../models/workspaceThread");
 const { WorkspaceParsedFiles } = require("../models/workspaceParsedFiles");
+const {
+  canViewThread,
+  retainThreadDraft,
+} = require("../models/threadLifecycle");
 
 function workspaceParsedFilesEndpoints(app) {
   if (!app) return;
@@ -24,8 +28,17 @@ function workspaceParsedFilesEndpoints(app) {
         const user = await userFromSession(request, response);
         const workspace = response.locals.workspace;
         const thread = threadSlug
-          ? await WorkspaceThread.get({ slug: String(threadSlug) })
+          ? await WorkspaceThread.get({
+              slug: String(threadSlug),
+              workspace_id: workspace.id,
+            })
           : null;
+        if (
+          threadSlug &&
+          (!thread ||
+            (multiUserMode(response) && !canViewThread(thread, user?.id)))
+        )
+          return response.sendStatus(404).end();
         const { files, contextWindow, currentContextTokenCount } =
           await WorkspaceParsedFiles.getContextMetadataAndLimits(
             workspace,
@@ -131,6 +144,21 @@ function workspaceParsedFilesEndpoints(app) {
         const user = await userFromSession(request, response);
         const workspace = response.locals.workspace;
         const Collector = new CollectorApi();
+        const { threadSlug = null } = reqBody(request);
+        const thread = threadSlug
+          ? await WorkspaceThread.get({
+              slug: String(threadSlug),
+              workspace_id: workspace.id,
+            })
+          : null;
+        if (
+          threadSlug &&
+          (!thread ||
+            (multiUserMode(response) && !canViewThread(thread, user?.id)))
+        )
+          return response.sendStatus(404).end();
+        // Protect the draft before asynchronous parsing can overlap navigation.
+        await retainThreadDraft(thread?.id);
         const { originalname } = request.file;
         const processingOnline = await Collector.online();
 
@@ -150,15 +178,6 @@ function workspaceParsedFilesEndpoints(app) {
           });
         }
 
-        // Get thread ID if we have a slug
-        const { threadSlug = null } = reqBody(request);
-        const thread = threadSlug
-          ? await WorkspaceThread.get({
-              slug: String(threadSlug),
-              workspace_id: workspace.id,
-              user_id: user?.id || null,
-            })
-          : null;
         const files = await Promise.all(
           documents.map(async (doc) => {
             const metadata = { ...doc };

@@ -1,6 +1,6 @@
 const MIN_CONCURRENCY = 1;
-const MAX_CONCURRENCY = 16;
-const DEFAULT_AGENT_CONCURRENCY = 6;
+const MAX_CONCURRENCY = 64;
+const DEFAULT_AGENT_CONCURRENCY = 12;
 
 function boundedConcurrency(value, fallback = DEFAULT_AGENT_CONCURRENCY) {
   if (value === undefined || value === null || String(value).trim() === "")

@@ -1,7 +1,7 @@
 /* eslint-env jest, node */
 const mockArtifact = {
   forRun: jest.fn(),
-  create: jest.fn(),
+  registerWorkspaceOutput: jest.fn(),
 };
 
 jest.mock("fs/promises", () => ({ stat: jest.fn(), readFile: jest.fn() }));
@@ -14,16 +14,22 @@ const {
   completeInlineDatasetResponse,
   referencedWorkspacePaths,
   registerReferencedArtifacts,
+  registerWorkspaceOutputs,
+  toolOutputReferences,
+  collectRunOutputs,
+  outputRelativePath,
 } = require("../../agent-system/artifactRegistration");
 
 describe("Agent artifact registration", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockArtifact.forRun.mockResolvedValue([]);
-    mockArtifact.create.mockImplementation(async (artifact) => ({
-      id: `artifact-${artifact.title}`,
-      ...artifact,
-    }));
+    mockArtifact.registerWorkspaceOutput.mockImplementation(
+      async (artifact) => ({
+        id: `artifact-${artifact.title}`,
+        ...artifact,
+      })
+    );
     fs.stat.mockResolvedValue({ isFile: () => true, size: 321 });
     fs.readFile.mockResolvedValue("");
   });
@@ -33,10 +39,7 @@ describe("Agent artifact registration", () => {
       referencedWorkspacePaths(
         "`/workspace/results/S2 001.docx` and /workspace/results/a.json， not /workspace/results/*.docx"
       )
-    ).toEqual([
-      "/workspace/results/S2 001.docx",
-      "/workspace/results/a.json",
-    ]);
+    ).toEqual(["/workspace/results/S2 001.docx", "/workspace/results/a.json"]);
   });
 
   it("registers existing files explicitly reported by write tasks", async () => {
@@ -62,8 +65,8 @@ describe("Agent artifact registration", () => {
       workspaceManager,
     });
 
-    expect(mockArtifact.create).toHaveBeenCalledTimes(2);
-    expect(mockArtifact.create).toHaveBeenCalledWith(
+    expect(mockArtifact.registerWorkspaceOutput).toHaveBeenCalledTimes(2);
+    expect(mockArtifact.registerWorkspaceOutput).toHaveBeenCalledWith(
       expect.objectContaining({
         runId: "run-1",
         taskId: "download",
@@ -76,16 +79,137 @@ describe("Agent artifact registration", () => {
     expect(artifacts).toHaveLength(2);
   });
 
-  it("does not register outputs for a read-only run", async () => {
-    await expect(
-      registerReferencedArtifacts({
-        runId: "run-1",
-        tasks: [{ id: "read", writeIntent: false }],
-        finalResponse: "/workspace/input.docx",
-        workspaceManager: {},
+  it("attaches a final referenced file even without write tasks in the default runtime", async () => {
+    const result = await registerReferencedArtifacts({
+      runId: "run-1",
+      tasks: [{ id: "read", writeIntent: false }],
+      finalResponse: "/workspace/input.docx",
+      workspaceManager: { validatePath: async (value) => value },
+    });
+    expect(result).toHaveLength(1);
+    expect(result[0].storagePath).toBe("input.docx");
+  });
+
+  it("attaches batch folders as ZIP downloads and keeps images together", async () => {
+    const paths = toolOutputReferences(
+      "3gpp.download",
+      {},
+      {
+        ok: false,
+        data: {
+          outputs: [
+            {
+              directory: "/workspace/3gpp/KI21",
+              files: [],
+              fileCount: 120,
+              filesTruncated: true,
+            },
+          ],
+        },
+      }
+    );
+    expect(paths).toEqual(["/workspace/3gpp/KI21"]);
+    const workspaceManager = { validatePath: async (value) => value };
+    fs.stat.mockResolvedValue({ isFile: () => false, isDirectory: () => true });
+    const artifacts = await registerWorkspaceOutputs({
+      runId: "r",
+      references: paths.map((storagePath) => ({ storagePath })),
+      workspaceManager,
+    });
+    expect(artifacts[0]).toMatchObject({
+      kind: "workspaceDirectory",
+      title: "KI21.zip",
+    });
+    expect(
+      await collectRunOutputs({
+        workspace: { slug: "demo" },
+        workspaceManager,
+        artifacts,
       })
-    ).resolves.toEqual([]);
-    expect(mockArtifact.forRun).not.toHaveBeenCalled();
+    ).toEqual([
+      {
+        type: "workspaceFile",
+        payload: {
+          workspaceSlug: "demo",
+          path: "3gpp/KI21",
+          filename: "KI21.zip",
+          archive: true,
+          artifactId: artifacts[0].id,
+        },
+      },
+    ]);
+  });
+
+  it("captures relative writes and sandbox reported results, never read tool inputs", () => {
+    expect(
+      toolOutputReferences(
+        "filesystem.write",
+        { path: "reports/总结.md" },
+        { ok: true }
+      )
+    ).toEqual(["reports/总结.md"]);
+    expect(
+      toolOutputReferences(
+        "filesystem.write",
+        { path: "reports/总结.md" },
+        { ok: false }
+      )
+    ).toEqual([]);
+    expect(
+      toolOutputReferences(
+        "bash",
+        { code: "cat /workspace/input.md" },
+        { data: "Saved `/workspace/results/结果 表.csv`" }
+      )
+    ).toEqual(["/workspace/results/结果 表.csv"]);
+    expect(
+      toolOutputReferences(
+        "filesystem.read",
+        { path: "/workspace/input.md" },
+        { ok: true, data: "/workspace/input.md" }
+      )
+    ).toEqual([]);
+  });
+
+  it.each([
+    "/workspace",
+    "/workspace/",
+    "../secret",
+    "/workspace/../secret",
+    "/workspace/_meta/tasks/a.json",
+    "/workspace/.env",
+    "/workspace/_tmp/a.md",
+    "/workspace/tmp/script.py",
+    "/workspace/proposal/S2-123.assets/embedded/ole.bin",
+  ])("excludes unsafe or internal output %s", (value) => {
+    expect(outputRelativePath(value)).toBeNull();
+  });
+
+  it("deduplicates repeated file appends and omits missing files", async () => {
+    const existing = {
+      id: "a",
+      kind: "workspaceFile",
+      storagePath: "result.md",
+    };
+    mockArtifact.forRun.mockResolvedValue([existing]);
+    const result = await registerWorkspaceOutputs({
+      runId: "r",
+      references: [
+        { storagePath: "result.md" },
+        { storagePath: "/workspace/result.md" },
+      ],
+      workspaceManager: { validatePath: async (v) => v },
+    });
+    expect(result).toEqual([existing]);
+    expect(mockArtifact.registerWorkspaceOutput).not.toHaveBeenCalled();
+    fs.stat.mockRejectedValue({ code: "ENOENT" });
+    expect(
+      await collectRunOutputs({
+        runId: "r",
+        workspace: { slug: "demo" },
+        workspaceManager: { validatePath: async (v) => v },
+      })
+    ).toEqual([]);
   });
 
   it("appends a more complete text report for an explicitly requested list", async () => {

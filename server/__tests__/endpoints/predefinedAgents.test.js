@@ -15,6 +15,44 @@ const { PredefinedAgent } = require("../../models/predefinedAgent");
 
 afterEach(() => jest.restoreAllMocks());
 
+describe("roster display order permissions", () => {
+  function route() {
+    const routes = new Map();
+    predefinedAgentEndpoints({
+      get: jest.fn(), put: jest.fn(), delete: jest.fn(),
+      post: (path, middleware, handler) => routes.set(path, { middleware, handler }),
+    });
+    return routes.get("/admin/display-order/:kind");
+  }
+
+  it("requires the administrator role in multi-user mode", async () => {
+    const next = jest.fn();
+    const response = { locals: { multiUserMode: true, user: { role: "default" } }, sendStatus: jest.fn().mockReturnValue({ end: jest.fn() }) };
+    await route().middleware[1]({}, response, next);
+    expect(response.sendStatus).toHaveBeenCalledWith(401);
+    expect(next).not.toHaveBeenCalled();
+    response.locals.user.role = "admin";
+    await route().middleware[1]({}, response, next);
+    expect(next).toHaveBeenCalledTimes(1);
+  });
+
+  it("saves only supported list kinds and reports validation errors", async () => {
+    const { DisplayOrder } = require("../../models/displayOrder");
+    const save = jest.spyOn(DisplayOrder, "save").mockResolvedValue();
+    const response = { json: jest.fn(), sendStatus: jest.fn(), status: jest.fn() };
+    response.status.mockReturnValue(response);
+    const { handler } = route();
+    await handler({ params: { kind: "agents" }, body: { ids: [2, 1] } }, response);
+    expect(save).toHaveBeenCalledWith("agents", [2, 1]);
+    await handler({ params: { kind: "unknown" }, body: {} }, response);
+    expect(response.sendStatus).toHaveBeenCalledWith(404);
+    save.mockRejectedValue(new Error("invalid order"));
+    await handler({ params: { kind: "quick-tasks" }, body: { ids: [9] } }, response);
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(response.json).toHaveBeenCalledWith({ success: false, error: "invalid order" });
+  });
+});
+
 describe("predefined Agent example prompts", () => {
   it("keeps a short label and a detailed prompt as separate values", () => {
     expect(

@@ -29,12 +29,12 @@ function createUnlimitedContext() {
 }
 
 describe("AgentToolContext budgets", () => {
-  it("defaults the run tool-call budget to 2,500", () => {
-    expect(createContext().maxToolCalls).toBe(2_500);
+  it("defaults the run tool-call budget to 10,000", () => {
+    expect(createContext().maxToolCalls).toBe(10_000);
   });
 
-  it("caps a requested run tool-call budget at 2,500", () => {
-    expect(createContext(10_000).maxToolCalls).toBe(2_500);
+  it("caps a requested run tool-call budget at 10,000", () => {
+    expect(createContext(20_000).maxToolCalls).toBe(10_000);
   });
 
   it("keeps a smaller requested run tool-call budget", () => {

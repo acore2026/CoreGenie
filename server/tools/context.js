@@ -15,7 +15,7 @@ class AgentToolContext {
     taskId = null,
     taskTitle = null,
     visibleToolIds = null,
-    maxConsecutiveNoProgress = 5,
+    maxConsecutiveNoProgress = 8,
     onNoProgress = null,
     activatedSkillScope = null,
   }) {
@@ -32,7 +32,7 @@ class AgentToolContext {
     this.visibleToolIds = visibleToolIds ? new Set(visibleToolIds) : null;
     this.maxConsecutiveNoProgress = Math.max(
       1,
-      Number(maxConsecutiveNoProgress) || 5
+      Number(maxConsecutiveNoProgress) || 8
     );
     this.onNoProgress = onNoProgress;
     this.consecutiveNoProgress = 0;
@@ -40,7 +40,7 @@ class AgentToolContext {
     this.executionLimitsDisabled = executionLimitsDisabled(run);
     this.maxToolCalls = this.executionLimitsDisabled
       ? null
-      : Math.min(Number(run.configuration?.maxToolCalls) || 2_500, 2_500);
+      : Math.min(Number(run.configuration?.maxToolCalls) || 10_000, 10_000);
     this.maxLocalToolCalls = this.executionLimitsDisabled
       ? null
       : maxLocalToolCalls || this.maxToolCalls;

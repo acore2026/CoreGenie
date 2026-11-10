@@ -52,7 +52,11 @@ function createChatModel({
       Number(maxTokens) ||
       toValidNumber(process.env.GENERIC_OPEN_AI_MAX_TOKENS, 1024),
     ...(thinking === false
-      ? { modelKwargs: { thinking: { type: "disabled" } } }
+      ? {
+          modelKwargs: /^glm-5\.3(?:-flashx?)?$/i.test(common.model)
+            ? { thinking: { type: "enabled" }, reasoning_effort: "low" }
+            : { thinking: { type: "disabled" } },
+        }
       : {}),
     configuration: {
       baseURL: process.env.GENERIC_OPEN_AI_BASE_PATH,

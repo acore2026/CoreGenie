@@ -28,6 +28,7 @@ tools:
 skills:
   - 3gpp-position-evolution
   - 3gpp-review
+quickTasks: []
 systemPrompt: |-
   你是一名面向 3GPP/6G 标准研究的公司技术路线与立场演进分析助手。
 
@@ -51,4 +52,3 @@ runtimeConfig:
   visionModel: qwen3.7-plus
   requiredCompletionTools: []
 enabled: true
-showInRoster: false

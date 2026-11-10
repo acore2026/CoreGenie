@@ -9,6 +9,30 @@ datasource db {
   url      = "file:../storage/anythingllm.db"
 }
 
+model announcements {
+  id        Int                  @id @default(autoincrement())
+  title     String
+  content   String
+  startsAt  DateTime             @default(now())
+  expiresAt DateTime?
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+  reads     announcement_reads[]
+
+  @@index([startsAt])
+}
+
+model announcement_reads {
+  id             Int           @id @default(autoincrement())
+  announcementId Int
+  readerKey      String
+  readAt         DateTime      @default(now())
+  announcement   announcements @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+
+  @@unique([announcementId, readerKey])
+  @@index([readerKey])
+}
+
 model api_keys {
   id            Int      @id @default(autoincrement())
   name          String?
@@ -19,12 +43,12 @@ model api_keys {
 }
 
 model global_reference_entries {
-  key           String   @id
+  key           String    @id
   payload       String?
   revision      String?
   lastSuccessAt DateTime?
   lastAttemptAt DateTime?
-  nextRefreshAt DateTime @default(now())
+  nextRefreshAt DateTime  @default(now())
   lastError     String?
   leaseToken    String?
   leaseUntil    DateTime?
@@ -83,6 +107,10 @@ model users {
   id                           Int                           @id @default(autoincrement())
   username                     String?                       @unique
   password                     String
+  displayName                  String?
+  employeeNumber               String?
+  oauthSubject                 String?                       @unique
+  oauth_sessions               oauth_sessions[]
   pfpFilename                  String?
   role                         String                        @default("default")
   suspended                    Int                           @default(0)
@@ -109,6 +137,16 @@ model users {
   desktop_mobile_devices       desktop_mobile_devices[]
   workspace_parsed_files       workspace_parsed_files[]
   memories                     memories[]
+}
+
+model oauth_sessions {
+  id        String   @id
+  userId    Int
+  expiresAt DateTime
+  user      users    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 model recovery_codes {
@@ -162,7 +200,7 @@ model workspaces {
   queryRefusalResponse         String?
   vectorSearchMode             String?                        @default("default")
   router_id                    Int? // No relation to prevent whole table migration (SQLite limitation)
-  accessMode                   String                          @default("private")
+  accessMode                   String                         @default("private")
   workspace_users              workspace_users[]
   documents                    workspace_documents[]
   workspace_suggested_messages workspace_suggested_messages[]
@@ -175,19 +213,31 @@ model workspaces {
 }
 
 model workspace_threads {
-  id                     Int                      @id @default(autoincrement())
+  id                     Int                         @id @default(autoincrement())
   name                   String
-  slug                   String                   @unique
+  slug                   String                      @unique
   workspace_id           Int
   user_id                Int?
-  createdAt              DateTime                 @default(now())
-  lastUpdatedAt          DateTime                 @default(now())
-  workspace              workspaces               @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
-  user                   users?                   @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  createdAt              DateTime                    @default(now())
+  lastUpdatedAt          DateTime                    @default(now())
+  submittedAt            DateTime?
+  draftTouchedAt         DateTime?
+  sessions               workspace_thread_sessions[]
+  workspace              workspaces                  @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
+  user                   users?                      @relation(fields: [user_id], references: [id], onDelete: Cascade)
   workspace_parsed_files workspace_parsed_files[]
 
   @@index([workspace_id])
   @@index([user_id])
+}
+
+model workspace_thread_sessions {
+  id        String            @id
+  threadId  Int
+  expiresAt DateTime
+  thread    workspace_threads @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@index([threadId, expiresAt])
 }
 
 model workspace_suggested_messages {
@@ -520,14 +570,14 @@ model predefined_agent_skills {
 }
 
 model predefined_quick_tasks {
-  id             Int      @id @default(autoincrement())
-  key            String   @unique
-  title          String
-  description    String   @default("")
-  definition     String   // JSON object accepted by agentWizard.validateWizard
-  archived       Boolean  @default(false)
-  createdAt      DateTime @default(now())
-  lastUpdatedAt  DateTime @default(now())
+  id            Int      @id @default(autoincrement())
+  key           String   @unique
+  title         String
+  description   String   @default("")
+  definition    String // JSON object accepted by agentWizard.validateWizard
+  archived      Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  lastUpdatedAt DateTime @default(now())
 
   @@index([archived])
 }
@@ -553,7 +603,7 @@ model predefined_agents {
   description      String   @default("")
   welcomeMessage   String?
   examplePrompts   String   @default("[]") // JSON array of example inputs shown above the chat composer.
-  wizard          String?  // Optional declarative task form, JSON.
+  wizard           String? // Optional declarative task form, JSON.
   tools            String? // JSON array of executable tool identifiers. Null means all currently enabled tools.
   skillIds         String   @default("[]") // JSON array of predefined_agent_skills IDs.
   quickTaskIds     String   @default("[]") // JSON array of predefined_quick_tasks IDs.
@@ -757,23 +807,23 @@ model external_communication_connectors {
 }
 
 model scheduled_jobs {
-  id           Int                  @id @default(autoincrement())
-  name         String
-  prompt       String
-  workspace_id Int?
-  agent_id     Int?
-  tools        String? // JSON array of tool identifiers (null = use all enabled agent skills)
-  schedule     String // Cron expression
-  scheduleType String                 @default("recurring")
+  id             Int                  @id @default(autoincrement())
+  name           String
+  prompt         String
+  workspace_id   Int?
+  agent_id       Int?
+  tools          String? // JSON array of tool identifiers (null = use all enabled agent skills)
+  schedule       String // Cron expression
+  scheduleType   String               @default("recurring")
   scheduleConfig String               @default("{}")
-  timezone     String                 @default("UTC")
-  created_by   Int?
-  enabled      Boolean              @default(true)
-  lastRunAt    DateTime?
-  nextRunAt    DateTime?
-  createdAt    DateTime             @default(now())
-  updatedAt    DateTime             @default(now())
-  runs         scheduled_job_runs[]
+  timezone       String               @default("UTC")
+  created_by     Int?
+  enabled        Boolean              @default(true)
+  lastRunAt      DateTime?
+  nextRunAt      DateTime?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @default(now())
+  runs           scheduled_job_runs[]
 
   @@index([workspace_id])
   @@index([created_by])

@@ -1,7 +1,7 @@
 const sandbox = require("./lib");
 
-const DEFAULT_TIMEOUT_SECONDS = 300;
-const MAX_TIMEOUT_SECONDS = 1800;
+const DEFAULT_TIMEOUT_SECONDS = 900;
+const MAX_TIMEOUT_SECONDS = 7200;
 
 function formatResult(result, timeoutSeconds = null) {
   const sections = [`Exit code: ${result.exitCode}`];
@@ -65,7 +65,7 @@ function sandboxTool(language) {
                   maximum: MAX_TIMEOUT_SECONDS,
                   default: DEFAULT_TIMEOUT_SECONDS,
                   description:
-                    "Execution timeout in seconds (default 300, maximum 1800).",
+                    "Execution timeout in seconds (default 900, maximum 7200).",
                 },
               },
               required: ["code"],

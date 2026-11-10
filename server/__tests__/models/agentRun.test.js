@@ -6,7 +6,7 @@ const mockPrisma = {
 };
 const mockWithPrismaRetry = jest.fn((fn) => fn());
 
-jest.mock("../../utils/prisma", () => mockPrisma, { virtual: true });
+jest.mock("../../utils/prisma", () => mockPrisma);
 jest.mock("../../utils/prismaRetry", () => ({
   withPrismaRetry: mockWithPrismaRetry,
 }));

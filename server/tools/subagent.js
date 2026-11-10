@@ -33,11 +33,11 @@ function createSubagentTool(context, availableAgents = []) {
       task: z.string().min(1),
     }),
     execute: async ({ agent_id, task }, _toolContext, runnableConfig) => {
-      if (context.depth >= 3)
-        throw new Error("Maximum subagent depth (3) reached.");
+      if (context.depth >= 6)
+        throw new Error("Maximum subagent depth (6) reached.");
       context.budget.subagentCalls += 1;
-      if (context.budget.subagentCalls > 20)
-        throw new Error("Maximum subagent calls (20) reached.");
+      if (context.budget.subagentCalls > 100)
+        throw new Error("Maximum subagent calls (100) reached.");
       if (!availableAgents.some((agent) => agent.id === agent_id))
         throw new Error("Requested Agent is not available to this Agent.");
       const child = await resolveAgent(agent_id);
@@ -71,7 +71,7 @@ function createSubagentTool(context, availableAgents = []) {
           budget: context.budget,
           inheritedSkills,
           depth: context.depth + 1,
-          maxLocalToolCalls: 250,
+          maxLocalToolCalls: 1000,
           runnableConfig: childRunnableConfig(runnableConfig, {
             tags: ["subagent"],
             metadata: {

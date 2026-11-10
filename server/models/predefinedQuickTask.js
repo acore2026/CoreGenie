@@ -1,4 +1,5 @@
 const prisma = require("../utils/prisma");
+const { DisplayOrder } = require("./displayOrder");
 const { validateWizard } = require("../utils/agentWizard");
 const { createHash } = require("crypto");
 
@@ -148,12 +149,15 @@ async function migrateLegacy(client = prisma) {
 
 const PredefinedQuickTask = {
   all: async ({ includeArchived = false } = {}) =>
-    (
-      await prisma.predefined_quick_tasks.findMany({
-        where: includeArchived ? undefined : { archived: false },
-        orderBy: [{ title: "asc" }, { id: "asc" }],
-      })
-    ).map(normalize),
+    DisplayOrder.apply(
+      "quick-tasks",
+      (
+        await prisma.predefined_quick_tasks.findMany({
+          where: includeArchived ? undefined : { archived: false },
+          orderBy: [{ title: "asc" }, { id: "asc" }],
+        })
+      ).map(normalize)
+    ),
   get: async (id) =>
     normalize(
       await prisma.predefined_quick_tasks.findUnique({

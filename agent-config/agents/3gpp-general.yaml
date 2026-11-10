@@ -20,4 +20,5 @@ systemPrompt: |-
 runtimeKey: default-react
 runtimeConfig:
   attachmentMode: workspace_file
+  visionModel: qwen3.7-plus
 enabled: true

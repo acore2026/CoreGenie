@@ -7,6 +7,8 @@ const EncryptionMgr = new EncryptionManager();
 
 async function validatedRequest(request, response, next) {
   const multiUserMode = await SystemSettings.isMultiUserMode();
+  if (require("../idaas/config").oauthOnly() && !multiUserMode)
+    return response.status(503).json({ error: "统一登录需要启用多用户模式。" });
   response.locals.multiUserMode = multiUserMode;
   if (multiUserMode)
     return await validateMultiUserRequest(request, response, next);
@@ -83,7 +85,11 @@ async function validateMultiUserRequest(request, response, next) {
   }
 
   const valid = decodeJWT(token);
-  if (!valid || !valid.id) {
+  if (
+    !valid ||
+    !valid.id ||
+    !(await require("../idaas/sessions").validOAuthSession(valid))
+  ) {
     response.status(401).json({
       error: "Invalid auth token.",
     });

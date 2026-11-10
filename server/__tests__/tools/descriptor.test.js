@@ -74,14 +74,21 @@ describe("governed tool execution policy", () => {
         toolCall: { id: "call-2" },
       })
     );
-    for (const callId of ["call-3", "call-4", "call-5"])
+    for (const callId of [
+      "call-3",
+      "call-4",
+      "call-5",
+      "call-6",
+      "call-7",
+      "call-8",
+    ])
       await wrapped.func({ value: "same" }, undefined, {
         toolCall: { id: callId },
       });
 
     await expect(
       wrapped.func({ value: "same" }, undefined, {
-        toolCall: { id: "call-6" },
+        toolCall: { id: "call-9" },
       })
     ).rejects.toMatchObject({ code: "TASK_NO_PROGRESS", retryable: false });
 
@@ -93,7 +100,7 @@ describe("governed tool execution policy", () => {
     });
     expect(AgentToolExecution.finish).toHaveBeenLastCalledWith(
       "run-1",
-      "call-6",
+      "call-9",
       expect.objectContaining({
         status: "skipped",
         outcomeCode: "RESULT_REUSED",
@@ -101,7 +108,7 @@ describe("governed tool execution policy", () => {
     );
     expect(emit).toHaveBeenCalledWith(
       "tool.skipped",
-      expect.objectContaining({ callId: "call-6", code: "RESULT_REUSED" })
+      expect.objectContaining({ callId: "call-9", code: "RESULT_REUSED" })
     );
   });
 

@@ -3,6 +3,8 @@ const prisma = require("../utils/prisma");
 const { getVectorDbClass } = require("../utils/helpers");
 const { fileData } = require("../utils/files");
 const { EventLogs } = require("./eventLogs");
+const { SystemSettings } = require("./systemSettings");
+const { canDeleteGlobalDocument } = require("../utils/globalKnowledgeAccess");
 const {
   GLOBAL_KNOWLEDGE_NAMESPACE,
   removeGlobalKnowledgeSource,
@@ -66,7 +68,9 @@ const GlobalDocument = {
             metadata: JSON.stringify({
               ...metadata,
               ragScope: "global",
-              ...(sourceFile ? { sourceFile } : {}),
+              ...(sourceFile
+                ? { sourceFile, title: sourceFile.originalName }
+                : {}),
             }),
             createdBy: userId,
           },
@@ -94,6 +98,14 @@ const GlobalDocument = {
   delete: async function (id, userId = null) {
     const document = await this.get({ id: Number(id) });
     if (!document) return false;
+    const multiUserMode = userId
+      ? true
+      : await SystemSettings.isMultiUserMode();
+    if (!canDeleteGlobalDocument(document, userId, multiUserMode)) {
+      const error = new Error("只能删除自己上传的资料。");
+      error.code = "GLOBAL_DOCUMENT_FORBIDDEN";
+      throw error;
+    }
     let sourceFile = null;
     try {
       sourceFile = JSON.parse(document.metadata || "{}").sourceFile || null;

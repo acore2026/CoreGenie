@@ -17,6 +17,7 @@ const { writeResponseChunk } = require("../utils/helpers/chat/responses");
 const { WorkspaceThread } = require("../models/workspaceThread");
 const { User } = require("../models/user");
 const { getModelTag } = require("./utils");
+const { acceptThreadSubmission } = require("../models/threadLifecycle");
 
 function chatEndpoints(app) {
   if (!app) return;
@@ -156,6 +157,8 @@ function chatEndpoints(app) {
           });
           return;
         }
+
+        await acceptThreadSubmission(thread.id);
 
         // Naming must not wait for a potentially long-running response.
         void WorkspaceThread.autoRenameThread({

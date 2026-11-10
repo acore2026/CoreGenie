@@ -241,6 +241,25 @@ async function activeToolOptions() {
 function predefinedAgentEndpoints(app) {
   if (!app) return;
   app.post(
+    "/admin/display-order/:kind",
+    [validatedRequest, flexUserRoleValid(EDIT_ROLES)],
+    async (request, response) => {
+      if (!["agents", "quick-tasks"].includes(request.params.kind))
+        return response.sendStatus(404);
+      try {
+        await require("../models/displayOrder").DisplayOrder.save(
+          request.params.kind,
+          reqBody(request).ids
+        );
+        return response.json({ success: true });
+      } catch (error) {
+        return response
+          .status(400)
+          .json({ success: false, error: error.message });
+      }
+    }
+  );
+  app.post(
     "/admin/predefined-quick-tasks/validate",
     [validatedRequest, flexUserRoleValid(EDIT_ROLES)],
     (request, response) => {

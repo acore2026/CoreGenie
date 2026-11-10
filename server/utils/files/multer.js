@@ -106,6 +106,40 @@ function handleFileUpload(request, response, next) {
   });
 }
 
+// Global uploads use unique collector filenames so different users uploading
+// identically named files cannot overwrite one another's in-flight content.
+function handleGlobalKnowledgeUpload(request, response, next) {
+  const storage = multer.diskStorage({
+    destination: (_, __, cb) => {
+      const directory =
+        process.env.NODE_ENV === "development"
+          ? path.resolve(__dirname, "../../../collector/hotdir")
+          : path.resolve(process.env.STORAGE_DIR, "../../collector/hotdir");
+      cb(null, directory);
+    },
+    filename: (_, file, cb) => {
+      file.originalname = sanitizeFileName(
+        normalizePath(Buffer.from(file.originalname, "latin1").toString("utf8"))
+      );
+      cb(null, `${v4()}${path.extname(file.originalname).slice(0, 20)}`);
+    },
+  });
+  multer({ storage, limits: { fileSize: 100 * 1024 * 1024, files: 1 } }).single(
+    "file"
+  )(request, response, (error) => {
+    if (error)
+      return response.status(400).json({
+        error:
+          error.code === "LIMIT_FILE_SIZE"
+            ? "文件不能超过 100 MiB。"
+            : "文件未能上传，请重新选择文件。",
+      });
+    if (!request.file)
+      return response.status(400).json({ error: "请选择要上传的文件。" });
+    next();
+  });
+}
+
 /**
  * Handle API file upload as documents - this does not manipulate the filename
  * at all for encoding/charset reasons.
@@ -258,6 +292,7 @@ function handleWorkspaceFileUpload(request, response, next) {
 
 module.exports = {
   handleFileUpload,
+  handleGlobalKnowledgeUpload,
   handleAPIFileUpload,
   handleAssetUpload,
   handlePfpUpload,

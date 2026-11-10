@@ -1,6 +1,8 @@
 const { Workspace } = require("../../models/workspace");
 const { WorkspaceThread } = require("../../models/workspaceThread");
 const { userFromSession, multiUserMode } = require("../http");
+const { canCollaborateOnThread } = require("../workspaceCollaboration");
+const { canViewThread } = require("../../models/threadLifecycle");
 
 // Will pre-validate and set the workspace for a request if the slug is provided in the URL path.
 async function validWorkspaceSlug(request, response, next) {
@@ -60,7 +62,10 @@ async function validWorkspaceAndThreadSlug(request, response, next) {
     slug: threadSlug,
     workspace_id: workspace.id,
   });
-  if (!thread) {
+  if (
+    !thread ||
+    (multiUserMode(response) && !canViewThread(thread, user?.id))
+  ) {
     response.status(404).send("Workspace thread does not exist.");
     return;
   }
@@ -78,7 +83,8 @@ function readonlyWorkspaceRequestAllowed(request) {
   return (
     /\/workspace\/[^/]+\/pfp\/?$/.test(path) ||
     /\/workspace\/[^/]+\/threads\/?$/.test(path) ||
-    /\/workspace\/[^/]+\/thread\/[^/]+\/chats\/?$/.test(path)
+    /\/workspace\/[^/]+\/thread\/[^/]+\/chats\/?$/.test(path) ||
+    /\/workspace\/[^/]+\/thread\/[^/]+\/agent-runs\/active\/?$/.test(path)
   );
 }
 
@@ -95,7 +101,9 @@ async function canManageWorkspaceThread(request, response) {
   const user = await userFromSession(request, response);
   const thread = response.locals.thread;
   return (
-    thread?.user_id === user?.id || ["admin", "manager"].includes(user?.role)
+    canCollaborateOnThread(user, response.locals.workspace, thread) ||
+    thread?.user_id === user?.id ||
+    ["admin", "manager"].includes(user?.role)
   );
 }
 

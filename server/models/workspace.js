@@ -194,7 +194,12 @@ const Workspace = {
    * @param {Object} additionalFields - Additional fields to apply to the workspace - will be validated.
    * @returns {Promise<{workspace: Object | null, message: string | null}>} A promise that resolves to an object containing the created workspace and an error message if applicable.
    */
-  new: async function (name = null, creatorId = null, additionalFields = {}) {
+  new: async function (
+    name = null,
+    creatorId = null,
+    additionalFields = {},
+    creationSetup = null
+  ) {
     if (!name) return { workspace: null, message: "name cannot be null" };
     var slug = this.slugify(name, { lower: true });
     slug = slug || uuidv4();
@@ -210,6 +215,20 @@ const Workspace = {
     delete additionalFields.openAiPrompt;
 
     try {
+      if (creationSetup) {
+        const { createWithSetup } = require("./workspaceCreation");
+        const workspace = await createWithSetup(
+          {
+            name: this.validations.name(name),
+            chatMode: "automatic",
+            ...this.validateFields(additionalFields),
+            slug,
+          },
+          creatorId,
+          creationSetup
+        );
+        return { workspace, message: null };
+      }
       const workspace = await prisma.workspaces.create({
         data: {
           name: this.validations.name(name),
@@ -226,7 +245,13 @@ const Workspace = {
       return { workspace, message: null };
     } catch (error) {
       console.error(error.message);
-      return { workspace: null, message: error.message };
+      return {
+        workspace: null,
+        message:
+          creationSetup && !error.isWorkspaceSetupError
+            ? "工作区创建失败，请稍后重试。"
+            : error.message,
+      };
     }
   },
 

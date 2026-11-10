@@ -14,6 +14,13 @@ const filesystem = require("../utils/agents/aibitat/plugins/filesystem/lib");
 const sandbox = require("../utils/agents/aibitat/plugins/sandbox/lib");
 const { sandboxToolResult } = require("./sandboxResult");
 const threeGppCatalog = require("../utils/threeGppCatalog");
+const threeGppDocuments = require("../utils/threeGppDocuments");
+const {
+  selectMeeting,
+  selectKiDocuments,
+  requestedSpec,
+} = require("./threeGppSelection");
+const { setTimeout: pause } = require("timers/promises");
 
 const execFileAsync = promisify(execFile);
 const USER_AGENT =
@@ -139,23 +146,33 @@ function latestMeeting(html, group, asOf = new Date()) {
   return meeting ? { folder, meetingNumber: Number(meeting[1]) } : null;
 }
 
-function requestSignal(signal, timeoutMs = 30_000) {
+function requestSignal(signal, timeoutMs = 120_000) {
   return AbortSignal.any([
     signal || new AbortController().signal,
     AbortSignal.timeout(timeoutMs),
   ]);
 }
 
-async function fetchOfficial(url, context, timeoutMs = 30_000) {
-  return fetch(url, {
-    redirect: "follow",
-    signal: requestSignal(context.signal, timeoutMs),
-    headers: {
-      "User-Agent": USER_AGENT,
-      Accept:
-        "text/html,application/zip,application/octet-stream;q=0.9,*/*;q=0.8",
-    },
-  });
+async function fetchOfficial(url, context, timeoutMs = 120_000) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const response = await fetch(url, {
+        redirect: "follow",
+        signal: requestSignal(context.signal, timeoutMs),
+        headers: {
+          "User-Agent": USER_AGENT,
+          Accept:
+            "text/html,application/zip,application/octet-stream;q=0.9,*/*;q=0.8",
+        },
+      });
+      if (attempt >= 2 || ![429, 500, 502, 503, 504].includes(response.status))
+        return response;
+      await response.body?.cancel();
+    } catch (error) {
+      if (context.signal?.aborted || attempt >= 2) throw error;
+    }
+    await pause(500 * 2 ** attempt, undefined, { signal: context.signal });
+  }
 }
 
 async function existingFile(filePath) {
@@ -171,23 +188,39 @@ async function downloadOfficialTdoc(
   parsed,
   context,
   manager,
-  { destinationRoot = null } = {}
+  { destinationRoot = null, meetingFolder = null, archiveUrl = null } = {}
 ) {
   const directory = DIRECTORY_BY_GROUP[parsed.group];
   const baseUrl = `https://www.3gpp.org/ftp/${directory}/`;
-  const listing = await fetchOfficial(baseUrl, context);
-  if (!listing.ok)
-    return {
-      ok: false,
-      code: `HTTP_${listing.status}`,
-      summary: `3GPP 官方目录返回 HTTP ${listing.status}，暂时无法查找 ${parsed.tdoc}。`,
-      retryable: listing.status === 429 || listing.status >= 500,
-    };
-  const folders = meetingFoldersForYear(
-    await listing.text(),
-    parsed.group,
-    parsed.year
-  );
+  if (archiveUrl) {
+    const url = threeGppCatalog.officialUrl(archiveUrl);
+    const expected = new URL(
+      `${encodeURIComponent(meetingFolder)}/Docs/${parsed.tdoc}.zip`,
+      baseUrl
+    );
+    if (
+      !meetingFolder ||
+      decodeURIComponent(url.pathname).toLowerCase() !==
+        decodeURIComponent(expected.pathname).toLowerCase()
+    )
+      throw new Error("提案下载地址与所选会议或 TDoc 不一致。");
+  }
+  let folders = meetingFolder ? [meetingFolder] : null;
+  if (!folders) {
+    const listing = await fetchOfficial(baseUrl, context);
+    if (!listing.ok)
+      return {
+        ok: false,
+        code: `HTTP_${listing.status}`,
+        summary: `3GPP 官方目录返回 HTTP ${listing.status}，暂时无法查找 ${parsed.tdoc}。`,
+        retryable: listing.status === 429 || listing.status >= 500,
+      };
+    folders = meetingFoldersForYear(
+      await listing.text(),
+      parsed.group,
+      parsed.year
+    );
+  }
   if (!folders.length)
     return {
       ok: false,
@@ -200,27 +233,35 @@ async function downloadOfficialTdoc(
     const docsRoot = destinationRoot || `3gpp-review/${folder}/docs`;
     const docxRelative = `${docsRoot}/${parsed.tdoc}.docx`;
     const docxPath = await manager.validatePath(docxRelative);
-    if (await existingFile(docxPath)) {
+    if ((await existingFile(docxPath))?.size > 0) {
       return {
         ok: true,
         folder,
         docxRelative,
-        officialUrl: new URL(
-          `${encodeURIComponent(folder)}/Docs/${parsed.tdoc}.zip`,
-          baseUrl
-        ).toString(),
+        officialUrl:
+          archiveUrl ||
+          new URL(
+            `${encodeURIComponent(folder)}/Docs/${parsed.tdoc}.zip`,
+            baseUrl
+          ).toString(),
         cached: true,
       };
     }
 
-    const officialUrl = new URL(
-      `${encodeURIComponent(folder)}/Docs/${parsed.tdoc}.zip`,
-      baseUrl
-    ).toString();
+    const officialUrl =
+      archiveUrl ||
+      new URL(
+        `${encodeURIComponent(folder)}/Docs/${parsed.tdoc}.zip`,
+        baseUrl
+      ).toString();
     const response = await fetchOfficial(officialUrl, context, 120_000);
-    if (response.status === 404) continue;
+    if (response.status === 404) {
+      await response.body?.cancel();
+      continue;
+    }
     if (!response.ok) {
-      if (response.status === 403) continue;
+      await response.body?.cancel();
+      if (response.status === 403 && !meetingFolder) continue;
       return {
         ok: false,
         code: `HTTP_${response.status}`,
@@ -229,14 +270,26 @@ async function downloadOfficialTdoc(
       };
     }
     const declaredSize = Number(response.headers.get("content-length") || 0);
-    if (declaredSize > MAX_TDOC_ARCHIVE_BYTES)
+    if (declaredSize > MAX_TDOC_ARCHIVE_BYTES) {
+      await response.body?.cancel();
       return {
         ok: false,
         code: "TDOC_TOO_LARGE",
         summary: `${parsed.tdoc} 的压缩包超过 100 MiB，已停止下载。`,
         retryable: false,
       };
-    const buffer = Buffer.from(await response.arrayBuffer());
+    }
+    const chunks = [];
+    let received = 0;
+    if (response.body) {
+      for await (const chunk of response.body) {
+        received += chunk.length;
+        if (received > MAX_TDOC_ARCHIVE_BYTES)
+          throw new Error("官方 ZIP 超过 100 MiB，已停止下载。");
+        chunks.push(Buffer.from(chunk));
+      }
+    } else chunks.push(Buffer.from(await response.arrayBuffer()));
+    const buffer = Buffer.concat(chunks);
     if (buffer.length > MAX_TDOC_ARCHIVE_BYTES)
       return {
         ok: false,
@@ -274,6 +327,13 @@ async function downloadOfficialTdoc(
         summary: `${parsed.tdoc} 的官方 ZIP 中没有找到唯一的 DOCX。`,
         retryable: false,
       };
+    if (selected.header.size > MAX_TDOC_ARCHIVE_BYTES)
+      return {
+        ok: false,
+        code: "INVALID_DOCX",
+        summary: `${parsed.tdoc} 解压后的 DOCX 超过 100 MiB。`,
+        retryable: false,
+      };
     const docx = selected.getData();
     if (!docx.length || docx.length > MAX_TDOC_ARCHIVE_BYTES)
       return {
@@ -285,7 +345,13 @@ async function downloadOfficialTdoc(
     await fs.mkdir(path.dirname(docxPath), { recursive: true });
     // The official ZIP is a transport format, not a workspace deliverable.
     // Keep it in memory and persist only the extracted DOCX.
-    await fs.writeFile(docxPath, docx);
+    const part = `${docxPath}.${require("crypto").randomUUID()}.part`;
+    try {
+      await fs.writeFile(part, docx);
+      await fs.rename(part, docxPath);
+    } finally {
+      await fs.rm(part, { force: true });
+    }
     return {
       ok: true,
       folder,
@@ -346,25 +412,6 @@ function agendaItemsForKi(items, ki) {
   );
 }
 
-function tdocsFromAgenda(items, group) {
-  const values = new Set();
-  for (const item of items) {
-    for (const candidate of [
-      item.referenceTdoc,
-      item.label,
-      item.description,
-    ]) {
-      for (const match of String(candidate || "").matchAll(
-        /\b([A-Z]\d-\d{6,8})\b/gi
-      )) {
-        const parsed = parseTdoc(match[1]);
-        if (parsed?.group === group) values.add(parsed.tdoc);
-      }
-    }
-  }
-  return [...values].sort();
-}
-
 async function copyConvertedDeliverable(
   manager,
   temporaryRelative,
@@ -414,11 +461,20 @@ const downloadProposals = defineTool({
   id: "3gpp.download",
   name: "download_3gpp_proposals",
   description:
-    "按指定 3GPP 工作组、会议和官方 KI 下载并转换提案，只保留 proposal 下的最终文件。",
+    "按会议和 KI 下载、转换官方提案。每次刷新 Docs 中的 TDoc 表并核对 ZIP，保留修订稿及撤回标记；表不可用时按议程下载已知文件并明确范围未确认。meeting 接受 SA2#175、准确官方目录名或 URL（加会必须用准确目录）。提供 spec 如 23.801-01 防止同号 KI 混用；有明确官方映射时可提供 agenda_item 如 20.6.2。重试复用已完成文件。",
   schema: z.object({
     group: z.string().trim().toUpperCase(),
-    meeting: z.string().trim().min(1).max(80),
+    meeting: z.string().trim().min(1).max(300),
     ki: z.array(z.string().trim().min(1).max(40)).min(1).max(20),
+    spec: z
+      .string()
+      .trim()
+      .regex(/^(?:(?:TR|TS)\s*)?\d{2}\.\d{3}(?:-\d{2})?$/i)
+      .optional(),
+    agenda_item: z
+      .string()
+      .regex(/^\d+(?:\.\d+)*$/)
+      .optional(),
   }),
   action: true,
   effect: "write",
@@ -426,7 +482,8 @@ const downloadProposals = defineTool({
   retry: { maxAttempts: 1 },
   maxResultBytes: 24 * 1024,
   activity: ({ group, meeting }) => `下载 ${group} ${meeting} 的官方 KI 提案`,
-  execute: async ({ group, meeting, ki }, context) => {
+  execute: async ({ group, meeting, ki, spec, agenda_item }, context) => {
+    context.signal?.throwIfAborted();
     if (!DIRECTORY_BY_GROUP[group])
       return {
         ok: false,
@@ -435,12 +492,11 @@ const downloadProposals = defineTool({
           "下载工具目前支持 SA1、SA2、SA3、SA5、CT1、CT4。其他工作组请提供原始文档。",
         retryable: false,
       };
-    const number = meetingNumberFromInput(group, meeting);
-    if (!number)
+    if (agenda_item && ki.length !== 1)
       return {
         ok: false,
-        code: "INVALID_MEETING",
-        summary: `会议必须写成 ${group}#会议号，例如 ${group}#176。`,
+        code: "INVALID_SCOPE",
+        summary: "指定 agenda_item 时每次只选择一个 KI。",
         retryable: false,
       };
     const manager = filesystem.forWorkspace(context.workspace.id);
@@ -459,14 +515,13 @@ const downloadProposals = defineTool({
       };
     await ensureConversionSkill(skill, context);
     const meetings = await threeGppCatalog.meetings(group);
-    const candidates = meetings.meetings.filter(
-      (item) => item.number === number
-    );
+    const candidates = selectMeeting(meetings.meetings, group, meeting);
     if (candidates.length > 1)
       return {
         ok: false,
         code: "AMBIGUOUS_MEETING",
-        summary: "找到多个同号会议目录，不能确定下载范围，请提供原始文档。",
+        summary:
+          "找到多个会议，请将 candidates 中准确的 id 或 source 作为 meeting 重试。",
         data: { candidates },
         retryable: false,
       };
@@ -475,17 +530,26 @@ const downloadProposals = defineTool({
       return {
         ok: false,
         code: "MEETING_NOT_FOUND",
-        summary: `官方目录中没有找到 ${group}#${number}。`,
+        summary: `官方目录中没有找到 ${meeting}。meeting 可用会议号、官方目录 id 或准确 URL。`,
         retryable: false,
       };
-    const meetingAgenda = await threeGppCatalog.agenda(group, snapshot.id, {
-      meeting: snapshot,
-    });
+    const number = snapshot.number;
+    const scopeSpec = requestedSpec(spec, context.run.prompt);
+    const meetingAgenda = await threeGppDocuments.meetingDocuments(
+      group,
+      snapshot,
+      {
+        signal: context.signal,
+      }
+    );
     const runId = `${Date.now()}-${String(context.run.id).slice(0, 12)}`;
     const temporaryRoot = `tmp/3gpp/${runId}`;
     const temporaryPath = await manager.validatePath(temporaryRoot);
     const outputs = [];
     const failures = [];
+    const selections = [];
+    const selectionSnapshots = [];
+    const pendingDocuments = [];
     try {
       for (const requestedKi of [...new Set(ki)]) {
         const normalizedKi = kiNumber(requestedKi);
@@ -497,34 +561,63 @@ const downloadProposals = defineTool({
           });
           continue;
         }
-        const matchingItems = agendaItemsForKi(
-          meetingAgenda.items,
-          requestedKi
+        const selection = selectKiDocuments(
+          meetingAgenda,
+          requestedKi,
+          scopeSpec,
+          agenda_item
         );
-        const tdocs = tdocsFromAgenda(matchingItems, group);
-        const rootName = `${group}#${number}-KI${normalizedKi}`;
-        const proposalRelative = `3gpp/${rootName}/proposal`;
-        if (!tdocs.length) {
+        if (selection.code) {
           failures.push({
             ki: requestedKi,
-            code: meetingAgenda.warning
-              ? "AGENDA_NOT_AVAILABLE"
-              : matchingItems.length
-                ? "KI_TDOC_NOT_FOUND"
-                : "KI_NOT_FOUND",
-            error: meetingAgenda.warning
-              ? meetingAgenda.warning
-              : matchingItems.length
-                ? "官方议程找到 KI 标记，但没有可下载的 TDoc 编号。"
-                : "官方议程没有找到这个 KI，未扩大范围下载整场会议。",
+            code: selection.code,
+            error: selection.error,
+            candidates: selection.candidates,
+            retryable: false,
           });
           continue;
         }
+        selections.push({
+          ki: requestedKi,
+          agendaItem: selection.agendaItem,
+          title: selection.title,
+          count: selection.documents.length,
+          source: meetingAgenda.source,
+        });
+        selectionSnapshots.push({
+          ki: requestedKi,
+          agendaItem: selection.agendaItem,
+          proposals: selection.documents,
+        });
+        const downloadable = selection.documents.filter((document) => {
+          if (document.availability === "reserved") {
+            pendingDocuments.push({
+              ki: requestedKi,
+              tdoc: document.document,
+              status: document.status,
+              title: document.title,
+            });
+            return false;
+          }
+          if (document.availability === "missing") {
+            failures.push({
+              ki: requestedKi,
+              tdoc: document.document,
+              code: "TDOC_ARCHIVE_NOT_LISTED",
+              error: "官方清单已列出该提案，但 Docs 目录中没有对应 ZIP。",
+              retryable: true,
+            });
+            return false;
+          }
+          return true;
+        });
+        const tdocs = [...new Set(downloadable.map((d) => d.document))];
+        const rootName = `${safeWorkspaceSegment(snapshot.id)}-${scopeSpec || "agenda"}-${selection.agendaItem}-KI${normalizedKi}`;
+        const proposalRelative = `3gpp/${rootName}/proposal`;
         const proposalRoot = await manager.validatePath(proposalRelative);
         await fs.mkdir(proposalRoot, { recursive: true });
         const files = [];
         const kiTempRelative = `${temporaryRoot}/${safeWorkspaceSegment(`KI${normalizedKi}`)}`;
-        const downloadDirRelative = `${kiTempRelative}/docs`;
         const manifestRelative = `${kiTempRelative}/proposals.json`;
         const kiTempPath = await manager.validatePath(kiTempRelative);
         await fs.mkdir(kiTempPath, { recursive: true });
@@ -532,62 +625,89 @@ const downloadProposals = defineTool({
           await manager.validatePath(manifestRelative),
           JSON.stringify(
             {
-              schema: "3gpp-agenda-selection/v1",
-              selectionSource: snapshot.source,
+              schema: "3gpp-download-selection/v1",
+              selectionSource: meetingAgenda.selectionSource,
+              source: meetingAgenda.source,
+              docsSource: meetingAgenda.docsSource,
+              fetchedAt: meetingAgenda.fetchedAt,
+              warnings: meetingAgenda.warnings,
+              sourceErrors: meetingAgenda.sourceErrors,
+              unindexedTdocs: meetingAgenda.unindexedTdocs,
               completeness: "unknown",
+              spec: scopeSpec,
+              agendaItem: selection.agendaItem,
               agenda_filter: requestedKi,
-              count: tdocs.length,
-              proposals: tdocs.map((tdoc) => ({
-                document: tdoc,
-                agenda: matchingItems
-                  .map((item) => item.agendaItem || item.value)
-                  .filter(Boolean)
-                  .join(", "),
-                title:
-                  matchingItems.find((item) => item.referenceTdoc === tdoc)
-                    ?.referenceTitle || "",
-                source: "",
-                referenceUrl:
-                  matchingItems.find((item) => item.referenceTdoc === tdoc)
-                    ?.source || snapshot.source,
-                status: "unknown",
-              })),
+              count: selection.documents.length,
+              proposals: selection.documents,
             },
             null,
             2
           ) + "\n",
           "utf8"
         );
-        const docsUrl = new URL("Docs/", snapshot.source).toString();
-        const downloadExecution = await sandbox.run({
-          language: "bash",
-          code: [
-            "set -euo pipefail",
-            `python3 scripts/3gpp_tdocs.py download --manifest ${shellQuote(`/workspace/${manifestRelative}`)} --base-url ${shellQuote(docsUrl)} --output ${shellQuote(`/workspace/${downloadDirRelative}`)} --workers 5`,
-          ].join("\n"),
-          workspaceId: context.workspace.id,
-          invocationId: context.run.id,
-          timeoutSeconds: 900,
-          skill: {
-            id: skill.id,
-            name: skill.name,
-            scope: skill.scope,
-            revision: skill.revision,
-          },
-        });
-        const downloadResult = sandboxToolResult(downloadExecution, 900);
+        await fs.copyFile(
+          await manager.validatePath(manifestRelative),
+          await manager.validatePath(`3gpp/${rootName}/tdoc-manifest.json`)
+        );
         for (const tdoc of tdocs) {
+          const metadata = downloadable.find(
+            (document) => document.document === tdoc
+          );
+          const fileMetadata = {
+            status: metadata.status,
+            withdrawn: /^withdrawn$/i.test(metadata.status),
+            officialUrl: metadata.downloadUrl,
+          };
           try {
-            const sourceRelative = `${downloadDirRelative}/${tdoc}.docx`;
+            context.signal?.throwIfAborted();
+            const sourceRelative = `${proposalRelative}/${tdoc}.docx`;
             const sourcePath = await manager.validatePath(sourceRelative);
-            if (!(await existingFile(sourcePath))) {
+            const receiptPath = await manager.validatePath(
+              `${proposalRelative}/${tdoc}.receipt.json`
+            );
+            const markdownPath = await manager.validatePath(
+              `${proposalRelative}/${tdoc}.md`
+            );
+            let receipt;
+            try {
+              receipt = JSON.parse(await fs.readFile(receiptPath, "utf8"));
+            } catch {}
+            const docxStats = await existingFile(sourcePath);
+            const markdownStats = await existingFile(markdownPath);
+            if (
+              receipt?.revision === skill.revision &&
+              receipt.docxSize === docxStats?.size &&
+              receipt.markdownSize === markdownStats?.size &&
+              docxStats?.size > 0 &&
+              markdownStats?.size > 0
+            ) {
+              files.push({
+                tdoc,
+                ...fileMetadata,
+                docx: `/workspace/${sourceRelative}`,
+                markdown: `/workspace/${proposalRelative}/${tdoc}.md`,
+                cached: true,
+                warnings: receipt.warnings || [],
+              });
+              continue;
+            }
+            const downloaded = await downloadOfficialTdoc(
+              parseTdoc(tdoc),
+              context,
+              manager,
+              {
+                destinationRoot: proposalRelative,
+                meetingFolder: snapshot.id,
+                archiveUrl: metadata.downloadUrl,
+              }
+            );
+            if (!downloaded.ok) {
               failures.push({
                 ki: requestedKi,
                 tdoc,
-                code: downloadResult.ok ? "TDOC_NOT_FOUND" : "DOWNLOAD_FAILED",
-                error: downloadResult.ok
-                  ? `下载结果中没有 ${tdoc}.docx。`
-                  : downloadResult.summary,
+                code: downloaded.code,
+                error: downloaded.summary,
+                retryable: downloaded.retryable,
               });
               continue;
             }
@@ -602,7 +722,7 @@ const downloadProposals = defineTool({
               ].join("\n"),
               workspaceId: context.workspace.id,
               invocationId: context.run.id,
-              timeoutSeconds: 300,
+              timeoutSeconds: 900,
               skill: {
                 id: skill.id,
                 name: skill.name,
@@ -610,13 +730,15 @@ const downloadProposals = defineTool({
                 revision: skill.revision,
               },
             });
-            const result = sandboxToolResult(execution, 300);
+            const result = sandboxToolResult(execution, 900);
+            context.signal?.throwIfAborted();
             if (!result.ok) {
               failures.push({
                 ki: requestedKi,
                 tdoc,
                 code: "CONVERSION_FAILED",
-                error: result.summary,
+                error: String(result.data || result.summary).slice(-1800),
+                retryable: result.retryable,
               });
               continue;
             }
@@ -626,31 +748,56 @@ const downloadProposals = defineTool({
               proposalRoot,
               tdoc
             );
-            await fs.copyFile(
-              sourcePath,
-              await manager.validatePath(`${proposalRelative}/${tdoc}.docx`)
+            await fs.writeFile(
+              receiptPath,
+              JSON.stringify({
+                revision: skill.revision,
+                docxSize: (await fs.stat(sourcePath)).size,
+                markdownSize: (await fs.stat(markdownPath)).size,
+                warnings: converted.warnings,
+              }),
+              "utf8"
             );
             files.push({
               tdoc,
+              ...fileMetadata,
               docx: `/workspace/${proposalRelative}/${tdoc}.docx`,
               markdown: `/workspace/${proposalRelative}/${tdoc}.md`,
               warnings: converted.warnings,
             });
           } catch (error) {
+            if (context.signal?.aborted) throw error;
             failures.push({
               ki: requestedKi,
               tdoc,
               code: "DOWNLOAD_FAILED",
               error: error.message,
+              retryable:
+                ["TimeoutError", "TypeError"].includes(error.name) ||
+                error.code === "SANDBOX_BUSY",
+            });
+          } finally {
+            await context.emit("task.progress", {
+              taskId: context.taskId,
+              phase: "download",
+              summary: `${group}#${number} ${requestedKi}：已完成 ${files.length}/${tdocs.length} 份，未完成 ${failures.filter((f) => f.ki === requestedKi).length} 份。`,
             });
           }
         }
-        if (files.length)
-          outputs.push({
-            ki: `KI${normalizedKi}`,
-            directory: `/workspace/3gpp/${rootName}`,
-            files,
-          });
+        outputs.push({
+          ki: `KI${normalizedKi}`,
+          directory: `/workspace/3gpp/${rootName}`,
+          files,
+          agendaItem: selection.agendaItem,
+          status: !selection.documents.length
+            ? "no_matching_documents_in_source"
+            : !tdocs.length &&
+                !failures.some((failure) => failure.ki === requestedKi)
+              ? "awaiting_upload"
+              : failures.some((failure) => failure.ki === requestedKi)
+                ? "partial"
+                : "downloaded",
+        });
       }
       const stateRoot = await manager.validatePath("_meta/tasks");
       await fs.mkdir(stateRoot, { recursive: true });
@@ -663,6 +810,15 @@ const downloadProposals = defineTool({
             group,
             meeting: `${group}#${number}`,
             ki,
+            selections,
+            selectionSnapshots,
+            source: meetingAgenda.source,
+            selectionSource: meetingAgenda.selectionSource,
+            fetchedAt: meetingAgenda.fetchedAt,
+            warnings: meetingAgenda.warnings,
+            sourceErrors: meetingAgenda.sourceErrors,
+            unindexedTdocs: meetingAgenda.unindexedTdocs,
+            pendingDocuments,
             outputs,
             failures,
             completedAt: new Date().toISOString(),
@@ -672,24 +828,72 @@ const downloadProposals = defineTool({
         ) + "\n",
         "utf8"
       );
+      const warnings = meetingAgenda.warnings || [];
+      const needsAttention =
+        warnings.length > 0 ||
+        pendingDocuments.length > 0 ||
+        outputs.some((item) => !item.files.length);
+      // Keep the result structured within the tool's context limit. Full file
+      // lists, errors and selection snapshots remain in the durable record.
+      let remainingFiles = 10;
+      const outputSummary = outputs.map((output) => {
+        const files = output.files.slice(0, remainingFiles);
+        remainingFiles -= files.length;
+        return {
+          ...output,
+          fileCount: output.files.length,
+          files,
+          filesTruncated: files.length < output.files.length,
+        };
+      });
       return {
         ok: outputs.length > 0 && failures.length === 0,
-        code: failures.length ? "DOWNLOAD_PARTIAL" : "DOWNLOAD_COMPLETE",
+        code: failures.length
+          ? "DOWNLOAD_PARTIAL"
+          : needsAttention
+            ? "DOWNLOAD_INCOMPLETE"
+            : "DOWNLOAD_COMPLETE",
         summary: failures.length
           ? `已完成 ${outputs.reduce((sum, item) => sum + item.files.length, 0)} 份提案，另有 ${failures.length} 项未完成。`
-          : `已下载并转换 ${outputs.reduce((sum, item) => sum + item.files.length, 0)} 份提案。`,
+          : outputs.every(
+                (item) => item.status === "no_matching_documents_in_source"
+              )
+            ? "当前读取的清单未列出所选范围的提案，不能据此判断尚未上传。"
+            : `已下载并转换 ${outputs.reduce((sum, item) => sum + item.files.length, 0)} 份提案${pendingDocuments.length ? `，另有 ${pendingDocuments.length} 份仅预留、尚未在 Docs 中找到 ZIP` : ""}。${warnings.length ? "下载范围尚未确认，请查看来源提示。" : ""}`,
         data: {
           group,
           meeting: `${group}#${number}`,
-          outputs,
-          failures,
+          outputs: outputSummary,
+          failureCount: failures.length,
+          failures: failures.slice(0, 10).map((failure) => ({
+            ...failure,
+            error: failure.error?.slice(0, 500),
+          })),
+          failuresTruncated:
+            failures.length > 10 ||
+            failures.some((failure) => failure.error?.length > 500),
+          selections,
+          pendingDocumentCount: pendingDocuments.length,
+          pendingDocuments: pendingDocuments.slice(0, 10),
+          pendingDocumentsTruncated: pendingDocuments.length > 10,
+          source: meetingAgenda.source,
+          docsSource: meetingAgenda.docsSource,
+          fetchedAt: meetingAgenda.fetchedAt,
+          warnings,
+          sourceErrors: meetingAgenda.sourceErrors,
+          unindexedTdocCount: meetingAgenda.unindexedTdocs?.length || 0,
+          unindexedTdocs: meetingAgenda.unindexedTdocs?.slice(0, 20) || [],
+          unindexedTdocsTruncated:
+            (meetingAgenda.unindexedTdocs?.length || 0) > 20,
           completeness: "unknown",
-          selectionSource: "agenda-references",
-          warning:
-            "当前仅下载议程中识别到的 TDoc，未比对完整会议 Index，不能视为该 KI 的完整提案集合。",
+          selectionSource: meetingAgenda.selectionSource,
+          warning: [
+            ...warnings,
+            "结果仅对应本次读取的官方清单和所选范围，保留修订稿及撤回标记；不代表覆盖 Inbox 草稿、后续上传或整个 KI，也不代表会议已采纳。",
+          ].join(" "),
           recordPath: `/workspace/_meta/tasks/${runId}.json`,
         },
-        retryable: failures.length > 0,
+        retryable: failures.some((f) => f.retryable),
       };
     } finally {
       await fs.rm(temporaryPath, { recursive: true, force: true });
@@ -1045,7 +1249,7 @@ const convertMarkdown = defineTool({
       code,
       workspaceId: context.workspace.id,
       invocationId: context.run.id,
-      timeoutSeconds: 300,
+      timeoutSeconds: 900,
       skill: {
         id: skill.id,
         name: skill.name,
@@ -1059,7 +1263,7 @@ const convertMarkdown = defineTool({
       revision: skill.revision,
       language: "bash",
     });
-    const executionResult = sandboxToolResult(execution, 300);
+    const executionResult = sandboxToolResult(execution, 900);
     if (!executionResult.ok) return executionResult;
 
     const summaryRelative = `${resultRelative}/conversion-summary.json`;

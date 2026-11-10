@@ -1,5 +1,6 @@
 const { Workspace } = require("../../models/workspace");
 const { WorkspaceThread } = require("../../models/workspaceThread");
+const { threadVisibility } = require("../../models/threadLifecycle");
 const fastLevenshtein = require("fast-levenshtein");
 
 // allow a pretty loose levenshtein distance for the search
@@ -55,7 +56,10 @@ async function searchWorkspaceAndThreads(searchTerm, user = null) {
       : null;
     const threads = await WorkspaceThread.where(
       accessibleWorkspaces
-        ? { workspace_id: { in: accessibleWorkspaces.map(({ id }) => id) } }
+        ? {
+            workspace_id: { in: accessibleWorkspaces.map(({ id }) => id) },
+            ...threadVisibility(user.id),
+          }
         : undefined,
       undefined,
       undefined,

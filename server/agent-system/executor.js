@@ -11,7 +11,6 @@ const { AgentRunArtifact } = require("../models/agentRunArtifact");
 const { v4: uuidv4 } = require("uuid");
 const { publicationOutput } = require("../tools/knowledge");
 const filesystem = require("../utils/agents/aibitat/plugins/filesystem/lib");
-const path = require("path");
 const { resolveAgent } = require("../resources/agents");
 const { normalizedHistory } = require("./message");
 const { withAgentTrace } = require("./observability");
@@ -27,8 +26,10 @@ const {
   plainTextFromParts,
 } = require("./messageTimeline");
 const {
+  artifactOutput,
+  collectRunOutputs,
   completeInlineDatasetResponse,
-  registerReferencedArtifacts,
+  registerRunArtifacts,
 } = require("./artifactRegistration");
 
 function historicalTrace(events = []) {
@@ -73,21 +74,6 @@ function historicalTrace(events = []) {
     agentTrace,
     subagentRuns: [...subagents.values()],
     contextTraces,
-  };
-}
-
-function artifactOutput(artifact, workspace, stats) {
-  return {
-    type: "workspaceFile",
-    payload: {
-      workspaceSlug: workspace.slug,
-      path: artifact.storagePath,
-      filename:
-        artifact.metadata?.filename ||
-        path.basename(artifact.storagePath || artifact.title),
-      fileSize: stats.size,
-      artifactId: artifact.id,
-    },
   };
 }
 
@@ -138,12 +124,17 @@ async function executeAgentRunSegment(initialRun, signal, runnableConfig = {}) {
     run.runtimeVersion || 1
   );
 
-  run = await AgentRun.update(run.id, {
-    status: "running",
-    phase: "initializing",
-    agent_id: agent.id,
-    startedAt: run.startedAt || new Date(),
-  });
+  run = await AgentRun.update(
+    run.id,
+    {
+      status: "running",
+      phase: "initializing",
+      agent_id: agent.id,
+      startedAt: run.startedAt || new Date(),
+    },
+    { onlyActive: true }
+  );
+  if (!run || AgentRun.isTerminal(run.status)) return run;
   await emit("run.started", {
     status: "running",
     agent: { id: agent.id, name: agent.name },
@@ -270,16 +261,25 @@ async function executeAgentRunSegment(initialRun, signal, runnableConfig = {}) {
     onToken,
     onAssistantTurn,
   });
+  const currentRun = await AgentRun.get(run.id);
+  if (AgentRun.isTerminal(currentRun?.status)) return currentRun;
+  signal?.throwIfAborted();
   await flushDelta();
 
   if (result.kind === "interrupt") {
     const pendingInterrupt = result.interrupt;
     const inputRequest = pendingInterrupt.kind === "input";
-    await AgentRun.update(run.id, {
-      status: inputRequest ? "waiting_for_input" : "waiting_for_approval",
-      phase: inputRequest ? "input" : "approval",
-      configuration: { ...run.configuration, resume: null, recover: false },
-    });
+    const interrupted = await AgentRun.update(
+      run.id,
+      {
+        status: inputRequest ? "waiting_for_input" : "waiting_for_approval",
+        phase: inputRequest ? "input" : "approval",
+        configuration: { ...run.configuration, resume: null, recover: false },
+      },
+      { onlyActive: true }
+    );
+    if (!interrupted || AgentRun.isTerminal(interrupted.status))
+      return interrupted;
     await emit(
       inputRequest ? "input.requested" : "approval.requested",
       inputRequest
@@ -346,7 +346,7 @@ async function executeAgentRunSegment(initialRun, signal, runnableConfig = {}) {
   await workspaceManager.ensureInitialized();
   const publicationRows = await AgentReportPublication.forRun(run.id);
   const tasks = await AgentRunTask.list(run.id);
-  await registerReferencedArtifacts({
+  const referencedArtifacts = await registerRunArtifacts({
     runId: run.id,
     tasks,
     finalResponse: responseText,
@@ -389,50 +389,37 @@ async function executeAgentRunSegment(initialRun, signal, runnableConfig = {}) {
       outputPaths.add(publication.sourcePath);
     } catch {}
   }
-  for (const artifact of artifactRows) {
-    if (
-      artifact.kind !== "workspaceFile" ||
-      !artifact.storagePath ||
-      outputPaths.has(artifact.storagePath)
-    )
-      continue;
-    try {
-      const absolute = await workspaceManager.validatePath(
-        artifact.storagePath
-      );
-      const stats = await require("fs/promises").stat(absolute);
-      if (!stats.isFile()) continue;
-      outputs.push(artifactOutput(artifact, workspace, stats));
-      outputPaths.add(artifact.storagePath);
-    } catch {}
-  }
-  const { chat, message } =
-    run.configuration?.persistChat === false
-      ? { chat: null, message: null }
-      : await WorkspaceChats.new({
-          workspaceId: workspace.id,
-          prompt: run.prompt,
-          response: {
-            text: responseText,
-            sources,
-            outputs,
-            type: run.mode,
-            attachments: run.attachments,
-            agentRunId: run.id,
-            agentId: agent.id,
-            runtime: { key: definition.id, version: definition.version },
-            ...(usesReactTimeline && messageParts.length
-              ? { parts: cloneParts(messageParts) }
-              : {}),
-            ...traces,
-          },
-          threadId: thread?.id || null,
-          include: run.configuration?.include ?? true,
-          apiSessionId: run.configuration?.apiSessionId || null,
-          user,
-        });
-  if (run.configuration?.persistChat !== false && !chat)
-    throw new Error(message || "Failed to save Agent response.");
+  outputs.push(
+    ...(
+      await collectRunOutputs({
+        runId: run.id,
+        workspace,
+        workspaceManager,
+        artifacts: [...referencedArtifacts, ...artifactRows],
+      })
+    ).filter((output) => !outputPaths.has(output.payload.path))
+  );
+  const terminalStatus = partial ? "partial" : "completed";
+  const persisted = await AgentRun.finalizeWithResponse(run.id, {
+    status: terminalStatus,
+    terminationReason: partial ? "partial_results" : "completed",
+    response: {
+      text: responseText,
+      sources,
+      outputs,
+      type: run.mode,
+      attachments: run.attachments,
+      agentRunId: run.id,
+      agentId: agent.id,
+      runtime: { key: definition.id, version: definition.version },
+      ...(usesReactTimeline && messageParts.length
+        ? { parts: cloneParts(messageParts) }
+        : {}),
+      ...traces,
+    },
+  });
+  if (!persisted) return AgentRun.get(run.id);
+  const { chat } = persisted;
 
   await emit("message.completed", {
     messageId,
@@ -442,14 +429,6 @@ async function executeAgentRunSegment(initialRun, signal, runnableConfig = {}) {
     ...(usesReactTimeline && messageParts.length
       ? { parts: cloneParts(messageParts) }
       : {}),
-  });
-  const terminalStatus = partial ? "partial" : "completed";
-  await AgentRun.update(run.id, {
-    status: terminalStatus,
-    phase: "complete",
-    terminationReason: partial ? "partial_results" : "completed",
-    finalResponse: responseText,
-    completedAt: new Date(),
   });
   await emit("activity.updated", {
     phase: "complete",
@@ -471,18 +450,11 @@ async function executeAgentRunSegment(initialRun, signal, runnableConfig = {}) {
   return AgentRun.get(run.id);
 }
 
-async function persistFailedAgentRun(runId, error) {
-  const run = await AgentRun.get(runId);
-  if (!run || AgentRun.isTerminal(run.status)) return run;
-  const workspace = await Workspace.get({ id: run.workspace_id });
-  if (!workspace) return run;
-  const user = run.user_id ? await User.get({ id: run.user_id }) : null;
-  const thread = run.thread_id
-    ? await WorkspaceThread.get({
-        id: run.thread_id,
-        workspace_id: workspace.id,
-      })
-    : null;
+async function interruptedAgentResponse(
+  run,
+  error,
+  { cancelled = false } = {}
+) {
   const tasks = await AgentRunTask.list(run.id);
   const completed = tasks.filter(
     (task) => task.status === "completed" && task.resultSummary
@@ -494,9 +466,13 @@ async function persistFailedAgentRun(runId, error) {
     : [];
   const previousText = plainTextFromParts(messageParts);
   const partial = completed.length > 0 || Boolean(previousText.trim());
-  const failureText = partial
-    ? `Incomplete work: ${error.message}`
-    : `I could not complete this request: ${error.message}`;
+  const failureText = cancelled
+    ? partial
+      ? "任务已停止，以上是停止前的内容。"
+      : "任务已停止。"
+    : partial
+      ? `Incomplete work: ${error.message}`
+      : `I could not complete this request: ${error.message}`;
   let streamDelta = null;
   let responseText;
   if (usesReactTimeline) {
@@ -514,42 +490,96 @@ async function persistFailedAgentRun(runId, error) {
       ? `${completed.map((task) => task.resultSummary).join("\n\n")}\n\n${failureText}`
       : failureText;
   }
-  const { chat } =
-    run.configuration?.persistChat === false
-      ? { chat: null }
-      : await WorkspaceChats.new({
-          workspaceId: workspace.id,
-          prompt: run.prompt,
-          response: {
-            text: responseText,
-            sources: [],
-            type: run.mode,
-            attachments: run.attachments,
-            agentRunId: run.id,
-            agentId: run.agent_id,
-            ...(usesReactTimeline
-              ? {
-                  runtime: {
-                    key: run.runtimeKey,
-                    version: run.runtimeVersion,
-                  },
-                  parts: cloneParts(messageParts),
-                }
-              : {}),
-            error: partial ? null : error.message,
-          },
-          threadId: thread?.id || null,
-          include: run.configuration?.include ?? true,
-          apiSessionId: run.configuration?.apiSessionId || null,
-          user,
-        });
   return {
-    run,
-    chatId: chat?.id || null,
     partial,
-    responseText,
     streamDelta,
-    messageParts: usesReactTimeline ? cloneParts(messageParts) : null,
+    response: {
+      text: responseText,
+      sources: [],
+      type: run.mode,
+      attachments: run.attachments,
+      agentRunId: run.id,
+      agentId: run.agent_id,
+      ...(usesReactTimeline
+        ? {
+            runtime: {
+              key: run.runtimeKey,
+              version: run.runtimeVersion,
+            },
+            parts: cloneParts(messageParts),
+          }
+        : {}),
+      error: cancelled || partial ? null : error.message,
+    },
+  };
+}
+
+async function persistFailedAgentRun(
+  runId,
+  error,
+  { cancelled = false, timedOut = false, recoverCancelled = false } = {}
+) {
+  const run = await AgentRun.get(runId);
+  if (
+    !run ||
+    (AgentRun.isTerminal(run.status) &&
+      !(cancelled && recoverCancelled && run.status === "cancelled"))
+  )
+    return null;
+  const workspace = await Workspace.get({ id: run.workspace_id });
+  if (!workspace) throw new Error("Agent run workspace no longer exists.");
+  const { response, partial, streamDelta } = await interruptedAgentResponse(
+    run,
+    error,
+    { cancelled }
+  );
+  // Keep completed files downloadable even if a later step fails or is stopped.
+  try {
+    const workspaceManager = filesystem.forWorkspace(workspace.id);
+    await workspaceManager.ensureInitialized();
+    const referencedArtifacts = await registerRunArtifacts({
+      runId: run.id,
+      tasks: await AgentRunTask.list(run.id),
+      finalResponse: response.text,
+      workspaceManager,
+    });
+    response.outputs = await collectRunOutputs({
+      runId: run.id,
+      workspace,
+      workspaceManager,
+      artifacts: [
+        ...referencedArtifacts,
+        ...(await AgentRunArtifact.forRun(run.id)),
+      ],
+    });
+  } catch (artifactError) {
+    console.warn(
+      "[Agent artifacts] Unable to restore outputs:",
+      artifactError.message
+    );
+  }
+  const persisted = await AgentRun.finalizeWithResponse(run.id, {
+    response,
+    status: cancelled ? "cancelled" : partial ? "partial" : "failed",
+    terminationReason: cancelled
+      ? "cancelled_by_user"
+      : timedOut
+        ? "run_time_budget_exhausted"
+        : partial
+          ? "partial_results_after_error"
+          : "runtime_error",
+    error: error.message,
+    recoverCancelled,
+  });
+  if (!persisted) return null;
+  return {
+    run: persisted.run,
+    chatId: persisted.chat?.id || null,
+    partial,
+    responseText: persisted.run.finalResponse,
+    streamDelta,
+    messageParts: response.parts || null,
+    outputs: response.outputs || [],
   };
 }
 
@@ -559,6 +589,7 @@ module.exports = {
   consumeGraphStream,
   executeAgentRun,
   executeAgentRunSegment,
+  interruptedAgentResponse,
   persistFailedAgentRun,
   historicalTrace,
   snapshottedAgent,

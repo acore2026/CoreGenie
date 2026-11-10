@@ -36,10 +36,39 @@ function mockResponse({ multiUserMode = true, thread = null } = {}) {
 describe("workspace thread access", () => {
   beforeEach(() => jest.clearAllMocks());
 
+  it.each([
+    [1, "default", true],
+    [2, "default", false],
+    [2, "admin", false],
+    [2, "manager", false],
+  ])("limits drafts to their creator (%s, %s)", async (id, role, allowed) => {
+    userFromSession.mockResolvedValue({ id, role });
+    Workspace.getAccessibleWithUser.mockResolvedValue({ id: 10 });
+    WorkspaceThread.get.mockResolvedValue({
+      id: 20,
+      user_id: 1,
+      submittedAt: null,
+    });
+    const response = mockResponse();
+    const next = jest.fn();
+    await validWorkspaceAndThreadSlug(
+      { params: { slug: "shared", threadSlug: "draft" } },
+      response,
+      next
+    );
+    expect(next.mock.calls.length).toBe(allowed ? 1 : 0);
+    if (!allowed) expect(response.status).toHaveBeenCalledWith(404);
+  });
+
   it("allows a workspace member to resolve a thread owned by another member", async () => {
     const user = { id: 2, role: "default" };
     const workspace = { id: 10, slug: "shared" };
-    const thread = { id: 20, slug: "team-thread", user_id: 1 };
+    const thread = {
+      id: 20,
+      slug: "team-thread",
+      user_id: 1,
+      submittedAt: new Date(),
+    };
     const request = {
       params: { slug: workspace.slug, threadSlug: thread.slug },
     };
@@ -62,30 +91,38 @@ describe("workspace thread access", () => {
     expect(next).toHaveBeenCalledTimes(1);
   });
 
-  it("allows a public read-only visitor to read a thread", async () => {
-    const user = { id: 2, role: "default" };
-    const workspace = {
-      id: 10,
-      slug: "public-notes",
-      viewerAccess: "public_readonly",
-    };
-    const thread = { id: 20, slug: "meeting-notes", user_id: 1 };
-    const request = {
-      method: "GET",
-      path: "/workspace/public-notes/thread/meeting-notes/chats",
-      params: { slug: workspace.slug, threadSlug: thread.slug },
-    };
-    const response = mockResponse();
-    const next = jest.fn();
-    userFromSession.mockResolvedValue(user);
-    Workspace.getAccessibleWithUser.mockResolvedValue(workspace);
-    WorkspaceThread.get.mockResolvedValue(thread);
+  it.each(["chats", "agent-runs/active"])(
+    "allows a public read-only visitor to read thread %s",
+    async (endpoint) => {
+      const user = { id: 2, role: "default" };
+      const workspace = {
+        id: 10,
+        slug: "public-notes",
+        viewerAccess: "public_readonly",
+      };
+      const thread = {
+        id: 20,
+        slug: "meeting-notes",
+        user_id: 1,
+        submittedAt: new Date(),
+      };
+      const request = {
+        method: "GET",
+        path: `/workspace/public-notes/thread/meeting-notes/${endpoint}`,
+        params: { slug: workspace.slug, threadSlug: thread.slug },
+      };
+      const response = mockResponse();
+      const next = jest.fn();
+      userFromSession.mockResolvedValue(user);
+      Workspace.getAccessibleWithUser.mockResolvedValue(workspace);
+      WorkspaceThread.get.mockResolvedValue(thread);
 
-    await validWorkspaceAndThreadSlug(request, response, next);
+      await validWorkspaceAndThreadSlug(request, response, next);
 
-    expect(next).toHaveBeenCalledTimes(1);
-    expect(response.locals.workspaceAccess).toBe("public_readonly");
-  });
+      expect(next).toHaveBeenCalledTimes(1);
+      expect(response.locals.workspaceAccess).toBe("public_readonly");
+    }
+  );
 
   it("blocks a public read-only visitor from changing a thread", async () => {
     const workspace = {
@@ -177,4 +214,19 @@ describe("workspace thread access", () => {
     expect(next).toHaveBeenCalledTimes(1);
     expect(userFromSession).not.toHaveBeenCalled();
   });
+  it.each(["public_collaborative", "public_readonly", "private"])(
+    "checks joint thread operations for %s",
+    async (accessMode) => {
+      userFromSession.mockResolvedValue({ id: 2, role: "default" });
+      const response = mockResponse({
+        thread: { id: 20, workspace_id: 10, user_id: 1 },
+      });
+      response.locals.workspace = { id: 10, accessMode };
+      const next = jest.fn();
+      await manageWorkspaceThread({}, response, next);
+      expect(next.mock.calls.length).toBe(
+        accessMode === "public_collaborative" ? 1 : 0
+      );
+    }
+  );
 });

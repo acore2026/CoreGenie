@@ -64,11 +64,14 @@ describe("single-source repository seeds", () => {
   });
 
   it("seeds exactly the canonical prompts, settings, bindings and complete packages", async () => {
-    expect(SEED_SETTING).toBe("agent_config_seed_v14");
+    expect(SEED_SETTING).toBe("agent_config_seed_v18");
     await seedRepositoryConfig();
     expect(await mockPrisma.predefined_agents.count()).toBe(10);
     expect(await mockPrisma.predefined_agent_skills.count()).toBe(9);
     const disk = await new ConfigFiles(CONFIG_ROOT).list();
+    expect(disk["agents/3gpp-general"].value.runtimeConfig.visionModel).toBe(
+      "qwen3.7-plus"
+    );
     const database = await new ConfigDatabase(mockPrisma).list(
       { entries: {}, keys: {} },
       disk
@@ -87,12 +90,16 @@ describe("single-source repository seeds", () => {
     const child = await mockPrisma.predefined_agents.findFirst({
       where: { name: "3GPP 提案前后分析助手" },
     });
-    expect(child).toMatchObject({ enabled: true, showInRoster: false, tools: null });
+    expect(child).toMatchObject({
+      enabled: disk["agents/3gpp-proposal-analysis"].value.enabled,
+      showInRoster: false,
+      tools: null,
+    });
     const evolution = await mockPrisma.predefined_agent_skills.findFirst({
       where: { name: "3gpp-proposal-evolution" },
     });
     const general = await mockPrisma.predefined_agents.findFirst({
-      where: { name: "3GPP 通用助手" },
+      where: { name: disk["agents/3gpp-general"].value.name },
     });
     expect(JSON.parse(child.skillIds)).toContain(evolution.id);
     expect(JSON.parse(general.skillIds)).toContain(evolution.id);
@@ -145,7 +152,7 @@ describe("single-source repository seeds", () => {
           where: { id: review.id },
         })
       ).name
-    ).toBe("3GPP 提案分析助手");
+    ).toBe((await new ConfigFiles(CONFIG_ROOT).list())["agents/3gpp-review"].value.name);
     expect(
       await mockPrisma.predefined_agents.findUnique({
         where: { id: general.id },
@@ -266,7 +273,7 @@ describe("single-source repository seeds", () => {
     ).rejects.toThrow("modified");
   });
 
-  it.each(["agent_config_seed_v1", "agent_config_seed_v2"])(
+  it.each(["agent_config_seed_v1", "agent_config_seed_v2", "agent_config_seed_v14"])(
     "upgrades %s and binds every shared Skill dependency",
     async (previousVersion) => {
       await mockPrisma.system_settings.create({
@@ -291,9 +298,35 @@ describe("single-source repository seeds", () => {
         expect(skills.map((skill) => skill.name)).toContain("3gpp-review");
       }
       const split = definitions["agents/3gpp-split-docx"].value;
-      expect(split.runtimeConfig.attachmentMode).toBe("workspace_file");
+      const splitAgent = await mockPrisma.predefined_agents.findFirst({
+        where: { name: split.name },
+      });
+      expect(splitAgent.runtimeKey).toBe("default-react");
+      expect(splitAgent.tools).toBeNull();
+      expect(JSON.parse(splitAgent.runtimeConfig)).toEqual(split.runtimeConfig);
+      const splitSkills = await mockPrisma.predefined_agent_skills.findMany({
+        where: { id: { in: JSON.parse(splitAgent.skillIds) } },
+      });
+      expect(splitSkills.map((skill) => skill.name)).toContain("3gpp-split-docx");
     }
   );
+
+  it("upgrades v15 installations to the current download Skill package", async () => {
+    await mockPrisma.system_settings.create({
+      data: { label: "agent_config_seed_v15", value: "complete" },
+    });
+    await seedRepositoryConfig();
+    expect(
+      (await mockPrisma.system_settings.findUnique({ where: { label: SEED_SETTING } })).value
+    ).toBe("complete");
+    const disk = await new ConfigFiles(CONFIG_ROOT).list();
+    const database = await new ConfigDatabase(mockPrisma).list({ entries: {}, keys: {} }, disk);
+    expect(hash(database["skills/3gpp-review"].value)).toBe(hash(disk["skills/3gpp-review"].value));
+    const first = await mockPrisma.predefined_agent_skills.findFirst({ where: { name: "3gpp-review" } });
+    await seedRepositoryConfig();
+    const repeated = await mockPrisma.predefined_agent_skills.findFirst({ where: { name: "3gpp-review" } });
+    expect(repeated.activeRevision).toBe(first.activeRevision);
+  });
 
   it("never seeds while live repository sync is enabled", async () => {
     process.env.AGENT_CONFIG_SYNC_ENABLED = "true";

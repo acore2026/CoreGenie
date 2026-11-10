@@ -29,6 +29,7 @@ jest.mock("../../models/eventLogs", () => ({
   EventLogs: { logEvent: jest.fn(async () => null) },
 }));
 jest.mock("../../models/vectors", () => ({ DocumentVectors: {} }));
+jest.mock("../../models/systemSettings", () => ({ SystemSettings: { isMultiUserMode: jest.fn(async () => true) } }));
 
 const { GlobalDocument } = require("../../models/globalDocuments");
 const {
@@ -64,6 +65,7 @@ describe("GlobalDocument", () => {
       id: 3,
       docId: "doc-3",
       filename: "shared.pdf",
+      createdBy: 7,
     });
     mockVectorDb.deleteDocumentFromNamespace.mockResolvedValue(true);
     mockPrisma.$transaction.mockResolvedValue([]);
@@ -74,5 +76,17 @@ describe("GlobalDocument", () => {
       "doc-3"
     );
     expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([8, null, undefined])("rejects a non-owner %s before touching vectors", async owner => {
+    mockPrisma.global_documents.findFirst.mockResolvedValue({ id: 3, createdBy: owner, docId: "doc-3" });
+    await expect(GlobalDocument.delete(3, 7)).rejects.toMatchObject({ code: "GLOBAL_DOCUMENT_FORBIDDEN" });
+    expect(mockVectorDb.deleteDocumentFromNamespace).not.toHaveBeenCalled();
+    expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("does not treat an absent user as an owner in multi-user mode", async () => {
+    mockPrisma.global_documents.findFirst.mockResolvedValue({ id: 3, createdBy: null });
+    await expect(GlobalDocument.delete(3)).rejects.toMatchObject({ code: "GLOBAL_DOCUMENT_FORBIDDEN" });
   });
 });

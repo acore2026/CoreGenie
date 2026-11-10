@@ -367,6 +367,11 @@ function toLangChainTool(descriptor, context) {
           }
           if (executionError) throw executionError;
           const result = normalizeToolResult(rawResult);
+          // Capture actual outputs before large tool responses are shortened.
+          // Attaching a file must never turn a successful tool into a failed action.
+          await require("../agent-system/artifactRegistration")
+            .registerToolArtifacts({ descriptor, args, result, context })
+            .catch((error) => console.warn("[Agent artifacts]", error.message));
           if (family?.key) {
             if (result.ok && family.recovery)
               context.clearFailureFamily(family.key);

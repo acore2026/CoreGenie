@@ -19,9 +19,9 @@ const { consumeGraphStream } = require("./stream");
 const { recursionLimitFor } = require("../executionLimits");
 
 const MAX_WORKERS_PER_ROUND = 8;
-const MAX_CONCURRENT_WORKERS = 4;
-const MAX_WORKER_BRANCHES = 20;
-const MAX_RESEARCH_ROUNDS = 5;
+const MAX_CONCURRENT_WORKERS = 8;
+const MAX_WORKER_BRANCHES = 40;
+const MAX_RESEARCH_ROUNDS = 10;
 
 const workstreamSchema = z.object({
   id: z.string().trim().min(1).max(80),
@@ -599,7 +599,7 @@ async function executeSegment(context) {
     configurable: { thread_id: run.checkpointThreadId },
     recursionLimit: recursionLimitFor(
       run,
-      Math.min((run.configuration?.maxToolCalls || 2_500) * 2 + 100, 5_500)
+      Math.min((run.configuration?.maxToolCalls || 10_000) * 2 + 100, 22_000)
     ),
     signal,
   });

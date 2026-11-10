@@ -1,4 +1,5 @@
 const prisma = require("../utils/prisma");
+const { DisplayOrder, sortItems } = require("./displayOrder");
 const { safeJsonParse } = require("../utils/http");
 const { PredefinedAgentSkill } = require("./predefinedAgentSkill");
 const { SystemSettings } = require("./systemSettings");
@@ -33,14 +34,18 @@ async function resolveQuickTasks(agents) {
   if (!agents.some((agent) => agent?.quickTaskIds.length)) return agents;
   const tasks =
     await require("./predefinedQuickTask").PredefinedQuickTask.all();
+  const order = await DisplayOrder.ids("quick-tasks");
   return agents.map((agent) =>
     agent
       ? {
           ...agent,
           wizard: agent.quickTaskIds.length
-            ? agent.quickTaskIds
-                .map((id) => tasks.find((task) => task.id === id)?.definition)
-                .filter(Boolean)
+            ? sortItems(
+                agent.quickTaskIds
+                  .map((id) => tasks.find((task) => task.id === id))
+                  .filter(Boolean),
+                order
+              ).map((task) => task.definition)
             : agent.wizard,
         }
       : null
@@ -58,7 +63,9 @@ const PredefinedAgent = {
         where: Object.keys(where).length ? where : undefined,
         orderBy: [{ name: "asc" }, { id: "asc" }],
       });
-      return await resolveQuickTasks(agents.map(normalizeAgent));
+      return await resolveQuickTasks(
+        await DisplayOrder.apply("agents", agents.map(normalizeAgent))
+      );
     } catch (error) {
       console.error(error.message);
       return [];

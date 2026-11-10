@@ -20,7 +20,7 @@ const planSchema = z
         })
       )
       .min(1)
-      .max(12),
+      .max(24),
   })
   .superRefine(({ tasks }, ctx) => {
     if (new Set(tasks.map((task) => task.id)).size !== tasks.length)

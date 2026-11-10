@@ -9,6 +9,7 @@ const { SystemSettings } = require("../../models/systemSettings");
  * @returns {void}
  */
 async function simpleSSOEnabled(_, response, next) {
+  if (require("../idaas/config").oauthOnly()) return response.sendStatus(403);
   if (!("SIMPLE_SSO_ENABLED" in process.env)) {
     return response
       .status(403)

@@ -1,6 +1,7 @@
 const prisma = require("../utils/prisma");
 const { v4: uuidv4 } = require("uuid");
 const { safeJsonParse } = require("../utils/http");
+const { createHash } = require("crypto");
 
 function normalizeArtifact(row) {
   if (!row) return null;
@@ -8,6 +9,32 @@ function normalizeArtifact(row) {
 }
 
 const AgentRunArtifact = {
+  // Stable identity keeps appends, retries and concurrent workers on one card.
+  registerWorkspaceOutput: async function (data) {
+    const id = createHash("sha256")
+      .update(`${data.runId}\0${data.storagePath}`)
+      .digest("hex");
+    const values = {
+      kind: data.kind,
+      title: data.title,
+      mimeType: data.mimeType,
+      byteSize: data.byteSize,
+      metadata: JSON.stringify(data.metadata || {}),
+    };
+    return normalizeArtifact(
+      await prisma.agent_run_artifacts.upsert({
+        where: { id },
+        create: {
+          id,
+          run_id: String(data.runId),
+          task_id: data.taskId || null,
+          storagePath: data.storagePath,
+          ...values,
+        },
+        update: values,
+      })
+    );
+  },
   create: async function ({
     id = uuidv4(),
     runId,

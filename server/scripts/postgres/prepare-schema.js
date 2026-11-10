@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const { randomUUID } = require("crypto");
 
 const serverRoot = path.resolve(__dirname, "../..");
 const sqliteSchemaPath = path.join(serverRoot, "prisma", "schema.prisma");
@@ -23,12 +24,23 @@ function postgresSchemaFrom(sqliteSchema) {
   );
 }
 
-function preparePostgresSchema() {
-  const sqliteSchema = fs.readFileSync(sqliteSchemaPath, "utf8");
+function preparePostgresSchema({
+  sourcePath = sqliteSchemaPath,
+  outputPath = postgresSchemaPath,
+} = {}) {
+  const sqliteSchema = fs.readFileSync(sourcePath, "utf8");
   const postgresSchema = postgresSchemaFrom(sqliteSchema);
-  fs.mkdirSync(postgresDir, { recursive: true });
-  fs.writeFileSync(postgresSchemaPath, postgresSchema);
-  return postgresSchemaPath;
+  fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+  // Images may contain a root-owned generated schema. Replace its directory
+  // entry atomically instead of opening that inherited file for writing.
+  const temporaryPath = `${outputPath}.${randomUUID()}.tmp`;
+  try {
+    fs.writeFileSync(temporaryPath, postgresSchema, { flag: "wx" });
+    fs.renameSync(temporaryPath, outputPath);
+  } finally {
+    if (fs.existsSync(temporaryPath)) fs.unlinkSync(temporaryPath);
+  }
+  return outputPath;
 }
 
 if (require.main === module) {

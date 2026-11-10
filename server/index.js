@@ -91,7 +91,12 @@ if (!!process.env.ENABLE_HTTPS) {
 }
 
 app.use("/api", apiRouter);
+const { idaasEndpoints, oauthPolicy } = require("./endpoints/idaas");
+apiRouter.use(oauthPolicy);
+idaasEndpoints(apiRouter);
 systemEndpoints(apiRouter);
+require("./endpoints/sidebarPreferences").sidebarPreferenceEndpoints(apiRouter);
+require("./endpoints/announcements").announcementEndpoints(apiRouter);
 extensionEndpoints(apiRouter);
 workspaceEndpoints(apiRouter);
 workspaceThreadEndpoints(apiRouter);

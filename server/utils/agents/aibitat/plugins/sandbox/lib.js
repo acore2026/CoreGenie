@@ -2,8 +2,9 @@ const fs = require("fs");
 const fsp = require("fs/promises");
 const net = require("net");
 const path = require("path");
+const { randomUUID } = require("crypto");
 
-const MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
+const MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
 
 class SandboxClient {
   socketPath() {
@@ -51,8 +52,16 @@ class SandboxClient {
       language,
       code,
       workspaceId,
-      invocationId,
+      // Subagent tool-call IDs use the provider's `call_...` format. The
+      // broker uses UUIDs for runner names, so give those calls a fresh UUID.
+      invocationId:
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+          String(invocationId || "")
+        )
+          ? invocationId
+          : randomUUID(),
       timeoutSeconds,
+      queueTimeoutSeconds: 120,
       skill,
     });
 
@@ -60,7 +69,7 @@ class SandboxClient {
       const socket = net.createConnection({ path: this.socketPath() });
       let response = "";
       let settled = false;
-      const clientTimeoutMs = (Number(timeoutSeconds) + 15) * 1_000;
+      const clientTimeoutMs = ((Number(timeoutSeconds) || 900) + 150) * 1_000;
 
       const finish = (callback, value) => {
         if (settled) return;

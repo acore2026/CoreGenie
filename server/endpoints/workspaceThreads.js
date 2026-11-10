@@ -22,6 +22,11 @@ const { WorkspaceChats } = require("../models/workspaceChats");
 const { User } = require("../models/user");
 const { convertToChatHistory } = require("../utils/helpers/chat/responses");
 const { getModelTag } = require("./utils");
+const { canCollaborateOnThread } = require("../utils/workspaceCollaboration");
+const {
+  threadVisibility,
+  updateDraftSession,
+} = require("../models/threadLifecycle");
 
 function workspaceThreadEndpoints(app) {
   if (!app) return;
@@ -61,7 +66,13 @@ function workspaceThreadEndpoints(app) {
           thread: thread
             ? {
                 ...thread,
-                owner: user ? { id: user.id, username: user.username } : null,
+                owner: user
+                  ? {
+                      id: user.id,
+                      username: user.username,
+                      displayName: user.displayName,
+                    }
+                  : null,
                 canModify: true,
               }
             : null,
@@ -82,16 +93,20 @@ function workspaceThreadEndpoints(app) {
         const user = await userFromSession(request, response);
         const workspace = response.locals.workspace;
         const threads = await WorkspaceThread.where(
-          { workspace_id: workspace.id },
+          {
+            workspace_id: workspace.id,
+            ...(multiUserMode(response) ? threadVisibility(user?.id) : {}),
+          },
           null,
           { createdAt: "asc" },
-          { user: { select: { id: true, username: true } } }
+          { user: { select: { id: true, username: true, displayName: true } } }
         );
         const visibleThreads = threads.map(({ user: owner, ...thread }) => ({
           ...thread,
           owner,
           canModify:
             !multiUserMode(response) ||
+            canCollaborateOnThread(user, workspace, thread) ||
             thread.user_id === user?.id ||
             [ROLES.admin, ROLES.manager].includes(user?.role),
         }));
@@ -135,6 +150,44 @@ function workspaceThreadEndpoints(app) {
     }
   );
 
+  app.post(
+    "/workspace/:slug/thread/:threadSlug/draft-session",
+    [
+      validatedRequest,
+      flexUserRoleValid([ROLES.all]),
+      validWorkspaceAndThreadSlug,
+    ],
+    async (request, response) => {
+      try {
+        const user = await userFromSession(request, response);
+        const thread = response.locals.thread;
+        // Only the creator can request automatic cleanup, regardless of role.
+        if (multiUserMode(response) && thread.user_id !== user?.id)
+          return response.status(404).end();
+        const { sessionId, action, retain = false } = reqBody(request);
+        if (
+          typeof sessionId !== "string" ||
+          !/^[a-f0-9-]{36}$/.test(sessionId) ||
+          !["enter", "touch", "leave", "release"].includes(action)
+        )
+          return response.status(400).end();
+        response.setHeader("Cache-Control", "no-store");
+        return response.status(200).json(
+          await updateDraftSession({
+            threadId: thread.id,
+            userId: thread.user_id,
+            sessionId: `${thread.id}:${sessionId}`,
+            action,
+            retain: retain === true,
+          })
+        );
+      } catch (error) {
+        console.error("Draft session update failed:", error.message);
+        return response.status(500).end();
+      }
+    }
+  );
+
   app.delete(
     "/workspace/:slug/thread-bulk-delete",
     [validatedRequest, flexUserRoleValid([ROLES.all]), validWorkspaceSlug],
@@ -147,8 +200,11 @@ function workspaceThreadEndpoints(app) {
         const workspace = response.locals.workspace;
         await WorkspaceThread.delete({
           slug: { in: slugs },
-          user_id: user?.id ?? null,
+          ...(user?.id && workspace.accessMode === "public_collaborative"
+            ? {}
+            : { user_id: user?.id ?? null }),
           workspace_id: workspace.id,
+          ...(multiUserMode(response) ? threadVisibility(user?.id) : {}),
         });
         response.sendStatus(200).end();
       } catch (e) {
@@ -187,7 +243,13 @@ function workspaceThreadEndpoints(app) {
           history: convertToChatHistory(history),
           thread: {
             ...thread,
-            owner: owner ? { id: owner.id, username: owner.username } : null,
+            owner: owner
+              ? {
+                  id: owner.id,
+                  username: owner.username,
+                  displayName: owner.displayName,
+                }
+              : null,
             canModify: await canManageWorkspaceThread(request, response),
           },
         });

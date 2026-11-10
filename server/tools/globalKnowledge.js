@@ -5,12 +5,35 @@ const { v4: uuidv4 } = require("uuid");
 const { z } = require("zod");
 const { defineTool } = require("./descriptor");
 const { GlobalDocument } = require("../models/globalDocuments");
+const { canDeleteGlobalDocument } = require("../utils/globalKnowledgeAccess");
+const { SystemSettings } = require("../models/systemSettings");
 const { CollectorApi } = require("../utils/collectorApi");
 const { directUploadsPath, documentsPath } = require("../utils/files");
 const filesystem = require("../utils/agents/aibitat/plugins/filesystem/lib");
 
 const MAX_GLOBAL_INGEST_FILES = 20;
 const MAX_GLOBAL_SOURCE_BYTES = 100 * 1024 * 1024;
+
+async function ownershipDenial(document, context) {
+  const userId = context.user?.id;
+  if (
+    canDeleteGlobalDocument(
+      document,
+      userId,
+      userId ? true : await SystemSettings.isMultiUserMode()
+    )
+  )
+    return null;
+  return {
+    ok: false,
+    code: "GLOBAL_DOCUMENT_FORBIDDEN",
+    summary: "只能删除或替换自己上传的公共资料。",
+    data: { id: document.id },
+    evidenceIds: [],
+    artifactIds: [],
+    retryable: false,
+  };
+}
 
 function safeSegment(value, fallback = "document") {
   const clean = String(value || "")
@@ -239,6 +262,8 @@ const removeGlobalKnowledge = defineTool({
         artifactIds: [],
         retryable: false,
       };
+    const denied = await ownershipDenial(document, context);
+    if (denied) return denied;
     await GlobalDocument.delete(id, context.user?.id || null);
     await context.emit("global_knowledge.removed", {
       documentId: id,
@@ -284,6 +309,8 @@ const replaceGlobalKnowledge = defineTool({
         retryable: false,
       };
 
+    const denied = await ownershipDenial(previous, context);
+    if (denied) return denied;
     const ingested = await ingestPaths([sourcePath], context);
     if (!ingested.ok) return ingested;
     const replacements = ingested.data.documents;

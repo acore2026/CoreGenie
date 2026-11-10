@@ -65,16 +65,16 @@ const context = {
 };
 
 describe("Governed Agent runtime", () => {
-  it("bounds long tasks before they can run unattended for hours", () => {
-    expect(DEFAULTS.maxTasks).toBe(8);
+  it("allows long document workflows with finite fallback limits", () => {
+    expect(DEFAULTS.maxTasks).toBe(24);
     expect(DEFAULTS.maxReviewRounds).toBe(1);
-    expect(DEFAULTS.maxTaskToolCalls).toBe(40);
-    expect(DEFAULTS.maxTaskModelCalls).toBe(16);
-    expect(DEFAULTS.maxTaskMs).toBe(8 * 60 * 1_000);
-    expect(DEFAULTS.maxRunMs).toBe(15 * 60 * 1_000);
-    expect(DEFAULTS.maxConsecutiveNoProgress).toBe(3);
-    expect(DEFAULTS.maxQuickLookupToolCalls).toBe(12);
-    expect(DEFAULTS.maxQuickLookupModelCalls).toBe(8);
+    expect(DEFAULTS.maxTaskToolCalls).toBe(200);
+    expect(DEFAULTS.maxTaskModelCalls).toBe(80);
+    expect(DEFAULTS.maxTaskMs).toBe(60 * 60 * 1_000);
+    expect(DEFAULTS.maxRunMs).toBe(4 * 60 * 60 * 1_000);
+    expect(DEFAULTS.maxConsecutiveNoProgress).toBe(8);
+    expect(DEFAULTS.maxQuickLookupToolCalls).toBe(32);
+    expect(DEFAULTS.maxQuickLookupModelCalls).toBe(24);
   });
 
   it("keeps direct controller actions disabled unless explicitly enabled", () => {

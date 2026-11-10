@@ -1,5 +1,6 @@
 const { v4 } = require("uuid");
 const prisma = require("../utils/prisma");
+const { DisplayOrder } = require("./displayOrder");
 const CMD_REGEX = new RegExp(/[^a-zA-Z0-9_-]/g);
 
 const SlashCommandPresets = {
@@ -68,17 +69,20 @@ const SlashCommandPresets = {
 
   getGlobalPresets: async function () {
     try {
-      return (
-        await prisma.slash_command_presets.findMany({
-          where: { uid: 0 },
-          orderBy: { createdAt: "asc" },
-        })
-      )?.map((preset) => ({
-        id: preset.id,
-        command: preset.command,
-        prompt: preset.prompt,
-        description: preset.description,
-      }));
+      return await DisplayOrder.apply(
+        "commands",
+        (
+          await prisma.slash_command_presets.findMany({
+            where: { uid: 0 },
+            orderBy: { createdAt: "asc" },
+          })
+        )?.map((preset) => ({
+          id: preset.id,
+          command: preset.command,
+          prompt: preset.prompt,
+          description: preset.description,
+        }))
+      );
     } catch (error) {
       console.error("Failed to get user presets", error.message);
       return [];

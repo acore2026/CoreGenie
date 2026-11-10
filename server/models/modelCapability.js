@@ -28,6 +28,15 @@ const BUILTIN_CAPABILITIES = [
     reasoningControls: true,
     contextWindow: 131_072,
   },
+  {
+    provider: "generic-openai",
+    model: "glm-5.3",
+    vision: false,
+    toolCalling: true,
+    structuredOutput: false,
+    reasoningControls: true,
+    contextWindow: 1_000_000,
+  },
 ];
 
 const ModelCapability = {
@@ -41,6 +50,16 @@ const ModelCapability = {
         update: {},
       });
     }
+    // Correct the former vision registration without overwriting admin choices.
+    await prisma.model_capabilities.updateMany({
+      where: {
+        provider: "generic-openai",
+        model: "glm-5.3",
+        source: "builtin",
+        OR: [{ vision: true }, { contextWindow: 131_072 }],
+      },
+      data: { vision: false, contextWindow: 1_000_000 },
+    });
   },
 
   get: async function (provider, model) {

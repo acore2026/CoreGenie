@@ -33,6 +33,10 @@ const {
 const { getTTSProvider } = require("../utils/TextToSpeech");
 const { getAudioFileInfo } = require("../utils/TextToSpeech/audioFormat");
 const { WorkspaceThread } = require("../models/workspaceThread");
+const {
+  canViewThread,
+  acceptThreadSubmission,
+} = require("../models/threadLifecycle");
 const { Invite } = require("../models/invite");
 const {
   simpleSSOLoginDisabledMiddleware,
@@ -64,14 +68,67 @@ function workspaceEndpoints(app) {
   if (!app) return;
   const responseCache = new Map();
 
+  app.get(
+    "/workspace/new/members",
+    [validatedRequest, flexUserRoleValid([ROLES.all])],
+    async (request, response) => {
+      response.set("Cache-Control", "no-store");
+      const user = await userFromSession(request, response);
+      if (multiUserMode(response) && !user?.id) return response.sendStatus(401);
+      if (!user?.id) return response.json({ users: [] });
+      try {
+        const { creationMembers } = require("../models/workspaceCreation");
+        return response.json({ users: await creationMembers(user.id) });
+      } catch {
+        return response
+          .status(500)
+          .json({ message: "成员列表加载失败，请重试。" });
+      }
+    }
+  );
+
   app.post(
     "/workspace/new",
     [validatedRequest, flexUserRoleValid([ROLES.all])],
     async (request, response) => {
       try {
         const user = await userFromSession(request, response);
-        const { name = null } = reqBody(request);
-        const { workspace, message } = await Workspace.new(name, user?.id);
+        if (multiUserMode(response) && !user?.id)
+          return response.sendStatus(401);
+        const {
+          name = null,
+          accessMode = "private",
+          memberIds = [],
+          groupId = "",
+          groupName = "",
+          groupGlobal = false,
+        } = reqBody(request);
+        if (
+          typeof name !== "string" ||
+          !name.trim() ||
+          name.trim().length > 255 ||
+          !Workspace.VALID_ACCESS_MODES.includes(accessMode)
+        )
+          return response.status(400).json({
+            workspace: null,
+            message: "请填写工作区名称，并选择有效的工作区类型。",
+          });
+        if (
+          groupGlobal &&
+          multiUserMode(response) &&
+          user?.role !== ROLES.admin
+        )
+          return response
+            .status(403)
+            .json({ workspace: null, message: "只有管理员可以创建全局分组。" });
+        const { workspace, message } = await Workspace.new(
+          name.trim(),
+          user?.id,
+          { accessMode },
+          { memberIds, groupId, groupName, groupGlobal }
+        );
+        if (!workspace)
+          return response.status(400).json({ workspace: null, message });
         await Telemetry.sendTelemetry(
           "workspace_created",
           {
@@ -89,10 +146,16 @@ function workspaceEndpoints(app) {
           "workspace_created",
           {
             workspaceName: workspace?.name || "Unknown Workspace",
+            workspaceId: workspace?.id,
           },
           user?.id
         );
-        response.status(200).json({ workspace, message });
+        response.status(200).json({
+          workspace: workspace
+            ? { ...workspace, viewerRelation: user?.id ? "creator" : "other" }
+            : workspace,
+          message,
+        });
       } catch (e) {
         console.error(e.message, e);
         response.sendStatus(500).end();
@@ -432,7 +495,13 @@ function workspaceEndpoints(app) {
           ? await Workspace.whereAccessibleWithUser(user)
           : await Workspace.where();
 
-        response.status(200).json({ workspaces });
+        response.status(200).json({
+          workspaces:
+            await require("../models/workspaceListRelation").withWorkspaceListRelation(
+              workspaces,
+              user
+            ),
+        });
       } catch (e) {
         console.error(e.message, e);
         response.sendStatus(500).end();
@@ -900,14 +969,19 @@ function workspaceEndpoints(app) {
 
         // Get threadId we are branching from if that request body is sent
         // and is a valid thread slug.
-        const threadId = !!threadSlug
-          ? (
-              await WorkspaceThread.get({
-                slug: String(threadSlug),
-                workspace_id: workspace.id,
-              })
-            )?.id ?? null
+        const sourceThread = threadSlug
+          ? await WorkspaceThread.get({
+              slug: String(threadSlug),
+              workspace_id: workspace.id,
+            })
           : null;
+        if (
+          threadSlug &&
+          (!sourceThread ||
+            (multiUserMode(response) && !canViewThread(sourceThread, user?.id)))
+        )
+          return response.sendStatus(404).end();
+        const threadId = sourceThread?.id ?? null;
         const chatsToFork = await WorkspaceChats.where(
           {
             workspaceId: workspace.id,
@@ -941,6 +1015,7 @@ function workspaceEndpoints(app) {
           };
         });
         await WorkspaceChats.bulkCreate(chatsData);
+        if (chatsData.length) await acceptThreadSubmission(newThread.id);
         await WorkspaceThread.update(newThread, {
           name: !!lastMessageText
             ? truncate(lastMessageText, 22)

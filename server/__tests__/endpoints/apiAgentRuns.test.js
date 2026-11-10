@@ -1,4 +1,11 @@
 /* eslint-env jest, node */
+jest.mock("../../models/workspace", () => ({ Workspace: { get: jest.fn(), accessForUser: jest.fn() } }));
+jest.mock("../../models/workspaceThread", () => ({ WorkspaceThread: { get: jest.fn() } }));
+jest.mock("../../utils/http", () => ({
+  reqBody: request => request.body,
+  multiUserMode: response => Boolean(response.locals.multiUserMode),
+  userFromSession: async (_request, response) => response.locals.user || null,
+}));
 jest.mock("../../models/agentRun", () => ({
   AgentRun: {
     get: jest.fn(),
@@ -45,7 +52,43 @@ const {
   createRun,
   sanitizeEvaluation,
   snapshotRun,
+  authorizedRun,
 } = require("../../endpoints/agentRuns");
+
+describe("public workspace run visibility", () => {
+  const { Workspace } = require("../../models/workspace");
+  const { WorkspaceThread } = require("../../models/workspaceThread");
+  beforeEach(() => {
+    jest.clearAllMocks();
+    AgentRun.get.mockResolvedValue({ id: "run", workspace_id: 1, thread_id: 2, user_id: 10 });
+    Workspace.get.mockResolvedValue({ id: 1 });
+    WorkspaceThread.get.mockResolvedValue(null);
+  });
+  const request = { params: { runId: "run" } };
+  const response = { locals: { multiUserMode: true, user: { id: 7, role: "default" } } };
+  it.each(["public_readonly", "public_collaborator", "member"])("allows %s to observe, but not control another user's run", async access => {
+    Workspace.accessForUser.mockResolvedValue(access);
+    await expect(authorizedRun(request, response)).resolves.toMatchObject({ id: "run" });
+    await expect(authorizedRun(request, response, { requireManage: true })).resolves.toBeNull();
+  });
+  it("denies unrelated private workspace and personal default conversation reads", async () => {
+    Workspace.accessForUser.mockResolvedValue(null);
+    await expect(authorizedRun(request, response)).resolves.toBeNull();
+    Workspace.accessForUser.mockResolvedValue("public_collaborator");
+    AgentRun.get.mockResolvedValue({ id: "run", workspace_id: 1, thread_id: null, user_id: 10 });
+    await expect(authorizedRun(request, response)).resolves.toBeNull();
+  });
+  it("allows a public collaborator to control their own run", async () => {
+    Workspace.accessForUser.mockResolvedValue("public_collaborator");
+    AgentRun.get.mockResolvedValue({ id: "run", workspace_id: 1, thread_id: 2, user_id: 7 });
+    await expect(authorizedRun(request, response, { requireManage: true })).resolves.toMatchObject({ id: "run" });
+  });
+  it.each(["public_collaborator", "member"])("allows %s to control a shared run in an explicitly collaborative workspace", async access => {
+    Workspace.get.mockResolvedValue({ id: 1, accessMode: "public_collaborative" });
+    Workspace.accessForUser.mockResolvedValue(access);
+    await expect(authorizedRun(request, response, { requireManage: true })).resolves.toMatchObject({ id: "run" });
+  });
+});
 
 function responseWithLocals(locals = {}) {
   const json = jest.fn();

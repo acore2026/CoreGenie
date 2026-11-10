@@ -68,16 +68,16 @@ const {
 } = require("./evidenceResearch");
 
 const DEFAULTS = Object.freeze({
-  maxTasks: 8,
+  maxTasks: 24,
   maxConcurrency: agentMaxConcurrency(),
   maxReviewRounds: 1,
-  maxTaskToolCalls: 40,
-  maxTaskModelCalls: 16,
-  maxTaskMs: 8 * 60 * 1_000,
-  maxRunMs: 15 * 60 * 1_000,
-  maxConsecutiveNoProgress: 3,
-  maxQuickLookupToolCalls: 12,
-  maxQuickLookupModelCalls: 8,
+  maxTaskToolCalls: 200,
+  maxTaskModelCalls: 80,
+  maxTaskMs: 60 * 60 * 1_000,
+  maxRunMs: 4 * 60 * 60 * 1_000,
+  maxConsecutiveNoProgress: 8,
+  maxQuickLookupToolCalls: 32,
+  maxQuickLookupModelCalls: 24,
 });
 
 function controllerDirectActionsEnabled(env = process.env) {

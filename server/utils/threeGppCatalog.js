@@ -43,22 +43,26 @@ function officialUrl(value, base = `${ORIGIN}/ftp/`) {
   return url;
 }
 
-async function readOfficial(
+async function readOfficialBuffer(
   value,
   redirects = 0,
-  signal = AbortSignal.timeout(15000)
+  signal = AbortSignal.timeout(60000)
 ) {
   const url = officialUrl(value);
   const response = await fetch(url, {
     redirect: "manual",
     signal,
-    headers: { "User-Agent": "AnythingLLM-Agent/1.0", Accept: "text/html" },
+    headers: {
+      "User-Agent": "Mozilla/5.0 AnythingLLM-Agent/1.0",
+      Accept: "text/html,application/octet-stream;q=0.9,*/*;q=0.8",
+      "Cache-Control": "no-cache",
+    },
   });
   if ([301, 302, 303, 307, 308].includes(response.status)) {
     await response.body?.cancel();
     if (redirects >= 3 || !response.headers.get("location"))
       throw new Error("官方资料地址重定向过多。");
-    return readOfficial(
+    return readOfficialBuffer(
       officialUrl(response.headers.get("location"), url).href,
       redirects + 1,
       signal
@@ -70,16 +74,29 @@ async function readOfficial(
   }
   if (Number(response.headers.get("content-length")) > MAX_BYTES) {
     await response.body?.cancel();
-    throw new Error("官方目录或议程超过读取大小限制。");
+    throw new Error("官方目录或清单超过读取大小限制。");
   }
   let size = 0;
   const chunks = [];
   for await (const chunk of response.body) {
     size += chunk.length;
-    if (size > MAX_BYTES) throw new Error("官方目录或议程超过读取大小限制。");
+    if (size > MAX_BYTES) throw new Error("官方目录或清单超过读取大小限制。");
     chunks.push(Buffer.from(chunk));
   }
-  const html = Buffer.concat(chunks).toString("utf8");
+  return Buffer.concat(chunks);
+}
+
+async function readOfficial(value, redirects = 0, signal) {
+  const buffer = await readOfficialBuffer(value, redirects, signal);
+  const charset = buffer
+    .subarray(0, 4096)
+    .toString("ascii")
+    .match(/charset\s*=\s*["']?([\w-]+)/i)?.[1];
+  const html = new TextDecoder(
+    /^(?:windows-1252|iso-8859-1)$/i.test(charset || "")
+      ? "windows-1252"
+      : "utf-8"
+  ).decode(buffer);
   if (
     !/<(?:html|table|a|p|div)\b/i.test(html) ||
     /<title>[^<]*(?:access denied|authentication|blocked|sign in)/i.test(html)
@@ -300,14 +317,57 @@ function parseAgenda(html, source) {
     .concat(headings);
 }
 
-async function agenda(group, meetingId, { meeting: snapshotMeeting } = {}) {
+// Unlike the compact KI picker, downloads need every TDoc, not one example
+// title per KI/agenda pair. Keep official metadata and revisions intact.
+function parseAgendaDocuments(html, source) {
+  const $ = load(html);
+  const documents = new Map();
+  $("tr").each((_, row) => {
+    const cells = $(row)
+      .children("td,th")
+      .map((_, el) => clean($(el).text()))
+      .get();
+    if (
+      cells.length < 10 ||
+      !/^\d+(?:\.\d+)*$/.test(cells[0]) ||
+      !/^[SC]\d-\d{6,8}$/i.test(cells[1])
+    )
+      return;
+    const document = cells[1].toUpperCase();
+    documents.set(`${cells[0]}:${document}`, {
+      document,
+      agenda: cells[0],
+      type: cells[2],
+      purpose: cells[3],
+      title: cells[4],
+      source: cells[5],
+      release: cells[6],
+      workItem: cells[7],
+      comments: cells[8],
+      status: cells[9],
+      referenceUrl: source,
+    });
+  });
+  return [...documents.values()];
+}
+
+async function agenda(
+  group,
+  meetingId,
+  {
+    meeting: snapshotMeeting,
+    includeDocuments = false,
+    fresh = false,
+    signal,
+  } = {}
+) {
   const meeting =
     snapshotMeeting ||
     (await meetings(group)).meetings.find((item) => item.id === meetingId);
   if (!meeting) throw new Error("该会议不在官方列表中，请重新选择。");
-  return cached(`agenda:${group}:${meetingId}`, async () => {
+  const loader = async () => {
     let candidates = links(
-      await readOfficial(`${meeting.source}?sortby=name`),
+      await readOfficial(`${meeting.source}?sortby=name`, 0, signal),
       meeting.source
     );
     let htmlLinks = candidates.filter((link) =>
@@ -317,7 +377,10 @@ async function agenda(group, meetingId, { meeting: snapshotMeeting } = {}) {
       const folder = candidates.find((link) => /^agenda$/i.test(link.name));
       if (folder) {
         const base = folder.url.replace(/\/$/, "") + "/";
-        candidates = links(await readOfficial(`${base}?sortby=name`), base);
+        candidates = links(
+          await readOfficial(`${base}?sortby=name`, 0, signal),
+          base
+        );
         htmlLinks = candidates.filter((link) => /\.html?$/i.test(link.name));
       }
     }
@@ -328,13 +391,15 @@ async function agenda(group, meetingId, { meeting: snapshotMeeting } = {}) {
         b.name.localeCompare(a.name, "en", { numeric: true })
     );
     for (const link of htmlLinks.slice(0, 3)) {
-      const items = parseAgenda(await readOfficial(link.url), link.url);
+      const html = await readOfficial(link.url, 0, signal);
+      const items = parseAgenda(html, link.url);
       if (items.length)
         return {
           group,
           meetingId,
           source: link.url,
           items: items.slice(0, 1000),
+          documents: parseAgendaDocuments(html, link.url),
         };
     }
     return {
@@ -345,7 +410,13 @@ async function agenda(group, meetingId, { meeting: snapshotMeeting } = {}) {
       warning:
         "暂未找到可解析的 HTML 议程。议程可能尚未发布，或仅提供 Word/PDF；可以手动填写 KI 或议程项。",
     };
-  });
+  };
+  const result = fresh
+    ? { ...(await loader()), fetchedAt: new Date().toISOString(), stale: false }
+    : await cached(`agenda:${group}:${meetingId}`, loader);
+  if (includeDocuments) return result;
+  const { documents: _documents, ...picker } = result;
+  return picker;
 }
 
 module.exports = {
@@ -354,7 +425,10 @@ module.exports = {
   agenda,
   parseMeetings,
   parseAgenda,
+  parseAgendaDocuments,
   officialUrl,
   readOfficial,
+  readOfficialBuffer,
+  links,
   cache,
 };
