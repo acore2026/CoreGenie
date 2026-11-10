@@ -18,11 +18,11 @@ from pathlib import Path
 from typing import BinaryIO
 
 
-MAX_REQUEST_BYTES = 96 * 1024
-MAX_CODE_BYTES = 64 * 1024
+MAX_REQUEST_BYTES = 2 * 1024 * 1024
+MAX_CODE_BYTES = 256 * 1024
 MAX_OUTPUT_BYTES = 1024 * 1024
-DEFAULT_TIMEOUT_SECONDS = 300
-MAX_TIMEOUT_SECONDS = 1800
+DEFAULT_TIMEOUT_SECONDS = 900
+MAX_TIMEOUT_SECONDS = 7200
 SKILL_NAME_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 RUNNER_MEMORY_PATTERN = re.compile(r"^[1-9][0-9]*(?:[bkmg])?$")
 
@@ -76,14 +76,27 @@ def validate_request(payload: object, expected_token: str) -> dict:
 
     workspace_id = parse_positive_int(payload.get("workspaceId"), "workspaceId")
 
+    raw_invocation_id = payload.get("invocationId")
+    if not isinstance(raw_invocation_id, str) or not re.fullmatch(
+        r"[A-Za-z0-9_-]{1,128}", raw_invocation_id
+    ):
+        raise BrokerError("invocationId must be a bounded run or tool-call ID")
     try:
-        invocation_id = str(uuid.UUID(str(payload.get("invocationId"))))
-    except (TypeError, ValueError, AttributeError) as exc:
-        raise BrokerError("invocationId must be a UUID") from exc
+        invocation_id = str(uuid.UUID(raw_invocation_id))
+    except ValueError:
+        # Older clients pass provider tool-call IDs for child Agents. Map them
+        # to safe container labels without requiring an application restart.
+        invocation_id = str(uuid.uuid5(
+            uuid.NAMESPACE_URL, f"anythingllm:{workspace_id}:{raw_invocation_id}"
+        ))
 
     timeout_seconds = payload.get("timeoutSeconds", DEFAULT_TIMEOUT_SECONDS)
     timeout_seconds = parse_positive_int(timeout_seconds, "timeoutSeconds")
     timeout_seconds = min(timeout_seconds, MAX_TIMEOUT_SECONDS)
+    queue_timeout_seconds = min(
+        parse_positive_int(payload.get("queueTimeoutSeconds", 10), "queueTimeoutSeconds"),
+        120,
+    )
 
     skill = payload.get("skill")
     if skill is not None:
@@ -114,6 +127,7 @@ def validate_request(payload: object, expected_token: str) -> dict:
         "workspace_id": workspace_id,
         "invocation_id": invocation_id,
         "timeout_seconds": timeout_seconds,
+        "queue_timeout_seconds": queue_timeout_seconds,
         "skill": skill,
     }
 
@@ -163,7 +177,8 @@ class SandboxBroker:
         workspace_gid: int,
         network: str,
         proxy_url: str | None,
-        runner_memory: str = "256m",
+        runner_memory: str = "4g",
+        queue_timeout: float = 120,
     ):
         self.token = token
         self.workspace_root = workspace_root.resolve()
@@ -177,6 +192,7 @@ class SandboxBroker:
         self.image = image
         self.docker_binary = docker_binary
         self.capacity = threading.BoundedSemaphore(max_concurrency)
+        self.queue_timeout = queue_timeout
         self.workspace_uid = workspace_uid
         self.workspace_gid = workspace_gid
         if not RUNNER_MEMORY_PATTERN.fullmatch(runner_memory.lower()):
@@ -269,17 +285,17 @@ class SandboxBroker:
             "--security-opt",
             "no-new-privileges:true",
             "--pids-limit",
-            "64",
+            "512",
             "--memory",
             self.runner_memory,
             "--memory-swap",
             self.runner_memory,
             "--cpus",
-            "0.5",
+            "2",
             "--ulimit",
-            "nofile=256:256",
+            "nofile=4096:4096",
             "--ulimit",
-            "fsize=67108864:67108864",
+            "fsize=1073741824:1073741824",
             "--user",
             f"{self.workspace_uid}:{self.workspace_gid}",
             "--env",
@@ -305,7 +321,7 @@ class SandboxBroker:
             "--env",
             "PATH=/workspace/.python/bin:/usr/local/bin:/usr/bin:/bin",
             "--tmpfs",
-            f"/tmp:rw,noexec,nosuid,nodev,size=64m,uid={self.workspace_uid},gid={self.workspace_gid},mode=700",
+            f"/tmp:rw,noexec,nosuid,nodev,size=512m,uid={self.workspace_uid},gid={self.workspace_gid},mode=700",
             "--mount",
             f"type=bind,src={docker_workspace_path},dst=/workspace",
             *skill_mount,
@@ -331,18 +347,34 @@ class SandboxBroker:
         return command, container_name
 
     def kill_container(self, container_name: str) -> None:
-        subprocess.run(
-            [self.docker_binary, "kill", container_name],
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            timeout=5,
-            check=False,
-        )
+        try:
+            subprocess.run(
+                [self.docker_binary, "rm", "--force", container_name],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=5,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+
+    def stop_process(self, process: subprocess.Popen, container_name: str) -> None:
+        try:
+            if process.poll() is None:
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+            process.wait(timeout=5)
+        finally:
+            self.kill_container(container_name)
 
     def execute(self, payload: object) -> dict:
         request = validate_request(payload, self.token)
-        if not self.capacity.acquire(blocking=False):
+        if not self.capacity.acquire(
+            timeout=min(self.queue_timeout, request["queue_timeout_seconds"])
+        ):
             raise BrokerError(
                 "sandbox capacity is busy; retry shortly",
                 code="SANDBOX_BUSY",
@@ -366,41 +398,64 @@ class SandboxBroker:
             stdout = bytearray()
             stderr = bytearray()
             budget = OutputBudget(MAX_OUTPUT_BYTES)
-            readers = [
-                threading.Thread(
-                    target=drain_stream,
-                    args=(process.stdout, stdout, budget),
-                    daemon=True,
-                ),
-                threading.Thread(
-                    target=drain_stream,
-                    args=(process.stderr, stderr, budget),
-                    daemon=True,
-                ),
-            ]
-            for reader in readers:
-                reader.start()
-
+            readers = []
+            completed = False
             try:
-                process.stdin.write(request["code"].encode("utf-8"))
-                process.stdin.close()
-            except BrokenPipeError:
-                pass
+                pending_readers = [
+                    threading.Thread(
+                        target=drain_stream,
+                        args=(process.stdout, stdout, budget),
+                        daemon=True,
+                    ),
+                    threading.Thread(
+                        target=drain_stream,
+                        args=(process.stderr, stderr, budget),
+                        daemon=True,
+                    ),
+                ]
+                for reader in pending_readers:
+                    reader.start()
+                    readers.append(reader)
 
-            timed_out = False
-            try:
-                exit_code = process.wait(timeout=request["timeout_seconds"])
-            except subprocess.TimeoutExpired:
-                timed_out = True
-                self.kill_container(container_name)
+                input_errors = []
+
+                def send_input():
+                    try:
+                        process.stdin.write(request["code"].encode("utf-8"))
+                    except BrokenPipeError:
+                        pass
+                    except OSError as exc:
+                        input_errors.append(exc)
+                    finally:
+                        process.stdin.close()
+
+                # Bash can execute before consuming all input; include pipe writes
+                # in the execution timeout even when a large script fills stdin.
+                writer = threading.Thread(target=send_input, daemon=True)
+                writer.start()
+                readers.append(writer)
+
+                timed_out = False
                 try:
-                    os.killpg(process.pid, signal.SIGKILL)
-                except ProcessLookupError:
-                    pass
-                exit_code = process.wait(timeout=5)
+                    exit_code = process.wait(timeout=request["timeout_seconds"])
+                except subprocess.TimeoutExpired:
+                    timed_out = True
+                    self.stop_process(process, container_name)
+                    exit_code = process.returncode
+                completed = True
+            finally:
+                # Reader startup can fail before stdin is sent, leaving Docker idle.
+                try:
+                    if not completed:
+                        self.stop_process(process, container_name)
+                finally:
+                    for reader in readers:
+                        reader.join(timeout=2)
+                    for stream in (process.stdin, process.stdout, process.stderr):
+                        stream.close()
 
-            for reader in readers:
-                reader.join(timeout=2)
+            if input_errors and not timed_out:
+                raise input_errors[0]
 
             return {
                 "ok": True,
@@ -445,6 +500,7 @@ class RequestHandler(socketserver.StreamRequestHandler):
 class ThreadingUnixServer(socketserver.ThreadingMixIn, socketserver.UnixStreamServer):
     daemon_threads = True
     allow_reuse_address = True
+    request_queue_size = 128
 
     def __init__(self, path: str, handler, broker: SandboxBroker):
         self.broker = broker
@@ -477,8 +533,8 @@ def main() -> None:
     parser.add_argument("--docker-global-skills-root", required=True, type=Path)
     parser.add_argument("--image", default="anythingllm-sandbox:local")
     parser.add_argument("--docker-binary", default="docker")
-    parser.add_argument("--max-concurrency", type=int, default=6)
-    parser.add_argument("--runner-memory", default="256m")
+    parser.add_argument("--max-concurrency", type=int, default=12)
+    parser.add_argument("--runner-memory", default="4g")
     parser.add_argument("--socket-uid", type=int, default=os.getuid())
     parser.add_argument("--socket-gid", type=int, default=os.getgid())
     parser.add_argument("--workspace-uid", type=int, default=1000)
@@ -487,13 +543,10 @@ def main() -> None:
     parser.add_argument("--proxy-url")
     args = parser.parse_args()
 
-    if args.max_concurrency < 1 or args.max_concurrency > 16:
-        raise SystemExit("--max-concurrency must be between 1 and 16")
+    if args.max_concurrency < 1 or args.max_concurrency > 64:
+        raise SystemExit("--max-concurrency must be between 1 and 64")
 
     args.socket.parent.mkdir(parents=True, exist_ok=True, mode=0o750)
-    if args.socket.exists() or args.socket.is_socket():
-        args.socket.unlink()
-
     token = ensure_token(args.token_file, args.socket_uid, args.socket_gid)
     broker = SandboxBroker(
         token=token,
@@ -510,13 +563,20 @@ def main() -> None:
         network=args.network,
         proxy_url=args.proxy_url,
     )
-    server = ThreadingUnixServer(str(args.socket), RequestHandler, broker)
-    os.chmod(args.socket, 0o660)
+    # Publish only after listen/permissions are ready. Existing connections to
+    # an older broker keep working while the new broker accepts fresh calls.
+    staging_socket = args.socket.with_name(
+        f"{args.socket.name}.{secrets.token_hex(4)}"
+    )
+    server = ThreadingUnixServer(str(staging_socket), RequestHandler, broker)
+    os.chmod(staging_socket, 0o660)
     try:
         if os.geteuid() == 0:
-            os.chown(args.socket, args.socket_uid, args.socket_gid)
+            os.chown(staging_socket, args.socket_uid, args.socket_gid)
     except PermissionError:
         pass
+    socket_inode = staging_socket.stat().st_ino
+    staging_socket.replace(args.socket)
 
     print(
         f"AnythingLLM sandbox broker listening on {args.socket} "
@@ -527,7 +587,7 @@ def main() -> None:
         server.serve_forever(poll_interval=0.25)
     finally:
         server.server_close()
-        if args.socket.exists() or args.socket.is_socket():
+        if args.socket.is_socket() and args.socket.stat().st_ino == socket_inode:
             args.socket.unlink()
 
 

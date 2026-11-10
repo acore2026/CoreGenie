@@ -39,9 +39,19 @@ Agent Skills use the same two tools. A globally managed skill revision is
 mounted read-only at `/skills/<name>` only for the invocation that needs it;
 workspace-local skills remain live under `/workspace/.agent/skills/<name>`.
 `SKILL_ROOT` points at the selected package and caches are redirected to
-`/workspace/.agent/cache`. The default execution timeout is 300 seconds with a
-hard maximum of 1800 seconds. The runner also includes pinned `uv` for PEP 723
+`/workspace/.agent/cache`. The default execution timeout is 900 seconds with a
+hard maximum of 7200 seconds. The runner also includes pinned `uv` for PEP 723
 Python scripts.
+
+Default capacity is 12 concurrent runners. Each runner may use up to 4 GiB RAM,
+2 CPUs, 512 processes/threads, 4096 file descriptors, a 1 GiB individual file,
+and 512 MiB of temporary storage. These are ceilings, not reserved allocations.
+The broker has a 128-connection accept backlog. New clients wait up to 120 seconds
+for a runner slot; old clients without a queue timeout wait up to 10 seconds.
+Client deadlines include queue time. Scripts may contain up to 256 KiB of UTF-8
+code; combined stdout/stderr remains limited to 1 MiB. The protocol allows extra
+space for JSON escaping. Input writes are covered by the execution timeout.
+See [execution limits](../docs/execution-limits.md) for Agent and storage limits.
 
 Use `start-anythingllm.sh` to build the runner image, launch the broker, and
 start AnythingLLM. The script also keeps a locked-down image guard container

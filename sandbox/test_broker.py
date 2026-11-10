@@ -1,6 +1,10 @@
 import tempfile
 import unittest
 import uuid
+import subprocess
+import threading
+import time
+from unittest.mock import MagicMock, patch
 from pathlib import Path
 
 from sandbox.broker import BrokerError, SandboxBroker, validate_request
@@ -23,6 +27,17 @@ class BrokerValidationTests(unittest.TestCase):
         self.assertEqual(request["workspace_id"], 12)
         self.assertEqual(request["language"], "python")
 
+    def test_accepts_subagent_call_ids_and_preserves_uuid_ids(self):
+        self.assertEqual(validate_request(self.payload, self.token)["invocation_id"],
+                         self.payload["invocationId"])
+        payload = {**self.payload, "invocationId": "call_feb0e48a2b784f12a0941095"}
+        request = validate_request(payload, self.token)
+        self.assertEqual(str(uuid.UUID(request["invocation_id"])), request["invocation_id"])
+        self.assertEqual(request["invocation_id"], validate_request(payload, self.token)["invocation_id"])
+        for invalid in (None, "", "../escape", "bad\nname", "x" * 129):
+            with self.subTest(invalid=invalid), self.assertRaises(BrokerError):
+                validate_request({**self.payload, "invocationId": invalid}, self.token)
+
     def test_rejects_bad_identity_and_language(self):
         with self.assertRaises(BrokerError):
             validate_request({**self.payload, "token": "wrong"}, self.token)
@@ -42,6 +57,7 @@ class BrokerValidationTests(unittest.TestCase):
                 image="anythingllm-sandbox:local",
                 docker_binary="docker",
                 max_concurrency=1,
+                queue_timeout=0,
                 workspace_uid=1000,
                 workspace_gid=1000,
                 network="bridge",
@@ -63,6 +79,7 @@ class BrokerValidationTests(unittest.TestCase):
                 image="anythingllm-sandbox:local",
                 docker_binary="docker",
                 max_concurrency=1,
+                queue_timeout=0,
                 workspace_uid=1000,
                 workspace_gid=1000,
                 network="bridge",
@@ -77,6 +94,70 @@ class BrokerValidationTests(unittest.TestCase):
             finally:
                 broker.capacity.release()
 
+    def test_waits_for_capacity_instead_of_failing_a_short_burst(self):
+        broker = SandboxBroker.__new__(SandboxBroker)
+        broker.token = self.token
+        broker.capacity = threading.BoundedSemaphore(1)
+        broker.queue_timeout = 1
+        broker.capacity.acquire()
+        entered = threading.Event()
+        errors = []
+
+        def run():
+            try:
+                broker.execute(self.payload)
+            except BrokerError as exc:
+                errors.append(str(exc))
+
+        def workspace(_):
+            entered.set()
+            raise BrokerError("capacity acquired")
+
+        with patch.object(broker, "workspace_path", side_effect=workspace):
+            worker = threading.Thread(target=run)
+            worker.start()
+            self.assertFalse(entered.wait(0.05))
+            broker.capacity.release()
+            worker.join(timeout=2)
+        self.assertFalse(worker.is_alive())
+        self.assertTrue(entered.is_set())
+        self.assertEqual(errors, ["capacity acquired"])
+        self.assertTrue(broker.capacity.acquire(blocking=False))
+        broker.capacity.release()
+
+    def test_accepts_long_jobs_and_larger_code(self):
+        request = validate_request(
+            {**self.payload, "code": "#" * (128 * 1024),
+             "timeoutSeconds": 7200, "queueTimeoutSeconds": 120}, self.token
+        )
+        self.assertEqual(request["timeout_seconds"], 7200)
+        self.assertEqual(request["queue_timeout_seconds"], 120)
+
+    def test_timeout_covers_blocked_script_input_and_releases_capacity(self):
+        with tempfile.TemporaryDirectory() as root:
+            broker = SandboxBroker(
+                token=self.token,
+                workspace_root=Path(root),
+                docker_workspace_root=Path(root),
+                global_skills_root=Path(root),
+                docker_global_skills_root=Path(root),
+                image="test", docker_binary="docker", max_concurrency=1,
+                workspace_uid=1000, workspace_gid=1000,
+                network="none", proxy_url=None,
+            )
+            payload = {**self.payload, "language": "bash", "timeoutSeconds": 1,
+                       "code": "sleep 30\n#" + "x" * (128 * 1024)}
+            started = time.monotonic()
+            with patch.object(broker, "docker_command", return_value=(
+                ["bash", "--noprofile", "--norc", "-s"], "test-runner"
+            )), patch.object(broker, "kill_container") as remove:
+                result = broker.execute(payload)
+            self.assertTrue(result["timedOut"])
+            self.assertLess(time.monotonic() - started, 5)
+            remove.assert_called_once_with("test-runner")
+            self.assertTrue(broker.capacity.acquire(blocking=False))
+            broker.capacity.release()
+
     def test_runner_uses_configured_network_and_proxy(self):
         with tempfile.TemporaryDirectory() as root:
             broker = SandboxBroker(
@@ -88,6 +169,7 @@ class BrokerValidationTests(unittest.TestCase):
                 image="anythingllm-sandbox:local",
                 docker_binary="docker",
                 max_concurrency=1,
+                queue_timeout=0,
                 workspace_uid=1000,
                 workspace_gid=1000,
                 network="bridge",
@@ -98,7 +180,11 @@ class BrokerValidationTests(unittest.TestCase):
                 request, broker.workspace_path(request["workspace_id"])
             )
             self.assertEqual(command[command.index("--network") + 1], "bridge")
-            self.assertEqual(command[command.index("--memory") + 1], "256m")
+            self.assertEqual(command[command.index("--memory") + 1], "4g")
+            self.assertEqual(command[command.index("--pids-limit") + 1], "512")
+            self.assertEqual(command[command.index("--cpus") + 1], "2")
+            self.assertIn("nofile=4096:4096", command)
+            self.assertIn("fsize=1073741824:1073741824", command)
             self.assertIn("host.docker.internal:host-gateway", command)
             self.assertIn("HTTP_PROXY=http://172.17.0.1:7890", command)
             self.assertIn("HTTPS_PROXY=http://172.17.0.1:7890", command)
@@ -107,6 +193,57 @@ class BrokerValidationTests(unittest.TestCase):
             self.assertIn("PYTHONUSERBASE=/workspace/.python", command)
             self.assertIn("PIP_USER=1", command)
             self.assertIn("XDG_CACHE_HOME=/workspace/.agent/cache", command)
+
+    def test_reader_start_failure_reaps_docker_and_restores_capacity(self):
+        with tempfile.TemporaryDirectory() as root:
+            broker = SandboxBroker(
+                token=self.token,
+                workspace_root=Path(root),
+                docker_workspace_root=Path(root),
+                global_skills_root=Path(root),
+                docker_global_skills_root=Path(root),
+                image="anythingllm-sandbox:local",
+                docker_binary="docker",
+                max_concurrency=1,
+                queue_timeout=0,
+                workspace_uid=1000,
+                workspace_gid=1000,
+                network="bridge",
+                proxy_url=None,
+            )
+            for failed_reader in (0, 1):
+                with self.subTest(failed_reader=failed_reader):
+                    process = MagicMock()
+                    process.poll.return_value = None
+                    readers = [MagicMock(), MagicMock()]
+                    readers[failed_reader].start.side_effect = RuntimeError(
+                        "can't start new thread"
+                    )
+                    with patch("sandbox.broker.subprocess.Popen", return_value=process), \
+                         patch("sandbox.broker.threading.Thread", side_effect=readers), \
+                         patch("sandbox.broker.os.killpg") as kill, \
+                         patch.object(broker, "kill_container") as remove:
+                        with self.assertRaisesRegex(RuntimeError, "new thread"):
+                            broker.execute(self.payload)
+                    kill.assert_called_once()
+                    process.wait.assert_called_once_with(timeout=5)
+                    remove.assert_called_once()
+                    process.stdin.write.assert_not_called()
+                    for stream in (process.stdin, process.stdout, process.stderr):
+                        stream.close.assert_called_once()
+                    if failed_reader:
+                        readers[0].join.assert_called_once_with(timeout=2)
+                    readers[failed_reader].join.assert_not_called()
+                    self.assertTrue(broker.capacity.acquire(blocking=False))
+                    broker.capacity.release()
+
+    def test_cleanup_removes_created_containers_and_tolerates_docker_timeout(self):
+        with patch("sandbox.broker.subprocess.run") as run:
+            broker = SandboxBroker.__new__(SandboxBroker)
+            broker.docker_binary = "docker"
+            run.side_effect = subprocess.TimeoutExpired("docker", 5)
+            broker.kill_container("runner")
+            self.assertEqual(run.call_args.args[0], ["docker", "rm", "--force", "runner"])
 
     def test_runner_uses_configured_memory_limit(self):
         with tempfile.TemporaryDirectory() as root:
@@ -119,6 +256,7 @@ class BrokerValidationTests(unittest.TestCase):
                 image="anythingllm-sandbox:local",
                 docker_binary="docker",
                 max_concurrency=1,
+                queue_timeout=0,
                 workspace_uid=1000,
                 workspace_gid=1000,
                 network="bridge",
@@ -148,6 +286,7 @@ class BrokerValidationTests(unittest.TestCase):
                 image="anythingllm-sandbox:local",
                 docker_binary="docker",
                 max_concurrency=1,
+                queue_timeout=0,
                 workspace_uid=1000,
                 workspace_gid=1000,
                 network="bridge",

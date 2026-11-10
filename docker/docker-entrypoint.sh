@@ -21,7 +21,7 @@ fi
     # Disable Prisma CLI telemetry (https://www.prisma.io/docs/orm/tools/prisma-cli#how-to-opt-out-of-data-collection)
     export CHECKPOINT_DISABLE=1 &&
     if [ "${DATABASE_PROVIDER:-sqlite}" = "postgresql" ] || [ "${DATABASE_PROVIDER:-sqlite}" = "postgres" ]; then
-      node ./scripts/postgres/prepare-schema.js
+      node ./scripts/postgres/prepare-schema.js &&
       PRISMA_SCHEMA_PATH=./prisma-postgresql/schema.prisma
     else
       PRISMA_SCHEMA_PATH=./prisma/schema.prisma

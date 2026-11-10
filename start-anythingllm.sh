@@ -24,7 +24,8 @@ Environment overrides:
   ANYTHINGLLM_GID        Image group ID used for root-created storage (default: 1000)
   APP_REBUILD            Rebuild the AnythingLLM image before start (default: false)
   APP_RECREATE           Recreate the AnythingLLM container (default: false)
-  AGENT_MAX_CONCURRENCY  Maximum parallel Agent tasks (default: 6)
+  AGENT_MAX_CONCURRENCY  Maximum parallel Agent tasks (default: 12)
+  AGENT_RUN_CONCURRENCY  Maximum simultaneous Agent runs (default: 8)
   AGENT_CONFIG_SYNC_ENABLED Enable prompt/Agent/Skill file sync (default: false)
   AGENT_CONFIG_SYNC_DIR  Existing writable host configuration directory
   PROMPTFOO_ENABLED      Start the live Agent evaluation UI (default: true)
@@ -39,8 +40,8 @@ Environment overrides:
   SANDBOX_IMAGE          Sandbox runner image (default: anythingllm-sandbox:local)
   SANDBOX_BROKER_IMAGE   Sandbox broker image (default: anythingllm-sandbox-broker:local)
   SANDBOX_REBUILD        Rebuild sandbox images and recreate broker (default: false)
-  SANDBOX_MAX_CONCURRENCY Maximum simultaneous executions (default: 6)
-  SANDBOX_RUNNER_MEMORY  Memory limit for each execution container (default: 1024m)
+  SANDBOX_MAX_CONCURRENCY Maximum simultaneous executions (default: 12)
+  SANDBOX_RUNNER_MEMORY  Memory limit for each execution container (default: 4g)
   SANDBOX_NETWORK        Runner network: bridge or none (default: bridge)
   SANDBOX_PROXY          Runner HTTP(S) proxy (default: ANYTHINGLLM_PROXY or
                          http://host.docker.internal:7890)
@@ -117,7 +118,8 @@ ANYTHINGLLM_UID="${ANYTHINGLLM_UID:-1000}"
 ANYTHINGLLM_GID="${ANYTHINGLLM_GID:-1000}"
 APP_REBUILD="${APP_REBUILD:-false}"
 APP_RECREATE="${APP_RECREATE:-false}"
-AGENT_MAX_CONCURRENCY="${AGENT_MAX_CONCURRENCY:-6}"
+AGENT_MAX_CONCURRENCY="${AGENT_MAX_CONCURRENCY:-12}"
+AGENT_RUN_CONCURRENCY="${AGENT_RUN_CONCURRENCY:-8}"
 PROMPTFOO_ENABLED="${PROMPTFOO_ENABLED:-true}"
 PROMPTFOO_IMAGE="${PROMPTFOO_IMAGE:-anythingllm-promptfoo:0.122.2}"
 PROMPTFOO_CONTAINER_NAME="${PROMPTFOO_CONTAINER_NAME:-${CONTAINER_NAME}-promptfoo}"
@@ -130,8 +132,8 @@ SANDBOX_ENABLED="${SANDBOX_ENABLED:-true}"
 SANDBOX_IMAGE="${SANDBOX_IMAGE:-anythingllm-sandbox:local}"
 SANDBOX_BROKER_IMAGE="${SANDBOX_BROKER_IMAGE:-anythingllm-sandbox-broker:local}"
 SANDBOX_REBUILD="${SANDBOX_REBUILD:-false}"
-SANDBOX_MAX_CONCURRENCY="${SANDBOX_MAX_CONCURRENCY:-6}"
-SANDBOX_RUNNER_MEMORY="${SANDBOX_RUNNER_MEMORY:-1024m}"
+SANDBOX_MAX_CONCURRENCY="${SANDBOX_MAX_CONCURRENCY:-12}"
+SANDBOX_RUNNER_MEMORY="${SANDBOX_RUNNER_MEMORY:-4g}"
 SANDBOX_NETWORK="${SANDBOX_NETWORK:-bridge}"
 # Empty SANDBOX_PROXY disables the runner proxy; unset falls back to
 # ANYTHINGLLM_PROXY. On offline installs the packaged value wins unless the
@@ -287,11 +289,11 @@ if [[ ! "$PROMPTFOO_UID" =~ ^[0-9]+$ || ! "$PROMPTFOO_GID" =~ ^[0-9]+$ ]]; then
   exit 1
 fi
 
-for concurrency_setting in AGENT_MAX_CONCURRENCY SANDBOX_MAX_CONCURRENCY; do
+for concurrency_setting in AGENT_MAX_CONCURRENCY AGENT_RUN_CONCURRENCY SANDBOX_MAX_CONCURRENCY; do
   concurrency_value="${!concurrency_setting}"
   if [[ ! "$concurrency_value" =~ ^[0-9]+$ ]] || \
-    ((concurrency_value < 1 || concurrency_value > 16)); then
-    echo "Error: $concurrency_setting must be an integer between 1 and 16." >&2
+    ((concurrency_value < 1 || concurrency_value > 64)); then
+    echo "Error: $concurrency_setting must be an integer between 1 and 64." >&2
     exit 1
   fi
 done
@@ -469,6 +471,13 @@ start_sandbox_broker() {
   fi
 
   if docker container inspect "$sandbox_broker_name" >/dev/null 2>&1 && \
+    [[ "$(docker inspect --format '{{.Image}}' "$sandbox_broker_name")" != \
+       "$(docker image inspect --format '{{.Id}}' "$SANDBOX_BROKER_IMAGE")" ]]; then
+    echo "Replacing sandbox broker to apply the updated image..."
+    docker rm --force "$sandbox_broker_name" >/dev/null
+  fi
+
+  if docker container inspect "$sandbox_broker_name" >/dev/null 2>&1 && \
     ! docker inspect --format '{{json .Config.Cmd}}' "$sandbox_broker_name" | \
       grep -q -- '--global-skills-root'; then
     echo "Replacing sandbox broker to enable Agent Skill mounts..."
@@ -490,7 +499,11 @@ start_sandbox_broker() {
     docker rm --force "$sandbox_broker_name" >/dev/null
   fi
 
+  # Each concurrent Docker CLI uses multiple OS threads in the broker cgroup.
+  local broker_pids_limit=$((1024 + 64 * SANDBOX_MAX_CONCURRENCY))
+  ((broker_pids_limit < 2048)) && broker_pids_limit=2048
   if docker container inspect "$sandbox_broker_name" >/dev/null 2>&1; then
+    docker update --pids-limit "$broker_pids_limit" --memory 1g --memory-swap 2g --cpus 2 "$sandbox_broker_name" >/dev/null
     if [[ "$(docker inspect --format '{{.State.Running}}' "$sandbox_broker_name")" != "true" ]]; then
       echo "Starting existing sandbox broker '$sandbox_broker_name'..."
       docker start "$sandbox_broker_name" >/dev/null
@@ -509,10 +522,10 @@ start_sandbox_broker() {
       --group-add "$docker_socket_gid" \
       --cap-drop ALL \
       --security-opt no-new-privileges:true \
-      --pids-limit 64 \
-      --memory 128m \
-      --memory-swap 128m \
-      --cpus 0.25 \
+      --pids-limit "$broker_pids_limit" \
+      --memory 1g \
+      --memory-swap 2g \
+      --cpus 2 \
       --tmpfs /tmp:rw,noexec,nosuid,nodev,size=16m \
       --volume /var/run/docker.sock:/var/run/docker.sock \
       --volume "$STORAGE_LOCATION/sandbox:/broker" \
@@ -613,6 +626,7 @@ else
     --env SANDBOX_BROKER_SOCKET=/app/server/storage/sandbox/run.sock \
     --env SANDBOX_BROKER_TOKEN_FILE=/app/server/storage/sandbox/token \
     --env "AGENT_MAX_CONCURRENCY=$AGENT_MAX_CONCURRENCY" \
+    --env "AGENT_RUN_CONCURRENCY=$AGENT_RUN_CONCURRENCY" \
     --env "NO_PROXY=$ANYTHINGLLM_NO_PROXY" \
     --env "no_proxy=$ANYTHINGLLM_NO_PROXY" \
     "${DATABASE_ARGS[@]}" \
