@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { userFacingErrorKey } from "@/utils/userFacingError.mjs";
 import SettingsSidebar from "@/components/SettingsSidebar";
 import WorkspaceSidebar from "@/components/Sidebar";
 import { isMobile } from "react-device-detect";
@@ -152,7 +153,9 @@ export default function RunDetailPage() {
 
       <div className="mt-6 space-y-4">
         <PromptSection t={t} prompt={job?.prompt} />
-        <ErrorSection t={t} error={run?.error} />
+        {["failed", "partial", "timed_out"].includes(run?.status) && (
+          <ErrorSection t={t} error={run?.error} />
+        )}
         <AgentThoughtsSection t={t} result={result} />
         <ToolCallsSection t={t} result={result} />
         <GeneratedFilesSection t={t} result={result} />
@@ -305,7 +308,9 @@ function ErrorSection({ t, error }) {
       <p className="text-sm font-medium text-red-400 light:text-red-600 uppercase tracking-[1.4px] mb-1">
         {t("scheduledJobs.runDetail.sections.error")}
       </p>
-      <p className="text-sm text-red-300 light:text-red-700">{error}</p>
+      <p className="text-sm text-red-300 light:text-red-700">
+        {t(userFacingErrorKey(error))}
+      </p>
     </div>
   );
 }

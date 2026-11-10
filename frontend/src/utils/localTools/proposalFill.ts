@@ -1,5 +1,36 @@
 import { unzipSync, zipSync, strFromU8, strToU8 } from "fflate";
 
+import type {
+  CRProposal,
+  ExportFile,
+  FieldName,
+  FileBytes,
+  MeetingFile,
+  MeetingRecord,
+  MatchResult,
+  MetadataField,
+  NamingMode,
+  ProposalMetadata,
+  ProposalPlan,
+  SourcedRecord,
+} from "./types";
+
+type XmlNode = Element | Document;
+type NumberLocation = {
+  node: Element;
+  start: number;
+  end: number;
+  value: string;
+  blank?: boolean;
+};
+type CRForm = {
+  table: Element;
+  cells: Element[];
+  cr: number;
+  rev: number;
+  version: number;
+};
+
 const W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
 const S = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
 const R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
@@ -10,35 +41,48 @@ export const LIMITS = {
   batchBytes: 100 * 1024 * 1024,
 };
 const MAX_UNPACKED = 100 * 1024 * 1024;
-export const FIELD_NAMES = ["tdoc", "cr", "revision", "version"];
-const normalize = (value) =>
+export const FIELD_NAMES: readonly FieldName[] = [
+  "tdoc",
+  "cr",
+  "revision",
+  "version",
+];
+const normalize = (value: unknown) =>
   String(value ?? "")
     .normalize("NFKC")
     .replace(/\s+/g, " ")
     .trim()
     .toLowerCase();
-const clean = (value) =>
+const clean = (value: unknown) =>
   String(value ?? "")
     .replace(/\s+/g, " ")
     .trim();
-const elements = (node, ns, name) => [...node.getElementsByTagNameNS(ns, name)];
-const children = (node, name) =>
+const elements = (node: XmlNode, ns: string, name: string): Element[] => [
+  ...node.getElementsByTagNameNS(ns, name),
+];
+const children = (node: XmlNode, name: string): Element[] =>
   [...node.children].filter(
     (child) => child.namespaceURI === W && child.localName === name
   );
 
 export class LocalToolError extends Error {
-  constructor(code, params = {}) {
+  code: string;
+  params: Record<string, string | number>;
+
+  constructor(code: string, params: Record<string, string | number> = {}) {
     super(code);
     this.code = code;
     this.params = params;
   }
 }
-const fail = (code, params) => {
+const fail: (
+  code: string,
+  params?: Record<string, string | number>
+) => never = (code, params) => {
   throw new LocalToolError(code, params);
 };
 
-function xml(bytes, ns) {
+function xml(bytes: Uint8Array | undefined, ns?: string): Document {
   if (!bytes) fail("invalid_package");
   const source = strFromU8(bytes);
   if (/<!DOCTYPE|<!ENTITY/i.test(source)) fail("invalid_package");
@@ -51,7 +95,7 @@ function xml(bytes, ns) {
   return doc;
 }
 
-function unpack(bytes) {
+function unpack(bytes: Uint8Array): Record<string, FileBytes> {
   if (bytes.byteLength > LIMITS.fileBytes) fail("file_size");
   let size = 0;
   let count = 0;
@@ -72,7 +116,7 @@ function unpack(bytes) {
   }
 }
 
-async function fileBytes(file, extension) {
+async function fileBytes(file: File, extension: string): Promise<FileBytes> {
   if (!file.name.toLowerCase().endsWith(extension))
     fail("file_type", { extension });
   if (file.size > LIMITS.fileBytes) fail("file_size");
@@ -80,7 +124,7 @@ async function fileBytes(file, extension) {
 }
 
 // Read only the official meeting list schema. No formulas, links or macros are executed.
-export async function readMeetingList(file) {
+export async function readMeetingList(file: File): Promise<MeetingRecord[]> {
   const entries = unpack(await fileBytes(file, ".xlsx"));
   const workbook = xml(entries["xl/workbook.xml"], S);
   const sheets = elements(workbook, S, "sheet").filter(
@@ -93,7 +137,7 @@ export async function readMeetingList(file) {
     (r) => r.getAttribute("Id") === id
   );
   const target = rel?.getAttribute("Target") || "";
-  if (!target || rel.getAttribute("TargetMode") === "External")
+  if (!target || rel?.getAttribute("TargetMode") === "External")
     fail("invalid_package");
   const sheetPath = target.startsWith("/")
     ? target.slice(1)
@@ -118,7 +162,7 @@ export async function readMeetingList(file) {
       : []
   );
   const xfs = styles ? elements(styles, S, "cellXfs")[0]?.children : [];
-  const valueOf = (cell) => {
+  const valueOf = (cell: Element): string => {
     if (cell.getAttribute("t") === "inlineStr")
       return elements(cell, S, "t")
         .map((t) => t.textContent)
@@ -127,9 +171,10 @@ export async function readMeetingList(file) {
     if (cell.getAttribute("t") === "s") return strings[Number(raw)] ?? "";
     if (cell.getAttribute("t") === "e") return "";
     const format = formats.get(
-      xfs?.[Number(cell.getAttribute("s") || 0)]?.getAttribute("numFmtId")
+      xfs?.[Number(cell.getAttribute("s") || 0)]?.getAttribute("numFmtId") ??
+        null
     );
-    return /^0+$/.test(format || "") && /^\d+$/.test(raw)
+    return format && /^0+$/.test(format) && /^\d+$/.test(raw)
       ? raw.padStart(format.length, "0")
       : raw;
   };
@@ -156,19 +201,20 @@ export async function readMeetingList(file) {
   ];
   if (required.some((name) => ![...columns.values()].includes(name)))
     fail("missing_columns");
-  const records = [];
+  const records: MeetingRecord[] = [];
   for (const row of rows) {
     if (Number(row.getAttribute("r")) <= Number(header.getAttribute("r")))
       continue;
-    const values = {};
+    const values: Record<string, string> = {};
     for (const cell of elements(row, S, "c"))
-      values[columns.get((cell.getAttribute("r") || "").replace(/\d/g, ""))] =
-        clean(valueOf(cell));
+      values[
+        columns.get((cell.getAttribute("r") || "").replace(/\d/g, "")) ?? ""
+      ] = clean(valueOf(cell));
     if (!values.Title || (values.Type && normalize(values.Type) !== "cr"))
       continue;
     if (!values.Type && !values.CR) continue;
     records.push({
-      id: row.getAttribute("r"),
+      id: row.getAttribute("r") || "",
       tdoc: values.TDoc || "",
       title: values.Title,
       source: values.Source || "",
@@ -185,7 +231,7 @@ export async function readMeetingList(file) {
 
 // Excel row numbers are local to each workbook. Keep source identity separate
 // so selecting row 2 in one list cannot select row 2 in another list.
-export function mergeMeetingLists(files) {
+export function mergeMeetingLists(files: MeetingFile[]): SourcedRecord[] {
   return files.flatMap((file) =>
     (file.records || []).map((record) => ({
       ...record,
@@ -196,7 +242,7 @@ export function mergeMeetingLists(files) {
   );
 }
 
-function visibleTexts(node) {
+function visibleTexts(node: Element): Element[] {
   return elements(node, W, "t").filter((t) => {
     for (
       let parent = t.parentElement;
@@ -212,11 +258,11 @@ function visibleTexts(node) {
     return true;
   });
 }
-const text = (node) =>
+const text = (node: Element): string =>
   visibleTexts(node)
     .map((t) => t.textContent)
     .join("");
-function writable(node) {
+function writable(node: Element): boolean {
   // Avoid changing fields under revision, protected controls, fields or alternate representations.
   return ![
     "ins",
@@ -230,7 +276,12 @@ function writable(node) {
     "txbxContent",
   ].some((name) => elements(node, W, name).length);
 }
-function replacement(node, start, end, value) {
+function replacement(
+  node: Element,
+  start: number,
+  end: number,
+  value: string
+): void {
   if (!writable(node)) fail("complex_field");
   const texts = visibleTexts(node);
   if (!texts.length) {
@@ -247,7 +298,7 @@ function replacement(node, start, end, value) {
   let offset = 0;
   let inserted = false;
   for (const t of texts) {
-    const current = t.textContent;
+    const current = t.textContent || "";
     const a = offset;
     const b = a + current.length;
     offset = b;
@@ -266,7 +317,7 @@ function replacement(node, start, end, value) {
   if (!inserted) fail("template");
 }
 
-export async function readProposal(file) {
+export async function readProposal(file: File): Promise<CRProposal> {
   const bytes = await fileBytes(file, ".docx");
   const entries = unpack(bytes);
   if (
@@ -284,7 +335,7 @@ export async function readProposal(file) {
     );
     if (
       protection.some((node) =>
-        /^(?:1|true|on)$/.test(node.getAttributeNS(W, "enforcement"))
+        /^(?:1|true|on)$/.test(node.getAttributeNS(W, "enforcement") || "")
       )
     )
       fail("protected_document");
@@ -292,23 +343,24 @@ export async function readProposal(file) {
   const doc = xml(entries["word/document.xml"], W);
   const { fields, metadata, tdoc } = locateProposal(doc);
   return {
+    kind: "cr",
     file,
     bytes,
     metadata,
     values: {
       tdoc: tdoc.value,
-      ...Object.fromEntries(
-        Object.entries(fields).map(([key, node]) => [key, clean(text(node))])
-      ),
+      cr: clean(text(fields.cr)),
+      revision: clean(text(fields.revision)),
+      version: clean(text(fields.version)),
     },
   };
 }
 
-function locateProposal(doc) {
+function locateProposal(doc: Document) {
   const body = elements(doc, W, "body")[0];
   if (!body) fail("template");
   const tables = children(body, "tbl");
-  const forms = [];
+  const forms: CRForm[] = [];
   for (const table of tables)
     for (const row of children(table, "tr")) {
       const cells = children(row, "tc");
@@ -327,17 +379,30 @@ function locateProposal(doc) {
     version: form.cells[form.version + 1],
   };
   const spec = clean(text(form.cells[form.cr - 1]));
-  const metadata = {};
-  for (const table of tables)
+  const metadata: Partial<ProposalMetadata> = {};
+  // The cover metadata shares one table. Body tables can legitimately contain
+  // fields such as "release" and must not participate in cover identification.
+  const coverTables = tables.filter((table) => {
+    const labels = children(table, "tr").flatMap((row) =>
+      children(row, "tc")
+        .slice(0, -1)
+        .map((cell) => normalize(text(cell)).replace(/\s*:\s*$/, ""))
+    );
+    return labels.includes("title") && labels.includes("source to wg");
+  });
+  if (coverTables.length !== 1) fail("template");
+  for (const table of coverTables)
     for (const row of children(table, "tr")) {
       const cells = children(row, "tc");
       for (let i = 0; i < cells.length - 1; i++) {
         const label = normalize(text(cells[i])).replace(/\s*:\s*$/, "");
-        const key = {
-          title: "title",
-          "source to wg": "source",
-          release: "release",
-        }[label];
+        const metadataLabels: Partial<Record<string, keyof ProposalMetadata>> =
+          {
+            title: "title",
+            "source to wg": "source",
+            release: "release",
+          };
+        const key = metadataLabels[label];
         if (!key) continue;
         if (metadata[key] !== undefined) fail("template");
         metadata[key] = clean(text(cells[i + 1]));
@@ -345,13 +410,19 @@ function locateProposal(doc) {
     }
   if (!metadata.title || !metadata.source || !spec || !metadata.release)
     fail("metadata");
-  const prefix = [];
+  const prefix: Element[] = [];
   for (const child of body.children) {
     if (child === form.table) break;
     if (child.localName === "p") prefix.push(child);
   }
-  const numbered = [];
-  for (const p of prefix) {
+  // Revision history may list older TDocs before the cover. Prefer the meeting
+  // header so those references are preserved rather than treated as candidates.
+  const headers = prefix.filter((p) => /3GPP.*Meeting/i.test(text(p)));
+  const numberParagraphs = headers.length
+    ? headers
+    : prefix.filter((p) => !/\brevision\s+of\b/i.test(text(p)));
+  const numbered: NumberLocation[] = [];
+  for (const p of numberParagraphs) {
     const value = text(p);
     for (const match of value.matchAll(
       /[A-Z][A-Z0-9]*-\d{2}[\da-z?_-]{2,}\b/gi
@@ -363,7 +434,7 @@ function locateProposal(doc) {
         value: match[0],
       });
   }
-  let tdoc;
+  let tdoc: NumberLocation;
   if (numbered.length === 1) tdoc = numbered[0];
   else if (!numbered.length) {
     // A blank number is supported only when an explicit tab separates it from the meeting name.
@@ -396,16 +467,28 @@ function locateProposal(doc) {
     !writable(tdoc.node)
   )
     fail("complex_field");
-  return { fields, metadata: { ...metadata, spec }, tdoc };
+  return {
+    fields,
+    metadata: {
+      title: metadata.title,
+      source: metadata.source,
+      release: metadata.release,
+      spec,
+    },
+    tdoc,
+  };
 }
 
-export function matchRecords(proposal, records) {
+export function matchRecords(
+  proposal: CRProposal,
+  records: SourcedRecord[]
+): MatchResult {
   const m = proposal.metadata;
   const sameTitle = records.filter(
     (r) => normalize(r.title) === normalize(m.title)
   );
   const exact = sameTitle.filter((r) =>
-    ["spec", "release", "source"].every(
+    (["spec", "release", "source"] as const).every(
       (key) => normalize(r[key]) === normalize(m[key])
     )
   );
@@ -421,18 +504,18 @@ export function matchRecords(proposal, records) {
           : "",
   };
 }
-const placeholder = (value, field) => {
+const placeholder = (value: string, field: FieldName): boolean => {
   if (!value) return true;
   if (field === "tdoc")
     return /^[A-Z][A-Z0-9]*-\d{2}[\da-z?_-]*[a-z?][\da-z?_-]*$/i.test(value);
   return /^(?:x+|tbd|\?+|待填写)$/i.test(value);
 };
 export function planProposal(
-  proposal,
-  record,
+  proposal: CRProposal,
+  record: SourcedRecord | undefined,
   allowConflicts = false,
-  naming = "number"
-) {
+  naming: NamingMode = "number"
+): ProposalPlan {
   if (
     !record ||
     !/^[A-Z][A-Z0-9]*-\d{6,}$/i.test(record.tdoc) ||
@@ -441,7 +524,9 @@ export function planProposal(
     (record.revision && !/^(?:-|\d+)$/.test(record.revision))
   )
     fail("record_values");
-  const metadataConflicts = ["spec", "release", "source"].filter(
+  const metadataConflicts: MetadataField[] = (
+    ["spec", "release", "source"] as const
+  ).filter(
     (key) => normalize(proposal.metadata[key]) !== normalize(record[key])
   );
   const changes = FIELD_NAMES.map((field) => {
@@ -475,10 +560,12 @@ export function planProposal(
   };
 }
 
-export function duplicateNames(plans) {
-  const counts = new Map();
+export function duplicateNames(
+  plans: readonly ({ ready?: boolean; outputName?: string } | null)[]
+): Set<string> {
+  const counts = new Map<string, number>();
   for (const plan of plans)
-    if (plan?.ready)
+    if (plan?.ready && plan.outputName)
       counts.set(
         normalize(plan.outputName),
         (counts.get(normalize(plan.outputName)) || 0) + 1
@@ -487,10 +574,15 @@ export function duplicateNames(plans) {
     [...counts].filter(([, count]) => count > 1).map(([name]) => name)
   );
 }
-export const isDuplicateName = (name, duplicates) =>
-  duplicates.has(normalize(name));
+export const isDuplicateName = (
+  name: string,
+  duplicates: ReadonlySet<string>
+): boolean => duplicates.has(normalize(name));
 
-export async function generateProposal(proposal, plan) {
+export async function generateProposal(
+  proposal: CRProposal,
+  plan: ProposalPlan
+): Promise<FileBytes> {
   if (!plan.ready) fail("unconfirmed");
   // Re-read the original package so preview and export never share mutable XML nodes.
   const entries = unpack(proposal.bytes);
@@ -524,8 +616,11 @@ export async function generateProposal(proposal, plan) {
   return zipSync(entries, { level: 6 });
 }
 
-export function packageResults(results, report) {
-  const entries = Object.create(null);
+export function packageResults(
+  results: ExportFile[],
+  report: readonly unknown[]
+): FileBytes {
+  const entries: Record<string, FileBytes> = Object.create(null);
   for (const result of results) {
     if (entries[result.name]) fail("duplicate");
     entries[result.name] = result.bytes;

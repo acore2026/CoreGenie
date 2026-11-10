@@ -18,6 +18,7 @@ import ErrorBoundaryFallback from "./components/ErrorBoundaryFallback";
 import { SETTINGS_RETURN_PATH } from "@/utils/constants";
 import NetworkAuthGuard from "@/components/NetworkAuthGuard";
 import { isSettingsModalPath } from "@/utils/settingsModal";
+import { AnnouncementProvider } from "@/components/Announcements";
 
 export default function App() {
   const location = useLocation();
@@ -46,13 +47,15 @@ export default function App() {
             <LogoProvider>
               <PfpProvider>
                 <I18nextProvider i18n={i18n}>
-                  <NetworkAuthGuard />
-                  <Suspense fallback={<FullScreenLoader />}>
-                    <StableOutlet />
-                  </Suspense>
-                  <ToastContainer />
-                  <KeyboardShortcutsHelp />
-                  <ImageLightbox />
+                  <AnnouncementProvider>
+                    <NetworkAuthGuard />
+                    <Suspense fallback={<FullScreenLoader />}>
+                      <StableOutlet />
+                    </Suspense>
+                    <ToastContainer />
+                    <KeyboardShortcutsHelp />
+                    <ImageLightbox />
+                  </AnnouncementProvider>
                 </I18nextProvider>
               </PfpProvider>
             </LogoProvider>

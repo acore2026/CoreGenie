@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from "react";
+import GlobalKnowledgeWindow from "@/components/GlobalKnowledge";
 import {
   CaretDown,
   ChatCircleText,
+  Books,
   CircleNotch,
   FolderPlus,
   MagnifyingGlass,
@@ -172,7 +174,7 @@ function SearchResults({ searchResults, searchTerm, loading }) {
           to: paths.workspace.thread(thread.workspace.slug, thread.slug),
           name: thread.name,
           hint: thread.owner?.username
-            ? `${thread.workspace.name} · ${thread.owner.username}`
+            ? `${thread.workspace.name} · ${thread.owner.displayName || thread.owner.username}`
             : thread.workspace.name,
         }))}
       />
@@ -229,6 +231,7 @@ export function CreateMenuButton({ showNewWsModal }) {
   const menuRef = useRef(null);
   const [open, setOpen] = useState(false);
   const [creatingThread, setCreatingThread] = useState(false);
+  const [knowledgeOpen, setKnowledgeOpen] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -307,9 +310,9 @@ export function CreateMenuButton({ showNewWsModal }) {
         data-tooltip-id="sidebar-create-tooltip"
         data-tooltip-content={t("sidebar-create.title")}
         onClick={() => setOpen((value) => !value)}
-        className={`flex h-9 min-w-9 items-center justify-center gap-0.5 rounded-md border-none px-2 text-theme-text-secondary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-button-primary ${open ? "bg-theme-sidebar-item-hover text-theme-text-primary" : "hover:bg-theme-sidebar-item-hover hover:text-theme-text-primary"}`}
+        className={`flex h-9 min-w-10 items-center justify-center gap-1 rounded-md border-none bg-primary-button px-2.5 text-black shadow-sm transition-[filter,transform,box-shadow] duration-150 hover:brightness-95 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-button-primary focus-visible:ring-offset-2 focus-visible:ring-offset-theme-bg-chat ${open ? "brightness-95" : ""}`}
       >
-        <Plus size={16} weight="bold" className="text-theme-text-primary" />
+        <Plus size={17} weight="bold" />
         <CaretDown
           size={9}
           weight="bold"
@@ -364,7 +367,32 @@ export function CreateMenuButton({ showNewWsModal }) {
               </span>
             </span>
           </button>
+          <div className="my-1 border-t border-theme-sidebar-border" />
+          <button
+            type="button"
+            role="menuitem"
+            className="dsh-menu-item group"
+            onClick={() => {
+              setOpen(false);
+              setKnowledgeOpen(true);
+            }}
+          >
+            <span className="flex h-7 w-7 items-center justify-center text-theme-text-secondary">
+              <Books size={16} />
+            </span>
+            <span className="flex flex-col leading-tight">
+              <span className="font-semibold">
+                {t("globalKnowledge.title")}
+              </span>
+              <span className="mt-0.5 text-[11px] text-theme-text-secondary">
+                {t("globalKnowledge.menuHint")}
+              </span>
+            </span>
+          </button>
         </div>
+      )}
+      {knowledgeOpen && (
+        <GlobalKnowledgeWindow onClose={() => setKnowledgeOpen(false)} />
       )}
       <Tooltip
         id="sidebar-create-tooltip"

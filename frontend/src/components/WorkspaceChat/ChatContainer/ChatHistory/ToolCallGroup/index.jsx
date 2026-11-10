@@ -10,6 +10,7 @@ import {
   Wrench,
 } from "@phosphor-icons/react";
 import { useTranslation } from "react-i18next";
+import { toolActivityText } from "@/utils/userFacingError.mjs";
 
 const ACTIVE = new Set(["requested", "running", "started", "retrying"]);
 const FINISHED = new Set(["completed", "failed", "cancelled", "skipped"]);
@@ -91,7 +92,7 @@ export default function ToolCallGroup({ callIds, tools, runActive }) {
     now,
     t
   );
-  const detail = current?.error ? null : current?.result_summary;
+  const detail = toolActivityText(current);
 
   useEffect(() => {
     if (!active) return;
@@ -166,7 +167,7 @@ export default function ToolCallGroup({ callIds, tools, runActive }) {
               t
             );
             const toolDuration = duration(tool, now, t);
-            const summary = tool.error || tool.result_summary;
+            const summary = toolActivityText(tool);
             return (
               <li key={tool.call_id} className="dsh-tool-entry">
                 <ToolIcon

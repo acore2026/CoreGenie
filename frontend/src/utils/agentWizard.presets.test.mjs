@@ -22,6 +22,61 @@ const tasks = quickTasks.map((key) =>
   )
 );
 
+const downloadTasks = [
+  "proposal-topic-analysis",
+  "legacy-5aac4ef13454e29828a21342",
+].map((key) =>
+  require("yaml").parse(
+    readFileSync(
+      new URL(`../../../agent-config/quick-tasks/${key}.yaml`, import.meta.url),
+      "utf8"
+    )
+  )
+);
+
+test("download-only hides analysis questions and clears their previous answers", () => {
+  const analysisIds = [
+    "analysis_mode",
+    "companies",
+    "other_companies",
+    "focus",
+    "detail",
+    "notes",
+  ];
+  for (const task of downloadTasks) {
+    assert.equal(task.version, 1);
+    const before = {
+      action: "download_analyze",
+      analysis_mode: "single",
+      group: "SA2",
+      meeting: [{ id: "176", label: "SA2#176" }],
+      companies: ["other"],
+      other_companies: "Apple",
+      focus: ["solution"],
+      detail: "detailed",
+      notes: "分析用户面",
+    };
+    const shown = visibleFields(task, before).map((field) => field.id);
+    for (const id of analysisIds) assert.ok(shown.includes(id), id);
+    const after = updateAnswer(task, before, "action", "download");
+    const ids = visibleFields(task, after).map((field) => field.id);
+    for (const id of analysisIds) {
+      assert.equal(ids.includes(id), false, id);
+      assert.equal(after[id], undefined, id);
+    }
+    assert.ok(ids.includes("meeting"));
+    assert.ok(ids.includes("ki_sa2_0"));
+    const prompt = generatePrompt(task, { ...before, action: "download" });
+    assert.match(prompt, /任务动作：仅下载/);
+    assert.doesNotMatch(
+      prompt,
+      /分析方式：|关注的公司：|分析重点：|报告详细程度：|补充要求：|Apple|分析用户面/
+    );
+    const restored = updateAnswer(task, after, "action", "download_analyze");
+    for (const id of analysisIds) assert.equal(restored[id], undefined);
+  }
+});
+
 test("KI choices appear before any meeting is selected, for every group", () => {
   for (const task of tasks) {
     const groups = task.fields.find((f) => f.id === "group").options;

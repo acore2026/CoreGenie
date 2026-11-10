@@ -54,7 +54,9 @@ export default function AddMemberModal({ closeModal, workspace, users }) {
 
   const filteredUsers = users
     .filter((user) =>
-      user.username.toLowerCase().includes(searchTerm.toLowerCase())
+      [user.displayName, user.employeeNumber, user.username].some((value) =>
+        value?.toLowerCase().includes(searchTerm.toLowerCase())
+      )
     )
     .filter((user) => user.role !== "admin")
     .filter((user) => user.role !== "manager");
@@ -107,7 +109,7 @@ export default function AddMemberModal({ closeModal, workspace, users }) {
                       )}
                     </div>
                     <p className="text-theme-text-primary text-sm font-medium">
-                      {user.username}
+                      {user.displayName || user.username}
                     </p>
                   </tr>
                 ))

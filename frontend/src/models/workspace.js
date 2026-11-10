@@ -4,6 +4,7 @@ import { fetchEventSource } from "@microsoft/fetch-event-source";
 import WorkspaceThread from "@/models/workspaceThread";
 import { v4 } from "uuid";
 import { ABORT_STREAM_EVENT } from "@/utils/chat";
+import { orderWorkspaces } from "@/utils/workspaceOrder.mjs";
 
 const Workspace = {
   workspaceOrderStorageKey: "anythingllm-workspace-order",
@@ -38,6 +39,14 @@ const Workspace = {
         return result;
       })
       .catch((error) => ({ invite: null, error: error.message }));
+  },
+  creationMembers: async function () {
+    const response = await fetch(`${API_BASE}/workspace/new/members`, {
+      headers: baseHeaders(),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.message || "成员列表加载失败。");
+    return result.users || [];
   },
   update: async function (slug, data = {}) {
     const { workspace, message } = await fetch(
@@ -700,22 +709,11 @@ const Workspace = {
   },
 
   /**
-   * Orders workspaces based on the order preference stored in localstorage
+   * Orders created workspaces before memberships, then naturally by name.
    * @param {Array} workspaces - array of workspace JSON objects
    * @returns {Array} - ordered workspaces
    */
-  orderWorkspaces: function (workspaces = []) {
-    const workspaceOrderPreference =
-      safeJsonParse(localStorage.getItem(this.workspaceOrderStorageKey)) || [];
-    if (workspaceOrderPreference.length === 0) return workspaces;
-    const orderedWorkspaces = Array.from(workspaces);
-    orderedWorkspaces.sort(
-      (a, b) =>
-        workspaceOrderPreference.indexOf(a.id) -
-        workspaceOrderPreference.indexOf(b.id)
-    );
-    return orderedWorkspaces;
-  },
+  orderWorkspaces,
 
   /**
    * Searches for workspaces and threads

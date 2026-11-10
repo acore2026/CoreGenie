@@ -1,3 +1,4 @@
+import tsParser from "@typescript-eslint/parser"
 import js from "@eslint/js"
 import globals from "globals"
 import pluginReact from "eslint-plugin-react"
@@ -6,7 +7,7 @@ import pluginPrettier from "eslint-plugin-prettier"
 import configPrettier from "eslint-config-prettier"
 import unusedImports from "eslint-plugin-unused-imports"
 
-export default [
+const config = [
   {
     ignores: ["**/*.min.js", "src/media/**/*"]
   },
@@ -77,4 +78,21 @@ export default [
       ]
     }
   }
+]
+
+
+// TypeScript adoption is scoped to local tools. The existing JS rules stay intact.
+export default [
+  ...config,
+  {
+    ...config[2],
+    files: ["src/pages/LocalTools/**/*.{ts,tsx}", "src/utils/localTools/**/*.ts"],
+    languageOptions: { ...config[2].languageOptions, parser: tsParser },
+    rules: {
+      ...config[2].rules,
+      // The TypeScript compiler checks names and unused declarations.
+      "no-undef": "off",
+      "unused-imports/no-unused-vars": "off",
+    },
+  },
 ]

@@ -17,6 +17,7 @@ import { CLOSE_MOBILE_SIDEBAR_EVENT } from "./events";
 import { useTranslation } from "react-i18next";
 import { ModalPortalContext } from "@/components/ModalWrapper";
 import UserButton from "@/components/UserMenu/UserButton";
+import AnnouncementButton from "@/components/Announcements";
 
 const navControl =
   "flex h-10 items-center gap-2.5 rounded-md px-2.5 text-sm text-theme-text-primary transition-colors hover:bg-theme-sidebar-item-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-button-primary";
@@ -104,6 +105,7 @@ export default function Sidebar() {
                   />
                 </div>
                 <HelpShortcut iconOnly />
+                <AnnouncementButton />
               </div>
               <Footer />
             </div>
@@ -125,6 +127,7 @@ export default function Sidebar() {
             <div className="mt-auto flex flex-col items-center gap-2">
               <UserButton inline menuAlign="left" menuPlacement="top" />
               <HelpShortcut iconOnly />
+              <AnnouncementButton />
             </div>
           </div>
         )}
@@ -183,7 +186,7 @@ export function SidebarMobileHeader() {
         <div className="pointer-events-none absolute left-1/2 flex -translate-x-1/2 items-center justify-center">
           <SidebarBrand logo={logo} isCustomLogo={isCustomLogo} compact />
         </div>
-        <span className="h-10 w-10" aria-hidden="true" />
+        <AnnouncementButton />
       </div>
       <dialog
         ref={setDialog}
@@ -311,7 +314,8 @@ function WorkspaceAndThreadTooltips() {
 function LocalToolsLink({ iconOnly = false }) {
   const { t } = useTranslation();
   const { pathname } = useLocation();
-  const active = pathname === paths.tools();
+  const active =
+    pathname === paths.tools() || pathname.startsWith(`${paths.tools()}/`);
   return (
     <Link
       to={paths.tools()}

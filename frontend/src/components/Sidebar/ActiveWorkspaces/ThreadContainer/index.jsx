@@ -5,14 +5,23 @@ import ThreadItem from "./ThreadItem";
 import { useNavigate, useParams } from "react-router-dom";
 import useHoverMetaKey from "./hooks";
 import { THREAD_CREATED_EVENT, THREAD_RENAME_EVENT } from "../../events";
+import { THREAD_DELETED_EVENT } from "../../events";
 import paths from "@/utils/paths";
 import showToast from "@/utils/toast";
 import { useTranslation } from "react-i18next";
+import useWorkspaceFavorites from "@/hooks/useWorkspaceFavorites";
+import {
+  favoritesFirst,
+  threadFavoriteId,
+} from "@/utils/workspaceFavorites.mjs";
 
 export { THREAD_CREATED_EVENT, THREAD_RENAME_EVENT } from "../../events";
 
 export default function ThreadContainer({ workspace, expanded = true }) {
   const { t } = useTranslation();
+  const { favorites, toggle } = useWorkspaceFavorites();
+  const isFavorite = (thread) =>
+    favorites.threads.includes(threadFavoriteId(workspace.id, thread.slug));
   const { slug, threadSlug = null } = useParams();
   const navigate = useNavigate();
   const [threads, setThreads] = useState([]);
@@ -73,10 +82,18 @@ export default function ThreadContainer({ workspace, expanded = true }) {
 
     window.addEventListener(THREAD_RENAME_EVENT, chatHandler);
     window.addEventListener(THREAD_CREATED_EVENT, createdHandler);
+    const deletedHandler = ({ detail }) => {
+      if (detail?.workspaceSlug !== workspace.slug) return;
+      updateThreads((current) =>
+        current.filter((thread) => thread.slug !== detail.threadSlug)
+      );
+    };
+    window.addEventListener(THREAD_DELETED_EVENT, deletedHandler);
 
     return () => {
       window.removeEventListener(THREAD_RENAME_EVENT, chatHandler);
       window.removeEventListener(THREAD_CREATED_EVENT, createdHandler);
+      window.removeEventListener(THREAD_DELETED_EVENT, deletedHandler);
     };
   }, [workspace.slug]);
 
@@ -146,14 +163,6 @@ export default function ThreadContainer({ workspace, expanded = true }) {
     updateThreads((prev) => prev.filter((thread) => thread.id !== threadId));
   }
 
-  function getActiveThreadIdx() {
-    if (slug !== workspace.slug) return -1;
-    const idx = threads.findIndex((t) => t?.slug === threadSlug);
-    if (idx >= 0) return idx + (defaultThreadHasChats ? 1 : 0);
-    if (!threadSlug && defaultThreadHasChats) return 0;
-    return -1;
-  }
-
   if (!expanded) return null;
 
   if (loading) {
@@ -168,21 +177,28 @@ export default function ThreadContainer({ workspace, expanded = true }) {
       <button
         type="button"
         onClick={() => setRetry((value) => value + 1)}
-        className="min-h-10 w-full px-8 text-left text-xs text-theme-text-secondary hover:bg-theme-sidebar-subitem-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-button-primary"
+        className="min-h-10 w-full px-8 text-left text-xs text-theme-text-secondary hover:bg-theme-sidebar-subitem-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-button"
       >
         {t("workspace_list.retry")}
       </button>
     );
   }
 
-  const activeThreadIdx = getActiveThreadIdx();
-  const rows = defaultThreadHasChats
+  const unorderedRows = defaultThreadHasChats
     ? [{ slug: null, name: t("workspace_list.default_thread") }, ...threads]
     : threads;
+  const rows = favoritesFirst(unorderedRows, isFavorite);
+  const activeThreadIdx =
+    slug === workspace.slug
+      ? rows.findIndex((thread) => thread.slug === threadSlug)
+      : -1;
   const visibleRows =
     showAll || ctrlPressed
       ? rows
-      : rows.filter((_, index) => index < 5 || index === activeThreadIdx);
+      : rows.filter(
+          (thread, index) =>
+            isFavorite(thread) || index < 5 || index === activeThreadIdx
+        );
   const hiddenCount = rows.length - visibleRows.length;
 
   return (
@@ -201,6 +217,11 @@ export default function ThreadContainer({ workspace, expanded = true }) {
           workspace={workspace}
           onRemove={removeThread}
           thread={thread}
+          starred={isFavorite(thread)}
+          onToggleStar={() => {
+            if (!toggle("threads", threadFavoriteId(workspace.id, thread.slug)))
+              showToast(t("favorites.save_failed"), "error");
+          }}
         />
       ))}
       {rows.length === 0 && (
@@ -213,7 +234,7 @@ export default function ThreadContainer({ workspace, expanded = true }) {
           type="button"
           aria-expanded={showAll}
           onClick={() => setShowAll((value) => !value)}
-          className="min-h-10 w-full pl-12 pr-2 text-left text-xs text-theme-text-secondary hover:bg-theme-sidebar-subitem-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-theme-button-primary"
+          className="min-h-10 w-full pl-12 pr-2 text-left text-xs text-theme-text-secondary hover:bg-theme-sidebar-subitem-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-button"
         >
           {showAll
             ? t("workspace_list.show_less")
@@ -267,7 +288,7 @@ export function CreateThreadButton({ workspace, onCreated }) {
       aria-busy={creatingThread}
       aria-label={t("workspace_list.create_thread", { name: workspace.name })}
       title={t("sidebar-create.thread")}
-      className="flex h-9 w-8 shrink-0 items-center justify-center text-theme-text-secondary hover:bg-theme-sidebar-subitem-hover hover:text-theme-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-theme-button-primary disabled:cursor-wait disabled:opacity-50"
+      className="flex h-9 w-8 shrink-0 items-center justify-center text-theme-text-secondary hover:bg-theme-sidebar-subitem-hover hover:text-theme-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-button disabled:cursor-wait disabled:opacity-50"
     >
       {creatingThread ? (
         <CircleNotch size={16} weight="bold" className="animate-spin" />

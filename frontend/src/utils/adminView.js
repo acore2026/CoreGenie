@@ -1,5 +1,6 @@
 import Admin from "@/models/admin";
 import { ADMIN_VIEW } from "@/utils/constants";
+import { visibleOutsideAdminView } from "./adminWorkspaceVisibility.mjs";
 
 export const ADMIN_VIEW_CHANGED_EVENT = "admin-view-changed";
 
@@ -38,11 +39,7 @@ export async function assignedAdminWorkspaces(
     return assignedWorkspaceCache.get(cacheKey);
 
   const workspaces = await Admin.workspaces();
-  const assigned = workspaces
-    .filter((workspace) =>
-      workspace.userIds?.some((id) => Number(id) === Number(userId))
-    )
-    .map((workspace) => ({ ...workspace, viewerAccess: "manager" }));
+  const assigned = visibleOutsideAdminView(workspaces, userId);
   assignedWorkspaceCache.set(cacheKey, assigned);
   return assigned;
 }

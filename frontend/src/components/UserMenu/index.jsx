@@ -1,5 +1,6 @@
 import UserButton from "./UserButton";
 import { useMatch } from "react-router-dom";
+import { AnnouncementSession } from "@/components/Announcements";
 
 export default function UserMenu({ children }) {
   const isHome = !!useMatch("/");
@@ -9,6 +10,7 @@ export default function UserMenu({ children }) {
 
   return (
     <div className="w-auto h-auto">
+      <AnnouncementSession />
       {children}
       {!isChatSurface && <UserButton />}
     </div>

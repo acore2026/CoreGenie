@@ -36,6 +36,8 @@ export default function usePredefinedAgent() {
 
   useEffect(() => {
     refresh();
+    window.addEventListener("displayOrderChanged", refresh);
+    return () => window.removeEventListener("displayOrderChanged", refresh);
   }, [refresh]);
 
   useEffect(() => {

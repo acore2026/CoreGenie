@@ -22,6 +22,12 @@ import {
 import { PENDING_HOME_MESSAGE } from "@/utils/constants";
 import { useTranslation } from "react-i18next";
 import { getConversationRuntime } from "@/utils/chat/conversationRuntime";
+import useThreadDraftLifecycle from "@/hooks/useThreadDraftLifecycle";
+import { touchThreadDraft } from "@/utils/threadDraft";
+import {
+  PROMPT_INPUT_EVENT,
+  PROMPT_INPUT_ID,
+} from "./ChatContainer/PromptInput";
 
 const conversationCache = new Map();
 const CONVERSATION_LOAD_TIMEOUT_MS = 15_000;
@@ -43,26 +49,51 @@ export default function WorkspaceChat({
   const [retryVersion, setRetryVersion] = useState(0);
   const [dragging, setDragging] = useState(false);
   const pendingFilesRef = useRef([]);
+  const pendingDestinationRef = useRef("rag");
+  const pendingDraftRef = useRef(null);
   const requestedKey = requestedWorkspaceSlug
     ? `${requestedWorkspaceSlug}:${threadSlug ?? "default"}`
     : "none";
+
+  // Register before history loads so rapid navigation also cleans unused threads.
+  useThreadDraftLifecycle(
+    { slug: requestedWorkspaceSlug },
+    loaded?.key === requestedKey ? loaded.thread : { slug: threadSlug }
+  );
 
   // When the thread becomes available and we have pending files, trigger upload
   useEffect(() => {
     if (loaded?.threadSlug && pendingFilesRef.current.length > 0) {
       const files = pendingFilesRef.current;
       pendingFilesRef.current = [];
+      if (pendingDraftRef.current !== null) {
+        window.dispatchEvent(
+          new CustomEvent(PROMPT_INPUT_EVENT, {
+            detail: { messageContent: pendingDraftRef.current },
+          })
+        );
+        pendingDraftRef.current = null;
+      }
       window.dispatchEvent(
-        new CustomEvent(PASTE_ATTACHMENT_EVENT, { detail: { files } })
+        new CustomEvent(PASTE_ATTACHMENT_EVENT, {
+          detail: { files, destination: pendingDestinationRef.current },
+        })
       );
     }
   }, [loaded?.threadSlug]);
 
-  async function handleDropWithoutThread(acceptedFiles) {
+  async function handleDropWithoutThread(acceptedFiles, _rejected, event) {
     setDragging(false);
+    pendingDestinationRef.current =
+      event?.type === "change" ? "rag" : "conversation";
     pendingFilesRef.current = acceptedFiles;
     const { thread } = await Workspace.threads.new(workspace.slug);
-    if (thread) navigate(paths.workspace.thread(workspace.slug, thread.slug));
+    if (thread) {
+      touchThreadDraft(thread.slug);
+      pendingDraftRef.current =
+        document.getElementById(PROMPT_INPUT_ID)?.value ?? "";
+      navigate(paths.workspace.thread(workspace.slug, thread.slug));
+    }
   }
 
   useEffect(() => {

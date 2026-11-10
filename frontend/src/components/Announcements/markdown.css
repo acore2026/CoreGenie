@@ -1,0 +1,118 @@
+.announcement-markdown {
+  color: var(--theme-text-primary);
+  font-size: 14px;
+  line-height: 1.75;
+  overflow-wrap: anywhere;
+}
+.announcement-markdown > :first-child {
+  margin-top: 0;
+}
+.announcement-markdown > :last-child {
+  margin-bottom: 0;
+}
+.announcement-markdown p,
+.announcement-markdown ul,
+.announcement-markdown ol,
+.announcement-markdown pre,
+.announcement-markdown blockquote {
+  margin: 12px 0;
+}
+.announcement-markdown h1,
+.announcement-markdown h2,
+.announcement-markdown h3,
+.announcement-markdown h4 {
+  margin: 24px 0 12px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.announcement-markdown h1 {
+  font-size: 24px;
+}
+.announcement-markdown h2 {
+  font-size: 20px;
+}
+.announcement-markdown h3 {
+  font-size: 17px;
+}
+.announcement-markdown strong {
+  font-weight: 600;
+}
+.announcement-markdown ul {
+  list-style: disc;
+  padding-left: 24px;
+}
+.announcement-markdown ol {
+  list-style: decimal;
+  padding-left: 24px;
+}
+.announcement-markdown li + li {
+  margin-top: 4px;
+}
+.announcement-markdown a {
+  color: var(--theme-text-primary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.announcement-markdown a:hover {
+  opacity: 0.75;
+}
+.announcement-markdown a:focus-visible {
+  outline: 2px solid var(--theme-button-primary);
+  outline-offset: 3px;
+}
+.announcement-markdown blockquote {
+  border-left: 3px solid var(--theme-sidebar-border);
+  padding-left: 16px;
+  color: var(--theme-text-secondary);
+}
+.announcement-markdown code {
+  border-radius: 4px;
+  background: var(--theme-bg-container);
+  padding: 2px 4px;
+  font-size: 0.9em;
+}
+.announcement-markdown pre {
+  max-width: 100%;
+  overflow-x: auto;
+  border-radius: 8px;
+  background: var(--theme-bg-container);
+  padding: 16px;
+}
+.announcement-markdown pre code {
+  padding: 0;
+  background: transparent;
+}
+.announcement-markdown table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  margin: 16px 0;
+}
+.announcement-markdown th,
+.announcement-markdown td {
+  border: 1px solid var(--theme-sidebar-border);
+  padding: 8px 12px;
+  text-align: left;
+}
+.announcement-markdown th {
+  font-weight: 600;
+}
+.announcement-markdown img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+}
+.announcement-markdown hr {
+  border-color: var(--theme-sidebar-border);
+  margin: 20px 0;
+}
+
+.announcement-dialog[open] {
+  display: block;
+}
+@media (max-width: 767px) {
+  .announcements-admin > .system-settings-sidebar {
+    display: none;
+  }
+}

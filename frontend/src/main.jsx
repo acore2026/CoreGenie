@@ -28,12 +28,31 @@ const router = createBrowserRouter([
       {
         path: "/",
         lazy: async () => {
-          const { default: Main } = await import("@/pages/Main");
-          return { element: <PrivateRoute Component={Main} /> };
+          const Main = React.lazy(() => import("@/pages/Main"));
+          const { default: Landing } = await import("@/pages/Landing");
+          return {
+            element: <PrivateRoute Component={Main} GuestComponent={Landing} />,
+          };
+        },
+      },
+      {
+        path: "/welcome",
+        lazy: async () => {
+          const { default: Landing } = await import("@/pages/Landing");
+          return { element: <Landing /> };
         },
       },
       {
         path: "/tools",
+        lazy: async () => {
+          const { default: ToolCatalog } = await import(
+            "@/pages/LocalTools/Catalog"
+          );
+          return { element: <PrivateRoute Component={ToolCatalog} /> };
+        },
+      },
+      {
+        path: "/tools/proposal-fill",
         lazy: async () => {
           const { default: LocalTools } = await import("@/pages/LocalTools");
           return { element: <PrivateRoute Component={LocalTools} /> };
@@ -55,6 +74,13 @@ const router = createBrowserRouter([
         lazy: async () => {
           const { default: Register } = await import("@/pages/Register");
           return { element: <Register /> };
+        },
+      },
+      {
+        path: "/oauth/complete",
+        lazy: async () => {
+          const { OAuthComplete } = await import("@/pages/Login/OAuth");
+          return { element: <OAuthComplete /> };
         },
       },
       {
@@ -357,6 +383,15 @@ const router = createBrowserRouter([
         },
       },
       {
+        path: "/settings/announcements",
+        lazy: async () => {
+          const { default: Announcements } = await import(
+            "@/pages/Admin/Announcements"
+          );
+          return { element: <AdminRoute Component={Announcements} /> };
+        },
+      },
+      {
         path: "/settings/users",
         lazy: async () => {
           const { default: AdminUsers } = await import("@/pages/Admin/Users");
@@ -378,7 +413,7 @@ const router = createBrowserRouter([
           const { default: GlobalKnowledge } = await import(
             "@/pages/Admin/GlobalKnowledge"
           );
-          return { element: <AdminRoute Component={GlobalKnowledge} /> };
+          return { element: <PrivateRoute Component={GlobalKnowledge} /> };
         },
       },
       // Onboarding Flow

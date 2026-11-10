@@ -8,6 +8,7 @@ import StatusBadge from "./StatusBadge";
 import ScheduledJobs from "@/models/scheduledJobs";
 import showToast from "@/utils/toast";
 import { formatDuration } from "@/utils/numbers";
+import { userFacingErrorKey } from "@/utils/userFacingError.mjs";
 
 /**
  * Format a run's elapsed time as ms / s / m.
@@ -105,7 +106,9 @@ export default function RunRow({ run, jobId, workspaceSlug = null, onKilled }) {
             : "font-medium text-white light:text-slate-950"
         }`}
       >
-        {run.error || "—"}
+        {run.error && ["failed", "partial", "timed_out"].includes(run.status)
+          ? t(userFacingErrorKey(run.error))
+          : "—"}
       </span>
     </button>
   );

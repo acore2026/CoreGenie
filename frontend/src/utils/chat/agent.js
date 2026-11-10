@@ -130,6 +130,7 @@ function legacyEventFromAgentRun(event) {
     type.startsWith("context.") ||
     type.startsWith("skill.") ||
     type.startsWith("subagent.") ||
+    type === "artifacts.updated" ||
     type.startsWith("run.")
   )
     return {
@@ -165,6 +166,7 @@ function legacyEventFromAgentRun(event) {
         chatId: payload.chatId,
         agentRunId: runId,
         parts: payload.parts,
+        outputs: payload.outputs,
         agentRunEvent: {
           id: event.id,
           runId,
@@ -430,8 +432,10 @@ export function reduceAgentRunState(state, event) {
     activities: [...(state?.activities || [])],
     resourceTraces: [...(state?.resourceTraces || [])],
     messageParts: [...(state?.messageParts || [])],
+    outputs: state?.outputs || [],
   };
   const { type, payload = {} } = event;
+  if (Array.isArray(payload.outputs)) next.outputs = payload.outputs;
   if (type === "activity.updated") {
     next.phase = payload.phase || next.phase;
     next.summary = payload.summary || next.summary;
@@ -1002,6 +1006,9 @@ export default function handleSocketResponse(socket, event, setChatHistory) {
                   return {
                     ...msg,
                     chatId: data.content.chatId,
+                    ...(Array.isArray(data.content.outputs)
+                      ? { outputs: data.content.outputs }
+                      : {}),
                     ...(Array.isArray(data.content.parts)
                       ? { messageParts: data.content.parts }
                       : {}),

@@ -88,10 +88,10 @@ export default function WorkspaceModelPicker({ workspaceSlug = null }) {
     return null;
 
   return (
-    <div className="relative inline-grid h-7 min-w-[64px] max-w-[120px] shrink overflow-hidden md:max-w-[220px]">
+    <div className="relative inline-grid h-7 min-w-[64px] max-w-full shrink overflow-hidden">
       <span
         aria-hidden="true"
-        className="invisible col-start-1 row-start-1 whitespace-nowrap py-0 pl-2 pr-7 text-right text-xs font-medium"
+        className="invisible col-start-1 row-start-1 whitespace-nowrap py-0 pl-2 pr-12 text-right text-xs font-medium"
       >
         {selectedLabel}
       </span>

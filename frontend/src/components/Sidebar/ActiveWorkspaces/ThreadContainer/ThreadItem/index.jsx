@@ -8,6 +8,7 @@ import {
   DotsThree,
   PencilSimple,
   Trash,
+  Star,
   X,
 } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
@@ -31,6 +32,8 @@ export default function ThreadItem({
   onRemove,
   toggleMarkForDeletion,
   ctrlPressed = false,
+  starred = false,
+  onToggleStar,
 }) {
   const { t } = useTranslation();
   const { slug: urlSlug, threadSlug = null } = useParams();
@@ -49,7 +52,7 @@ export default function ThreadItem({
   const [deleting, setDeleting] = useState(false);
   const canModify =
     workspace.viewerAccess !== "public_readonly" && thread.canModify !== false;
-  const ownerName = thread.owner?.username;
+  const ownerName = thread.owner?.displayName || thread.owner?.username;
   const ownerLabel = ownerName
     ? t("chat_window.thread_by", { username: ownerName })
     : null;
@@ -191,7 +194,7 @@ export default function ThreadItem({
                 <button
                   type="button"
                   aria-label={t("workspace_list.undo_mark")}
-                  className="flex h-9 w-8 shrink-0 items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-button-primary"
+                  className="flex h-9 w-8 shrink-0 items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-button"
                   onClick={() => toggleMarkForDeletion(thread.id)}
                 >
                   <ArrowCounterClockwise
@@ -221,7 +224,7 @@ export default function ThreadItem({
                   }
                 }}
                 aria-label={t("workspace_list.rename_thread")}
-                className="h-8 w-full border border-theme-sidebar-border bg-theme-bg-chat px-2 text-sm text-theme-text-primary focus:outline-none focus:ring-2 focus:ring-theme-button-primary"
+                className="h-8 w-full border border-theme-sidebar-border bg-theme-bg-chat px-2 text-sm text-theme-text-primary focus:outline-none focus:ring-2 focus:ring-primary-button"
               />
             </div>
           ) : (
@@ -234,10 +237,10 @@ export default function ThreadItem({
               data-tooltip-id="workspace-thread-name"
               data-tooltip-content={threadTooltip}
               title={threadTooltip}
-              className={`flex min-h-9 w-full min-w-0 items-center gap-1.5 overflow-hidden py-1 pl-4 pr-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-theme-button-primary ${
+              className={`flex min-h-9 w-full min-w-0 items-center gap-1.5 overflow-hidden py-1 pl-4 pr-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-button ${
                 ctrlPressed
                   ? "md:pr-8"
-                  : "md:group-hover/thread:pr-8 md:group-focus-within/thread:pr-8"
+                  : "md:pr-10 md:group-hover/thread:pr-[72px] md:group-focus-within/thread:pr-[72px]"
               }`}
               aria-current={isActive ? "page" : ""}
             >
@@ -267,16 +270,16 @@ export default function ThreadItem({
               )}
             </Link>
           )}
-          {canModify && !!thread.slug && !thread.deleted && !thread.virtual && (
+          {!thread.deleted && !thread.virtual && (
             <div
               ref={optionsContainer}
               className="flex items-center md:absolute md:inset-y-0 md:right-0"
             >
-              {ctrlPressed ? (
+              {ctrlPressed && canModify && thread.slug ? (
                 <button
                   type="button"
                   aria-label={t("workspace_list.mark_delete")}
-                  className="flex h-9 w-8 shrink-0 items-center justify-center bg-transparent hover:bg-theme-sidebar-subitem-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-button-primary"
+                  className="flex h-9 w-8 shrink-0 items-center justify-center bg-transparent hover:bg-theme-sidebar-subitem-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-button"
                   onClick={() => toggleMarkForDeletion(thread.id)}
                 >
                   <X
@@ -286,24 +289,41 @@ export default function ThreadItem({
                   />
                 </button>
               ) : (
-                <div
-                  className={`flex items-center ${showOptions ? "" : "md:pointer-events-none md:opacity-0 md:group-hover/thread:pointer-events-auto md:group-hover/thread:opacity-100 md:group-focus-within/thread:pointer-events-auto md:group-focus-within/thread:opacity-100"}`}
-                >
-                  <button
-                    type="button"
-                    className="flex h-9 w-8 shrink-0 items-center justify-center bg-transparent hover:bg-theme-sidebar-subitem-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-theme-button-primary"
-                    onClick={() => {
-                      setContextPoint(null);
-                      setShowOptions(!showOptions);
-                    }}
-                    aria-label={t("workspace_list.thread_options")}
-                    aria-expanded={showOptions}
-                  >
-                    <DotsThree
-                      className="text-slate-300 light:text-theme-text-secondary hover:text-white hover:light:text-theme-text-primary"
-                      size={22}
-                    />
-                  </button>
+                <div className="flex items-center">
+                  {onToggleStar && (
+                    <button
+                      type="button"
+                      onClick={onToggleStar}
+                      aria-pressed={starred}
+                      aria-label={t(
+                        starred
+                          ? "favorites.unstar_thread"
+                          : "favorites.star_thread",
+                        { name: thread.name }
+                      )}
+                      title={t(starred ? "favorites.unstar" : "favorites.star")}
+                      className={`flex h-9 w-8 shrink-0 items-center justify-center hover:bg-theme-sidebar-subitem-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-button ${starred ? "text-amber-400 light:text-amber-700" : "text-theme-text-secondary md:opacity-0 md:group-hover/thread:opacity-100 md:group-focus-within/thread:opacity-100"}`}
+                    >
+                      <Star size={14} weight={starred ? "fill" : "regular"} />
+                    </button>
+                  )}
+                  {canModify && !!thread.slug && (
+                    <button
+                      type="button"
+                      className={`flex h-9 w-8 shrink-0 items-center justify-center bg-transparent hover:bg-theme-sidebar-subitem-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-button ${showOptions ? "" : "md:opacity-0 md:group-hover/thread:opacity-100 md:group-focus-within/thread:opacity-100"}`}
+                      onClick={() => {
+                        setContextPoint(null);
+                        setShowOptions(!showOptions);
+                      }}
+                      aria-label={t("workspace_list.thread_options")}
+                      aria-expanded={showOptions}
+                    >
+                      <DotsThree
+                        className="text-slate-300 light:text-theme-text-secondary hover:text-white hover:light:text-theme-text-primary"
+                        size={22}
+                      />
+                    </button>
+                  )}
                 </div>
               )}
               {showOptions && (

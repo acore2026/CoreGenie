@@ -107,7 +107,9 @@ function ExistingUserJoin({ invite }) {
           {workspace?.name || t("workspace-invite.a-workspace")}
         </h1>
         <p className="mt-3 text-sm leading-6 text-theme-text-secondary">
-          {t("workspace-invite.join-as", { username: user?.username })}
+          {t("workspace-invite.join-as", {
+            username: user?.displayName || user?.username,
+          })}
         </p>
 
         {error && (

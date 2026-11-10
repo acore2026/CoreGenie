@@ -1,11 +1,12 @@
-import { useRef, useState } from "react";
+import { useRef, useState, type ChangeEvent } from "react";
+import { Link } from "react-router-dom";
+import paths from "@/utils/paths";
 import { isMobile } from "react-device-detect";
 import {
   DownloadSimple,
   FileDoc,
   FileXls,
-  ShieldCheck,
-  Wrench,
+  ArrowLeft,
   X,
 } from "@phosphor-icons/react";
 import { useTranslation } from "react-i18next";
@@ -24,36 +25,57 @@ import {
   packageResults,
 } from "@/utils/localTools/proposalFill";
 
+import type { TOptions } from "i18next";
+import type {
+  ExportFile,
+  MeetingFile,
+  NamingMode,
+  ProposalItem,
+  ProposalPlan,
+  PlanFailure,
+  SourcedRecord,
+} from "@/utils/localTools/types";
+
+type ToolPlan = ProposalPlan | PlanFailure | null;
+interface MeetingSelection {
+  files: MeetingFile[];
+  records: SourcedRecord[];
+}
+
 const control =
   "min-h-[40px] rounded-md border border-theme-sidebar-border px-3 py-2 text-sm transition-colors hover:bg-theme-sidebar-item-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-button disabled:cursor-not-allowed disabled:opacity-40";
 const primary = `${control} bg-primary-button text-slate-950 hover:bg-primary-button hover:brightness-95`;
 const input =
   "min-h-[40px] w-full rounded-md border border-theme-sidebar-border bg-theme-bg-chat px-3 py-2 text-sm text-theme-text-primary focus:outline-none focus:ring-2 focus:ring-primary-button disabled:opacity-40";
-const pause = () => new Promise((resolve) => setTimeout(resolve, 0));
+const pause = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
-export default function LocalTools({ standalone = false }) {
+export default function LocalTools({
+  standalone = false,
+}: {
+  standalone?: boolean;
+}) {
   const { t } = useTranslation();
-  const tr = (key, params) => t(`local_tools.${key}`, params);
-  const [meeting, setMeeting] = useState(null);
-  const [items, setItems] = useState([]);
+  const tr = (key: string, params?: TOptions): string =>
+    t(`local_tools.${key}`, params);
+  const [meeting, setMeeting] = useState<MeetingSelection | null>(null);
+  const [items, setItems] = useState<ProposalItem[]>([]);
   const [busy, setBusy] = useState("");
   const [progress, setProgress] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [naming, setNaming] = useState("number");
-  const excelRef = useRef(null);
-  const excelFolderRef = useRef(null);
-  const docsRef = useRef(null);
-  const folderRef = useRef(null);
+  const [naming, setNaming] = useState<NamingMode>("number");
+  const excelRef = useRef<HTMLInputElement>(null);
+  const docsRef = useRef<HTMLInputElement>(null);
+  const folderRef = useRef<HTMLInputElement>(null);
   const operation = useRef(false);
   const nextId = useRef(0);
-  const errorText = (error) =>
+  const errorText = (error: unknown): string =>
     error instanceof LocalToolError
       ? tr(`errors.${error.code}`, error.params)
       : tr("errors.read_failed");
   const locked = Boolean(busy);
   const hasRecords = Boolean(meeting?.records.length);
-  const plans = items.map((item) => {
+  const plans: ToolPlan[] = items.map((item) => {
     if (!item.proposal || !item.selectedId || !meeting || item.excluded)
       return null;
     try {
@@ -71,14 +93,14 @@ export default function LocalTools({ standalone = false }) {
   const canExport = plans.some(
     (plan) => plan?.ready && !isDuplicateName(plan.outputName, duplicates)
   );
-  const updateItem = (id, changes) => {
+  const updateItem = (id: string, changes: Partial<ProposalItem>) => {
     setNotice("");
     setItems((current) =>
       current.map((item) => (item.id === id ? { ...item, ...changes } : item))
     );
   };
 
-  function applyMeetingFiles(files) {
+  function applyMeetingFiles(files: MeetingFile[]) {
     const records = mergeMeetingLists(files);
     setMeeting(files.length ? { files, records } : null);
     setItems((current) =>
@@ -96,19 +118,11 @@ export default function LocalTools({ standalone = false }) {
     setNotice("");
   }
 
-  async function selectMeeting(event, folder = false) {
+  async function selectMeeting(event: ChangeEvent<HTMLInputElement>) {
     const chosen = [...(event.target.files || [])];
     event.target.value = "";
     if (!chosen.length || operation.current) return;
-    const files = folder
-      ? chosen.filter(
-          (file) => /\.xlsx$/i.test(file.name) && !file.name.startsWith("~$")
-        )
-      : chosen;
-    if (!files.length) {
-      setError(tr("errors.no_meeting_files"));
-      return;
-    }
+    const files = chosen;
     const existing = meeting?.files || [];
     if (existing.length + files.length > LIMITS.meetingFiles) {
       setError(tr("errors.meeting_count"));
@@ -127,7 +141,7 @@ export default function LocalTools({ standalone = false }) {
     setError("");
     setNotice("");
     try {
-      const additions = [];
+      const additions: MeetingFile[] = [];
       for (let index = 0; index < files.length; index++) {
         const file = files[index];
         setProgress(
@@ -137,7 +151,7 @@ export default function LocalTools({ standalone = false }) {
           })
         );
         await pause();
-        const entry = {
+        const entry: MeetingFile = {
           id: `meeting-${++nextId.current}`,
           name: file.webkitRelativePath || file.name,
           size: file.size,
@@ -157,7 +171,10 @@ export default function LocalTools({ standalone = false }) {
     }
   }
 
-  async function selectDocuments(event, folder = false) {
+  async function selectDocuments(
+    event: ChangeEvent<HTMLInputElement>,
+    folder = false
+  ) {
     const chosen = [...(event.target.files || [])];
     event.target.value = "";
     if (!chosen.length || operation.current) return;
@@ -193,7 +210,10 @@ export default function LocalTools({ standalone = false }) {
           tr("read_progress", { current: index + 1, total: files.length })
         );
         await pause();
-        const item = {
+        const item: ProposalItem = {
+          candidates: [],
+          selectedId: "",
+          reason: "",
           id: `proposal-${++nextId.current}`,
           file,
           confirmed: false,
@@ -203,7 +223,7 @@ export default function LocalTools({ standalone = false }) {
           item.proposal = await readProposal(file);
           Object.assign(
             item,
-            hasRecords
+            meeting?.records.length
               ? matchRecords(item.proposal, meeting.records)
               : { candidates: [], selectedId: "", reason: "" }
           );
@@ -228,8 +248,8 @@ export default function LocalTools({ standalone = false }) {
     setItems((current) =>
       current.map((item) => ({ ...item, exportError: "" }))
     );
-    const results = [];
-    const report = [];
+    const results: ExportFile[] = [];
+    const report: Record<string, unknown>[] = [];
     try {
       for (let index = 0; index < items.length; index++) {
         const item = items[index];
@@ -245,7 +265,7 @@ export default function LocalTools({ standalone = false }) {
               : !plan?.ready
                 ? tr("pending")
                 : "");
-        if (!reason) {
+        if (!reason && plan?.ready && item.proposal) {
           setProgress(
             tr("export_progress", { current: index + 1, total: items.length })
           );
@@ -262,7 +282,7 @@ export default function LocalTools({ standalone = false }) {
         }
         report.push({
           [tr("report.original")]: item.file.name,
-          [tr("report.output")]: reason ? "" : plan.outputName,
+          [tr("report.output")]: reason ? "" : plan?.outputName || "",
           [tr("report.status")]: reason || tr("report.success"),
           [tr("report.record")]: plan?.record
             ? `${plan.record.sourceFile} / TDoc_List / ${tr("row", { row: plan.record.row })}`
@@ -313,22 +333,60 @@ export default function LocalTools({ standalone = false }) {
       >
         <div className="mx-auto max-w-5xl space-y-6">
           <header>
-            <p className="flex items-center gap-2 text-sm text-theme-text-secondary">
-              <Wrench size={18} />
-              {tr("nav")}
-            </p>
-            <h1 className="mt-2 text-2xl font-semibold">{tr("title")}</h1>
-            <p className="mt-2 text-sm leading-6 text-theme-text-secondary">
+            {!standalone && (
+              <Link
+                to={paths.tools()}
+                className={`${control} inline-flex items-center gap-2 text-theme-text-secondary`}
+              >
+                <ArrowLeft size={16} />
+                {tr("back_to_tools")}
+              </Link>
+            )}
+            <h1 className="mt-4 text-2xl font-semibold">{tr("title")}</h1>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-theme-text-secondary">
               {tr("description")}
             </p>
-            <p className="mt-3 flex items-start gap-2 rounded-lg border border-theme-sidebar-border px-3 py-3 text-sm leading-6">
-              <ShieldCheck
-                size={20}
-                className="mt-0.5 shrink-0 text-emerald-500"
-              />
+            <p className="mt-2 text-xs leading-5 text-theme-text-secondary">
               {tr("privacy")}
             </p>
           </header>
+
+          <section
+            aria-label={tr("example_title")}
+            className="rounded-lg border border-theme-sidebar-border p-4 md:p-5"
+          >
+            <h2 className="font-medium">{tr("example_title")}</h2>
+            <p className="mt-2 text-sm leading-6 text-theme-text-secondary">
+              {tr("example_context")}
+            </p>
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <div className="min-w-0">
+                <h3 className="text-xs font-medium text-theme-text-secondary">
+                  {tr("example_before")}
+                </h3>
+                <p className="mt-2 break-all font-mono text-sm">
+                  C4-26xxxx.docx
+                </p>
+                <p className="mt-1 text-sm text-theme-text-secondary">
+                  {tr("example_before_values")}
+                </p>
+              </div>
+              <div className="min-w-0 border-t border-theme-sidebar-border pt-4 md:border-l md:border-t-0 md:pl-4 md:pt-0">
+                <h3 className="text-xs font-medium text-theme-text-secondary">
+                  {tr("example_after")}
+                </h3>
+                <p className="mt-2 break-all font-mono text-sm">
+                  C4-265196.docx
+                </p>
+                <p className="mt-1 text-sm text-theme-text-secondary">
+                  {tr("example_after_values")}
+                </p>
+              </div>
+            </div>
+            <p className="mt-4 text-xs leading-5 text-theme-text-secondary">
+              {tr("example_note")}
+            </p>
+          </section>
 
           <section
             className="grid gap-4 md:grid-cols-2"
@@ -352,32 +410,14 @@ export default function LocalTools({ standalone = false }) {
                 onChange={selectMeeting}
                 disabled={locked}
               />
-              <input
-                ref={excelFolderRef}
-                type="file"
-                webkitdirectory=""
-                multiple
-                className="hidden"
-                aria-label={tr("choose_meeting_folder")}
-                onChange={(event) => selectMeeting(event, true)}
-                disabled={locked}
-              />
               <div className="mt-4 flex flex-wrap gap-2">
                 <button
                   type="button"
                   className={control}
                   disabled={locked}
-                  onClick={() => excelRef.current.click()}
+                  onClick={() => excelRef.current?.click()}
                 >
                   {tr("choose_excel")}
-                </button>
-                <button
-                  type="button"
-                  className={control}
-                  disabled={locked}
-                  onClick={() => excelFolderRef.current.click()}
-                >
-                  {tr("choose_meeting_folder")}
                 </button>
                 {meeting && (
                   <button
@@ -424,7 +464,7 @@ export default function LocalTools({ standalone = false }) {
                           ) : (
                             <p className="mt-1 text-xs text-theme-text-secondary">
                               {tr("meeting_record_count", {
-                                count: file.records.length,
+                                count: file.records?.length || 0,
                               })}
                             </p>
                           )}
@@ -483,7 +523,7 @@ export default function LocalTools({ standalone = false }) {
                   type="button"
                   className={control}
                   disabled={locked || !hasRecords}
-                  onClick={() => docsRef.current.click()}
+                  onClick={() => docsRef.current?.click()}
                 >
                   {tr("choose_documents")}
                 </button>
@@ -491,7 +531,7 @@ export default function LocalTools({ standalone = false }) {
                   type="button"
                   className={control}
                   disabled={locked || !hasRecords}
-                  onClick={() => folderRef.current.click()}
+                  onClick={() => folderRef.current?.click()}
                 >
                   {tr("choose_folder")}
                 </button>
@@ -503,9 +543,13 @@ export default function LocalTools({ standalone = false }) {
             <summary className="cursor-pointer rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-button">
               {tr("rules_title")}
             </summary>
-            <p className="mt-3 leading-6 text-theme-text-secondary">
-              {tr("rules")}
-            </p>
+            <ul className="mt-3 list-disc space-y-2 pl-5 leading-6 text-theme-text-secondary">
+              {(
+                t("local_tools.rules", { returnObjects: true }) as string[]
+              ).map((rule) => (
+                <li key={rule}>{rule}</li>
+              ))}
+            </ul>
           </details>
           {error && (
             <p
@@ -565,7 +609,9 @@ export default function LocalTools({ standalone = false }) {
                   value={naming}
                   disabled={locked}
                   onChange={(event) => {
-                    setNaming(event.target.value);
+                    setNaming(
+                      event.target.value === "preserve" ? "preserve" : "number"
+                    );
                     setNotice("");
                   }}
                 >
@@ -679,16 +725,18 @@ export default function LocalTools({ standalone = false }) {
                                     </span>
                                   </div>
                                   <dl className="mt-2 grid grid-cols-2 gap-3 text-sm">
-                                    {["before", "after"].map((key) => (
-                                      <div key={key} className="min-w-0">
-                                        <dt className="text-xs text-theme-text-secondary">
-                                          {tr(key)}
-                                        </dt>
-                                        <dd className="mt-1 break-all font-mono">
-                                          {change[key] || tr("blank")}
-                                        </dd>
-                                      </div>
-                                    ))}
+                                    {(["before", "after"] as const).map(
+                                      (key) => (
+                                        <div key={key} className="min-w-0">
+                                          <dt className="text-xs text-theme-text-secondary">
+                                            {tr(key)}
+                                          </dt>
+                                          <dd className="mt-1 break-all font-mono">
+                                            {change[key] || tr("blank")}
+                                          </dd>
+                                        </div>
+                                      )
+                                    )}
                                   </dl>
                                 </div>
                               ))}
@@ -745,7 +793,7 @@ export default function LocalTools({ standalone = false }) {
                               >
                                 {tr("metadata_difference", {
                                   field: tr(`fields.${key}`),
-                                  before: item.proposal.metadata[key],
+                                  before: item.proposal?.metadata[key],
                                   after: plan.record[key],
                                 })}
                               </p>

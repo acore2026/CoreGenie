@@ -2,6 +2,8 @@ import { useMemo, useState } from "react";
 import { CaretDown, CheckCircle } from "@phosphor-icons/react";
 import AgentAnimation from "@/media/animations/agent-animation.webm";
 import AgentStatic from "@/media/animations/agent-static.png";
+import { activityText } from "@/utils/userFacingError.mjs";
+import { useTranslation } from "react-i18next";
 
 export default function AgentStatus({
   summary,
@@ -9,13 +11,17 @@ export default function AgentStatus({
   active = true,
   details = [],
 }) {
+  const { t } = useTranslation();
+  summary =
+    activityText(summary) ||
+    t(active ? "task_plan.working" : "user_error.step_stopped");
   const [expanded, setExpanded] = useState(false);
   const normalizedDetails = useMemo(() => {
     const seen = new Set();
     return details.reduce((lines, entry) => {
       const line =
         typeof entry === "string" ? entry : entry?.content || entry?.summary;
-      if (!line || seen.has(line)) return lines;
+      if (!activityText(line) || seen.has(line)) return lines;
       seen.add(line);
       lines.push(line);
       return lines;

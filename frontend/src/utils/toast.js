@@ -1,4 +1,9 @@
 import { toast } from "react-toastify";
+import i18n from "@/i18n";
+import {
+  isInternalDiagnostic,
+  userFacingErrorKey,
+} from "./userFacingError.mjs";
 
 /**
  * Resolves the effective theme (light or dark) using the same logic as useTheme,
@@ -22,6 +27,8 @@ function resolveTheme() {
  * @returns {void}
  */
 const showToast = (message, type = "default", opts = {}) => {
+  if (["error", "warning"].includes(type) && isInternalDiagnostic(message))
+    message = i18n.t(userFacingErrorKey(message));
   const resolved = resolveTheme();
   const options = {
     position: "bottom-center",

@@ -9,6 +9,7 @@ import showToast from "@/utils/toast";
 import { PROMPT_INPUT_EVENT } from "@/components/WorkspaceChat/ChatContainer/PromptInput";
 import useToolsMenuItems from "../../useToolsMenuItems";
 import SlashCommandRow from "./SlashCommandRow";
+import DisplayOrder from "@/components/DisplayOrder";
 
 export default function SlashCommandsTab({
   sendCommand,
@@ -175,6 +176,7 @@ export default function SlashCommandsTab({
       </div>
 
       {/* Modals */}
+      <DisplayOrder items={presets} kind="commands" onSaved={fetchPresets} />
       <AddPresetModal
         isOpen={isAddModalOpen}
         onClose={closeAddModal}

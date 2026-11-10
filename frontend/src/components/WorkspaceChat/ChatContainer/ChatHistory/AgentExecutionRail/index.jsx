@@ -18,6 +18,11 @@ import { v4 } from "uuid";
 import { useTranslation } from "react-i18next";
 import { reduceAgentRunState } from "@/utils/chat/agent";
 import ContextTrace from "../ContextTrace";
+import {
+  activityText,
+  toolActivityText,
+  userFacingErrorKey,
+} from "@/utils/userFacingError.mjs";
 
 const TERMINAL = new Set(["completed", "partial", "failed", "cancelled"]);
 const ACTIVE_TOOL_STATUSES = new Set([
@@ -85,8 +90,8 @@ const statusMeta = {
   },
   partial: {
     Icon: CheckCircle,
-    labelKey: "completed",
-    tone: "text-emerald-400 light:text-emerald-700",
+    labelKey: "partial",
+    tone: "text-amber-400 light:text-amber-700",
   },
 };
 
@@ -113,6 +118,13 @@ function toolName(toolId) {
 
 function localizedActivity(activity, t) {
   if (!activity) return "";
+  if (["tool_failed", "task_failed"].includes(activity.summaryKey)) return null;
+  if (["run_failed", "run_failed_with_error"].includes(activity.summaryKey))
+    return t(userFacingErrorKey(activity.summaryArgs?.error));
+  if (
+    ["task_retrying", "retrying_visible_response"].includes(activity.summaryKey)
+  )
+    return t("task_plan.working");
   if (activity.summaryKey)
     return t(
       `chat_window.agent_invocation.activity.${activity.summaryKey}`,
@@ -129,7 +141,7 @@ function localizedActivity(activity, t) {
     return t("chat_window.agent_invocation.activity.understanding", {
       request: summary.slice(understandingPrefix.length),
     });
-  return summary;
+  return activityText(summary);
 }
 
 function ToolExecutionRow({ tool, t }) {
@@ -141,7 +153,7 @@ function ToolExecutionRow({ tool, t }) {
   const Icon = active
     ? CircleNotch
     : failed
-      ? WarningCircle
+      ? MinusCircle
       : cancelled
         ? MinusCircle
         : skipped
@@ -156,7 +168,7 @@ function ToolExecutionRow({ tool, t }) {
         : skipped
           ? "text-zinc-500 light:text-slate-500"
           : "text-emerald-400 light:text-emerald-700";
-  const detail = tool.error || tool.result_summary;
+  const detail = toolActivityText(tool);
 
   return (
     <li className="grid min-h-9 grid-cols-[16px_minmax(0,1fr)_auto] items-start gap-2 rounded-md px-1 py-1.5">
@@ -176,9 +188,11 @@ function ToolExecutionRow({ tool, t }) {
         )}
       </span>
       <span className={`pt-0.5 text-[10px] font-semibold capitalize ${tone}`}>
-        {t(
-          `chat_window.agent_invocation.status.${active ? "running" : status}`
-        )}
+        {failed
+          ? t("user_error.step_stopped")
+          : t(
+              `chat_window.agent_invocation.status.${active ? "running" : status}`
+            )}
       </span>
     </li>
   );
@@ -234,9 +248,24 @@ function stateFromSnapshot(snapshot) {
   };
 }
 
-function TaskRow({ task, evidence, tools, onCommand, runActive, t }) {
+function TaskRow({
+  task,
+  evidence,
+  tools,
+  onCommand,
+  runActive,
+  runStatus,
+  t,
+}) {
   const [open, setOpen] = useState(false);
-  const meta = metaFor(task.status);
+  const fatal = ["failed", "partial"].includes(runStatus);
+  const meta = metaFor(
+    task.status === "failed" && !fatal
+      ? "skipped"
+      : task.status === "retrying"
+        ? "running"
+        : task.status
+  );
   const Icon = meta.Icon;
   const taskEvidence = evidence.filter((item) => item.task_id === task.id);
   const taskTools = tools.filter((item) => item.task_id === task.id);
@@ -273,7 +302,9 @@ function TaskRow({ task, evidence, tools, onCommand, runActive, t }) {
             )}
           </span>
           <span className="mt-0.5 block truncate text-[11px] leading-4 text-theme-text-secondary">
-            {task.progress || task.resultSummary || task.objective}
+            {activityText(task.progress) ||
+              activityText(task.resultSummary) ||
+              task.objective}
           </span>
         </span>
         <span className="flex items-center gap-2 pt-0.5 font-mono text-[10px] tabular-nums text-theme-text-secondary">
@@ -300,11 +331,11 @@ function TaskRow({ task, evidence, tools, onCommand, runActive, t }) {
       {open && (
         <div className="mb-2 ml-6 border-l border-white/[0.07] py-1 pl-3 text-[11px] leading-5 text-theme-text-secondary light:border-slate-200">
           <p className="m-0 whitespace-pre-wrap text-theme-text-primary">
-            {task.resultSummary || task.objective}
+            {activityText(task.resultSummary) || task.objective}
           </p>
-          {task.error && (
+          {task.error && fatal && task.status === "failed" && (
             <p className="m-0 mt-1 text-red-400 light:text-red-700">
-              {task.error}
+              {t(userFacingErrorKey(task.error))}
             </p>
           )}
           <div className="mt-1.5 flex flex-wrap gap-x-3 font-mono text-[10px] tabular-nums">
@@ -429,7 +460,7 @@ export default function AgentExecutionRail({
     .slice(-3);
   const localizedSummary = localizedActivity(
     state?.status === "partial"
-      ? { summaryKey: "run_completed" }
+      ? { summaryKey: "run_partial" }
       : {
           summary: state?.summary,
           summaryKey: state?.summaryKey,
@@ -530,6 +561,7 @@ export default function AgentExecutionRail({
                     tools={tools}
                     onCommand={sendCommand}
                     runActive={runActive}
+                    runStatus={state?.status}
                     t={t}
                   />
                 ))}

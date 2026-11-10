@@ -1,127 +1,93 @@
-import React, { useEffect, useState } from "react";
-import System from "../../../models/system";
-import { AUTH_TOKEN } from "../../../utils/constants";
-import paths from "../../../utils/paths";
-import ModalWrapper from "@/components/ModalWrapper";
+import { useEffect, useState } from "react";
+import { ArrowRight } from "@phosphor-icons/react";
+import System from "@/models/system";
+import { AUTH_TOKEN } from "@/utils/constants";
+import paths from "@/utils/paths";
 import { useModal } from "@/hooks/useModal";
 import RecoveryCodeModal from "@/components/Modals/DisplayRecoveryCodeModal";
 import { useTranslation } from "react-i18next";
+import { AuthHeading, AuthInput } from "@/components/PublicLayout";
 
-export default function SingleUserAuth() {
+export default function SingleUserAuth({ redirectTo = paths.home() }) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [recoveryCodes, setRecoveryCodes] = useState([]);
   const [downloadComplete, setDownloadComplete] = useState(false);
   const [token, setToken] = useState(null);
-  const [customAppName, setCustomAppName] = useState(null);
-
-  const {
-    isOpen: isRecoveryCodeModalOpen,
-    openModal: openRecoveryCodeModal,
-    closeModal: closeRecoveryCodeModal,
-  } = useModal();
-
-  const handleLogin = async (e) => {
+  const { isOpen, openModal, closeModal } = useModal();
+  const handleLogin = async (event) => {
+    event.preventDefault();
+    if (loading) return;
+    const form = new FormData(event.currentTarget);
     setError(null);
     setLoading(true);
-    e.preventDefault();
-    const data = {};
-    const form = new FormData(e.target);
-    for (var [key, value] of form.entries()) data[key] = value;
-    const { valid, token, message, recoveryCodes } =
-      await System.requestToken(data);
-    if (valid && !!token) {
-      setToken(token);
-      if (recoveryCodes) {
-        setRecoveryCodes(recoveryCodes);
-        openRecoveryCodeModal();
-      } else {
-        window.localStorage.setItem(AUTH_TOKEN, token);
-        window.location = paths.home();
+    try {
+      const result = await System.requestToken({
+        password: form.get("password"),
+      });
+      if (!result.valid || !result.token) {
+        setError(result.message || t("auth_page.failed"));
+        return;
       }
-    } else {
-      setError(message);
+      setToken(result.token);
+      if (result.recoveryCodes?.length) {
+        setRecoveryCodes(result.recoveryCodes);
+        openModal();
+      } else {
+        localStorage.setItem(AUTH_TOKEN, result.token);
+        window.location = redirectTo;
+      }
+    } catch {
+      setError(t("auth_page.failed"));
+    } finally {
       setLoading(false);
     }
-    setLoading(false);
   };
-
-  const handleDownloadComplete = () => {
-    setDownloadComplete(true);
-  };
-
   useEffect(() => {
     if (downloadComplete && token) {
-      window.localStorage.setItem(AUTH_TOKEN, token);
-      window.location = paths.home();
+      localStorage.setItem(AUTH_TOKEN, token);
+      window.location = redirectTo;
     }
-  }, [downloadComplete, token]);
-
-  useEffect(() => {
-    const fetchCustomAppName = async () => {
-      const { appName } = await System.fetchCustomAppName();
-      setCustomAppName(appName || "");
-      setLoading(false);
-    };
-    fetchCustomAppName();
-  }, []);
-
+  }, [downloadComplete, token, redirectTo]);
   return (
     <>
-      <form
-        onSubmit={handleLogin}
-        className="flex flex-col justify-center items-center"
-      >
-        <div className="flex items-start justify-between pt-7 pb-9">
-          <div className="flex items-center flex-col gap-y-[18px] max-w-[300px]">
-            <div className="flex gap-x-1">
-              <h3 className="text-white light:text-slate-950 text-3xl leading-[28px] font-medium text-center white-space-nowrap block">
-                {t("login.multi-user.welcome")}
-              </h3>
-            </div>
-            <p className="text-zinc-400 light:text-zinc-600 text-sm text-center">
-              {t("login.sign-in", { appName: customAppName || "CoreGenie" })}
-            </p>
-          </div>
-        </div>
-        <div className="w-full px-12">
-          <div className="w-full flex flex-col gap-y-3">
-            <div className="w-full flex flex-col gap-y-2">
-              <label className="text-zinc-300 light:text-slate-800 text-sm">
-                Password
-              </label>
-              <input
-                name="password"
-                type="password"
-                className="border-none bg-zinc-800 light:bg-slate-200 text-zinc-200 light:text-zinc-600 text-sm rounded-lg p-2.5 w-[300px] h-[34px] focus:outline-none focus:ring-1 focus:ring-sky-300"
-                required={true}
-                autoComplete="off"
-              />
-            </div>
-            {error && <p className="text-red-400 text-sm">Error: {error}</p>}
-          </div>
-        </div>
-        <div className="flex items-center px-12 mt-9 space-x-2 w-full flex-col gap-y-6">
-          <button
-            disabled={loading}
-            type="submit"
-            className="text-zinc-950 bg-white hover:bg-zinc-300 light:bg-sky-200 light:text-slate-950 light:hover:bg-sky-300 text-sm font-semibold rounded-lg border-primary-button h-[34px] w-full"
-          >
-            {loading
-              ? t("login.multi-user.validating")
-              : t("login.multi-user.login")}
-          </button>
-        </div>
+      <AuthHeading
+        title={t("auth_page.login_title")}
+        description={t("auth_page.login_description")}
+      />
+      <form onSubmit={handleLogin} className="auth-form">
+        <AuthInput
+          label={t("auth_page.password")}
+          name="password"
+          type="password"
+          required
+          autoComplete="current-password"
+          disabled={loading}
+        />
+        {error && (
+          <p className="auth-error" role="alert">
+            {error}
+          </p>
+        )}
+        <button
+          type="submit"
+          disabled={loading || isOpen}
+          className="public-button"
+        >
+          {t(
+            loading ? "login.multi-user.validating" : "login.multi-user.login"
+          )}
+          <ArrowRight size={18} />
+        </button>
       </form>
-
-      <ModalWrapper isOpen={isRecoveryCodeModalOpen} noPortal={true}>
+      {isOpen && (
         <RecoveryCodeModal
           recoveryCodes={recoveryCodes}
-          onDownloadComplete={handleDownloadComplete}
-          onClose={closeRecoveryCodeModal}
+          onDownloadComplete={() => setDownloadComplete(true)}
+          onClose={closeModal}
         />
-      </ModalWrapper>
+      )}
     </>
   );
 }

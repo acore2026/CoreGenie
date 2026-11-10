@@ -330,14 +330,14 @@ const SidebarOptions = ({ user = null, t }) => (
               roles: ["admin", "manager"],
             },
             {
+              btnText: t("announcements.manage"),
+              href: paths.settings.announcements(),
+              roles: ["admin"],
+            },
+            {
               btnText: t("settings.workspaces"),
               href: paths.settings.workspaces(),
               roles: ["admin", "manager"],
-            },
-            {
-              btnText: t("settings.global-knowledge"),
-              href: paths.settings.globalKnowledge(),
-              roles: ["admin"],
             },
             {
               hidden: !canViewChatHistory,

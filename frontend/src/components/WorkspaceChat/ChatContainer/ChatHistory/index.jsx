@@ -10,6 +10,7 @@ import HistoricalMessage from "./HistoricalMessage";
 import PromptReply from "./PromptReply";
 import ClarifyingQuestionCard from "./ClarifyingQuestion";
 import FileDownloadCard from "./FileDownloadCard";
+import HistoricalOutputs from "./HistoricalMessage/HistoricalOutputs";
 import ScheduledJobCreatedCard from "./ScheduledJobCreatedCard";
 import { useManageWorkspaceModal } from "../../../Modals/ManageWorkspace";
 import ManageWorkspace from "../../../Modals/ManageWorkspace";
@@ -301,6 +302,9 @@ function buildMessages({
         )
       : null;
     const agentRunState = relatedExecution?.agentRunState || null;
+    const outputs = agentRunState?.outputs?.length
+      ? agentRunState.outputs
+      : props.outputs || [];
     const runtime =
       props.runtime ||
       (agentRunState?.runtimeKey ? { key: agentRunState.runtimeKey } : null);
@@ -331,6 +335,7 @@ function buildMessages({
                 runState={props.agentRunState}
                 messageId={`${props.agentRunId}:pending`}
               />
+              <HistoricalOutputs outputs={outputs} />
             </div>
           );
         return acc;
@@ -355,6 +360,17 @@ function buildMessages({
           <WorkingIndicator
             key={`${props.agentRunId}:working`}
             status={props.agentRunState.status}
+          />
+        );
+      if (
+        !history.some(
+          (message) => message.uuid === `${props.agentRunId}:assistant`
+        )
+      )
+        acc.push(
+          <HistoricalOutputs
+            key={`${props.agentRunId}:outputs`}
+            outputs={outputs}
           />
         );
       return acc;
@@ -437,6 +453,9 @@ function buildMessages({
           agentStatus={agentRunState?.status}
         />
       );
+      acc.push(
+        <HistoricalOutputs key={`${props.uuid}:outputs`} outputs={outputs} />
+      );
     } else {
       acc.push(
         <HistoricalMessage
@@ -455,7 +474,7 @@ function buildMessages({
           saveEditedMessage={saveEditedMessage}
           forkThread={forkThread}
           metrics={props.metrics}
-          outputs={props.outputs}
+          outputs={outputs}
           clarifyingQuestions={props.clarifyingQuestions}
           agentTrace={props.agentTrace}
           subagentRuns={props.subagentRuns}

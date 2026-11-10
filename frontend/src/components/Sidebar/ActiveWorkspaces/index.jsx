@@ -16,11 +16,25 @@ import {
   FilePlus,
   GearSix,
   UserPlus,
+  Star,
 } from "@phosphor-icons/react";
 import useUser from "@/hooks/useUser";
 import { useTranslation } from "react-i18next";
 import ThreadContainer, { CreateThreadButton } from "./ThreadContainer";
-import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
+import { DragDropContext, Draggable } from "react-beautiful-dnd";
+import { v4 as uuidv4 } from "uuid";
+import { WorkspaceGroupSection, WorkspaceGroupDialog } from "./WorkspaceGroups";
+import {
+  GROUP_SCOPES,
+  workspaceScope,
+  removeWorkspaceGroup,
+  moveGroupedWorkspace,
+  effectiveWorkspaceGroups,
+  personalWorkspaceGroups,
+  assignWorkspaceGroups,
+  groupDropDestination,
+  workspaceGroupId,
+} from "@/utils/workspaceGroups.mjs";
 import showToast from "@/utils/toast";
 import { LAST_VISITED_WORKSPACE } from "@/utils/constants";
 import { safeJsonParse } from "@/utils/request";
@@ -33,6 +47,8 @@ import WorkspaceInviteModal from "@/components/Modals/WorkspaceInvite";
 import useAdminView from "@/hooks/useAdminView";
 import { assignedAdminWorkspaces } from "@/utils/adminView";
 import ContextMenu from "@/components/lib/ContextMenu";
+import useWorkspaceFavorites from "@/hooks/useWorkspaceFavorites";
+import useSidebarPreferences from "@/hooks/useSidebarPreferences";
 
 let cachedWorkspaces = null;
 let cachedOwner = null;
@@ -52,6 +68,12 @@ export default function ActiveWorkspaces() {
 function WorkspaceList({ adminView, canUseAdminView }) {
   const { t } = useTranslation();
   const { user, authToken } = useUser();
+  const { favorites, toggle: toggleFavorite } = useWorkspaceFavorites();
+  const [favoritesCollapsed, setFavoritesCollapsed] = useState(false);
+  function starWorkspace(workspace) {
+    if (!toggleFavorite("workspaces", workspace.id))
+      showToast(t("favorites.save_failed"), "error");
+  }
   const expansionKey = `workspace-expansion:${user?.id ?? "single-user"}`;
   const owner = `${user?.id ?? "single-user"}:${authToken ?? ""}:${adminView ? "admin" : "assigned"}`;
   const navigate = useNavigate();
@@ -67,6 +89,185 @@ function WorkspaceList({ adminView, canUseAdminView }) {
   const [selectedWs, setSelectedWs] = useState(null);
   const [inviteWorkspace, setInviteWorkspace] = useState(null);
   const [contextMenu, setContextMenu] = useState(null);
+  const {
+    preferences,
+    save: savePreferences,
+    ready,
+    saving,
+  } = useSidebarPreferences();
+  const canManageGlobal = !user || user.role === "admin";
+  const groupSettings = effectiveWorkspaceGroups(
+    preferences.groups,
+    preferences.globalGroups
+  );
+  const [groupDialog, setGroupDialog] = useState(null);
+  const [dragScope, setDragScope] = useState(null);
+  const [dragHeader, setDragHeader] = useState(null);
+  const dragHeaderRef = useRef(null);
+  useEffect(() => {
+    if (!dragScope) return;
+    function trackHeader(event) {
+      const point = event.touches?.[0] || event;
+      const header = [
+        ...document.querySelectorAll("[data-workspace-group-drop-target]"),
+      ].find((element) => {
+        if (element.dataset.workspaceGroupDropScope !== dragScope) return false;
+        const rect = element.getBoundingClientRect();
+        return (
+          rect.width > 0 &&
+          point.clientX >= rect.left &&
+          point.clientX <= rect.right &&
+          point.clientY >= rect.top &&
+          point.clientY <= rect.bottom
+        );
+      });
+      const id = header?.dataset.workspaceGroupDropTarget || null;
+      dragHeaderRef.current = id;
+      setDragHeader(id);
+    }
+    document.addEventListener("mousemove", trackHeader);
+    document.addEventListener("touchmove", trackHeader, { passive: true });
+    return () => {
+      document.removeEventListener("mousemove", trackHeader);
+      document.removeEventListener("touchmove", trackHeader);
+    };
+  }, [dragScope]);
+
+  function saveGroups(next) {
+    const personal = personalWorkspaceGroups(
+      preferences.groups,
+      groupSettings,
+      next,
+      preferences.globalGroups
+    );
+    return savePreferences(
+      { type: "groups", before: preferences.groups, next: personal },
+      { ...preferences, groups: personal }
+    );
+  }
+
+  function moveGroupWorkspaces(ids, targetId, sourceGroup) {
+    const sourceSettings = sourceGroup?.global
+      ? {
+          ...groupSettings,
+          assignments: preferences.globalGroups?.assignments || {},
+        }
+      : groupSettings;
+    if (
+      sourceGroup &&
+      ids.some((id) => {
+        const workspace = workspaces.find((workspace) => workspace.id === id);
+        return (
+          !workspace ||
+          workspaceGroupId(workspace, sourceSettings) !== sourceGroup.id
+        );
+      })
+    )
+      return false;
+    const next = assignWorkspaceGroups(
+      sourceSettings,
+      workspaces,
+      ids,
+      targetId
+    );
+    if (!next) return false;
+    if (sourceGroup?.global) {
+      if (!canManageGlobal) return false;
+      const target = groupSettings.groups.find(
+        (group) => group.id === targetId
+      );
+      if (target && !target.global) return false;
+      const assignments = { ...preferences.groups.assignments };
+      for (const id of ids)
+        if (assignments[id] === sourceGroup.id) delete assignments[id];
+      return savePreferences(
+        {
+          type: "global-group",
+          action: "move",
+          id: sourceGroup.id,
+          workspaceIds: ids,
+          targetGroupId: targetId,
+        },
+        {
+          ...preferences,
+          groups: {
+            ...preferences.groups,
+            assignments,
+            collapsed: next.collapsed,
+          },
+          globalGroups: {
+            ...preferences.globalGroups,
+            assignments: next.assignments,
+          },
+        }
+      );
+    }
+    return saveGroups(next);
+  }
+
+  function saveGroupDialog(value, global) {
+    if (global || groupDialog.group?.global) {
+      if (!canManageGlobal) return false;
+      const operation = groupDialog.group
+        ? {
+            type: "global-group",
+            action: "rename",
+            id: groupDialog.group.id,
+            name: value,
+          }
+        : {
+            type: "global-group",
+            action: "create",
+            scope: groupDialog.scope,
+            name: value,
+            ...(groupDialog.workspace
+              ? { workspaceId: groupDialog.workspace.id }
+              : {}),
+          };
+      if (!savePreferences(operation, preferences)) return false;
+      setGroupDialog(null);
+      return true;
+    }
+    let next = groupSettings;
+    if (groupDialog.mode === "assign") {
+      const assignments = { ...next.assignments };
+      if (GROUP_SCOPES.includes(value))
+        delete assignments[groupDialog.workspace.id];
+      else assignments[groupDialog.workspace.id] = value;
+      next = {
+        ...next,
+        assignments,
+        collapsed: { ...next.collapsed, [value]: false },
+      };
+    } else if (groupDialog.group) {
+      next = {
+        ...next,
+        groups: next.groups.map((group) =>
+          group.id === groupDialog.group.id ? { ...group, name: value } : group
+        ),
+      };
+    } else {
+      const group = {
+        id: `group-${uuidv4()}`,
+        scope: groupDialog.scope,
+        name: value,
+      };
+      next = {
+        ...next,
+        groups: [...next.groups, group],
+        collapsed: { ...next.collapsed, [group.scope]: false },
+        assignments: {
+          ...next.assignments,
+          ...(groupDialog.workspace
+            ? { [groupDialog.workspace.id]: group.id }
+            : {}),
+        },
+      };
+    }
+    if (!saveGroups(next)) return false;
+    setGroupDialog(null);
+    return true;
+  }
   const [expansion, setExpansion] = useState(() => {
     try {
       const value = JSON.parse(localStorage.getItem(expansionKey));
@@ -93,8 +294,6 @@ function WorkspaceList({ adminView, canUseAdminView }) {
           : await Workspace.all();
       const workspaces = Workspace.orderWorkspaces(visibleWorkspaces);
       if (cancelled) return;
-      cachedOwner = owner;
-      cachedWorkspaces = workspaces;
       setLoading(false);
       setWorkspaces(workspaces);
     }
@@ -103,6 +302,12 @@ function WorkspaceList({ adminView, canUseAdminView }) {
       cancelled = true;
     };
   }, [adminView, canUseAdminView, owner, user?.id]);
+
+  useEffect(() => {
+    if (loading) return;
+    cachedOwner = owner;
+    cachedWorkspaces = workspaces;
+  }, [loading, owner, workspaces]);
 
   useEffect(() => {
     if (loading || !workspaces.length) return;
@@ -128,10 +333,11 @@ function WorkspaceList({ adminView, canUseAdminView }) {
       const workspace = event.detail?.workspace;
       if (!workspace?.slug) return;
       setWorkspaces((current) => {
-        const next = current.some((item) => item.slug === workspace.slug)
-          ? current
-          : [...current, workspace];
-        cachedWorkspaces = next;
+        const next = Workspace.orderWorkspaces(
+          current.some((item) => item.slug === workspace.slug)
+            ? current
+            : [...current, workspace]
+        );
         return next;
       });
     };
@@ -139,10 +345,11 @@ function WorkspaceList({ adminView, canUseAdminView }) {
       const { workspaceSlug, name } = event.detail || {};
       if (!workspaceSlug || !name) return;
       setWorkspaces((current) => {
-        const next = current.map((item) =>
-          item.slug === workspaceSlug ? { ...item, name } : item
+        const next = Workspace.orderWorkspaces(
+          current.map((item) =>
+            item.slug === workspaceSlug ? { ...item, name } : item
+          )
         );
-        cachedWorkspaces = next;
         return next;
       });
     };
@@ -182,36 +389,49 @@ function WorkspaceList({ adminView, canUseAdminView }) {
     );
   }
 
-  /**
-   * Reorders workspaces in the UI via localstorage on client side.
-   * @param {number} startIndex - the index of the workspace to move
-   * @param {number} endIndex - the index to move the workspace to
-   */
-  function reorderWorkspaces(startIndex, endIndex) {
-    const reorderedWorkspaces = Array.from(workspaces);
-    const [removed] = reorderedWorkspaces.splice(startIndex, 1);
-    reorderedWorkspaces.splice(endIndex, 0, removed);
-    setWorkspaces(reorderedWorkspaces);
-    cachedWorkspaces = reorderedWorkspaces;
-    const success = Workspace.storeWorkspaceOrder(
-      reorderedWorkspaces.map((w) => w.id)
-    );
-    if (!success) {
-      showToast(t("workspace_list.reorder_failed"), "error");
-      const reload =
-        canUseAdminView && !adminView
-          ? assignedAdminWorkspaces(user.id, { refresh: true })
-          : Workspace.all();
-      reload.then((workspaces) => {
-        cachedWorkspaces = Workspace.orderWorkspaces(workspaces);
-        setWorkspaces(cachedWorkspaces);
-      });
-    }
+  function reorderWorkspaces(reorderedWorkspaces) {
+    setWorkspaces(Workspace.orderWorkspaces(reorderedWorkspaces));
   }
 
   const onDragEnd = (result) => {
-    if (!result.destination) return;
-    reorderWorkspaces(result.source.index, result.destination.index);
+    const header = dragHeaderRef.current;
+    dragHeaderRef.current = null;
+    setDragHeader(null);
+    setDragScope(null);
+    if (result.reason !== "DROP") return;
+    const destination = header
+      ? { droppableId: header, index: 0 }
+      : groupDropDestination(result.destination);
+    if (!destination) return;
+    if (result.source.droppableId === destination.droppableId) return;
+    const sourceGroup = groupSettings.groups.find(
+      (group) => group.id === result.source.droppableId
+    );
+    const targetGroup = groupSettings.groups.find(
+      (group) => group.id === destination.droppableId
+    );
+    const moving = workspaces.filter(
+      (workspace) =>
+        workspaceGroupId(workspace, groupSettings) === result.source.droppableId
+    )[result.source.index];
+    if (
+      moving &&
+      sourceGroup?.global &&
+      canManageGlobal &&
+      (!targetGroup || targetGroup.global) &&
+      preferences.globalGroups?.assignments?.[moving.id] === sourceGroup.id
+    ) {
+      moveGroupWorkspaces([moving.id], destination.droppableId, sourceGroup);
+      return;
+    }
+    const next = moveGroupedWorkspace(
+      workspaces,
+      groupSettings,
+      result.source,
+      destination
+    );
+    if (!next || !saveGroups(next.settings)) return;
+    reorderWorkspaces(next.workspaces);
   };
 
   function startWorkspaceRename(workspace) {
@@ -295,200 +515,349 @@ function WorkspaceList({ adminView, canUseAdminView }) {
     return workspaces[0]?.slug ?? null;
   })();
 
-  return (
-    <DragDropContext onDragEnd={onDragEnd}>
-      <Droppable droppableId="workspaces">
-        {(provided) => (
+  function renderWorkspace(workspace, index) {
+    const isVirtuallyActive = workspace.slug === virtualActiveSlug;
+    const isActive = workspace.slug === slug || isVirtuallyActive;
+    const isExpanded = expansion[workspace.slug] ?? isActive;
+    const canParticipate = workspace.viewerAccess !== "public_readonly";
+    return (
+      <Draggable
+        key={workspace.id}
+        draggableId={workspace.id.toString()}
+        index={index}
+        isDragDisabled={!ready || saving || renamingSlug === workspace.slug}
+      >
+        {(provided, snapshot) => (
           <div
-            role="list"
-            aria-label={t("workbench_nav.workspaces")}
-            className="flex flex-col gap-y-3"
             ref={provided.innerRef}
-            {...provided.droppableProps}
+            {...provided.draggableProps}
+            style={workspaceDragStyle(provided.draggableProps.style)}
+            className={`flex flex-col w-full group ${
+              snapshot.isDragging ? "opacity-50" : ""
+            }`}
+            role="listitem"
           >
-            {workspaces.map((workspace, index) => {
-              const isVirtuallyActive = workspace.slug === virtualActiveSlug;
-              const isActive = workspace.slug === slug || isVirtuallyActive;
-              const isExpanded = expansion[workspace.slug] ?? isActive;
-              const canParticipate =
-                workspace.viewerAccess !== "public_readonly";
-              return (
-                <Draggable
-                  key={workspace.id}
-                  draggableId={workspace.id.toString()}
-                  index={index}
-                >
-                  {(provided, snapshot) => (
-                    <div
-                      ref={provided.innerRef}
-                      {...provided.draggableProps}
-                      className={`flex flex-col w-full group ${
-                        snapshot.isDragging ? "opacity-50" : ""
-                      }`}
-                      role="listitem"
-                    >
-                      <div
-                        className="group/workspace relative flex min-h-10 items-center hover:bg-theme-sidebar-subitem-hover focus-within:bg-theme-sidebar-subitem-hover"
-                        onContextMenu={(event) => {
-                          const canManage = user?.role !== "default";
-                          if (!canManage && !canParticipate) return;
-                          event.preventDefault();
-                          setContextMenu({
-                            point: { x: event.clientX, y: event.clientY },
-                            workspace,
-                            canParticipate,
-                            canManage,
-                          });
-                        }}
-                      >
-                        <button
-                          type="button"
-                          aria-label={t(
-                            isExpanded
-                              ? "workspace_list.collapse"
-                              : "workspace_list.expand",
-                            { name: workspace.name }
-                          )}
-                          aria-expanded={isExpanded}
-                          aria-controls={`workspace-threads-${workspace.id}`}
-                          onClick={() =>
-                            toggleWorkspace(workspace.slug, isExpanded)
-                          }
-                          className="flex h-10 w-7 shrink-0 items-center justify-center text-theme-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-theme-button-primary"
-                        >
-                          <CaretDown
-                            size={14}
-                            className={isExpanded ? "" : "-rotate-90"}
-                          />
-                        </button>
-                        {renamingSlug === workspace.slug ? (
-                          <div className="flex min-w-0 flex-1 items-center pr-2">
-                            <input
-                              ref={renameInputRef}
-                              value={renameValue}
-                              onChange={(event) =>
-                                setRenameValue(event.target.value)
-                              }
-                              onBlur={() => commitWorkspaceRename(workspace)}
-                              onKeyDown={(event) => {
-                                if (event.key === "Enter") {
-                                  event.preventDefault();
-                                  event.currentTarget.blur();
-                                }
-                                if (event.key === "Escape") {
-                                  event.preventDefault();
-                                  renameCancelledRef.current = true;
-                                  setRenameValue(workspace.name);
-                                  setRenamingSlug(null);
-                                }
-                              }}
-                              aria-label={t("workspace_list.rename_workspace")}
-                              className="h-8 min-w-0 flex-1 border border-theme-sidebar-border bg-theme-bg-chat px-2 text-sm text-theme-text-primary focus:outline-none focus:ring-2 focus:ring-theme-button-primary"
-                            />
-                          </div>
-                        ) : (
-                          <>
-                            <span
-                              {...provided.dragHandleProps}
-                              aria-label={t("workspace_list.reorder", {
-                                name: workspace.name,
-                              })}
-                              title={t("workspace_list.reorder", {
-                                name: workspace.name,
-                              })}
-                              className="flex h-10 w-5 shrink-0 cursor-grab items-center justify-center text-theme-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-button-primary"
-                            >
-                              <Folder
-                                size={16}
-                                weight={isActive ? "fill" : "regular"}
-                              />
-                            </span>
-                            <Link
-                              to={paths.workspace.chat(workspace.slug)}
-                              onClick={(event) =>
-                                handleWorkspaceClick(event, workspace)
-                              }
-                              title={workspace.name}
-                              className={`flex h-10 min-w-0 flex-1 items-center py-0 pl-1 pr-[72px] text-sm text-theme-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-theme-button-primary md:pr-2 md:group-hover/workspace:pr-[72px] md:group-focus-within/workspace:pr-[72px] ${isActive ? "font-semibold" : "font-medium"}`}
-                            >
-                              <span className="truncate">{workspace.name}</span>
-                            </Link>
-                          </>
-                        )}
-                        {renamingSlug !== workspace.slug && (
-                          <div className="absolute inset-y-0 right-0 flex items-center md:opacity-0 md:group-hover/workspace:opacity-100 md:group-focus-within/workspace:opacity-100">
-                            {canParticipate && (
-                              <CreateThreadButton
-                                workspace={workspace}
-                                onCreated={() =>
-                                  setExpansion((current) => ({
-                                    ...current,
-                                    [workspace.slug]: true,
-                                  }))
-                                }
-                              />
-                            )}
-                            <WorkspaceActionsMenu
-                              workspace={workspace}
-                              isActive={isActive}
-                              isInWorkspaceSettings={isInWorkspaceSettings}
-                              canParticipate={canParticipate}
-                              canManage={user?.role !== "default"}
-                              onRename={() => startWorkspaceRename(workspace)}
-                              onInvite={() => setInviteWorkspace(workspace)}
-                              onOpenFiles={() => {
-                                setSelectedWs(workspace);
-                                showModal();
-                              }}
-                            />
-                          </div>
-                        )}
-                      </div>
-                      <div
-                        id={`workspace-threads-${workspace.id}`}
-                        hidden={!isExpanded}
-                      >
-                        <ThreadContainer
-                          workspace={workspace}
-                          expanded={isExpanded}
-                        />
-                      </div>
-                    </div>
+            <div
+              className="group/workspace relative flex min-h-10 items-center hover:bg-theme-sidebar-subitem-hover focus-within:bg-theme-sidebar-subitem-hover"
+              onContextMenu={(event) => {
+                const canManage = user?.role !== "default";
+                event.preventDefault();
+                setContextMenu({
+                  point: { x: event.clientX, y: event.clientY },
+                  workspace,
+                  canParticipate,
+                  canManage,
+                });
+              }}
+            >
+              <button
+                type="button"
+                aria-label={t(
+                  isExpanded
+                    ? "workspace_list.collapse"
+                    : "workspace_list.expand",
+                  { name: workspace.name }
+                )}
+                aria-expanded={isExpanded}
+                aria-controls={`workspace-threads-${workspace.id}`}
+                onClick={() => toggleWorkspace(workspace.slug, isExpanded)}
+                className="flex h-10 w-7 shrink-0 items-center justify-center text-theme-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-button"
+              >
+                <CaretDown
+                  size={14}
+                  className={isExpanded ? "" : "-rotate-90"}
+                />
+              </button>
+              {renamingSlug === workspace.slug ? (
+                <div className="flex min-w-0 flex-1 items-center pr-2">
+                  <input
+                    ref={renameInputRef}
+                    value={renameValue}
+                    onChange={(event) => setRenameValue(event.target.value)}
+                    onBlur={() => commitWorkspaceRename(workspace)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        event.currentTarget.blur();
+                      }
+                      if (event.key === "Escape") {
+                        event.preventDefault();
+                        renameCancelledRef.current = true;
+                        setRenameValue(workspace.name);
+                        setRenamingSlug(null);
+                      }
+                    }}
+                    aria-label={t("workspace_list.rename_workspace")}
+                    className="h-8 min-w-0 flex-1 border border-theme-sidebar-border bg-theme-bg-chat px-2 text-sm text-theme-text-primary focus:outline-none focus:ring-2 focus:ring-primary-button"
+                  />
+                </div>
+              ) : (
+                <>
+                  <Link
+                    {...provided.dragHandleProps}
+                    to={paths.workspace.chat(workspace.slug)}
+                    onClick={(event) => handleWorkspaceClick(event, workspace)}
+                    title={workspace.name}
+                    aria-current={isActive ? "page" : undefined}
+                    className={`flex h-10 min-w-0 flex-1 items-center py-0 pl-1 pr-[72px] text-sm text-theme-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-button md:pr-2 md:group-hover/workspace:pr-[72px] md:group-focus-within/workspace:pr-[72px] ${isActive ? "font-semibold" : "font-medium"}`}
+                  >
+                    <span className="truncate">{workspace.name}</span>
+                  </Link>
+                </>
+              )}
+              {renamingSlug !== workspace.slug && (
+                <div className="absolute inset-y-0 right-0 flex items-center md:opacity-0 md:group-hover/workspace:opacity-100 md:group-focus-within/workspace:opacity-100">
+                  {canParticipate && (
+                    <CreateThreadButton
+                      workspace={workspace}
+                      onCreated={() =>
+                        setExpansion((current) => ({
+                          ...current,
+                          [workspace.slug]: true,
+                        }))
+                      }
+                    />
                   )}
-                </Draggable>
-              );
-            })}
-            {provided.placeholder}
-            {contextMenu && (
-              <WorkspaceContextMenu
-                {...contextMenu}
-                onClose={() => setContextMenu(null)}
-                onRename={() => startWorkspaceRename(contextMenu.workspace)}
-                onInvite={() => setInviteWorkspace(contextMenu.workspace)}
-                onOpenFiles={() => {
-                  setSelectedWs(contextMenu.workspace);
-                  showModal();
-                }}
-              />
-            )}
-            {showing && (
-              <ManageWorkspace
-                hideModal={hideModal}
-                providedSlug={selectedWs ? selectedWs.slug : null}
-                initialTab="workspaceFiles"
-              />
-            )}
-            {inviteWorkspace && (
-              <WorkspaceInviteModal
-                workspace={inviteWorkspace}
-                hideModal={() => setInviteWorkspace(null)}
-              />
-            )}
+                  <WorkspaceActionsMenu
+                    workspace={workspace}
+                    isActive={isActive}
+                    isInWorkspaceSettings={isInWorkspaceSettings}
+                    canParticipate={canParticipate}
+                    canManage={user?.role !== "default"}
+                    onRename={() => startWorkspaceRename(workspace)}
+                    onGroup={() =>
+                      setGroupDialog({ mode: "assign", workspace })
+                    }
+                    starred={favorites.workspaces.includes(workspace.id)}
+                    onStar={() => starWorkspace(workspace)}
+                    onInvite={() => setInviteWorkspace(workspace)}
+                    onOpenFiles={() => {
+                      setSelectedWs(workspace);
+                      showModal();
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+            <div id={`workspace-threads-${workspace.id}`} hidden={!isExpanded}>
+              <ThreadContainer workspace={workspace} expanded={isExpanded} />
+            </div>
           </div>
         )}
-      </Droppable>
+      </Draggable>
+    );
+  }
+
+  return (
+    <DragDropContext
+      onDragEnd={onDragEnd}
+      onDragStart={(result) =>
+        setDragScope(
+          workspaceScope(
+            workspaces.find(
+              (workspace) => String(workspace.id) === result.draggableId
+            )
+          )
+        )
+      }
+    >
+      <div
+        className="flex flex-col gap-y-4"
+        aria-label={t("workbench_nav.workspaces")}
+      >
+        <section aria-label={t("favorites.workspaces")}>
+          <button
+            type="button"
+            onClick={() => setFavoritesCollapsed((value) => !value)}
+            aria-expanded={!favoritesCollapsed}
+            aria-controls="starred-workspaces"
+            className="flex h-10 w-full items-center gap-2 rounded-md px-2 text-xs font-semibold text-theme-text-secondary hover:bg-theme-sidebar-subitem-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-button"
+          >
+            <Star
+              size={15}
+              weight="fill"
+              className="text-amber-400 light:text-amber-700"
+            />
+            <span>{t("favorites.workspaces")}</span>
+            <span className="ml-auto font-mono text-[11px] tabular-nums">
+              {
+                workspaces.filter((workspace) =>
+                  favorites.workspaces.includes(workspace.id)
+                ).length
+              }
+            </span>
+            <CaretDown
+              size={12}
+              className={favoritesCollapsed ? "-rotate-90" : ""}
+            />
+          </button>
+          <div id="starred-workspaces" hidden={favoritesCollapsed}>
+            {workspaces
+              .filter((workspace) =>
+                favorites.workspaces.includes(workspace.id)
+              )
+              .map((workspace) => {
+                const group = groupSettings.groups.find(
+                  (group) =>
+                    group.id === groupSettings.assignments[workspace.id] &&
+                    group.scope === workspaceScope(workspace)
+                );
+                return (
+                  <div
+                    key={workspace.id}
+                    className="group/starred flex min-w-0 items-center rounded-md hover:bg-theme-sidebar-subitem-hover"
+                  >
+                    <Link
+                      to={paths.workspace.chat(workspace.slug)}
+                      onClick={(event) =>
+                        handleWorkspaceClick(event, workspace)
+                      }
+                      className="min-w-0 flex-1 rounded-md py-2 pl-7 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-button"
+                      title={workspace.name}
+                    >
+                      <span className="block truncate text-sm font-medium text-theme-text-primary">
+                        {workspace.name}
+                      </span>
+                      <span className="mt-0.5 block truncate text-[11px] text-theme-text-secondary">
+                        {t(`workspace_groups.${workspaceScope(workspace)}`)}
+                        {group ? ` · ${group.name}` : ""}
+                      </span>
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => starWorkspace(workspace)}
+                      aria-label={t("favorites.unstar_workspace", {
+                        name: workspace.name,
+                      })}
+                      title={t("favorites.unstar")}
+                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-amber-400 hover:bg-theme-sidebar-subitem-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-button light:text-amber-700"
+                    >
+                      <Star size={14} weight="fill" />
+                    </button>
+                  </div>
+                );
+              })}
+            {!workspaces.some((workspace) =>
+              favorites.workspaces.includes(workspace.id)
+            ) && (
+              <p className="px-7 py-2 text-xs leading-5 text-theme-text-secondary">
+                {t("favorites.empty")}
+              </p>
+            )}
+          </div>
+        </section>
+        {GROUP_SCOPES.map((scope) => (
+          <WorkspaceGroupSection
+            key={scope}
+            scope={scope}
+            workspaces={workspaces}
+            settings={groupSettings}
+            dragScope={dragScope}
+            canManageGlobal={canManageGlobal}
+            dragHeader={dragHeader}
+            onToggle={(id) =>
+              saveGroups({
+                ...groupSettings,
+                collapsed: {
+                  ...groupSettings.collapsed,
+                  [id]: !groupSettings.collapsed[id],
+                },
+              })
+            }
+            onCreate={(scope) => setGroupDialog({ mode: "create", scope })}
+            onEdit={(group) =>
+              setGroupDialog({ mode: "edit", scope: group.scope, group })
+            }
+            renderWorkspace={renderWorkspace}
+          />
+        ))}
+        {groupDialog && (
+          <WorkspaceGroupDialog
+            key={`${groupDialog.mode}:${groupDialog.group?.id || groupDialog.workspace?.id || groupDialog.scope}`}
+            dialog={groupDialog}
+            settings={groupSettings}
+            canManageGlobal={canManageGlobal}
+            workspaces={workspaces}
+            globalAssignments={preferences.globalGroups?.assignments || {}}
+            saving={saving}
+            onMove={(ids, targetId) =>
+              moveGroupWorkspaces(ids, targetId, groupDialog.group)
+            }
+            onClose={() => setGroupDialog(null)}
+            onSave={saveGroupDialog}
+            onCreate={(scope, workspace) =>
+              setGroupDialog({ mode: "create", scope, workspace })
+            }
+            onDelete={(id) => {
+              const global = groupSettings.groups.some(
+                (group) => group.id === id && group.global
+              );
+              if (
+                global
+                  ? !canManageGlobal ||
+                    !savePreferences(
+                      { type: "global-group", action: "delete", id },
+                      preferences
+                    )
+                  : !saveGroups(removeWorkspaceGroup(groupSettings, id))
+              )
+                return false;
+              setGroupDialog(null);
+              return true;
+            }}
+          />
+        )}
+        {contextMenu && (
+          <WorkspaceContextMenu
+            {...contextMenu}
+            onClose={() => setContextMenu(null)}
+            onRename={() => startWorkspaceRename(contextMenu.workspace)}
+            onGroup={() =>
+              setGroupDialog({
+                mode: "assign",
+                workspace: contextMenu.workspace,
+              })
+            }
+            starred={favorites.workspaces.includes(contextMenu.workspace.id)}
+            onStar={() => starWorkspace(contextMenu.workspace)}
+            onInvite={() => setInviteWorkspace(contextMenu.workspace)}
+            onOpenFiles={() => {
+              setSelectedWs(contextMenu.workspace);
+              showModal();
+            }}
+          />
+        )}
+        {showing && (
+          <ManageWorkspace
+            hideModal={hideModal}
+            providedSlug={selectedWs ? selectedWs.slug : null}
+            initialTab="workspaceFiles"
+          />
+        )}
+        {inviteWorkspace && (
+          <WorkspaceInviteModal
+            workspace={inviteWorkspace}
+            hideModal={() => setInviteWorkspace(null)}
+          />
+        )}
+      </div>
     </DragDropContext>
   );
+}
+
+// Desktop density uses CSS zoom; DnD positions are measured in viewport pixels.
+function workspaceDragStyle(style) {
+  if (style?.position !== "fixed") return style;
+  const zoom = Number(getComputedStyle(document.body).zoom) || 1;
+  if (zoom === 1) return style;
+  const next = { ...style };
+  for (const field of ["top", "left", "width", "height"])
+    if (typeof next[field] === "number") next[field] /= zoom;
+  next.transform = next.transform?.replace(
+    /translate\((-?[\d.]+)px,\s*(-?[\d.]+)px\)/,
+    (_, x, y) => `translate(${Number(x) / zoom}px, ${Number(y) / zoom}px)`
+  );
+  return next;
 }
 
 function workspaceMenuActions({
@@ -498,10 +867,25 @@ function workspaceMenuActions({
   onRename,
   onInvite,
   onOpenFiles,
+  onGroup,
+  starred,
+  onStar,
   navigate,
   t,
 }) {
   return [
+    {
+      key: "star",
+      label: t(starred ? "favorites.unstar" : "favorites.star"),
+      icon: Star,
+      action: onStar,
+    },
+    {
+      key: "group",
+      label: t("workspace_groups.assign"),
+      icon: Folder,
+      action: onGroup,
+    },
     canManage && {
       key: "rename",
       label: t("workspace_list.rename_workspace"),
@@ -527,12 +911,13 @@ function workspaceMenuActions({
       icon: CalendarDots,
       action: () => navigate(paths.workspace.jobs(workspace.slug)),
     },
-    canParticipate && {
-      key: "invite",
-      label: t("workspace-invite.action"),
-      icon: UserPlus,
-      action: onInvite,
-    },
+    canParticipate &&
+      workspaceScope(workspace) === "private" && {
+        key: "invite",
+        label: t("workspace-invite.action"),
+        icon: UserPlus,
+        action: onInvite,
+      },
   ].filter(Boolean);
 }
 
@@ -562,6 +947,9 @@ function WorkspaceContextMenu({
   onRename,
   onInvite,
   onOpenFiles,
+  onGroup,
+  starred,
+  onStar,
   onClose,
 }) {
   const { t } = useTranslation();
@@ -573,6 +961,9 @@ function WorkspaceContextMenu({
     onRename,
     onInvite,
     onOpenFiles,
+    onGroup,
+    starred,
+    onStar,
     navigate,
     t,
   });
@@ -596,6 +987,9 @@ function WorkspaceActionsMenu({
   onInvite,
   onOpenFiles,
   onRename,
+  onGroup,
+  starred,
+  onStar,
 }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -638,6 +1032,9 @@ function WorkspaceActionsMenu({
     onRename,
     onInvite,
     onOpenFiles,
+    onGroup,
+    starred,
+    onStar,
     navigate,
     t,
   });
@@ -659,7 +1056,7 @@ function WorkspaceActionsMenu({
           event.stopPropagation();
           setOpen((current) => !current);
         }}
-        className={`flex h-9 w-8 items-center justify-center border-none text-theme-text-secondary hover:bg-theme-sidebar-subitem-hover hover:text-theme-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-button-primary ${open || (isActive && isInWorkspaceSettings) ? "bg-theme-sidebar-subitem-selected text-theme-text-primary" : ""}`}
+        className={`flex h-9 w-8 items-center justify-center border-none text-theme-text-secondary hover:bg-theme-sidebar-subitem-hover hover:text-theme-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-button ${open || (isActive && isInWorkspaceSettings) ? "bg-theme-sidebar-subitem-selected text-theme-text-primary" : ""}`}
       >
         <DotsThree size={20} weight="bold" />
       </button>

@@ -40,8 +40,8 @@ function ChatSettingsMenu({
       <button
         type="button"
         onClick={toggleFiles}
-        title={t("chat_window.workspace_files.open")}
-        aria-label={t("chat_window.workspace_files.open")}
+        title={t("task_plan.open_panel")}
+        aria-label={t("task_plan.open_panel")}
         className={`group flex h-9 w-9 cursor-pointer items-center justify-center rounded-md border border-transparent text-theme-text-secondary transition-colors duration-150 hover:bg-theme-sidebar-subitem-hover hover:text-theme-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-button-primary lg:hidden ${
           filesOpen
             ? "bg-theme-sidebar-subitem-selected text-theme-text-primary"

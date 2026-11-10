@@ -1,7 +1,7 @@
 // Install Chromium with `npx playwright install chromium` before the first run.
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { mkdtemp, readFile, mkdir, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
@@ -24,6 +24,15 @@ async function mockAPI(context) {
       body = { success: true, user: null };
     else if (pathname.endsWith("/ping")) body = { online: true };
     else if (pathname.endsWith("/workspaces")) body = { workspaces: [] };
+    else if (pathname.endsWith("/announcements"))
+      body = { announcements: [] };
+    else if (pathname.endsWith("/user/sidebar-preferences"))
+      body = {
+        preferences: {
+          groups: { groups: [], assignments: {}, collapsed: {} },
+          favorites: { workspaces: [], threads: [] },
+        },
+      };
     else if (pathname.includes("logo") || pathname.includes("/pfp"))
       return route.fulfill({ status: 204 });
     else if (pathname.includes("footer")) body = { footerData: [] };
@@ -54,9 +63,9 @@ before(async () => {
   await mockAPI(context);
   page = await context.newPage();
   page.on("pageerror", (e) => errors.push(e.message));
-  await page.goto(`${baseURL}/tools`);
+  await page.goto(`${baseURL}/tools/proposal-fill`);
   await page
-    .getByRole("heading", { name: "提案编号回填", exact: true })
+    .getByRole("heading", { name: "提案编号回填工具", exact: true })
     .waitFor({ timeout: 15_000 })
     .catch(async (error) => {
       console.error(
@@ -69,7 +78,7 @@ before(async () => {
     });
   artifacts = await mkdtemp(path.join(tmpdir(), "coregenie-proposal-tests-"));
   await page.evaluate(async () => {
-    const m = await import("/src/utils/localTools/proposalFill.js");
+    const m = await import("/src/utils/localTools/proposalFill.ts");
     const z = await import("/node_modules/fflate/esm/browser.js");
     const W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
     const S = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
@@ -188,6 +197,20 @@ after(async () => {
   await server?.close();
 });
 
+test("catalog opens the tool and preserves the return path", async () => {
+  const catalog = await page.context().newPage();
+  await catalog.goto(`${baseURL}/tools`);
+  await catalog.getByRole("heading", { name: "日常工具", exact: true }).waitFor();
+  await catalog.getByRole("link", { name: /3GPP 提案.*提案编号回填工具/ }).click();
+  await catalog.getByRole("heading", { name: "提案编号回填工具", exact: true }).waitFor();
+  await catalog.getByRole("heading", { name: "例子：把正式编号填回提案", exact: true }).waitFor();
+  assert.equal(await catalog.getByRole("button", { name: "选择清单文件夹", exact: true }).count(), 0);
+  assert.equal(await catalog.getByRole("button", { name: "选择 Word 文件", exact: true }).isDisabled(), true);
+  await catalog.getByRole("link", { name: "返回日常工具", exact: true }).click();
+  await catalog.getByRole("heading", { name: "日常工具", exact: true }).waitFor();
+  await catalog.close();
+});
+
 test("fills split text and empty cells, preserves leading zeros, body revisions and other package parts", async () => {
   const result = await page.evaluate(async () => {
     const { m, z, record, docx, file, W } = window.proposalTest;
@@ -284,6 +307,66 @@ test("reads the named Excel sheet and numeric CR display format; disambiguates R
   assert.equal(result.ambiguous.selectedId, "");
   assert.equal(result.ambiguous.reason, "ambiguous");
   assert.equal(result.noMatch.reason, "no_match");
+});
+
+test("reads only cover metadata and updates the current number without changing revision history or body tables", async () => {
+  const result = await page.evaluate(async () => {
+    const { m, z, W, record, docx, file } = window.proposalTest;
+    const entries = z.unzipSync(docx());
+    const history = '<w:p><w:r><w:t>Revision of C4-264380, C4-264059</w:t></w:r></w:p>';
+    const bodyTable = '<w:tbl><w:tr><w:tc><w:p><w:r><w:t>release</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>boolean</w:t></w:r></w:p></w:tc></w:tr></w:tbl>';
+    entries["word/document.xml"] = z.strToU8(
+      z.strFromU8(entries["word/document.xml"])
+        .replace("<w:tbl>", `${history}<w:tbl>`)
+        .replace("<w:sectPr/>", `${bodyTable}<w:sectPr/>`)
+    );
+    const original = z.zipSync(entries);
+    const proposal = await m.readProposal(file(original));
+    const output = await m.generateProposal(proposal, m.planProposal(proposal, record));
+    const reread = await m.readProposal(file(output));
+    const after = z.unzipSync(output);
+    const parse = (bytes) => new DOMParser().parseFromString(z.strFromU8(bytes), "application/xml");
+    const beforeDoc = parse(entries["word/document.xml"]);
+    const afterDoc = parse(after["word/document.xml"]);
+    const serialize = (node) => new XMLSerializer().serializeToString(node);
+    const paragraphs = (doc) => [...doc.getElementsByTagNameNS(W, "p")];
+    const historyNode = (doc) => paragraphs(doc).find((p) => p.textContent.startsWith("Revision of"));
+    return {
+      metadata: reread.metadata,
+      values: reread.values,
+      historyUnchanged: serialize(historyNode(beforeDoc)) === serialize(historyNode(afterDoc)),
+      bodyUnchanged: serialize(beforeDoc.getElementsByTagNameNS(W, "tbl")[2]) === serialize(afterDoc.getElementsByTagNameNS(W, "tbl")[2]),
+      otherPartsUnchanged: Object.keys(entries).filter((name) => name !== "word/document.xml")
+        .every((name) => entries[name].length === after[name].length && entries[name].every((value, i) => value === after[name][i])),
+    };
+  });
+  assert.equal(result.metadata.release, "Rel-20");
+  assert.equal(result.values.tdoc, "C4-265196");
+  assert.equal(result.values.cr, "0419");
+  assert.equal(result.historyUnchanged, true);
+  assert.equal(result.bodyUnchanged, true);
+  assert.equal(result.otherPartsUnchanged, true);
+});
+
+test("still rejects multiple cover metadata tables and ambiguous meeting header numbers", async () => {
+  const codes = await page.evaluate(async () => {
+    const { m, z, docx, file } = window.proposalTest;
+    const original = z.unzipSync(docx());
+    const source = z.strFromU8(original["word/document.xml"]);
+    const tables = source.match(/<w:tbl>.*?<\/w:tbl>/g);
+    const codes = [];
+    for (const xml of [
+      source.replace(tables[1], tables[1] + tables[1]),
+      source.replace("C4-26", "C4-264380 C4-26"),
+      source.replace(/<w:tbl>.*?<\/w:tbl>/g, ""),
+    ]) {
+      const entries = { ...original, "word/document.xml": z.strToU8(xml) };
+      try { await m.readProposal(file(z.zipSync(entries))); codes.push("unexpected_success"); }
+      catch (error) { codes.push(error.code); }
+    }
+    return codes;
+  });
+  assert.deepEqual(codes, ["template", "tdoc_location", "template"]);
 });
 
 test("requires conflict confirmation and blocks duplicate output names", async () => {
@@ -530,9 +613,9 @@ test("UI previews and exports locally, lists failures, handles duplicates and re
   await mockAPI(mobile);
   const mobilePage = await mobile.newPage();
   mobilePage.on("pageerror", (e) => errors.push(e.message));
-  await mobilePage.goto(`${baseURL}/tools`);
+  await mobilePage.goto(`${baseURL}/tools/proposal-fill`);
   await mobilePage
-    .getByRole("heading", { name: "提案编号回填", exact: true })
+    .getByRole("heading", { name: "提案编号回填工具", exact: true })
     .waitFor();
   await mobilePage.getByLabel("选择 Excel", { exact: true }).setInputFiles([
     {
@@ -635,7 +718,7 @@ test("merges user-provided meeting lists without row ID collisions or automatic 
   assert.equal(result.values.tdoc, "C4-265197");
 });
 
-test("UI supports multiple Excel files and folders, preserves valid files on failure, and resets selection after source changes", async () => {
+test("UI supports Excel files, preserves valid files on failure, and resets selection after source changes", async () => {
   const fixture = await page.evaluate(() => {
     const { record, xlsx, docx } = window.proposalTest;
     return {
@@ -748,43 +831,8 @@ test("UI supports multiple Excel files and folders, preserves valid files on fai
     fullPage: true,
   });
 
-  // Folder import includes nested Excel files, ignores unrelated files and Office lock files.
-  const directory = path.join(artifacts, "meeting-fixtures");
-  await mkdir(path.join(directory, "nested"), { recursive: true });
-  await writeFile(
-    path.join(directory, "November.xlsx"),
-    Buffer.from(fixture.first)
-  );
-  await writeFile(
-    path.join(directory, "nested", "December.xlsx"),
-    Buffer.from(fixture.second)
-  );
-  await writeFile(path.join(directory, "notes.txt"), "Ignored");
-  await writeFile(path.join(directory, "~$lock.xlsx"), "Ignored");
-  await page.getByRole("button", { name: "清空会议清单", exact: true }).click();
-  assert.equal(
-    await page
-      .getByRole("button", { name: "选择 Word 文件", exact: true })
-      .isDisabled(),
-    true
-  );
-  assert.equal(await downloadButton.isDisabled(), true);
-  await page
-    .getByLabel("选择清单文件夹", { exact: true })
-    .setInputFiles(directory);
-  await page
-    .getByText("已读取 2 份清单，共 2 条 CR 记录", { exact: true })
-    .waitFor();
-  assert.equal(await lists.getByRole("listitem").count(), 2);
-  assert.equal((await lists.innerText()).includes("~$lock.xlsx"), false);
-  assert.match(
-    await lists.innerText(),
-    /meeting-fixtures\/nested\/December.xlsx/
-  );
-  assert.equal(
-    await page.locator("article").getByLabel("对应的会议清单记录").inputValue(),
-    ""
-  );
-
+  // The simplified picker accepts Excel files, without a meeting-folder action.
+  assert.equal(await page.getByRole("button", { name: "选择清单文件夹", exact: true }).count(), 0);
+  assert.equal(await page.locator('input[type="file"][webkitdirectory]').count(), 1);
   assert.deepEqual(errors, []);
 });

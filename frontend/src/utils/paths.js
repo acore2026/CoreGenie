@@ -23,12 +23,14 @@ export default {
   home: () => {
     return "/";
   },
-  help: () => "/help",
+  help: (tab) => (tab ? `/help?tab=${encodeURIComponent(tab)}` : "/help"),
   tools: () => "/tools",
+  proposalFill: () => "/tools/proposal-fill",
   login: (noTry = false) => {
     return `/login${noTry ? "?nt=1" : ""}`;
   },
   register: () => "/register",
+  landing: () => "/welcome",
   publicChatShare: (token) => `/share/chat/${token}`,
   sso: {
     login: () => {
@@ -112,6 +114,7 @@ export default {
     return `${API_BASE}/docs`;
   },
   settings: {
+    announcements: () => "/settings/announcements",
     users: () => {
       return `/settings/users`;
     },

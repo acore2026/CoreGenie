@@ -7,28 +7,21 @@ import {
   AUTH_USER,
   AUTH_TIMESTAMP,
 } from "../../../utils/constants";
-import useLogo from "../../../hooks/useLogo";
+import PublicLayout from "@/components/PublicLayout";
 import paths from "../../../utils/paths";
 
 export default function PasswordModal({
   mode = "single",
   redirectTo = paths.home(),
 }) {
-  const { loginLogo, isCustomLogo } = useLogo();
   return (
-    <div className="fixed inset-0 bg-zinc-950 light:bg-slate-50 flex flex-col items-center justify-center overflow-hidden">
-      <img
-        src={loginLogo}
-        alt="品牌标志"
-        className={`max-h-[104px] ${isCustomLogo ? "rounded-lg" : ""}`}
-        style={{ objectFit: "contain" }}
-      />
+    <PublicLayout>
       {mode === "single" ? (
-        <SingleUserAuth />
+        <SingleUserAuth redirectTo={redirectTo} />
       ) : (
         <MultiUserAuth redirectTo={redirectTo} />
       )}
-    </div>
+    </PublicLayout>
   );
 }
 

@@ -1,4 +1,4 @@
-import { memo, useState, useRef, useEffect } from "react";
+import { memo, useState, useRef, useEffect, useContext } from "react";
 import debounce from "lodash.debounce";
 import {
   ArrowUp,
@@ -16,6 +16,7 @@ import {
   ATTACHMENTS_PROCESSED_EVENT,
   ATTACHMENTS_PROCESSING_EVENT,
   PASTE_ATTACHMENT_EVENT,
+  DndUploaderContext,
 } from "../DnDWrapper";
 import useTextSize from "@/hooks/useTextSize";
 import { useTranslation } from "react-i18next";
@@ -30,6 +31,10 @@ import AgentSwitcher from "@/components/PredefinedAgents/AgentSwitcher";
 import AgentWizard from "@/components/PredefinedAgents/AgentWizard";
 import usePredefinedAgent from "@/hooks/usePredefinedAgent";
 import useUser from "@/hooks/useUser";
+import {
+  WORKSPACE_UPLOAD_COMPLETE,
+  appendWorkspacePaths,
+} from "@/utils/workspaceUpload";
 
 export const PROMPT_INPUT_ID = "primary-prompt-input";
 export const PROMPT_INPUT_EVENT = "set_prompt_input";
@@ -63,11 +68,26 @@ function PromptInput({
   const { user } = useUser();
   const { selectedAgent } = usePredefinedAgent();
   const { showAgentCommand = true } = workspace ?? {};
-  const { isDisabled } = useIsDisabled();
+  const { isDisabled: attachmentsDisabled } = useIsDisabled();
+  const { uploading = 0 } = useContext(DndUploaderContext);
+  const isDisabled = attachmentsDisabled || uploading > 0;
   const globalAgentSessionActive = useIsAgentSessionActive();
   const agentSessionActive =
     scopedAgentSessionActive ?? globalAgentSessionActive;
   const [promptInput, setPromptInput] = useState("");
+  useEffect(() => {
+    const appendUploads = ({ detail }) => {
+      if (
+        detail.slug !== (workspaceSlug || workspace?.slug) ||
+        (detail.threadSlug || null) !== (threadSlug || null)
+      )
+        return;
+      setPromptInput((current) => appendWorkspacePaths(current, detail.paths));
+    };
+    window.addEventListener(WORKSPACE_UPLOAD_COMPLETE, appendUploads);
+    return () =>
+      window.removeEventListener(WORKSPACE_UPLOAD_COMPLETE, appendUploads);
+  }, [workspaceSlug, workspace?.slug, threadSlug]);
   const [showTools, setShowTools] = useState(false);
   const [showQuickCommands, setShowQuickCommands] = useState(false);
   const autoOpenedQuickCommandsRef = useRef(false);
@@ -85,6 +105,7 @@ function PromptInput({
   usePromptInputStorage({
     promptInput,
     setPromptInput,
+    storageKey: threadSlug ?? workspaceSlug ?? workspace?.slug,
   });
 
   /*
@@ -397,7 +418,7 @@ function PromptInput({
               centered={centered}
               highlightedIndexRef={quickCommandsHighlightRef}
             />
-            {selectedAgent?.wizard && (
+            {centered && selectedAgent?.wizard && (
               <AgentWizard
                 key={`${selectedAgent.id}:${workspaceSlug}:${threadSlug}`}
                 agent={selectedAgent}

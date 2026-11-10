@@ -1,175 +1,14 @@
-import React, { useEffect, useState } from "react";
-import System from "../../../models/system";
-import { AUTH_TOKEN, AUTH_USER } from "../../../utils/constants";
-import paths from "../../../utils/paths";
+import { useEffect, useState } from "react";
+import System from "@/models/system";
+import { AUTH_TOKEN, AUTH_USER } from "@/utils/constants";
+import paths from "@/utils/paths";
 import showToast from "@/utils/toast";
-import ModalWrapper from "@/components/ModalWrapper";
 import { useModal } from "@/hooks/useModal";
 import RecoveryCodeModal from "@/components/Modals/DisplayRecoveryCodeModal";
 import { useTranslation } from "react-i18next";
-import { t } from "i18next";
 import { Link } from "react-router-dom";
-
-const RecoveryForm = ({ onSubmit, setShowRecoveryForm }) => {
-  const [username, setUsername] = useState("");
-  const [recoveryCodeInputs, setRecoveryCodeInputs] = useState(
-    Array(2).fill("")
-  );
-
-  const handleRecoveryCodeChange = (index, value) => {
-    const updatedCodes = [...recoveryCodeInputs];
-    updatedCodes[index] = value;
-    setRecoveryCodeInputs(updatedCodes);
-  };
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    const recoveryCodes = recoveryCodeInputs.filter(
-      (code) => code.trim() !== ""
-    );
-    onSubmit(username, recoveryCodes);
-  };
-
-  return (
-    <form
-      onSubmit={handleSubmit}
-      className="flex flex-col justify-center items-center"
-    >
-      <div className="flex items-start justify-between pt-7 pb-9">
-        <div className="flex items-center flex-col gap-y-[18px] max-w-[300px]">
-          <div className="flex gap-x-1">
-            <h3 className="text-white light:text-slate-950 text-3xl leading-[28px] font-medium text-center white-space-nowrap block">
-              {t("login.password-reset.title")}
-            </h3>
-          </div>
-          <p className="text-zinc-400 light:text-zinc-600 text-sm text-center">
-            {t("login.password-reset.description")}
-          </p>
-        </div>
-      </div>
-      <div className="w-full px-12">
-        <div className="w-full flex flex-col gap-y-3">
-          <div className="w-full flex flex-col gap-y-2">
-            <label className="text-zinc-300 light:text-slate-800 text-sm">
-              {t("login.multi-user.placeholder-username")}
-            </label>
-            <input
-              name="username"
-              type="text"
-              className="border-none bg-zinc-800 light:bg-slate-200 text-zinc-200 light:text-zinc-600 text-sm rounded-lg p-2.5 w-[300px] h-[34px] focus:outline-none focus:ring-1 focus:ring-sky-300"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              required
-              autoComplete="off"
-            />
-          </div>
-          <div className="w-full flex flex-col gap-y-2">
-            <label className="text-zinc-300 light:text-slate-800 text-sm">
-              {t("login.password-reset.recovery-codes")}
-            </label>
-            {recoveryCodeInputs.map((code, index) => (
-              <input
-                key={index}
-                type="text"
-                name={`recoveryCode${index + 1}`}
-                className="border-none bg-zinc-800 light:bg-slate-200 text-zinc-200 light:text-zinc-600 text-sm rounded-lg p-2.5 w-[300px] h-[34px] focus:outline-none focus:ring-1 focus:ring-sky-300"
-                value={code}
-                onChange={(e) =>
-                  handleRecoveryCodeChange(index, e.target.value)
-                }
-                required
-                autoComplete="off"
-              />
-            ))}
-          </div>
-        </div>
-      </div>
-      <div className="flex items-center px-12 mt-9 space-x-2 w-full flex-col gap-y-6">
-        <button
-          type="submit"
-          className="text-zinc-950 bg-white hover:bg-zinc-300 light:bg-sky-200 light:text-slate-950 light:hover:bg-sky-300 text-sm font-semibold rounded-lg border-primary-button h-[34px] w-full"
-        >
-          {t("login.password-reset.title")}
-        </button>
-        <button
-          type="button"
-          className="text-zinc-200 light:text-zinc-600 hover:text-sky-300 light:hover:text-sky-600 hover:underline text-sm flex gap-x-1"
-          onClick={() => setShowRecoveryForm(false)}
-        >
-          {t("login.password-reset.back-to-login")}
-        </button>
-      </div>
-    </form>
-  );
-};
-
-const ResetPasswordForm = ({ onSubmit }) => {
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    onSubmit(newPassword, confirmPassword);
-  };
-
-  return (
-    <form
-      onSubmit={handleSubmit}
-      className="flex flex-col justify-center items-center"
-    >
-      <div className="flex items-start justify-between pt-7 pb-9">
-        <div className="flex items-center flex-col gap-y-[18px] max-w-[300px]">
-          <div className="flex gap-x-1">
-            <h3 className="text-white light:text-slate-950 text-[38px] leading-[28px] font-medium text-center white-space-nowrap block">
-              Reset Password
-            </h3>
-          </div>
-          <p className="text-zinc-400 light:text-zinc-600 text-sm text-center">
-            Enter your new password.
-          </p>
-        </div>
-      </div>
-      <div className="w-full px-12">
-        <div className="w-full flex flex-col gap-y-3">
-          <div className="w-full flex flex-col gap-y-2">
-            <label className="text-zinc-300 light:text-slate-800 text-sm">
-              New Password
-            </label>
-            <input
-              type="password"
-              name="newPassword"
-              className="border-none bg-zinc-800 light:bg-slate-200 text-zinc-200 light:text-zinc-600 text-sm rounded-lg p-2.5 w-[300px] h-[34px] focus:outline-none focus:ring-1 focus:ring-sky-300"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              required
-            />
-          </div>
-          <div className="w-full flex flex-col gap-y-2">
-            <label className="text-zinc-300 light:text-slate-800 text-sm">
-              Confirm Password
-            </label>
-            <input
-              type="password"
-              name="confirmPassword"
-              className="border-none bg-zinc-800 light:bg-slate-200 text-zinc-200 light:text-zinc-600 text-sm rounded-lg p-2.5 w-[300px] h-[34px] focus:outline-none focus:ring-1 focus:ring-sky-300"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              required
-            />
-          </div>
-        </div>
-      </div>
-      <div className="flex items-center px-12 mt-9 space-x-2 w-full flex-col gap-y-6">
-        <button
-          type="submit"
-          className="text-zinc-950 bg-white hover:bg-zinc-300 light:bg-sky-200 light:text-slate-950 light:hover:bg-sky-300 text-sm font-semibold rounded-lg border-primary-button h-[34px] w-full"
-        >
-          Reset Password
-        </button>
-      </div>
-    </form>
-  );
-};
+import { ArrowRight, ArrowLeft } from "@phosphor-icons/react";
+import { AuthHeading, AuthInput } from "@/components/PublicLayout";
 
 export default function MultiUserAuth({ redirectTo = paths.home() }) {
   const { t } = useTranslation();
@@ -179,201 +18,227 @@ export default function MultiUserAuth({ redirectTo = paths.home() }) {
   const [downloadComplete, setDownloadComplete] = useState(false);
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
-  const [showRecoveryForm, setShowRecoveryForm] = useState(false);
-  const [showResetPasswordForm, setShowResetPasswordForm] = useState(false);
-  const [customAppName, setCustomAppName] = useState(null);
+  const [step, setStep] = useState("login");
   const [registrationEnabled, setRegistrationEnabled] = useState(false);
-
-  const {
-    isOpen: isRecoveryCodeModalOpen,
-    openModal: openRecoveryCodeModal,
-    closeModal: closeRecoveryCodeModal,
-  } = useModal();
-
-  const handleLogin = async (e) => {
-    setError(null);
-    setLoading(true);
-    e.preventDefault();
-    const data = {};
-    const form = new FormData(e.target);
-    for (var [key, value] of form.entries()) data[key] = value;
-    const { valid, user, token, message, recoveryCodes } =
-      await System.requestToken(data);
-    if (valid && !!token && !!user) {
-      setUser(user);
-      setToken(token);
-
-      if (recoveryCodes) {
-        setRecoveryCodes(recoveryCodes);
-        openRecoveryCodeModal();
-      } else {
-        window.localStorage.setItem(AUTH_USER, JSON.stringify(user));
-        window.localStorage.setItem(AUTH_TOKEN, token);
-        window.location = redirectTo;
-      }
-    } else {
-      setError(message);
-      setLoading(false);
-    }
-    setLoading(false);
-  };
-
-  const handleDownloadComplete = () => setDownloadComplete(true);
-  const handleResetPassword = () => setShowRecoveryForm(true);
-  const handleRecoverySubmit = async (username, recoveryCodes) => {
-    const { success, resetToken, error } = await System.recoverAccount(
-      username,
-      recoveryCodes
-    );
-
-    if (success && resetToken) {
-      window.localStorage.setItem("resetToken", resetToken);
-      setShowRecoveryForm(false);
-      setShowResetPasswordForm(true);
-    } else {
-      showToast(error, "error", { clear: true });
-    }
-  };
-
-  const handleResetSubmit = async (newPassword, confirmPassword) => {
-    const resetToken = window.localStorage.getItem("resetToken");
-
-    if (resetToken) {
-      const { success, error } = await System.resetPassword(
-        resetToken,
-        newPassword,
-        confirmPassword
-      );
-
-      if (success) {
-        window.localStorage.removeItem("resetToken");
-        setShowResetPasswordForm(false);
-        showToast("Password reset successful", "success", { clear: true });
-      } else {
-        showToast(error, "error", { clear: true });
-      }
-    } else {
-      showToast("Invalid reset token", "error", { clear: true });
-    }
-  };
+  const { isOpen, openModal, closeModal } = useModal();
 
   useEffect(() => {
+    let active = true;
+    System.publicRegistrationStatus().then((result) => {
+      if (active) setRegistrationEnabled(result.enabled);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+  useEffect(() => {
     if (downloadComplete && user && token) {
-      window.localStorage.setItem(AUTH_USER, JSON.stringify(user));
-      window.localStorage.setItem(AUTH_TOKEN, token);
+      localStorage.setItem(AUTH_USER, JSON.stringify(user));
+      localStorage.setItem(AUTH_TOKEN, token);
       window.location = redirectTo;
     }
   }, [downloadComplete, user, token, redirectTo]);
 
-  useEffect(() => {
-    const fetchCustomAppName = async () => {
-      const [{ appName }, registration] = await Promise.all([
-        System.fetchCustomAppName(),
-        System.publicRegistrationStatus(),
-      ]);
-      setCustomAppName(appName || "");
-      setRegistrationEnabled(registration.enabled);
+  const changeStep = (next) => {
+    setError(null);
+    setStep(next);
+  };
+  const submit = async (event) => {
+    event.preventDefault();
+    if (loading) return;
+    const form = new FormData(event.currentTarget);
+    setError(null);
+    setLoading(true);
+    try {
+      if (step === "login") {
+        const result = await System.requestToken({
+          username: form.get("username"),
+          password: form.get("password"),
+        });
+        if (!result.valid || !result.token || !result.user) {
+          setError(result.message || t("auth_page.failed"));
+          return;
+        }
+        setUser(result.user);
+        setToken(result.token);
+        if (result.recoveryCodes?.length) {
+          setRecoveryCodes(result.recoveryCodes);
+          openModal();
+        } else {
+          localStorage.setItem(AUTH_USER, JSON.stringify(result.user));
+          localStorage.setItem(AUTH_TOKEN, result.token);
+          window.location = redirectTo;
+        }
+      } else if (step === "recover") {
+        const result = await System.recoverAccount(form.get("username"), [
+          form.get("recovery1"),
+          form.get("recovery2"),
+        ]);
+        if (!result.success || !result.resetToken) {
+          setError(result.error || t("auth_page.failed"));
+          return;
+        }
+        localStorage.setItem("resetToken", result.resetToken);
+        changeStep("reset");
+      } else {
+        if (form.get("password") !== form.get("confirmPassword")) {
+          setError(t("auth_page.password_mismatch"));
+          return;
+        }
+        const resetToken = localStorage.getItem("resetToken");
+        if (!resetToken) {
+          setError(t("auth_page.reset_invalid"));
+          return;
+        }
+        const result = await System.resetPassword(
+          resetToken,
+          form.get("password"),
+          form.get("confirmPassword")
+        );
+        if (!result.success) {
+          setError(result.error || t("auth_page.failed"));
+          return;
+        }
+        localStorage.removeItem("resetToken");
+        changeStep("login");
+        showToast(t("auth_page.reset_success"), "success", { clear: true });
+      }
+    } catch {
+      setError(t("auth_page.failed"));
+    } finally {
       setLoading(false);
-    };
-    fetchCustomAppName();
-  }, []);
-
-  if (showRecoveryForm) {
-    return (
-      <RecoveryForm
-        onSubmit={handleRecoverySubmit}
-        setShowRecoveryForm={setShowRecoveryForm}
-      />
-    );
-  }
-
-  if (showResetPasswordForm)
-    return <ResetPasswordForm onSubmit={handleResetSubmit} />;
+    }
+  };
   return (
     <>
-      <form
-        onSubmit={handleLogin}
-        className="flex flex-col justify-center items-center"
-      >
-        <div className="flex items-start justify-between pt-7 pb-9">
-          <div className="flex items-center flex-col gap-y-[18px] max-w-[300px]">
-            <div className="flex gap-x-1">
-              <h3 className="text-white light:text-slate-950 text-[38px] leading-[28px] font-medium text-center white-space-nowrap block">
-                {t("login.multi-user.welcome")}
-              </h3>
-            </div>
-            <p className="text-zinc-400 light:text-zinc-600 text-sm text-center">
-              {t("login.sign-in", { appName: customAppName || "CoreGenie" })}
-            </p>
-          </div>
-        </div>
-        <div className="w-full px-12">
-          <div className="w-full flex flex-col gap-y-3">
-            <div className="w-full flex flex-col gap-y-2">
-              <label className="text-zinc-300 light:text-slate-800 text-sm">
-                {t("login.multi-user.placeholder-username")}
-              </label>
-              <input
-                name="username"
-                type="text"
-                className="border-none bg-zinc-800 light:bg-slate-200 text-zinc-200 light:text-zinc-600 text-sm rounded-lg p-2.5 w-[300px] h-[34px] focus:outline-none focus:ring-1 focus:ring-sky-300"
-                required={true}
-                autoComplete="off"
-              />
-            </div>
-            <div className="w-full px-0 flex flex-col gap-y-2">
-              <label className="text-zinc-300 light:text-slate-800 text-sm">
-                {t("login.multi-user.placeholder-password")}
-              </label>
-              <input
-                name="password"
-                type="password"
-                className="border-none bg-zinc-800 light:bg-slate-200 text-zinc-200 light:text-zinc-600 text-sm rounded-lg p-2.5 w-[300px] h-[34px] focus:outline-none focus:ring-1 focus:ring-sky-300"
-                required={true}
-                autoComplete="off"
-              />
-            </div>
-            {error && <p className="text-red-400 text-sm">Error: {error}</p>}
-          </div>
-        </div>
-        <div className="flex items-center px-12 mt-9 space-x-2 w-full flex-col gap-y-6">
-          <button
+      <AuthHeading
+        title={t(
+          step === "login"
+            ? "auth_page.login_title"
+            : "login.password-reset.title"
+        )}
+        description={t(
+          step === "login"
+            ? "auth_page.login_description"
+            : step === "recover"
+              ? "auth_page.reset_description"
+              : "auth_page.reset_new_description"
+        )}
+      />
+      <form key={step} onSubmit={submit} className="auth-form">
+        {step !== "reset" && (
+          <AuthInput
+            label={t("auth_page.username")}
+            name="username"
+            type="text"
+            autoComplete="username"
+            required
             disabled={loading}
-            type="submit"
-            className="text-zinc-950 bg-white hover:bg-zinc-300 light:bg-sky-200 light:text-slate-950 light:hover:bg-sky-300 text-sm font-semibold rounded-lg border-primary-button h-[34px] w-full"
-          >
-            {loading
-              ? t("login.multi-user.validating")
-              : t("login.multi-user.login")}
-          </button>
-          {registrationEnabled && (
-            <Link
-              to={paths.register()}
-              className="text-zinc-200 light:text-zinc-600 hover:text-sky-300 light:hover:text-sky-600 hover:underline text-sm"
+          />
+        )}
+        {step === "login" && (
+          <>
+            <AuthInput
+              label={t("auth_page.password")}
+              name="password"
+              type="password"
+              autoComplete="current-password"
+              required
+              disabled={loading}
+            />
+            <button
+              type="button"
+              disabled={loading}
+              className="public-text-link self-end -mt-3 disabled:opacity-50"
+              onClick={() => changeStep("recover")}
             >
+              {t("auth_page.forgot_password")}
+            </button>
+          </>
+        )}
+        {step === "recover" &&
+          [1, 2].map((number) => (
+            <AuthInput
+              key={number}
+              label={t("auth_page.recovery_code", { number })}
+              name={`recovery${number}`}
+              type="text"
+              autoComplete="off"
+              required
+              disabled={loading}
+            />
+          ))}
+        {step === "reset" && (
+          <>
+            <AuthInput
+              label={t("auth_page.new_password")}
+              name="password"
+              type="password"
+              autoComplete="new-password"
+              minLength={8}
+              required
+              disabled={loading}
+            />
+            <AuthInput
+              label={t("login.registration.confirm-password")}
+              name="confirmPassword"
+              type="password"
+              autoComplete="new-password"
+              minLength={8}
+              required
+              disabled={loading}
+            />
+          </>
+        )}
+        {error && (
+          <p className="auth-error" role="alert">
+            {error}
+          </p>
+        )}
+        <button
+          type="submit"
+          disabled={loading || isOpen}
+          className="public-button"
+        >
+          {t(
+            loading
+              ? "auth_page.submitting"
+              : step === "login"
+                ? "login.multi-user.login"
+                : "login.password-reset.title"
+          )}
+          <ArrowRight size={18} />
+        </button>
+      </form>
+      {step === "login" ? (
+        registrationEnabled && (
+          <div className="auth-switch">
+            <span>{t("auth_page.no_account")}</span>
+            <Link to={paths.register()} className="public-text-link">
               {t("login.registration.create-account")}
             </Link>
-          )}
+          </div>
+        )
+      ) : (
+        <div className="auth-switch">
           <button
             type="button"
-            className="text-zinc-200 light:text-zinc-600 hover:text-sky-300 light:hover:text-sky-600 hover:underline text-sm flex gap-x-1"
-            onClick={handleResetPassword}
+            disabled={loading}
+            className="public-text-link disabled:opacity-50"
+            onClick={() => changeStep("login")}
           >
-            {t("login.multi-user.forgot-pass")}?
-            <b className="font-semibold text-sky-300 light:text-sky-600">
-              {t("login.multi-user.reset")}
-            </b>
+            <ArrowLeft size={16} />
+            {t("login.password-reset.back-to-login")}
           </button>
         </div>
-      </form>
-
-      <ModalWrapper isOpen={isRecoveryCodeModalOpen} noPortal={true}>
+      )}
+      {isOpen && (
         <RecoveryCodeModal
           recoveryCodes={recoveryCodes}
-          onDownloadComplete={handleDownloadComplete}
-          onClose={closeRecoveryCodeModal}
+          onDownloadComplete={() => setDownloadComplete(true)}
+          onClose={closeModal}
         />
-      </ModalWrapper>
+      )}
     </>
   );
 }

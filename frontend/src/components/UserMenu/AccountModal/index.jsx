@@ -62,7 +62,7 @@ export default function AccountModal({ user, hideModal }) {
     if (success) {
       let storedUser = safeJsonParse(localStorage.getItem(AUTH_USER), null);
       if (storedUser) {
-        storedUser.username = data.username;
+        if (data.username !== undefined) storedUser.username = data.username;
         storedUser.bio = data.bio;
         storedUser.systemPrompt = data.systemPrompt;
         localStorage.setItem(AUTH_USER, JSON.stringify(storedUser));
@@ -127,7 +127,7 @@ export default function AccountModal({ user, hideModal }) {
               </label>
               <div className="mt-4 min-w-0 text-center max-md:mt-0 max-md:text-left">
                 <p className="truncate text-sm font-semibold text-theme-text-primary">
-                  {user.username}
+                  {user.displayName || user.username}
                 </p>
                 <p className="mt-1 text-xs text-theme-text-secondary">
                   {t("profile_settings.profile_picture_hint")}
@@ -153,54 +153,72 @@ export default function AccountModal({ user, hideModal }) {
                 <h3 className="mb-4 text-sm font-semibold text-theme-text-primary">
                   {t("profile_settings.account")}
                 </h3>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div>
-                    <label
-                      htmlFor="username"
-                      className="mb-2 block text-sm font-medium text-theme-text-primary"
-                    >
-                      {t("profile_settings.username")}
-                    </label>
-                    <input
-                      id="username"
-                      name="username"
-                      type="text"
-                      className="dsh-control block h-10 w-full px-3 text-sm"
-                      placeholder={t("profile_settings.username_placeholder")}
-                      minLength={USERNAME_MIN_LENGTH}
-                      maxLength={USERNAME_MAX_LENGTH}
-                      pattern={USERNAME_PATTERN}
-                      defaultValue={user.username}
-                      required
-                      autoComplete="off"
-                    />
-                    <p className="mt-2 text-xs leading-5 text-theme-text-secondary">
-                      {t("common.username_requirements")}
+                {user.authProvider === "idaas" ? (
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div>
+                      <p className="mb-2 text-sm">{t("oauth.display_name")}</p>
+                      <p>{user.displayName}</p>
+                    </div>
+                    <div>
+                      <p className="mb-2 text-sm">
+                        {t("oauth.employee_number")}
+                      </p>
+                      <p>{user.employeeNumber || "—"}</p>
+                    </div>
+                    <p className="text-xs text-theme-text-secondary md:col-span-2">
+                      {t("oauth.managed")}
                     </p>
                   </div>
-                  <div>
-                    <label
-                      htmlFor="password"
-                      className="mb-2 block text-sm font-medium text-theme-text-primary"
-                    >
-                      {t("profile_settings.new_password")}
-                    </label>
-                    <input
-                      id="password"
-                      name="password"
-                      type="password"
-                      className="dsh-control block h-10 w-full px-3 text-sm"
-                      placeholder={t(
-                        "profile_settings.new_password_placeholder"
-                      )}
-                      minLength={8}
-                      autoComplete="new-password"
-                    />
-                    <p className="mt-2 text-xs leading-5 text-theme-text-secondary">
-                      {t("profile_settings.password_description")}
-                    </p>
+                ) : (
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div>
+                      <label
+                        htmlFor="username"
+                        className="mb-2 block text-sm font-medium text-theme-text-primary"
+                      >
+                        {t("profile_settings.username")}
+                      </label>
+                      <input
+                        id="username"
+                        name="username"
+                        type="text"
+                        className="dsh-control block h-10 w-full px-3 text-sm"
+                        placeholder={t("profile_settings.username_placeholder")}
+                        minLength={USERNAME_MIN_LENGTH}
+                        maxLength={USERNAME_MAX_LENGTH}
+                        pattern={USERNAME_PATTERN}
+                        defaultValue={user.username}
+                        required
+                        autoComplete="off"
+                      />
+                      <p className="mt-2 text-xs leading-5 text-theme-text-secondary">
+                        {t("common.username_requirements")}
+                      </p>
+                    </div>
+                    <div>
+                      <label
+                        htmlFor="password"
+                        className="mb-2 block text-sm font-medium text-theme-text-primary"
+                      >
+                        {t("profile_settings.new_password")}
+                      </label>
+                      <input
+                        id="password"
+                        name="password"
+                        type="password"
+                        className="dsh-control block h-10 w-full px-3 text-sm"
+                        placeholder={t(
+                          "profile_settings.new_password_placeholder"
+                        )}
+                        minLength={8}
+                        autoComplete="new-password"
+                      />
+                      <p className="mt-2 text-xs leading-5 text-theme-text-secondary">
+                        {t("profile_settings.password_description")}
+                      </p>
+                    </div>
                   </div>
-                </div>
+                )}
                 <div className="mt-5">
                   <label
                     htmlFor="bio"

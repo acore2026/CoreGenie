@@ -13,6 +13,7 @@ import {
 import { REMOVE_ATTACHMENT_EVENT } from "../../DnDWrapper";
 import { openImageLightbox } from "@/components/ImageLightbox";
 import { useTranslation } from "react-i18next";
+import { userFacingErrorKey } from "@/utils/userFacingError.mjs";
 
 /**
  * @param {{attachments: import("../../DnDWrapper").Attachment[]}}
@@ -89,7 +90,7 @@ function AttachmentItem({ attachment, onImageClick }) {
     return (
       <div
         data-tooltip-id="attachment-status-tooltip"
-        data-tooltip-content={error}
+        data-tooltip-content={t(userFacingErrorKey(error))}
         className={`relative flex items-center gap-x-1 rounded-lg bg-theme-attachment-error-bg border-none w-[180px] group`}
       >
         <div className="invisible group-hover:visible absolute -top-[5px] -right-[5px] w-fit h-fit z-[10]">

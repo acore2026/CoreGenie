@@ -14,4 +14,4 @@ export const USERNAME_MAX_LENGTH = 64;
 /**
  * HTML5 pattern attribute for username inputs (without ^ and $)
  */
-export const USERNAME_PATTERN = "[a-z][a-z0-9._@-]*";
+export const USERNAME_PATTERN = "[a-z][a-z0-9._@\\-]*";

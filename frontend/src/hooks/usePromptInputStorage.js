@@ -3,6 +3,7 @@ import { useEffect, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import debounce from "lodash.debounce";
 import { safeJsonParse } from "@/utils/request";
+import { touchThreadDraft } from "@/utils/threadDraft";
 
 /**
  * Synchronizes prompt input value with localStorage, scoped to the current thread.
@@ -38,7 +39,11 @@ export function clearPromptInputDraft(storageKey) {
   } catch {}
 }
 
-export default function usePromptInputStorage({ promptInput, setPromptInput }) {
+export default function usePromptInputStorage({
+  promptInput,
+  setPromptInput,
+  storageKey,
+}) {
   const { threadSlug = null, slug: workspaceSlug } = useParams();
   useEffect(() => {
     const serializedPromptInputMap =
@@ -46,7 +51,8 @@ export default function usePromptInputStorage({ promptInput, setPromptInput }) {
 
     const promptInputMap = safeJsonParse(serializedPromptInputMap, {});
 
-    const userPromptInputValue = promptInputMap[threadSlug ?? workspaceSlug];
+    const userPromptInputValue =
+      promptInputMap[storageKey ?? threadSlug ?? workspaceSlug];
     if (userPromptInputValue) {
       setPromptInput(userPromptInputValue);
     }
@@ -68,10 +74,18 @@ export default function usePromptInputStorage({ promptInput, setPromptInput }) {
   );
 
   useEffect(() => {
-    debouncedWriteToStorage(promptInput, threadSlug ?? workspaceSlug);
+    const key = storageKey ?? threadSlug ?? workspaceSlug;
+    if (promptInput) touchThreadDraft(key);
+    debouncedWriteToStorage(promptInput, key);
 
     return () => {
       debouncedWriteToStorage.flush();
     };
-  }, [promptInput, threadSlug, workspaceSlug, debouncedWriteToStorage]);
+  }, [
+    promptInput,
+    storageKey,
+    threadSlug,
+    workspaceSlug,
+    debouncedWriteToStorage,
+  ]);
 }

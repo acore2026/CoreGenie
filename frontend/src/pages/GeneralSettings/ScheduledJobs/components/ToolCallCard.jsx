@@ -7,6 +7,7 @@ import { useTheme } from "@/hooks/useTheme";
 import DOMPurify from "@/utils/chat/purify";
 import truncate from "truncate";
 import moment from "moment";
+import { activityText } from "@/utils/userFacingError.mjs";
 
 const MAX_RESULT_LENGTH = 5000;
 
@@ -116,7 +117,12 @@ function ToolCallResult({ toolCall, showResult, setShowResult }) {
   const truncatedResult = truncate(resultText, MAX_RESULT_LENGTH);
   const highlightedResult = formatAndHighlight(resultText);
 
-  if (!resultText) return null;
+  if (
+    toolCall.error ||
+    toolCall.status === "failed" ||
+    !activityText(resultText)
+  )
+    return null;
   return (
     <div>
       <button

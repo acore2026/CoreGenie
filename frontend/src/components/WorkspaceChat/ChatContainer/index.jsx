@@ -518,7 +518,7 @@ export default function ChatContainer({
             />
             <div className="relative bg-theme-bg-chat w-full h-full overflow-hidden">
               {isMobile && <SidebarMobileHeader />}
-              <DnDFileUploaderWrapper>
+              <DnDFileUploaderWrapper disabled={readOnly}>
                 <div className="flex flex-col h-full w-full items-center justify-center">
                   <div className="flex flex-col items-center w-full max-w-[920px]">
                     {readOnly ? (
@@ -535,6 +535,7 @@ export default function ChatContainer({
                         </h1>
                         <PromptInput
                           workspace={workspace}
+                          threadSlug={threadSlug}
                           agentSessionActive={Boolean(websocket)}
                           submit={submitPrompt}
                           isStreaming={loadingResponse}
@@ -578,7 +579,7 @@ export default function ChatContainer({
           />
           <div className="relative bg-theme-bg-chat text-theme-text-primary h-full overflow-hidden">
             {isMobile && <SidebarMobileHeader />}
-            <DnDFileUploaderWrapper>
+            <DnDFileUploaderWrapper disabled={readOnly}>
               <div className="flex flex-col h-full w-full pb-20 md:pb-0">
                 <div className="contents">
                   <MetricsProvider>
@@ -601,6 +602,7 @@ export default function ChatContainer({
                   ) : (
                     <PromptInput
                       workspace={workspace}
+                      threadSlug={threadSlug}
                       agentSessionActive={Boolean(websocket)}
                       submit={submitPrompt}
                       isStreaming={loadingResponse}
@@ -618,7 +620,12 @@ export default function ChatContainer({
           <SourcesSidebar />
           {!workspaceReadOnly && <MemoriesSidebar workspace={workspace} />}
         </div>
-        {!workspaceReadOnly && <WorkspaceFilesSidebar workspace={workspace} />}
+        <WorkspaceFilesSidebar
+          key={runtimeKey}
+          workspace={workspace}
+          history={chatHistory}
+          showFiles={!workspaceReadOnly}
+        />
       </div>
     </ChatSidebarProvider>
   );
@@ -652,7 +659,9 @@ function ReadOnlyThreadNotice({
               ? t("chat_window.public_workspace_read_only_description")
               : t("chat_window.shared_thread_owner", {
                   username:
-                    thread?.owner?.username || t("chat_window.unknown_user"),
+                    thread?.owner?.displayName ||
+                    thread?.owner?.username ||
+                    t("chat_window.unknown_user"),
                 })}
           </p>
         </div>

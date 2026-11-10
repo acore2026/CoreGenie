@@ -5,7 +5,7 @@ export default function WorkspaceMemberRow({ user }) {
     <>
       <tr className="bg-transparent text-theme-text-primary text-sm font-medium">
         <th scope="row" className="px-6 py-4 whitespace-nowrap">
-          {user.username}
+          {user.displayName || user.username}
         </th>
         <td className="px-6 py-4">{titleCase(user.role)}</td>
         <td className="px-6 py-4">{user.lastUpdatedAt}</td>

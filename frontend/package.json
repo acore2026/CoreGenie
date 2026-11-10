@@ -6,15 +6,17 @@
   "scripts": {
     "start": "vite --open",
     "dev": "cross-env NODE_ENV=development vite --debug --host=0.0.0.0",
-    "build": "vite build && node scripts/postbuild.js",
+    "build": "yarn typecheck:tools && vite build && node scripts/postbuild.js",
     "preview:local-tools": "node scripts/preview-local-tools.mjs",
     "test:proposal-fill": "node --test scripts/tests/proposalFill.test.mjs",
     "test:network-auth": "node --test src/utils/networkAuth.test.mjs",
     "lint:check": "eslint src",
     "lint": "eslint --fix src",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "typecheck:tools": "tsc --project tsconfig.tools.json"
   },
   "dependencies": {
+    "@headlessui/react": "^1.7.19",
     "@lobehub/icons": "^4.0.3",
     "@microsoft/fetch-event-source": "^2.0.1",
     "@mintplex-labs/piper-tts-web": "^1.0.4",
@@ -83,6 +85,8 @@
     "prettier": "^3.0.3",
     "rollup-plugin-visualizer": "^5.9.0",
     "tailwindcss": "^3.3.1",
-    "vite": "^4.3.0"
+    "vite": "^4.3.0",
+    "typescript": "5.9.3",
+    "@typescript-eslint/parser": "8.46.4"
   }
 }

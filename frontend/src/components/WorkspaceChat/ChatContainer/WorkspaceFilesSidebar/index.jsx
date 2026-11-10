@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { userFacingErrorKey } from "@/utils/userFacingError.mjs";
 import {
   ArrowLeft,
   ArrowsClockwise,
@@ -22,8 +23,11 @@ import {
 import { useDropzone } from "react-dropzone";
 import { saveAs } from "file-saver";
 import Workspace from "@/models/workspace";
+import { WORKSPACE_FILES_CHANGED } from "@/utils/workspaceUpload";
 import { AGENT_SESSION_END } from "@/utils/chat/agent";
 import { useWorkspaceFilesSidebar } from "../ChatSidebar";
+import TaskPlanPanel from "../TaskPlanPanel";
+import { Dialog } from "@headlessui/react";
 import ContextMenu from "@/components/lib/ContextMenu";
 import ConfirmDialog from "@/components/lib/ConfirmDialog";
 import { copyTextToClipboard } from "@/utils/clipboard";
@@ -110,7 +114,7 @@ function FileTreeLevel({
         className="flex min-h-8 w-full items-center text-left text-xs text-red-300 hover:bg-red-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-theme-button-primary light:text-red-700"
         style={{ paddingLeft: `${12 + depth * 14}px` }}
       >
-        {level.error}
+        {t(userFacingErrorKey(level.error))}
       </button>
     );
   }
@@ -358,9 +362,15 @@ export function WorkspaceFilesPanel({ workspace, onClose = null }) {
       );
     }
     window.addEventListener(AGENT_SESSION_END, refreshAfterAgentRun);
-    return () =>
+    const refreshUploads = ({ detail }) => {
+      if (detail.slug === workspace?.slug) refreshAfterAgentRun();
+    };
+    window.addEventListener(WORKSPACE_FILES_CHANGED, refreshUploads);
+    return () => {
       window.removeEventListener(AGENT_SESSION_END, refreshAfterAgentRun);
-  }, [expandedPaths, selectedFile, loadLevel, loadPreview]);
+      window.removeEventListener(WORKSPACE_FILES_CHANGED, refreshUploads);
+    };
+  }, [expandedPaths, selectedFile, loadLevel, loadPreview, workspace?.slug]);
 
   function toggleDirectory(entry, retry = false) {
     const targetPath = entry.path || "";
@@ -665,7 +675,7 @@ export function WorkspaceFilesPanel({ workspace, onClose = null }) {
           aria-live="polite"
           className={`border-b border-theme-sidebar-border px-4 py-2 text-xs ${error ? "text-red-300 light:text-red-700" : "text-theme-text-secondary"}`}
         >
-          {error || uploadMessage}
+          {error ? t(userFacingErrorKey(error)) : uploadMessage}
         </div>
       )}
 
@@ -705,7 +715,10 @@ export function WorkspaceFilesPanel({ workspace, onClose = null }) {
             {previewLoading ? (
               <MessageState message={t("workspace_list.loading")} loading />
             ) : error ? (
-              <MessageState message={error} tone="error" />
+              <MessageState
+                message={t(userFacingErrorKey(error))}
+                tone="error"
+              />
             ) : selectedFile.kind === "image" ? (
               <div className="flex min-h-full items-center justify-center p-4">
                 <img
@@ -953,7 +966,7 @@ function MessageState({ message, tone = "normal", loading = false }) {
   );
 }
 
-function WorkspaceFilesSidebar({ workspace }) {
+function WorkspaceFilesSidebar({ workspace, history = [], showFiles = true }) {
   const { sidebarOpen, closeSidebar } = useWorkspaceFilesSidebar();
   const [isPermanent, setIsPermanent] = useState(
     () => window.matchMedia("(min-width: 1024px)").matches
@@ -968,19 +981,45 @@ function WorkspaceFilesSidebar({ workspace }) {
 
   if (isPermanent)
     return (
-      <aside className="h-full w-[280px] shrink-0 border-l border-theme-sidebar-border xl:w-[330px] 2xl:w-[380px]">
-        <WorkspaceFilesPanel workspace={workspace} />
+      <aside className="flex h-full w-[280px] shrink-0 flex-col border-l border-theme-sidebar-border xl:w-[330px] 2xl:w-[380px]">
+        <TaskPlanPanel history={history} />
+        {showFiles && (
+          <div className="min-h-0 flex-1">
+            <WorkspaceFilesPanel workspace={workspace} />
+          </div>
+        )}
       </aside>
     );
 
   if (!sidebarOpen) return null;
   return (
-    <div className="fixed inset-0 z-[60] bg-zinc-950/60 light:bg-slate-900/20">
-      <div className="ml-auto h-full w-full max-w-[430px] border-l border-theme-sidebar-border bg-theme-bg-chat">
-        <WorkspaceFilesPanel workspace={workspace} onClose={closeSidebar} />
-      </div>
-    </div>
+    <Dialog
+      open={sidebarOpen}
+      onClose={closeSidebar}
+      className="fixed inset-0 z-[60]"
+    >
+      <div
+        className="absolute inset-0 bg-zinc-950/60 light:bg-slate-900/20"
+        aria-hidden="true"
+      />
+      <Dialog.Panel className="relative ml-auto flex h-full w-full max-w-[430px] flex-col border-l border-theme-sidebar-border bg-theme-bg-chat">
+        <Dialog.Title className="sr-only">
+          <PanelTitle />
+        </Dialog.Title>
+        <TaskPlanPanel history={history} onClose={closeSidebar} />
+        {showFiles && (
+          <div className="min-h-0 flex-1">
+            <WorkspaceFilesPanel workspace={workspace} />
+          </div>
+        )}
+      </Dialog.Panel>
+    </Dialog>
   );
+}
+
+function PanelTitle() {
+  const { t } = useTranslation();
+  return t("task_plan.open_panel");
 }
 
 export default memo(WorkspaceFilesSidebar);

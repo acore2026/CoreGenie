@@ -8,6 +8,7 @@ import { userFromStorage } from "@/utils/request";
 import System from "@/models/system";
 import UserMenu from "../UserMenu";
 import { KeyboardShortcutWrapper } from "@/utils/keyboardShortcuts";
+import { AnnouncementSession } from "@/components/Announcements";
 
 let cachedAuth = null;
 let pendingAuth = null;
@@ -103,6 +104,7 @@ export function AdminRoute({ Component, hideUserMenu = false }) {
   return isAuthd && (user?.role === "admin" || !multiUserMode) ? (
     hideUserMenu ? (
       <KeyboardShortcutWrapper>
+        <AnnouncementSession />
         <Component />
       </KeyboardShortcutWrapper>
     ) : (
@@ -152,6 +154,7 @@ export function SingleUserRoute({ Component }) {
 
   return isAuthd && !multiUserMode ? (
     <KeyboardShortcutWrapper>
+      <AnnouncementSession />
       <Component />
     </KeyboardShortcutWrapper>
   ) : (
@@ -159,7 +162,7 @@ export function SingleUserRoute({ Component }) {
   );
 }
 
-export default function PrivateRoute({ Component }) {
+export default function PrivateRoute({ Component, GuestComponent = null }) {
   const { isAuthd, shouldRedirectToOnboarding } = useIsAuthenticated();
   if (isAuthd === null) return <FullScreenLoader />;
 
@@ -173,6 +176,8 @@ export default function PrivateRoute({ Component }) {
         <Component />
       </UserMenu>
     </KeyboardShortcutWrapper>
+  ) : GuestComponent ? (
+    <GuestComponent />
   ) : (
     <Navigate to={paths.login(true)} />
   );

@@ -62,6 +62,8 @@ export default function Home() {
   const [workspaceLoading, setWorkspaceLoading] = useState(true);
   const [dragging, setDragging] = useState(false);
   const pendingFilesRef = useRef([]);
+  const pendingDestinationRef = useRef("rag");
+  const pendingDraftRef = useRef(null);
 
   useEffect(() => {
     async function init() {
@@ -87,8 +89,18 @@ export default function Home() {
     if (workspace && threadSlug && pendingFilesRef.current.length > 0) {
       const files = pendingFilesRef.current;
       pendingFilesRef.current = [];
+      if (pendingDraftRef.current !== null) {
+        window.dispatchEvent(
+          new CustomEvent(PROMPT_INPUT_EVENT, {
+            detail: { messageContent: pendingDraftRef.current },
+          })
+        );
+        pendingDraftRef.current = null;
+      }
       window.dispatchEvent(
-        new CustomEvent(PASTE_ATTACHMENT_EVENT, { detail: { files } })
+        new CustomEvent(PASTE_ATTACHMENT_EVENT, {
+          detail: { files, destination: pendingDestinationRef.current },
+        })
       );
     }
   }, [workspace, threadSlug]);
@@ -102,6 +114,7 @@ export default function Home() {
       if (!files?.length) return;
 
       pendingFilesRef.current = files;
+      pendingDestinationRef.current = "rag";
       let ws = workspace;
       if (!ws) {
         ws = await createDefaultWorkspace(t("new-workspace.placeholder"));
@@ -109,7 +122,11 @@ export default function Home() {
         setWorkspace(ws);
       }
       const { thread } = await Workspace.threads.new(ws.slug);
-      if (thread) setThreadSlug(thread.slug);
+      if (thread) {
+        pendingDraftRef.current =
+          document.getElementById(PROMPT_INPUT_ID)?.value ?? "";
+        setThreadSlug(thread.slug);
+      }
     }
 
     window.addEventListener(PASTE_ATTACHMENT_EVENT, handlePaste);
@@ -117,21 +134,33 @@ export default function Home() {
       window.removeEventListener(PASTE_ATTACHMENT_EVENT, handlePaste);
   }, [workspace, threadSlug]);
 
-  async function handleDropWithoutWorkspace(acceptedFiles) {
+  async function handleDropWithoutWorkspace(acceptedFiles, _rejected, event) {
     setDragging(false);
+    pendingDestinationRef.current =
+      event?.type === "change" ? "rag" : "conversation";
     pendingFilesRef.current = acceptedFiles;
     const ws = await createDefaultWorkspace(t("new-workspace.placeholder"));
     if (!ws) return;
     setWorkspace(ws);
     const { thread } = await Workspace.threads.new(ws.slug);
-    if (thread) setThreadSlug(thread.slug);
+    if (thread) {
+      pendingDraftRef.current =
+        document.getElementById(PROMPT_INPUT_ID)?.value ?? "";
+      setThreadSlug(thread.slug);
+    }
   }
 
-  async function handleDropWithWorkspace(acceptedFiles) {
+  async function handleDropWithWorkspace(acceptedFiles, _rejected, event) {
     setDragging(false);
+    pendingDestinationRef.current =
+      event?.type === "change" ? "rag" : "conversation";
     pendingFilesRef.current = acceptedFiles;
     const { thread } = await Workspace.threads.new(workspace.slug);
-    if (thread) setThreadSlug(thread.slug);
+    if (thread) {
+      pendingDraftRef.current =
+        document.getElementById(PROMPT_INPUT_ID)?.value ?? "";
+      setThreadSlug(thread.slug);
+    }
   }
 
   if (workspaceLoading) {

@@ -7,7 +7,7 @@ export default {
       "./src/components/**/*.{js,jsx}",
       "./src/hooks/**/*.js",
       "./src/models/**/*.js",
-      "./src/pages/**/*.{js,jsx}",
+      "./src/pages/**/*.{js,jsx,ts,tsx}",
       "./src/utils/**/*.js",
       "./src/*.jsx",
       "./index.html",

@@ -25,7 +25,7 @@ const server = await createServer({
         import { I18nextProvider } from "react-i18next";
         import { ThemeProvider } from "/src/ThemeContext.jsx";
         import i18n from "/src/i18n.js";
-        import LocalTools from "/src/pages/LocalTools/index.jsx";
+        import LocalTools from "/src/pages/LocalTools/index.tsx";
         import "/src/index.css";
         document.title = i18n.t("local_tools.title");
         createRoot(document.getElementById("root")).render(

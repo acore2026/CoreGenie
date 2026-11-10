@@ -23,6 +23,9 @@ import {
 } from "@/utils/constants";
 import { useTranslation } from "react-i18next";
 import useAdminView from "@/hooks/useAdminView";
+import { oauthRequest } from "@/models/oauth";
+import showToast from "@/utils/toast";
+import AnnouncementButton from "@/components/Announcements";
 
 export default function UserButton({
   inline = false,
@@ -37,6 +40,7 @@ export default function UserButton({
   const menuRef = useRef();
   const buttonRef = useRef();
   const [showMenu, setShowMenu] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
   const [showAccountSettings, setShowAccountSettings] = useState(false);
 
   const handleClose = (event) => {
@@ -103,7 +107,9 @@ export default function UserButton({
         {showName && (
           <>
             <span className="truncate">
-              {user?.username || t("profile_settings.account")}
+              {user?.displayName ||
+                user?.username ||
+                t("profile_settings.account")}
             </span>
             <CaretDown size={12} className="ml-auto shrink-0" />
           </>
@@ -140,6 +146,7 @@ export default function UserButton({
           } ${menuAlign === "left" ? "left-0" : "right-0"}`}
         >
           <div className="flex w-full flex-col">
+            <AnnouncementButton menu onOpen={() => setShowMenu(false)} />
             {mode === "multi" && !!user && (
               <button
                 onClick={handleOpenAccountModal}
@@ -190,7 +197,18 @@ export default function UserButton({
               </button>
             )}
             <button
-              onClick={() => {
+              disabled={signingOut}
+              onClick={async () => {
+                setSigningOut(true);
+                if (user?.authProvider === "idaas") {
+                  try {
+                    await oauthRequest("logout");
+                  } catch {
+                    setSigningOut(false);
+                    showToast(t("oauth.logout_failed"), "error");
+                    return;
+                  }
+                }
                 window.localStorage.removeItem(AUTH_USER);
                 window.localStorage.removeItem(AUTH_TOKEN);
                 window.localStorage.removeItem(AUTH_TIMESTAMP);
@@ -234,7 +252,7 @@ function UserDisplay({ compact = false }) {
 
   return (
     <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-theme-sidebar-subitem-selected text-xs font-semibold text-theme-text-primary">
-      {user?.username?.slice(0, 2) || "AA"}
+      {(user?.displayName || user?.username)?.slice(0, 2) || "AA"}
     </span>
   );
 }

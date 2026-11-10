@@ -1,4 +1,8 @@
-import { useState, useEffect, createContext, useContext } from "react";
+import { useState, useEffect, useRef, createContext, useContext } from "react";
+import {
+  WORKSPACE_UPLOAD_COMPLETE,
+  WORKSPACE_FILES_CHANGED,
+} from "@/utils/workspaceUpload";
 import { v4 } from "uuid";
 import System from "@/models/system";
 import { useDropzone } from "react-dropzone";
@@ -7,6 +11,7 @@ import Workspace from "@/models/workspace";
 import showToast from "@/utils/toast";
 import FileUploadWarningModal from "./FileUploadWarningModal";
 import { useTranslation } from "react-i18next";
+import { touchThreadDraft } from "@/utils/threadDraft";
 
 export const DndUploaderContext = createContext();
 export const REMOVE_ATTACHMENT_EVENT = "ATTACHMENT_REMOVE";
@@ -49,6 +54,16 @@ export function DnDFileUploaderProvider({
   const [files, setFiles] = useState([]);
   const [ready, setReady] = useState(false);
   const [dragging, setDragging] = useState(false);
+  const [uploading, setUploading] = useState(0);
+  const scope = useRef(null);
+  useEffect(() => {
+    const current = {};
+    scope.current = current;
+    setUploading(0);
+    return () => {
+      if (scope.current === current) scope.current = null;
+    };
+  }, [workspace?.slug, threadSlug]);
   const [showWarningModal, setShowWarningModal] = useState(false);
   const [isEmbedding, setIsEmbedding] = useState(false);
   const [embedProgress, setEmbedProgress] = useState(0);
@@ -80,7 +95,7 @@ export function DnDFileUploaderProvider({
         handlePastedAttachment
       );
     };
-  }, []);
+  }, [workspace?.slug, threadSlug]);
 
   /**
    * Handles the removal of a parsed file attachment from the uploader queue.
@@ -158,10 +173,12 @@ export function DnDFileUploaderProvider({
   async function handlePastedAttachment(event) {
     const { files = [] } = event.detail;
     if (!files.length) return;
+    if (event.detail.destination === "conversation") return onDrop(files);
     await queueFiles(files, "rag");
   }
 
   async function queueFiles(inputFiles = [], destination = "rag") {
+    if (inputFiles.length) touchThreadDraft(threadSlug);
     const newAccepted = [];
     for (const file of inputFiles) {
       if (destination === "workspace") {
@@ -204,9 +221,49 @@ export function DnDFileUploaderProvider({
    * @param {Attachment[]} acceptedFiles
    * @param {any[]} _rejections
    */
-  async function onDrop(acceptedFiles) {
+  async function onDrop(acceptedFiles, _rejected, event) {
+    if (acceptedFiles.length) touchThreadDraft(threadSlug);
     setDragging(false);
-    await queueFiles(acceptedFiles, "rag");
+    // The explicit RAG file picker keeps its existing parsing behavior.
+    if (event?.type === "change") return queueFiles(acceptedFiles, "rag");
+    if (!workspace?.slug || workspace.viewerAccess === "public_readonly")
+      return;
+    const current = scope.current;
+    const slug = workspace.slug;
+    const conversation = threadSlug;
+    setUploading((count) => count + acceptedFiles.length);
+    const paths = [];
+    for (const file of acceptedFiles) {
+      try {
+        const form = new FormData();
+        form.append("file", file, file.name);
+        form.append("destination", "conversation");
+        const { response, data } = await Workspace.uploadWorkspaceFile(
+          slug,
+          form
+        );
+        if (!response.ok || !data.file?.path)
+          throw new Error(
+            data.error || t("chat_window.workspace_upload_failed")
+          );
+        paths.push(`/workspace/${data.file.path}`);
+        window.dispatchEvent(
+          new CustomEvent(WORKSPACE_FILES_CHANGED, { detail: { slug } })
+        );
+      } catch (error) {
+        showToast(`${file.name}: ${error.message}`, "error");
+      } finally {
+        if (scope.current === current)
+          setUploading((count) => Math.max(0, count - 1));
+      }
+    }
+    if (paths.length && scope.current === current) {
+      window.dispatchEvent(
+        new CustomEvent(WORKSPACE_UPLOAD_COMPLETE, {
+          detail: { slug, threadSlug: conversation, paths },
+        })
+      );
+    }
   }
 
   /**
@@ -461,6 +518,10 @@ export function DnDFileUploaderProvider({
         files,
         ready,
         dragging,
+        uploading,
+        canUpload:
+          Boolean(workspace?.slug) &&
+          workspace.viewerAccess !== "public_readonly",
         setDragging,
         onDrop,
         parseAttachments,
@@ -484,13 +545,19 @@ export function DnDFileUploaderProvider({
   );
 }
 
-export default function DnDFileUploaderWrapper({ children }) {
+export default function DnDFileUploaderWrapper({ children, disabled = false }) {
   const { t } = useTranslation();
-  const { onDrop, ready, dragging, setDragging } =
-    useContext(DndUploaderContext);
+  const {
+    onDrop,
+    ready,
+    canUpload = ready,
+    uploading,
+    dragging,
+    setDragging,
+  } = useContext(DndUploaderContext);
   const { getRootProps, getInputProps } = useDropzone({
     onDrop,
-    disabled: !ready,
+    disabled: disabled || !canUpload,
     noClick: true,
     noKeyboard: true,
     onDragEnter: () => setDragging(true),
@@ -515,15 +582,23 @@ export default function DnDFileUploaderWrapper({ children }) {
               alt="Drag and drop icon"
             />
             <p className="text-white text-[24px] font-semibold">
-              {t("chat_window.drop_rag_file")}
+              {t("chat_window.drop_workspace_file")}
             </p>
             <p className="text-white text-[16px] text-center">
-              {t("chat_window.drop_rag_file_description")}
+              {t("chat_window.drop_workspace_description")}
             </p>
           </div>
         </div>
       </div>
       <input id="dnd-chat-file-uploader" {...getInputProps()} />
+      {uploading > 0 && (
+        <div
+          role="status"
+          className="absolute left-3 top-3 z-50 rounded-lg bg-theme-bg-secondary px-4 py-2 text-sm text-theme-text-primary"
+        >
+          {t("chat_window.workspace_drop_uploading", { count: uploading })}
+        </div>
+      )}
       {children}
     </div>
   );

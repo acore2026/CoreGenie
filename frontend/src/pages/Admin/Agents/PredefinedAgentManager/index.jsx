@@ -25,6 +25,7 @@ import Workspace from "@/models/workspace";
 import ConfigSyncPanel from "../ConfigSyncPanel";
 import FullscreenEditor from "@/components/FullscreenEditor";
 import QuickTaskEditor from "./QuickTaskEditor";
+import DisplayOrder from "@/components/DisplayOrder";
 
 export default function PredefinedAgentManager({ view = "agents" }) {
   const { t } = useTranslation();
@@ -127,6 +128,15 @@ export default function PredefinedAgentManager({ view = "agents" }) {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {!showingSkills && (
+            <DisplayOrder
+              key={view}
+              kind={showingQuickTasks ? "quick-tasks" : "agents"}
+              items={showingQuickTasks ? data.quickTasks : data.agents}
+              onSaved={refresh}
+              disabled={loading}
+            />
+          )}
           {showingSkills ? (
             <button
               type="button"

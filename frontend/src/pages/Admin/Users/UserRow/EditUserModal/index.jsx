@@ -38,7 +38,7 @@ export default function EditUserModal({ currentUser, user, closeModal }) {
     if (success) {
       // Update local storage if we're editing our own user
       if (currentUser && currentUser.id === user.id) {
-        currentUser.username = data.username;
+        if (data.username !== undefined) currentUser.username = data.username;
         currentUser.bio = data.bio;
         currentUser.role = data.role;
         localStorage.setItem(AUTH_USER, JSON.stringify(currentUser));
@@ -55,7 +55,8 @@ export default function EditUserModal({ currentUser, user, closeModal }) {
         <div className="relative p-6 border-b rounded-t border-theme-modal-border">
           <div className="w-full flex gap-x-2 items-center">
             <h3 className="text-xl font-semibold text-white overflow-hidden overflow-ellipsis whitespace-nowrap">
-              Edit {user.username}
+              {t("profile_settings.edit_account")} ·{" "}
+              {user.displayName || user.username}
             </h3>
           </div>
           <button
@@ -69,48 +70,61 @@ export default function EditUserModal({ currentUser, user, closeModal }) {
         <div className="p-6">
           <form onSubmit={handleUpdate}>
             <div className="space-y-4">
-              <div>
-                <label
-                  htmlFor="username"
-                  className="block mb-2 text-sm font-medium text-white"
-                >
-                  Username
-                </label>
-                <input
-                  name="username"
-                  type="text"
-                  className="border-none bg-theme-settings-input-bg w-full text-white placeholder:text-theme-settings-input-placeholder text-sm rounded-lg focus:outline-primary-button active:outline-primary-button outline-none block w-full p-2.5"
-                  placeholder="User's username"
-                  defaultValue={user.username}
-                  minLength={USERNAME_MIN_LENGTH}
-                  maxLength={USERNAME_MAX_LENGTH}
-                  pattern={USERNAME_PATTERN}
-                  required={true}
-                  autoComplete="off"
-                />
-                <p className="mt-2 text-xs text-white/60">
-                  {t("common.username_requirements")}
-                </p>
-              </div>
-              <div>
-                <label
-                  htmlFor="password"
-                  className="block mb-2 text-sm font-medium text-white"
-                >
-                  New Password
-                </label>
-                <input
-                  name="password"
-                  type="text"
-                  className="border-none bg-theme-settings-input-bg w-full text-white placeholder:text-theme-settings-input-placeholder text-sm rounded-lg focus:outline-primary-button active:outline-primary-button outline-none block w-full p-2.5"
-                  placeholder={`${user.username}'s new password`}
-                  autoComplete="off"
-                  minLength={8}
-                />
-                <p className="mt-2 text-xs text-white/60">
-                  Password must be at least 8 characters long
-                </p>
-              </div>
+              {user.authProvider === "idaas" ? (
+                <div>
+                  <p>
+                    {user.displayName} · {user.employeeNumber || "—"}
+                  </p>
+                  <p className="mt-2 text-xs text-theme-text-secondary">
+                    {t("oauth.managed")}
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div>
+                    <label
+                      htmlFor="username"
+                      className="block mb-2 text-sm font-medium text-white"
+                    >
+                      Username
+                    </label>
+                    <input
+                      name="username"
+                      type="text"
+                      className="border-none bg-theme-settings-input-bg w-full text-white placeholder:text-theme-settings-input-placeholder text-sm rounded-lg focus:outline-primary-button active:outline-primary-button outline-none block w-full p-2.5"
+                      placeholder="User's username"
+                      defaultValue={user.username}
+                      minLength={USERNAME_MIN_LENGTH}
+                      maxLength={USERNAME_MAX_LENGTH}
+                      pattern={USERNAME_PATTERN}
+                      required={true}
+                      autoComplete="off"
+                    />
+                    <p className="mt-2 text-xs text-white/60">
+                      {t("common.username_requirements")}
+                    </p>
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="password"
+                      className="block mb-2 text-sm font-medium text-white"
+                    >
+                      New Password
+                    </label>
+                    <input
+                      name="password"
+                      type="text"
+                      className="border-none bg-theme-settings-input-bg w-full text-white placeholder:text-theme-settings-input-placeholder text-sm rounded-lg focus:outline-primary-button active:outline-primary-button outline-none block w-full p-2.5"
+                      placeholder={`${user.username}'s new password`}
+                      autoComplete="off"
+                      minLength={8}
+                    />
+                    <p className="mt-2 text-xs text-white/60">
+                      Password must be at least 8 characters long
+                    </p>
+                  </div>
+                </>
+              )}
               <div>
                 <label
                   htmlFor="bio"

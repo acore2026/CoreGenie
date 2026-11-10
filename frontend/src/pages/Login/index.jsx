@@ -1,4 +1,6 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
+import { authConfig } from "@/models/oauth";
+import OAuthLogin from "./OAuth";
 import PasswordModal, { usePasswordModal } from "@/components/Modals/Password";
 import { FullScreenLoader } from "@/components/Preloader";
 import { Navigate } from "react-router-dom";
@@ -15,6 +17,34 @@ import useSimpleSSO from "@/hooks/useSimpleSSO";
  * @returns {JSX.Element}
  */
 export default function Login() {
+  const [provider, setProvider] = useState(null);
+  const query = useQuery();
+  useEffect(() => {
+    let active = true;
+    authConfig()
+      .then((result) => {
+        if (active) setProvider(result.provider);
+      })
+      .catch(() => {
+        if (active) setProvider("unavailable");
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+  if (!provider) return <FullScreenLoader />;
+  if (provider === "idaas" || provider === "unavailable")
+    return (
+      <OAuthLogin
+        returnTo={query.get("redirectTo") || "/"}
+        error={query.get("oauthError")}
+        unavailable={provider === "unavailable"}
+      />
+    );
+  return <LocalLogin />;
+}
+
+function LocalLogin() {
   const query = useQuery();
   const requestedRedirect = query.get("redirectTo");
   const redirectTo =
@@ -42,7 +72,7 @@ export default function Login() {
       );
   }
 
-  if (requiresAuth === false) return <Navigate to={paths.home()} />;
+  if (requiresAuth === false) return <Navigate to={redirectTo} replace />;
 
   return <PasswordModal mode={mode} redirectTo={redirectTo} />;
 }
