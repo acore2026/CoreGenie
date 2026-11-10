@@ -17,3 +17,7 @@ yarn.lock
 /test-results/
 /anythingllm.db
 /server/prisma-postgresql/schema.prisma
+
+# Local container build contexts and browser verification output
+/.release-*/
+**/.playwright-cli/
