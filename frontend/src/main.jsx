@@ -52,6 +52,15 @@ const router = createBrowserRouter([
         },
       },
       {
+        path: "/tools/protocol-finder",
+        lazy: async () => {
+          const { default: ProtocolFinder } = await import(
+            "@/pages/LocalTools/ProtocolFinder"
+          );
+          return { element: <PrivateRoute Component={ProtocolFinder} /> };
+        },
+      },
+      {
         path: "/tools/proposal-fill",
         lazy: async () => {
           const { default: LocalTools } = await import("@/pages/LocalTools");

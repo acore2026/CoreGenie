@@ -1,5 +1,7 @@
 import { useRef, useState, type ChangeEvent } from "react";
 import { Link } from "react-router-dom";
+import MeetingDownload from "./MeetingDownload";
+import type { DownloadedList } from "@/utils/localTools/meetingDownload";
 import paths from "@/utils/paths";
 import { isMobile } from "react-device-detect";
 import {
@@ -59,6 +61,7 @@ export default function LocalTools({
     t(`local_tools.${key}`, params);
   const [meeting, setMeeting] = useState<MeetingSelection | null>(null);
   const [items, setItems] = useState<ProposalItem[]>([]);
+  const [remoteBusy, setRemoteBusy] = useState(false);
   const [busy, setBusy] = useState("");
   const [progress, setProgress] = useState("");
   const [error, setError] = useState("");
@@ -73,7 +76,7 @@ export default function LocalTools({
     error instanceof LocalToolError
       ? tr(`errors.${error.code}`, error.params)
       : tr("errors.read_failed");
-  const locked = Boolean(busy);
+  const locked = Boolean(busy) || remoteBusy;
   const hasRecords = Boolean(meeting?.records.length);
   const plans: ToolPlan[] = items.map((item) => {
     if (!item.proposal || !item.selectedId || !meeting || item.excluded)
@@ -116,6 +119,30 @@ export default function LocalTools({
       )
     );
     setNotice("");
+  }
+
+  async function applyDownloadedList(list: DownloadedList) {
+    if (operation.current) return;
+    operation.current = true;
+    setBusy("reading");
+    setError("");
+    try {
+      const records = await readMeetingList(list.file);
+      // An official selection replaces the old list to avoid matching across meetings.
+      applyMeetingFiles([
+        {
+          id: `meeting-${++nextId.current}`,
+          name: list.file.name,
+          size: list.file.size,
+          records,
+          source: list.source,
+          fetchedAt: list.fetchedAt,
+        },
+      ]);
+    } finally {
+      operation.current = false;
+      setBusy("");
+    }
   }
 
   async function selectMeeting(event: ChangeEvent<HTMLInputElement>) {
@@ -400,6 +427,13 @@ export default function LocalTools({
               <p className="mt-2 text-sm leading-6 text-theme-text-secondary">
                 {tr("meeting_hint")}
               </p>
+              <MeetingDownload
+                disabled={locked}
+                control={control}
+                input={input}
+                onApply={applyDownloadedList}
+                onLoading={setRemoteBusy}
+              />
               <input
                 ref={excelRef}
                 type="file"
@@ -454,6 +488,20 @@ export default function LocalTools({
                       >
                         <div className="min-w-0 flex-1">
                           <p className="break-all text-sm">{file.name}</p>
+                          {file.source && (
+                            <p className="mt-1 break-all text-xs text-theme-text-secondary">
+                              <a
+                                href={file.source}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="underline focus-visible:ring-2 focus-visible:ring-primary-button"
+                              >
+                                {tr("official_source")}
+                              </a>
+                              {file.fetchedAt &&
+                                ` · ${new Date(file.fetchedAt).toLocaleString("zh-CN")}`}
+                            </p>
+                          )}
                           {file.error ? (
                             <p
                               role="alert"

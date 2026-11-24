@@ -164,7 +164,7 @@ before(async () => {
       const data = [
         headers,
         ...records.map((r) =>
-          keys.map((k) => (k === "type" ? "CR" : (r[k] ?? "")))
+          keys.map((k) => (k === "type" ? (r.type ?? "CR") : (r[k] ?? "")))
         ),
       ];
       const sheet = `<worksheet xmlns="${S}"><sheetData>${data.map((values, i) => `<row r="${i + 1}">${values.map((value, j) => (options.numericCR && i > 0 && j === 6 ? `<c r="G${i + 1}" s="1"><v>${Number(value)}</v></c>` : `<c r="${String.fromCharCode(65 + j)}${i + 1}" t="inlineStr"><is><t>${escape(value)}</t></is></c>`)).join("")}</row>`).join("")}</sheetData></worksheet>`;
@@ -488,7 +488,7 @@ test("UI previews and exports locally, lists failures, handles duplicates and re
     buffer: Buffer.from(fixture.workbook),
   });
   await page
-    .getByText("已读取 1 份清单，共 1 条 CR 记录", { exact: true })
+    .getByText("已读取 1 份清单，共 1 条提案记录", { exact: true })
     .waitFor();
   await page.getByLabel("选择 Word 文件", { exact: true }).setInputFiles([
     {
@@ -630,7 +630,7 @@ test("UI previews and exports locally, lists failures, handles duplicates and re
     },
   ]);
   await mobilePage
-    .getByText("已读取 2 份清单，共 2 条 CR 记录", { exact: true })
+    .getByText("已读取 2 份清单，共 2 条提案记录", { exact: true })
     .waitFor();
   await mobilePage.getByLabel("选择 Word 文件", { exact: true }).setInputFiles({
     name: "C4-26xxx.docx",
@@ -751,7 +751,7 @@ test("UI supports Excel files, preserves valid files on failure, and resets sele
     toFile("broken.xlsx", [1, 2, 3]),
   ]);
   await page
-    .getByText("已读取 2 份清单，共 2 条 CR 记录", { exact: true })
+    .getByText("已读取 2 份清单，共 2 条提案记录", { exact: true })
     .waitFor();
   const lists = page.getByRole("list", { name: "已添加的会议清单" });
   assert.equal(await lists.getByRole("listitem").count(), 3);
@@ -800,7 +800,7 @@ test("UI supports Excel files, preserves valid files on failure, and resets sele
     .getByRole("button", { name: "移除会议清单 November.xlsx", exact: true })
     .click();
   await page
-    .getByText("已读取 1 份清单，共 1 条 CR 记录", { exact: true })
+    .getByText("已读取 1 份清单，共 1 条提案记录", { exact: true })
     .waitFor();
   assert.equal(await matching.inputValue(), decemberValue);
 
@@ -814,7 +814,7 @@ test("UI supports Excel files, preserves valid files on failure, and resets sele
   assert.equal(await downloadButton.isEnabled(), true);
   await excelInput.setInputFiles(toFile("November.xlsx", fixture.first));
   await page
-    .getByText("已读取 2 份清单，共 2 条 CR 记录", { exact: true })
+    .getByText("已读取 2 份清单，共 2 条提案记录", { exact: true })
     .waitFor();
   assert.equal(
     await page.locator("article").getByLabel("对应的会议清单记录").inputValue(),
@@ -835,4 +835,135 @@ test("UI supports Excel files, preserves valid files on failure, and resets sele
   assert.equal(await page.getByRole("button", { name: "选择清单文件夹", exact: true }).count(), 0);
   assert.equal(await page.locator('input[type="file"][webkitdirectory]').count(), 1);
   assert.deepEqual(errors, []);
+});
+
+test("ordinary paragraph and SA2 table covers change only the current TDoc", async () => {
+  const results = await page.evaluate(async () => {
+    const { m, z, W, file, docx, record, xlsx } = window.proposalTest;
+    const p = (s) => `<w:p><w:r><w:t>${s}</w:t></w:r></w:p>`;
+    const row = (k, v) => `<w:tr><w:tc>${p(k)}</w:tc><w:tc>${p(v)}</w:tc></w:tr>`;
+    const results = [];
+    for (const table of [false, true]) {
+      const header = p("3GPP TSG-SA2 Meeting #176 S2-26xxxx");
+      const metadata = table
+        ? `<w:tbl>${row("Source:", "Huawei")}${row("Title:", "Service identification")}</w:tbl>`
+        : p("Source:Huawei") + p("Title:Service identification") + p("Spec:3GPP TR 29.841") + p("Version:0.4.0");
+      const body = p("1. Reason for Change") + p("Source: historical source") + p("3GPP TR 29.841 v0.4.0; S2-260001") + `<w:tbl>${row("Current version:", "0.4.0")}${row("Source to WG:", "historical")}</w:tbl>`;
+      const entries = z.unzipSync(docx());
+      entries["word/document.xml"] = z.strToU8(`<w:document xmlns:w="${W}"><w:body>${header}${metadata}${body}</w:body></w:document>`);
+      const proposal = await m.readProposal(file(z.zipSync(entries)));
+      const ordinary = { ...record, type: "Discussion", cr: "", version: "", release: "", title: "Service identification", spec: "29.841", tdoc: "S2-269999" };
+      const records = m.mergeMeetingLists([{ id: "list", name: "list.xlsx", records: await m.readMeetingList(file(xlsx([ordinary, { ...ordinary, type: "CR", cr: "1234" }]), "list.xlsx")) }]);
+      const match = m.matchRecords(proposal, records);
+      const plan = m.planProposal(proposal, records[0]);
+      const output = z.unzipSync(await m.generateProposal(proposal, plan));
+      const result = z.strFromU8(output["word/document.xml"]);
+      results.push({ kind: proposal.kind, candidates: match.candidates.length, fields: plan.changes.map((c) => c.field), ready: plan.ready, current: result.includes("S2-269999"), preserved: result.includes(body), other: Object.keys(entries).filter((k) => k !== "word/document.xml").every((k) => entries[k].every((v, i) => output[k][i] === v)) });
+    }
+    return results;
+  });
+  for (const result of results) assert.deepEqual(result, { kind: "technical", candidates: 1, fields: ["tdoc"], ready: true, current: true, preserved: true, other: true });
+});
+
+test("ordinary proposals reject ambiguous covers and numbered meeting headers", async () => {
+  const codes = await page.evaluate(async () => {
+    const { m, z, W, file } = window.proposalTest;
+    const p = (s) => `<w:p><w:r><w:t>${s}</w:t></w:r></w:p>`;
+    const codes = [];
+    for (const content of [
+      p("3GPP Meeting S2-26xxxx") + p("Title:A") + p("Title:B") + p("Source:Huawei"),
+      p("3GPP Meeting S2-26xxxx S2-260001") + p("Title:A") + p("Source:Huawei"),
+    ]) {
+      try { await m.readProposal(file(z.zipSync({ "word/document.xml": z.strToU8(`<w:document xmlns:w="${W}"><w:body>${content}</w:body></w:document>`) }))); codes.push("success"); }
+      catch (e) { codes.push(e.code); }
+    }
+    return codes;
+  });
+  assert.deepEqual(codes, ["technical_template", "tdoc_location"]);
+});
+
+test("latest meeting excludes future dates and does not infer unknown dates", async () => {
+  const result = await page.evaluate(async () => {
+    const { latestMeeting } = await import("/src/utils/localTools/meetingDownload.ts");
+    const meetings = [{ id: "past", date: "2026-08-01", number: 175, suffix: "" }, { id: "future", date: "2027-01-01", number: 177, suffix: "" }, { id: "unknown", date: null, number: 178, suffix: "" }, { id: "month-only", date: "2026-11", number: 179, suffix: "" }];
+    return [latestMeeting(meetings, "2026-11-10"), latestMeeting(meetings.slice(1), "2026-11-10")];
+  });
+  assert.deepEqual(result, ["past", ""]);
+});
+
+test("downloads an official list, shows provenance and retains it on failure", async () => {
+  const payload = await page.evaluate(() => {
+    const { xlsx } = window.proposalTest;
+    return btoa(String.fromCharCode(...xlsx()));
+  });
+  await page.route("**/3gpp/meeting-lists?**", (route) => route.fulfill({ json: {
+    fetchedAt: "2026-11-10T00:00:00Z", meetings: [{ id: "CT4_138", number: 138, suffix: "", date: "2026-11-01", label: "CT4#138" }],
+  } }));
+  await page.route("**/3gpp/meeting-list?**", (route) => route.fulfill({ json: { name: "TDoc_List_Meeting_CT4#138.xlsx", content: payload, source: "https://www.3gpp.org/ftp/test/list.xlsx", fetchedAt: "2026-11-10T00:00:00Z" } }));
+  await page.getByRole("button", { name: "读取官网会议", exact: true }).click();
+  await page.getByRole("button", { name: "下载并使用清单", exact: true }).click();
+  await page.getByRole("link", { name: "查看官方清单来源" }).waitFor();
+  assert.equal(await page.getByRole("link", { name: "查看官方清单来源" }).getAttribute("href"), "https://www.3gpp.org/ftp/test/list.xlsx");
+  await page.route("**/3gpp/meeting-list?**", (route) => route.fulfill({ status: 502, json: { error: "unavailable" } }));
+  await page.getByRole("button", { name: "下载并使用清单", exact: true }).click();
+  await page.getByRole("alert").filter({ hasText: "未能读取官方清单" }).waitFor();
+  assert.equal(await page.getByRole("link", { name: "查看官方清单来源" }).count(), 1);
+  await page.screenshot({ path: path.join(artifacts, "download-desktop.png"), fullPage: true });
+  const mobile = await browser.newContext({
+    viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true,
+    userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Version/17.0 Mobile/15E148 Safari/604.1",
+  });
+  await mockAPI(mobile);
+  const mobilePage = await mobile.newPage();
+  await mobilePage.route("**/3gpp/meeting-lists?**", (route) => route.fulfill({ json: {
+    stale: true, fetchedAt: "2026-11-10T00:00:00Z", meetings: [{ id: "SA2_176", number: 176, suffix: "", date: null, label: "SA2#176 · Prague" }],
+  } }));
+  await mobilePage.goto(`${baseURL}/tools/proposal-fill`);
+  await mobilePage.getByLabel("工作组", { exact: true }).selectOption("SA2");
+  await mobilePage.getByRole("button", { name: "读取官网会议", exact: true }).click();
+  await mobilePage.getByText(/官网暂时不可用，显示上次读取的会议/).waitFor();
+  assert.equal(await mobilePage.getByRole("button", { name: "下载并使用清单", exact: true }).isDisabled(), true);
+  await mobilePage.getByLabel("会议", { exact: true }).selectOption("SA2_176");
+  await mobilePage.getByLabel("会议", { exact: true }).scrollIntoViewIfNeeded();
+  assert.equal(await mobilePage.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+  await mobilePage.screenshot({ path: path.join(artifacts, "download-mobile.png"), fullPage: true });
+  await mobilePage.getByLabel("工作组", { exact: true }).selectOption("CT4");
+  assert.equal(await mobilePage.getByLabel("会议", { exact: true }).count(), 0);
+  await mobile.close();
+});
+
+test("protocol lookup renders official PDF and missing versions on desktop and mobile", async () => {
+  for (const mobile of [false, true]) {
+    const context = await browser.newContext({
+      viewport: mobile ? { width: 390, height: 844 } : { width: 1440, height: 1000 },
+      isMobile: mobile,
+      ...(mobile ? { userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Version/17.0 Mobile/15E148 Safari/604.1" } : {}),
+    });
+    await mockAPI(context);
+    const tool = await context.newPage();
+    await tool.route("**/3gpp/protocol-finder?**", route => {
+      const query = new URL(route.request().url()).searchParams;
+      return route.fulfill({ json: query.has("v") ? {
+        pdf: "https://www.etsi.org/deliver/etsi_ts/138400_138499/138413/18.06.00_60/ts_138413v180600p.pdf",
+      } : {
+        type: "TS", id: "38.413", title: "NG Application Protocol (NGAP)",
+        dir: "https://www.etsi.org/deliver/etsi_ts/138400_138499/138413/",
+        requested: query.get("q").includes("i70") ? "18.7.0" : "18.6.0",
+        index: { checked: "2026-11-24T00:00:00Z", entries: [{ version: "18.6.0", date: "11/01/2026" }] },
+      } });
+    });
+    await tool.goto(`${baseURL}/tools/protocol-finder`);
+    await tool.getByLabel("规范编号或文件名").fill("38413-i60.zip");
+    await tool.getByRole("button", { name: "查询", exact: true }).click();
+    const pdf = tool.getByRole("link", { name: "打开 PDF ↗", exact: true });
+    await pdf.waitFor();
+    assert.match(await pdf.getAttribute("href"), /^https:\/\/www\.etsi\.org\/deliver\//);
+    assert.equal(await tool.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+    await tool.screenshot({ path: path.join(artifacts, `protocol-${mobile ? "mobile" : "desktop"}.png`), fullPage: true });
+    await tool.getByLabel("规范编号或文件名").fill("38413-i70.zip");
+    await tool.getByRole("button", { name: "查询", exact: true }).click();
+    await tool.getByText("目录中没有这个版本。可选择其他版本，或刷新目录。").waitFor();
+    assert.equal(await pdf.count(), 0);
+    await context.close();
+  }
 });

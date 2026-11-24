@@ -1,11 +1,33 @@
 // Anything with "null" requires a translation. Contribute to translation via a PR!
 const TRANSLATIONS = {
   local_tools: {
+    protocol: {
+      title: "3GPP 规范 PDF 查询",
+      description:
+        "按规范编号或文件名查找 ETSI 官方 PDF，可指定 Release 和修订版本。",
+      category: "3GPP 规范",
+      label: "规范编号或文件名",
+      hint: "例如 38.413、38413-i60.zip 或 TR 38.901",
+      search: "查询",
+      release: "Release",
+      revision: "版本",
+      open: "打开 PDF",
+      copy: "复制引用",
+      copied: "已复制引用",
+      manual: "请复制下方引用",
+      refresh: "从 ETSI 刷新",
+      loading: "正在查询…",
+      directory: "查看 ETSI 目录",
+      checked: "上次更新",
+      missing: "目录中没有这个版本。可选择其他版本，或刷新目录。",
+      failed: "暂时无法完成查询，请稍后重试。",
+      folder: "目录日期",
+    },
     nav: "日常工具",
     title: "提案编号回填工具",
     catalog_description: "选择工具，处理会议材料和日常文件。",
     category: "3GPP 提案",
-    tool_summary: "根据会议清单，批量填写 CR 提案编号并重命名。",
+    tool_summary: "根据会议清单，批量填写提案编号并重命名。",
     open_tool: "打开工具",
     back_to_tools: "返回日常工具",
     example_title: "例子：把正式编号填回提案",
@@ -16,33 +38,48 @@ const TRANSLATIONS = {
     example_before_values: "提案编号 C4-26xxxx；CR 号 xxx；规范版本为空。",
     example_after_values: "提案编号 C4-265196；CR 号 0419；规范版本 20.1.0。",
     example_note:
-      "以上数值仅作示例。实际填写内容来自你选择的清单。检查匹配结果后，下载 ZIP，内含 Word 副本和处理清单。",
+      "普通技术提案只更新提案编号，例如将 C4-26xxxx 改为清单中的正式编号，正文版本保持不变。以上数值仅作示例。实际填写内容来自你选择的清单。检查匹配结果后，下载 ZIP，内含 Word 副本和处理清单。",
     description:
-      "用 3GPP 会议清单中的正式编号更新 Word 草稿。选择 TDoc_List 清单和 CR 提案，检查匹配结果，再下载已填写并重命名的副本。",
-    privacy: "文件在浏览器中处理，不上传。原文件不变。",
+      "用 3GPP 会议清单中的正式编号更新 Word 草稿。下载或上传 TDoc_List 清单，选择 Word 提案，检查匹配结果，再下载已填写并重命名的副本。",
+    privacy:
+      "Word 提案在浏览器中处理，不上传。原文件不变。服务器仅从 3GPP 官网下载会议清单。",
     select_files: "选择本地文件",
     meeting_title: "1. 选择会议清单",
     meeting_hint:
       "选择从 3GPP 下载的 Excel 文件（.xlsx）。文件须包含 TDoc_List 工作表，通常只需一份。每份不超过 20 MB。",
+    working_group: "工作组",
+    official_meeting: "会议",
+    choose_meeting: "请选择会议",
+    load_meetings: "读取官网会议",
+    loading_meetings: "正在读取会议…",
+    download_list: "下载并使用清单",
+    downloading_list: "正在下载清单…",
+    download_failed: "未能读取官方清单。请稍后重试，或手动上传 Excel 清单。",
+    latest_meeting_hint:
+      "默认选择最近已开始的有日期会议。请确认会议；日期不明时需手动选择。下载成功后会替换已加载清单。",
+    meetings_stale:
+      "官网暂时不可用，显示上次读取的会议。请确认会议，也可手动上传清单。",
+    manual_list_hint: "也可以手动上传已下载的 Excel 清单。",
+    official_source: "查看官方清单来源",
     choose_excel: "选择 Excel",
     clear_meetings: "清空会议清单",
     meeting_files: "已添加的会议清单",
     remove_meeting: "移除会议清单 {{name}}",
-    meeting_loaded: "已读取 {{files}} 份清单，共 {{count}} 条 CR 记录",
-    meeting_record_count: "{{count}} 条 CR 记录",
+    meeting_loaded: "已读取 {{files}} 份清单，共 {{count}} 条提案记录",
+    meeting_record_count: "{{count}} 条提案记录",
     read_meeting_progress: "正在读取第 {{current}} / {{total}} 份会议清单…",
     choose_meeting_first: "请先添加会议清单",
     record_source: "所用清单：{{name}} / TDoc_List / 第 {{row}} 行",
-    documents_title: "2. 选择 CR 提案",
+    documents_title: "2. 选择 Word 提案",
     documents_hint:
       "先选择清单，再选择 Word 文件（.docx）或提案文件夹。每批最多 50 份，每份不超过 20 MB，总计不超过 100 MB。",
     choose_documents: "选择 Word 文件",
     choose_folder: "选择文件夹",
     rules_title: "查看填写规则与支持范围",
     rules: [
-      "支持 CR-Form-v13.0.1 格式的 CR 封面。普通技术提案和旧版 .doc 文件暂不支持。",
+      "支持 CR-Form-v13.0.1 封面，以及首页以段落或表格标注 Title 和 Source 的普通技术提案。不支持旧版 .doc。",
       "根据标题、规范号、Release 和来源匹配。找到多条记录时，需手动选择。",
-      "填写提案编号、CR 号、rev 和 Current version。清单中的 CR revision 为空时，保留原 rev。",
+      "CR 填写提案编号、CR 号、rev 和 Current version。普通技术提案只填写提案编号。CR revision 为空时，保留原 rev。",
       "已有正式值与清单不同时，需确认后才能覆盖。规范号、Release、来源和正文不变。",
       "更改会议清单后，工具会重新匹配。请重新检查并确认。可添加多份清单，每批最多 20 份，总计不超过 100 MB。",
       "提案文件夹会包含子目录。工具忽略以 ~$ 开头的 Word 临时文件。",
@@ -114,9 +151,8 @@ const TRANSLATIONS = {
         "无法读取文件，请检查它是否完整、未加密，并且能在 Excel 或 Word 中打开。",
       missing_sheet:
         "未找到 TDoc_List 工作表，请选择 3GPP 导出的会议提案清单。",
-      missing_columns:
-        "会议清单缺少所需列：TDoc、Title、Source、Spec、Release、Version、CR 或 CR revision。",
-      no_records: "会议清单中没有可读取的 CR 记录。",
+      missing_columns: "会议清单缺少所需列：TDoc、Title 或 Source。",
+      no_records: "会议清单中没有可读取的提案记录。",
       no_documents: "所选文件夹中没有 .docx 文件。",
       no_meeting_files: "所选文件夹中没有 .xlsx 清单文件。",
       meeting_count:
@@ -129,6 +165,8 @@ const TRANSLATIONS = {
         "此文件启用了文档保护，请先在 Word 中另存为可编辑的副本。",
       template:
         "无法唯一定位 CR 封面表格，当前只支持一份文件对应一张 CR 封面。",
+      technical_template:
+        "无法唯一读取普通提案首页的 Title 和 Source，请检查首页格式。",
       metadata: "无法从封面读取标题、规范号、Release 或来源，请检查文档模板。",
       tdoc_location:
         "无法唯一定位文档开头的提案编号，请保留类似 C4-26xxx 的占位编号后重试。",

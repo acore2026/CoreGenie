@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { ArrowRight, FileDoc } from "@phosphor-icons/react";
+import { ArrowRight, FileDoc, MagnifyingGlass } from "@phosphor-icons/react";
 import { isMobile } from "react-device-detect";
 import { useTranslation } from "react-i18next";
 import Sidebar, { SidebarMobileHeader } from "@/components/Sidebar";
@@ -7,6 +7,14 @@ import paths from "@/utils/paths";
 
 // Each tool has its own route and catalog entry; the catalog owns no tool state.
 const tools = [
+  {
+    id: "protocol-finder",
+    path: paths.protocolFinder,
+    title: "local_tools.protocol.title",
+    description: "local_tools.protocol.description",
+    category: "local_tools.protocol.category",
+    Icon: MagnifyingGlass,
+  },
   {
     id: "proposal-fill",
     path: paths.proposalFill,

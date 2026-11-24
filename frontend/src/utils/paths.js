@@ -24,6 +24,7 @@ export default {
     return "/";
   },
   help: (tab) => (tab ? `/help?tab=${encodeURIComponent(tab)}` : "/help"),
+  protocolFinder: () => "/tools/protocol-finder",
   tools: () => "/tools",
   proposalFill: () => "/tools/proposal-fill",
   login: (noTry = false) => {

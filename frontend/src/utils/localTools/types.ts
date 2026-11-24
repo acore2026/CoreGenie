@@ -1,4 +1,4 @@
-/** Data contracts for the currently supported CR proposal workflow. */
+/** Data contracts for the proposal workflows. */
 export type FieldName = "tdoc" | "cr" | "revision" | "version";
 export type MetadataField = "spec" | "release" | "source";
 export type NamingMode = "number" | "preserve";
@@ -12,6 +12,7 @@ export interface ProposalMetadata {
 }
 
 export interface MeetingRecord extends ProposalMetadata {
+  kind?: "cr" | "technical";
   id: string;
   tdoc: string;
   cr: string;
@@ -28,17 +29,26 @@ export interface MeetingFile {
   id: string;
   name: string;
   size: number;
+  source?: string;
+  fetchedAt?: string;
   records?: MeetingRecord[];
   error?: string;
 }
 
-export interface CRProposal {
-  kind: "cr";
+interface ProposalBase {
   file: File;
   bytes: FileBytes;
   metadata: ProposalMetadata;
   values: Record<FieldName, string>;
 }
+
+export interface CRProposal extends ProposalBase {
+  kind: "cr";
+}
+export interface TechnicalProposal extends ProposalBase {
+  kind: "technical";
+}
+export type Proposal = CRProposal | TechnicalProposal;
 
 export interface MatchResult {
   candidates: SourcedRecord[];
@@ -51,7 +61,7 @@ export interface ProposalItem extends MatchResult {
   file: File;
   confirmed: boolean;
   excluded: boolean;
-  proposal?: CRProposal;
+  proposal?: Proposal;
   error?: string;
   exportError?: string;
 }

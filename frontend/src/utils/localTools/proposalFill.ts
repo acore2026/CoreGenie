@@ -1,7 +1,7 @@
 import { unzipSync, zipSync, strFromU8, strToU8 } from "fflate";
 
 import type {
-  CRProposal,
+  Proposal,
   ExportFile,
   FieldName,
   FileBytes,
@@ -189,16 +189,7 @@ export async function readMeetingList(file: File): Promise<MeetingRecord[]> {
       clean(valueOf(c)),
     ])
   );
-  const required = [
-    "TDoc",
-    "Title",
-    "Source",
-    "Spec",
-    "Release",
-    "Version",
-    "CR",
-    "CR revision",
-  ];
+  const required = ["TDoc", "Title", "Source"];
   if (required.some((name) => ![...columns.values()].includes(name)))
     fail("missing_columns");
   const records: MeetingRecord[] = [];
@@ -210,10 +201,9 @@ export async function readMeetingList(file: File): Promise<MeetingRecord[]> {
       values[
         columns.get((cell.getAttribute("r") || "").replace(/\d/g, "")) ?? ""
       ] = clean(valueOf(cell));
-    if (!values.Title || (values.Type && normalize(values.Type) !== "cr"))
-      continue;
-    if (!values.Type && !values.CR) continue;
+    if (!values.Title || !values.TDoc) continue;
     records.push({
+      kind: normalize(values.Type) === "cr" || values.CR ? "cr" : "technical",
       id: row.getAttribute("r") || "",
       tdoc: values.TDoc || "",
       title: values.Title,
@@ -317,7 +307,7 @@ function replacement(
   if (!inserted) fail("template");
 }
 
-export async function readProposal(file: File): Promise<CRProposal> {
+export async function readProposal(file: File): Promise<Proposal> {
   const bytes = await fileBytes(file, ".docx");
   const entries = unpack(bytes);
   if (
@@ -341,17 +331,17 @@ export async function readProposal(file: File): Promise<CRProposal> {
       fail("protected_document");
   }
   const doc = xml(entries["word/document.xml"], W);
-  const { fields, metadata, tdoc } = locateProposal(doc);
+  const { fields, metadata, tdoc, kind } = locateProposal(doc);
   return {
-    kind: "cr",
+    kind,
     file,
     bytes,
     metadata,
     values: {
       tdoc: tdoc.value,
-      cr: clean(text(fields.cr)),
-      revision: clean(text(fields.revision)),
-      version: clean(text(fields.version)),
+      cr: fields.cr ? clean(text(fields.cr)) : "",
+      revision: fields.revision ? clean(text(fields.revision)) : "",
+      version: fields.version ? clean(text(fields.version)) : "",
     },
   };
 }
@@ -359,7 +349,8 @@ export async function readProposal(file: File): Promise<CRProposal> {
 function locateProposal(doc: Document) {
   const body = elements(doc, W, "body")[0];
   if (!body) fail("template");
-  const tables = children(body, "tbl");
+  const cover = coverElements(body);
+  const tables = cover.filter((node) => node.localName === "tbl");
   const forms: CRForm[] = [];
   for (const table of tables)
     for (const row of children(table, "tr")) {
@@ -371,6 +362,15 @@ function locateProposal(doc: Document) {
       if (cr > 0 && rev > cr && version > rev && cells[version + 1])
         forms.push({ table, cells, cr, rev, version });
     }
+  if (!forms.length) {
+    // A damaged CR must never fall back to the ordinary-proposal parser.
+    if (
+      cover.some((node) => /CR-Form-v/i.test(text(node))) ||
+      tables.some((table) => /current version|source to wg/i.test(text(table)))
+    )
+      fail("template");
+    return locateTechnical(body);
+  }
   if (forms.length !== 1) fail("template");
   const form = forms[0];
   const fields = {
@@ -415,6 +415,26 @@ function locateProposal(doc: Document) {
     if (child === form.table) break;
     if (child.localName === "p") prefix.push(child);
   }
+  const tdoc = locateNumber(prefix);
+  if (
+    Object.values(fields).some((field) => field && !writable(field)) ||
+    !writable(tdoc.node)
+  )
+    fail("complex_field");
+  return {
+    kind: "cr" as const,
+    fields: fields as Partial<Record<Exclude<FieldName, "tdoc">, Element>>,
+    metadata: {
+      title: metadata.title,
+      source: metadata.source,
+      release: metadata.release,
+      spec,
+    },
+    tdoc,
+  };
+}
+
+function locateNumber(prefix: Element[]): NumberLocation {
   // Revision history may list older TDocs before the cover. Prefer the meeting
   // header so those references are preserved rather than treated as candidates.
   const headers = prefix.filter((p) => /3GPP.*Meeting/i.test(text(p)));
@@ -462,34 +482,87 @@ function locateProposal(doc: Document) {
       blank: true,
     };
   } else fail("tdoc_location");
-  if (
-    Object.values(fields).some((field) => !writable(field)) ||
-    !writable(tdoc.node)
-  )
-    fail("complex_field");
-  return {
-    fields,
-    metadata: {
-      title: metadata.title,
-      source: metadata.source,
-      release: metadata.release,
-      spec,
-    },
-    tdoc,
-  };
+  if (!writable(tdoc.node)) fail("complex_field");
+  return tdoc;
 }
 
+function coverElements(body: Element): Element[] {
+  const cover: Element[] = [];
+  for (const child of body.children) {
+    if (cover.length >= 40) break;
+    if (child.localName === "p" && /^\s*\d+[. ]+\s*[A-Za-z]/.test(text(child)))
+      break;
+    cover.push(child);
+  }
+  return cover;
+}
+function locateTechnical(body: Element) {
+  const cover = coverElements(body);
+  const metadata: ProposalMetadata = {
+    title: "",
+    source: "",
+    spec: "",
+    release: "",
+  };
+  const seen = new Set<string>();
+  function add(label: string, value: string) {
+    const key = label.toLowerCase() as keyof ProposalMetadata;
+    if (seen.has(key)) fail("technical_template");
+    seen.add(key);
+    metadata[key] = clean(value);
+  }
+  for (const node of cover) {
+    if (node.localName === "p") {
+      const match = text(node).match(
+        /^\s*(Title|Source|Spec|Release)\s*:\s*(.*)$/i
+      );
+      if (match) add(match[1], match[2]);
+    } else if (node.localName === "tbl") {
+      for (const row of children(node, "tr")) {
+        const cells = children(row, "tc");
+        const label = cells[0] && clean(text(cells[0])).replace(/:\s*$/, "");
+        if (label && /^(Title|Source|Spec|Release)$/i.test(label) && cells[1])
+          add(label, text(cells[1]));
+      }
+    }
+  }
+  if (!metadata.title || !metadata.source) fail("technical_template");
+  return {
+    kind: "technical" as const,
+    fields: {} as Partial<Record<Exclude<FieldName, "tdoc">, Element>>,
+    metadata,
+    tdoc: locateNumber(cover.filter((node) => node.localName === "p")),
+  };
+}
+const recordKind = (record: MeetingRecord) =>
+  record.kind || (record.cr ? "cr" : "technical");
+const metadataEqual = (
+  proposal: Proposal,
+  record: MeetingRecord,
+  key: MetadataField
+) => {
+  const value = proposal.metadata[key];
+  if (proposal.kind === "technical" && !value) return true;
+  const canonical = (v: string) =>
+    key === "spec"
+      ? normalize(v).replace(/^3gpp\s+(?:ts|tr)\s+/, "")
+      : normalize(v);
+  return canonical(value) === canonical(record[key]);
+};
+
 export function matchRecords(
-  proposal: CRProposal,
+  proposal: Proposal,
   records: SourcedRecord[]
 ): MatchResult {
   const m = proposal.metadata;
   const sameTitle = records.filter(
-    (r) => normalize(r.title) === normalize(m.title)
+    (r) =>
+      recordKind(r) === proposal.kind &&
+      normalize(r.title) === normalize(m.title)
   );
   const exact = sameTitle.filter((r) =>
-    (["spec", "release", "source"] as const).every(
-      (key) => normalize(r[key]) === normalize(m[key])
+    (["spec", "release", "source"] as const).every((key) =>
+      metadataEqual(proposal, r, key)
     )
   );
   return {
@@ -511,7 +584,7 @@ const placeholder = (value: string, field: FieldName): boolean => {
   return /^(?:x+|tbd|\?+|待填写)$/i.test(value);
 };
 export function planProposal(
-  proposal: CRProposal,
+  proposal: Proposal,
   record: SourcedRecord | undefined,
   allowConflicts = false,
   naming: NamingMode = "number"
@@ -519,17 +592,19 @@ export function planProposal(
   if (
     !record ||
     !/^[A-Z][A-Z0-9]*-\d{6,}$/i.test(record.tdoc) ||
-    !/^\d+$/.test(record.cr) ||
-    !/^\d+\.\d+\.\d+$/.test(record.version) ||
-    (record.revision && !/^(?:-|\d+)$/.test(record.revision))
+    recordKind(record) !== proposal.kind ||
+    (proposal.kind === "cr" &&
+      (!/^\d+$/.test(record.cr) ||
+        !/^\d+\.\d+\.\d+$/.test(record.version) ||
+        (record.revision && !/^(?:-|\d+)$/.test(record.revision))))
   )
     fail("record_values");
   const metadataConflicts: MetadataField[] = (
     ["spec", "release", "source"] as const
-  ).filter(
-    (key) => normalize(proposal.metadata[key]) !== normalize(record[key])
-  );
-  const changes = FIELD_NAMES.map((field) => {
+  ).filter((key) => !metadataEqual(proposal, record, key));
+  const fields: readonly FieldName[] =
+    proposal.kind === "cr" ? FIELD_NAMES : ["tdoc"];
+  const changes = fields.map((field) => {
     const before = proposal.values[field];
     const after =
       field === "revision" && !record.revision ? before : record[field];
@@ -580,7 +655,7 @@ export const isDuplicateName = (
 ): boolean => duplicates.has(normalize(name));
 
 export async function generateProposal(
-  proposal: CRProposal,
+  proposal: Proposal,
   plan: ProposalPlan
 ): Promise<FileBytes> {
   if (!plan.ready) fail("unconfirmed");
@@ -592,6 +667,7 @@ export async function generateProposal(
     if (!change.changed) continue;
     if (change.field !== "tdoc") {
       const node = fields[change.field];
+      if (!node) fail("template");
       replacement(node, 0, text(node).length, change.after);
     } else {
       if (change.before) {
