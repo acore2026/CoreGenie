@@ -150,7 +150,7 @@ docker compose -f docker/docker-compose.yml up -d --build
 
 ### 下载已发布镜像
 
-无需本地构建，支持 amd64、arm64。首次安装：
+无需本地构建，支持 x86_64（amd64）。首次安装：
 
 ```bash
 curl -fL --retry 3 -o deploy-image.sh \

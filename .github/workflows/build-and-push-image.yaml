@@ -1,9 +1,5 @@
-# This GitHub action is for publishing of the primary image for AnythingLLM
-# It will publish a linux/amd64 and linux/arm64 image at the same time
-# This file should ONLY BY USED FOR `master` BRANCH. 
-# TODO: GitHub now has an ubuntu-24.04-arm64 runner. Revisit whether the
-# native runner is stable enough to replace QEMU for arm64 builds.
-name: Publish AnythingLLM Primary Docker image (amd64/arm64)
+# Publish the x86_64 image on a native GitHub runner.
+name: Publish CoreGenie Docker image (amd64)
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -30,8 +26,8 @@ on:
 
 jobs:
   push_multi_platform_to_registries:
-    name: Push Docker multi-platform image to multiple registries
-    runs-on: ubuntu-22.04-arm
+    name: Push amd64 image to registries
+    runs-on: ubuntu-22.04
     permissions:
       packages: write
       contents: read
@@ -51,9 +47,6 @@ jobs:
             echo "enabled=true" >> $GITHUB_OUTPUT
           fi
         id: dockerhub
-
-      - name: Set up QEMU for the non-native architecture
-        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -89,7 +82,7 @@ jobs:
             type=ref,event=tag
             type=ref,event=pr
 
-      - name: Build and push multi-platform Docker image
+      - name: Build and push amd64 Docker image
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -101,7 +94,7 @@ jobs:
           push: true
           sbom: true
           provenance: mode=max
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha

@@ -19,7 +19,7 @@
 
 ## 下载镜像部署（v1.15.1）
 
-镜像：`ghcr.io/acore2026/coregenie:1.15.1`，支持 amd64 和 arm64。无需拉取源码或本地构建。先下载脚本：
+镜像：`ghcr.io/acore2026/coregenie:1.15.1`，支持 x86_64（amd64）。无需拉取源码或本地构建。先下载脚本：
 
 ```bash
 curl -fL --retry 3 -o deploy-image.sh \
