@@ -148,6 +148,20 @@ docker compose -f docker/docker-compose.yml up -d --build
 
 容器访问宿主机上的 Ollama、LM Studio 或其他服务时，请使用 `host.docker.internal`，不要填写容器自身的 `localhost`。更多信息见 [Docker 使用说明](./docker/HOW_TO_USE_DOCKER.md)。
 
+### 下载已发布镜像
+
+无需本地构建，支持 amd64、arm64。首次安装：
+
+```bash
+curl -fL --retry 3 -o deploy-image.sh \
+  https://github.com/acore2026/CoreGenie/releases/download/v1.15.1/deploy-image.sh
+bash deploy-image.sh install
+```
+
+访问 `http://localhost:7555`。更新已有容器使用 `bash deploy-image.sh update`，需要宿主机安装 Node.js 18+。更新会保留原端口、数据和认证配置，不备份数据。
+
+镜像包含华为 IDaaS OAuth。首次安装、OAuth 配置及基础版限制见[部署说明](./docs/deployment-profiles.md)。
+
 ## 本地开发
 
 ### 环境要求

@@ -52,6 +52,9 @@ jobs:
           fi
         id: dockerhub
 
+      - name: Set up QEMU for the non-native architecture
+        uses: docker/setup-qemu-action@v3
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
         with:
@@ -81,6 +84,7 @@ jobs:
             ghcr.io/${{ github.repository }}
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,format=long
             type=ref,event=branch
             type=ref,event=tag
             type=ref,event=pr
@@ -90,6 +94,10 @@ jobs:
         with:
           context: .
           file: ./docker/Dockerfile
+          build-args: |
+            UBUNTU_MIRROR=http://archive.ubuntu.com/ubuntu
+            UBUNTU_PORTS_MIRROR=http://ports.ubuntu.com/ubuntu-ports
+            YARN_REGISTRY=https://registry.npmjs.org
           push: true
           sbom: true
           provenance: mode=max

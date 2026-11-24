@@ -3,6 +3,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const http = require("node:http");
+const os = require("node:os");
 const { execFileSync } = require("node:child_process");
 const args = process.argv.slice(2);
 const option = (name) => {
@@ -12,7 +13,8 @@ const option = (name) => {
 const image = option("--image");
 const name = option("--container") || "anythingllm";
 const mode = option("--auth-mode");
-const directory = option("--backup-dir");
+const directory = option("--state-dir") || option("--backup-dir") ||
+  fs.mkdtempSync(path.join(os.tmpdir(), "coregenie-deploy-"));
 const noProxyAppend = option("--no-proxy-append");
 const envOverrides = args.flatMap((value, index) =>
   value === "--env" ? [args[index + 1]] : []
@@ -42,10 +44,17 @@ async function main() {
     throw new Error("Each --env must be followed by NAME=value.");
   if (!image || !directory || !path.isAbsolute(directory) ||
       (mode && !["local", "idaas"].includes(mode)))
-    throw new Error("Require --image, absolute --backup-dir, and optional --auth-mode local|idaas.");
+    throw new Error("Require --image, absolute --state-dir, and optional --auth-mode local|idaas.");
+  const endpoint = process.env.DOCKER_CONTEXT
+    ? docker("context", "inspect", "--format", "{{.Endpoints.docker.Host}}")
+    : process.env.DOCKER_HOST || docker("context", "inspect", "--format", "{{.Endpoints.docker.Host}}");
+  if (endpoint !== "unix:///var/run/docker.sock")
+    throw new Error("Run this helper on the Docker host using unix:///var/run/docker.sock.");
   const old = JSON.parse(docker("inspect", name))[0];
   if (!old.State.Running) throw new Error("Expected a running source container.");
-  docker("image", "inspect", image);
+  if (args.includes("--pull")) docker("pull", image);
+  const imageConfig = JSON.parse(docker("image", "inspect", image))[0];
+  const imageId = imageConfig.Id;
   const active = () => {
     const output = docker("exec", name, "node", "-e",
       'const p=require("/app/server/utils/prisma");p.agent_runs.count({where:{status:{in:["running","queued"]}}}).then(n=>console.log("ACTIVE="+n)).finally(()=>p.$disconnect())');
@@ -57,10 +66,15 @@ async function main() {
   const suffix = Date.now();
   const candidate = `${name}-candidate-${suffix}`;
   const backup = `${name}-before-${suffix}`;
-  const body = { ...old.Config, Image: image, HostConfig: old.HostConfig,
+  const body = { ...old.Config, Image: imageId, HostConfig: old.HostConfig,
     NetworkingConfig: { EndpointsConfig: {} } };
   delete body.Hostname;
   delete body.Domainname;
+  const version = imageConfig.Config?.Env?.find(value => value.startsWith("DEPLOYMENT_VERSION="));
+  if (version) {
+    body.Env = (body.Env || []).filter(value => !value.startsWith("DEPLOYMENT_VERSION="));
+    body.Env.push(version);
+  }
   for (const value of envOverrides) {
     const prefix = value.slice(0, value.indexOf("=") + 1);
     body.Env = (body.Env || []).filter(entry => !entry.startsWith(prefix));
@@ -101,7 +115,7 @@ async function main() {
       const state = JSON.parse(docker("inspect", name))[0].State;
       if (!state.Running) throw new Error("Candidate container exited.");
       if (state.Health?.Status === "healthy") {
-        const result = { container: name, image, backup, authMode: mode || "preserved", ports: old.HostConfig.PortBindings };
+        const result = { container: name, image, imageId, backup, authMode: mode || "preserved", ports: old.HostConfig.PortBindings };
         fs.writeFileSync(path.join(directory, "deployment.json"), JSON.stringify(result, null, 2), { mode: 0o600, flag: "wx" });
         console.log(JSON.stringify(result));
         return;
@@ -114,6 +128,7 @@ async function main() {
       docker("stop", "--time", "10", name);
       docker("rename", name, `${name}-failed-${suffix}`);
     }
+    if (!swapped) docker("rm", candidate);
     if (renamed) docker("rename", backup, name);
     if (stopped) docker("start", name);
     console.error("Previous container retained/restored; database migrations are not rolled back.");

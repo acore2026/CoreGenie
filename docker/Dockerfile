@@ -142,6 +142,7 @@ RUN sed -i \
     yarn install --network-timeout 100000 && yarn cache clean
 ARG VITE_AGENT_TRANSPORT=auto
 ENV VITE_AGENT_TRANSPORT=$VITE_AGENT_TRANSPORT
+ENV VITE_API_BASE=/api
 COPY ./frontend/ ./
 RUN yarn build
 WORKDIR /app
@@ -213,7 +214,7 @@ COPY --chown=anythingllm:anythingllm --from=frontend-build /app/frontend/dist /a
 # Setup the environment
 ENV NODE_ENV=production
 ENV ANYTHING_LLM_RUNTIME=docker
-ENV DEPLOYMENT_VERSION=1.15.0
+ENV DEPLOYMENT_VERSION=1.15.1
 
 # Setup the healthcheck
 HEALTHCHECK --interval=1m --timeout=10s --start-period=1m \
