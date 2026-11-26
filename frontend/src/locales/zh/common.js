@@ -1015,33 +1015,82 @@ const TRANSLATIONS = {
       new_badge: "11 月更新",
     },
     november_release: {
-      title: "在绿区用 w3 登录，查规范、填提案编号",
+      title: "绿区工作台上线，新增两项 3GPP 工具",
       access: "绿区访问",
-      address:
-        "用绿区便携访问 aicore.tool.huawei.com，即可在公司内网上传文件。绿区工作台使用公司内部模型，目前支持 GLM-5.3 和 deepseek-v4.1-flash-1017。",
-      availability:
-        "黄区安全 PC 目前无法直连绿区工作台，后续会考虑在黄区单独部署。",
-      hosting:
-        "如果你也有项目想部署在绿区，可以联系 CoreGenie 维护人，了解研究部的服务器资源。",
+      access_points: [
+        {
+          title: "访问入口",
+          text: "用绿区便携打开 aicore.tool.huawei.com，即可在公司内网上传文件。",
+        },
+        {
+          title: "可用模型",
+          text: "绿区工作台使用公司内部模型，目前支持 GLM-5.3 和 deepseek-v4.1-flash-1017。",
+        },
+        {
+          title: "迁入绿区的原因",
+          text: "8 月试用时，黄区和绿区只有 MiniMax 2.7 可用，生成文字慢，分析一份提案要等很久，所以当时先部署在蓝区。现在内网有了更多可用模型，工作台也搬到了便携可以直接访问的绿区。",
+        },
+        {
+          title: "安全 PC 访问",
+          text: "黄区安全 PC 目前无法直连绿区工作台，后续会考虑在黄区单独部署。",
+        },
+        {
+          title: "服务器资源",
+          text: "如果你也有项目想部署在绿区，可以联系 CoreGenie 维护人，了解研究部的服务器资源。",
+        },
+      ],
       blue: "访问原蓝区站点",
       accounts: "用 w3 账号登录",
+      sso: "绿区接入了公司的单点登录（SSO）。点击登录后，浏览器会跳到公司统一认证平台（IDaaS）。用 w3 账号通过认证后，平台会把浏览器带回 CoreGenie 预先登记的回调地址。CoreGenie 确认身份后，你就可以继续使用工作台。",
       sign_in:
-        "在绿区登录页选择“使用华为账号登录”，用日常办公的 w3 账号完成认证。首次登录会自动创建 CoreGenie 账号，无需另外注册或设置密码。",
+        "第一次使用时，在绿区登录页选择“使用华为账号登录”即可。认证通过后会自动创建 CoreGenie 账号，无需另外注册或设置密码。",
       existing:
         "如果想沿用已有的 CoreGenie 账号，请在首次用 w3 登录前联系管理员绑定原账号，之后就能用 w3 继续访问原来的工作区。",
       pdf: {
         contributor: "刘佳明",
+        alt: "规范查询示例：选中 TS 38.413 的 18.6.0 版本后，可以打开 PDF 或复制引用。",
         description:
           "查 TS 23.502 这样的大文档时，光等 Word 打开就可能花上几分钟。输入规范编号或文件名，选好 Release 和修订版本，就能直接打开 ETSI 官方 PDF，也可以复制该版本的引用。",
       },
       proposal: {
         contributor: "戚彩霞",
+        alt: "提案回填示例：草稿中的占位编号换成正式编号 C4-265196，导出的 Word 文件也按正式编号命名。",
         description:
           "会议分配正式编号后，逐份改 Word 封面和文件名容易漏改。选好会议清单和一批 Word 草稿，检查匹配结果，就能下载已回填编号并重命名的副本。CR 草稿还可以一起填写 CR 号、修订号和规范版本。",
       },
       credit: "贡献人：{{name}}",
+      ppt: {
+        title: "下一步：改进 PPT",
+        description:
+          "有同事希望把提案直接做成 PPT。目前 Agent 已能生成可编辑的 PPT，但成稿质量还不够好。一方面，当前模型只处理文本，无法直接看图或检查幻灯片的视觉效果。另一方面，Agent 从提炼要点、编排图文到检查成稿的流程也需要改进。下一阶段，我们会针对这两点优化 PPT 生成。",
+      },
+      feedback_title: "下一件日常工具，你希望它帮你做什么？",
       feedback:
-        "还有哪些工作要反复查、反复填？欢迎把具体步骤和最费时的地方告诉 CoreGenie 维护人，帮助我们决定下一项日常工具做什么。",
+        "会前要从几份清单里找出自己负责的提案？会后又要把同一条结论填进好几张表？欢迎把这样的例子告诉 CoreGenie 维护人。",
+      feedback_prompt:
+        "说说你从哪份材料开始、想得到什么结果，以及中间哪一步最费时间。哪怕只是每周都要重复的五分钟，也值得提。",
+      sketch: {
+        deployment:
+          "绿区部署图：办公便携通过 aicore.tool.huawei.com 访问部署在研究部绿区 Linux 服务器上的 CoreGenie，工作台调用公司内部模型。黄区安全 PC 暂不能直连绿区，原蓝区站点仍可访问。",
+        green: "绿区内网",
+        laptop: "办公便携",
+        server: "研究部绿区 Linux 服务器",
+        models: "内部模型",
+        yellow: "黄区 · 安全 PC",
+        blocked: "暂不能直连绿区",
+        blue: "蓝区 · 原站点",
+        available: "仍可访问",
+        signin:
+          "w3 单点登录流程：从 CoreGenie 进入华为 IDaaS，用 w3 完成认证，再通过已登记的回调地址返回工作台。",
+        redirect: "前往公司认证",
+        start: "点击登录",
+        authenticate: "用 w3 认证",
+        return: "返回工作台",
+        ideas: "三张手绘便签：查材料、核对清单，最后一张留给你想做的小工具。",
+        find: "查材料",
+        check: "核对清单",
+        yourIdea: "你的点子？",
+      },
     },
     release_notes: {
       badge: "CoreGenie 9 月更新",

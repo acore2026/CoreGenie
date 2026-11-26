@@ -14,7 +14,11 @@ import {
 } from "@phosphor-icons/react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
+import protocolResult from "@/media/release-notes/protocol-result.png";
+import proposalExample from "@/media/release-notes/proposal-example.png";
 import paths from "@/utils/paths";
+
+import { DeploymentSketch, SignInSketch, IdeasSketch } from "./ReleaseSketches";
 
 const FEATURE_ICONS = [Presentation, GitDiff, Sliders, Books];
 const WORKBENCH_ICONS = [ListChecks, FolderOpen, FileText, HardDrives];
@@ -30,11 +34,13 @@ export default function ReleaseNotes() {
       key: "pdf",
       title: t("local_tools.protocol.title"),
       href: paths.protocolFinder(),
+      image: protocolResult,
     },
     {
       key: "proposal",
       title: t("local_tools.title"),
       href: paths.proposalFill(),
+      image: proposalExample,
     },
   ];
 
@@ -58,15 +64,24 @@ export default function ReleaseNotes() {
         <div className="grid gap-6 border-y border-white/[0.07] py-6 light:border-slate-200 lg:grid-cols-2">
           <section className="space-y-2">
             <h2 className={heading}>{note("access")}</h2>
-            <p>{note("address")}</p>
-            <p>{note("availability")}</p>
-            <p>{note("hosting")}</p>
+            <DeploymentSketch />
+            <ul className="list-disc space-y-2 pl-5">
+              {t("help.november_release.access_points", {
+                returnObjects: true,
+              }).map(({ title, text }) => (
+                <li key={title}>
+                  <strong className="font-semibold">{title}</strong>：{text}
+                </li>
+              ))}
+            </ul>
             <a href="http://101.245.78.174:7555/" className={link}>
               {note("blue")} <ArrowRight size={15} />
             </a>
           </section>
           <section className="space-y-2">
             <h2 className={heading}>{note("accounts")}</h2>
+            <SignInSketch />
+            <p>{note("sso")}</p>
             <ul className="list-disc space-y-2 pl-5">
               <li>{note("sign_in")}</li>
               <li>{note("existing")}</li>
@@ -76,26 +91,53 @@ export default function ReleaseNotes() {
         <section>
           <h2 className={heading}>{t("local_tools.nav")}</h2>
           <div className="mt-4 grid gap-4 md:grid-cols-2">
-            {tools.map(({ key, title, href }) => (
+            {tools.map(({ key, title, href, image }) => (
               <div
                 key={key}
-                className="rounded-xl border border-white/[0.08] bg-zinc-950/30 px-5 py-4 light:border-slate-200 light:bg-slate-50"
+                className="overflow-hidden rounded-xl border border-white/[0.08] bg-zinc-950/30 light:border-slate-200 light:bg-slate-50"
               >
-                <h3>
-                  <Link className={link} to={href}>
-                    {title} <ArrowRight size={15} />
-                  </Link>
-                </h3>
-                <p className="mb-2 text-xs text-zinc-400 light:text-slate-600">
-                  {t("help.november_release.credit", {
-                    name: note(`${key}.contributor`),
-                  })}
-                </p>
-                <p>{note(`${key}.description`)}</p>
+                <div className="flex aspect-[2/1] items-center border-b border-white/[0.08] bg-cyan-100/10 px-3 light:border-slate-200 light:bg-cyan-50 sm:px-4">
+                  <img
+                    src={image}
+                    alt={note(`${key}.alt`)}
+                    className="max-h-full w-full rounded-md object-contain"
+                  />
+                </div>
+                <div className="px-5 py-4">
+                  <h3>
+                    <Link className={link} to={href}>
+                      {title} <ArrowRight size={15} />
+                    </Link>
+                  </h3>
+                  <p className="mb-2 text-xs text-zinc-400 light:text-slate-600">
+                    {t("help.november_release.credit", {
+                      name: note(`${key}.contributor`),
+                    })}
+                  </p>
+                  <p>{note(`${key}.description`)}</p>
+                </div>
               </div>
             ))}
           </div>
-          <p className="mt-4">{note("feedback")}</p>
+        </section>
+        <section className="border-t border-white/[0.07] pt-6 light:border-slate-200">
+          <h2 className={`flex items-center gap-2 ${heading}`}>
+            <Presentation
+              size={22}
+              weight="duotone"
+              className="shrink-0 text-cyan-300 light:text-cyan-700"
+            />
+            {note("ppt.title")}
+          </h2>
+          <p className="mt-2 max-w-3xl">{note("ppt.description")}</p>
+        </section>
+        <section className="grid items-center gap-5 border-t border-white/[0.07] pt-6 light:border-slate-200 lg:grid-cols-2">
+          <div className="space-y-2">
+            <h2 className={heading}>{note("feedback_title")}</h2>
+            <p>{note("feedback")}</p>
+            <p>{note("feedback_prompt")}</p>
+          </div>
+          <IdeasSketch />
         </section>
       </article>
       <details className="mt-8 border-t border-white/[0.07] pt-3 light:border-slate-200">
