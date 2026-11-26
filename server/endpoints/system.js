@@ -12,11 +12,7 @@ const {
   multiUserMode,
   queryParams,
 } = require("../utils/http");
-const {
-  handleAssetUpload,
-  handlePfpUpload,
-  handleAudioUpload,
-} = require("../utils/files/multer");
+const { handleAssetUpload, handlePfpUpload } = require("../utils/files/multer");
 const { v4 } = require("uuid");
 const { SystemSettings } = require("../models/systemSettings");
 const { User } = require("../models/user");
@@ -33,7 +29,6 @@ const {
   LOGO_FILENAME,
   isDefaultFilename,
 } = require("../utils/files/logo");
-const { Telemetry } = require("../models/telemetry");
 const { ApiKey } = require("../models/apiKeys");
 const { getCustomModels } = require("../utils/helpers/customModels");
 const { WorkspaceChats } = require("../models/workspaceChats");
@@ -53,8 +48,6 @@ const {
 } = require("../utils/PasswordRecovery");
 const { SlashCommandPresets } = require("../models/slashCommandsPresets");
 const { EncryptionManager } = require("../utils/EncryptionManager");
-const { BrowserExtensionApiKey } = require("../models/browserExtensionApiKey");
-const { MobileDevice } = require("../models/mobileDevice");
 const {
   chatHistoryViewable,
 } = require("../utils/middleware/chatHistoryViewable");
@@ -102,8 +95,8 @@ function systemEndpoints(app) {
 
   app.post("/onboarding", [validatedRequest], async (_, response) => {
     try {
-      await SystemSettings.markOnboardingComplete();
-      response.sendStatus(200).end();
+      const completed = await SystemSettings.markOnboardingComplete();
+      response.sendStatus(completed ? 200 : 500).end();
     } catch (e) {
       console.error(e.message, e);
       response.sendStatus(500).end();
@@ -263,12 +256,6 @@ function systemEndpoints(app) {
           return;
         }
 
-        await Telemetry.sendTelemetry(
-          "login_event",
-          { multiUserMode: false },
-          existingUser?.id
-        );
-
         await EventLogs.logEvent(
           "login_event",
           {
@@ -323,7 +310,6 @@ function systemEndpoints(app) {
           return;
         }
 
-        await Telemetry.sendTelemetry("login_event", { multiUserMode: false });
         await EventLogs.logEvent("login_event", {
           ip: request.ip || "Unknown IP",
           multiUserMode: false,
@@ -458,11 +444,6 @@ function systemEndpoints(app) {
         });
       }
 
-      await Telemetry.sendTelemetry(
-        "login_event",
-        { multiUserMode: true },
-        token.user.id
-      );
       await EventLogs.logEvent(
         "login_event",
         {
@@ -726,10 +707,8 @@ function systemEndpoints(app) {
         await SystemSettings._updateSettings({
           multi_user_mode: true,
         });
-        await BrowserExtensionApiKey.migrateApiKeysToMultiUser(user.id);
         await Memory.migrateToMultiUser(user.id);
         await WorkspaceChats.migrateToMultiUser(user.id);
-        await MobileDevice.migrateDevicesToMultiUser(user.id);
         await SlashCommandPresets.migrateToMultiUser(user.id);
         await AgentSkillWhitelist.clearSingleUserWhitelist();
         await updateENV(
@@ -738,9 +717,6 @@ function systemEndpoints(app) {
           },
           true
         );
-        await Telemetry.sendTelemetry("enabled_multi_user_mode", {
-          multiUserMode: true,
-        });
         await EventLogs.logEvent("multi_user_mode_enabled", {}, user?.id);
         response.status(200).json({ success: !!user, error });
       } catch (e) {
@@ -1218,6 +1194,8 @@ function systemEndpoints(app) {
     async (request, response) => {
       try {
         const { type = "jsonl", chatType = "workspace" } = request.query;
+        if (chatType !== "workspace")
+          return response.status(400).json({ error: "Invalid chat type." });
         const { contentType, data } = await exportChatsAsType(type, chatType);
         await EventLogs.logEvent(
           "exported_chats",
@@ -1532,43 +1510,6 @@ function systemEndpoints(app) {
         response.status(500).json({
           success: false,
           error: `Failed to delete system prompt variable: ${error.message}`,
-        });
-      }
-    }
-  );
-
-  app.post(
-    "/system/transcribe-audio",
-    [validatedRequest, flexUserRoleValid([ROLES.all]), handleAudioUpload],
-    async (request, response) => {
-      try {
-        if (!request.file?.buffer) {
-          return response
-            .status(400)
-            .json({ success: false, error: "No audio file provided." });
-        }
-
-        const provider = process.env.STT_PROVIDER || "native";
-        if (provider === "native") {
-          return response.status(400).json({
-            success: false,
-            error:
-              "Server-side transcription is disabled. Set STT_PROVIDER to a supported provider.",
-          });
-        }
-
-        const { getSTTProvider } = require("../utils/SpeechToText");
-        const stt = getSTTProvider();
-        const text = await stt.transcribe(
-          request.file.buffer,
-          request.file.originalname || "audio.webm"
-        );
-        return response.status(200).json({ success: true, text });
-      } catch (error) {
-        console.error("STT transcription error:", error);
-        return response.status(500).json({
-          success: false,
-          error: error.message || "Transcription failed",
         });
       }
     }

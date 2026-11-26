@@ -30,22 +30,9 @@ const TRANSLATIONS = {
       title: "Data Handling & Privacy",
       description:
         "We are committed to transparency and control when it comes to your personal data.",
+      finishError: "Could not finish setup. Please try again.",
       settingsHint:
         "These settings can be reconfigured at any time in the settings.",
-    },
-    survey: {
-      title: "Welcome to AnythingLLM",
-      description: "Help us make AnythingLLM built for your needs. Optional.",
-      email: "What's your email?",
-      useCase: "What will you use AnythingLLM for?",
-      useCaseWork: "For work",
-      useCasePersonal: "For personal use",
-      useCaseOther: "Other",
-      comment: "How did you hear about AnythingLLM?",
-      commentPlaceholder:
-        "Reddit, Twitter, GitHub, YouTube, etc. - Let us know how you found us!",
-      skip: "Skip Survey",
-      thankYou: "Thank you for your feedback!",
     },
   },
   common: {
@@ -87,12 +74,9 @@ const TRANSLATIONS = {
     chat: "Chat",
     "api-keys": "Developer API",
     llm: "LLM",
-    transcription: "Transcription",
     embedder: "Embedder",
     "text-splitting": "Text Splitter & Chunking",
-    "voice-speech": "Voice & Speech",
     "vector-database": "Vector Database",
-    embeds: "Chat Embed",
     security: "Security",
     "event-logs": "Event Logs",
     "scheduled-jobs": "Scheduled Jobs",
@@ -115,12 +99,6 @@ const TRANSLATIONS = {
     "system-prompt-variables": "System Prompt Variables",
     "experimental-features": "Experimental Features",
     contact: "Contact Support",
-    "browser-extension": "Browser Extension",
-    "mobile-app": "AnythingLLM Mobile",
-    channels: "Channels",
-    "available-channels": {
-      telegram: "Telegram",
-    },
   },
   agent_prompts: {
     title: "Prompt hierarchy",
@@ -682,299 +660,6 @@ const TRANSLATIONS = {
           },
         },
       },
-      gmail: {
-        title: "GMail",
-        description:
-          "Enable your agent to interact with Gmail - search emails, read threads, compose drafts, send emails, and manage your inbox. <a>Read the documentation</a>.",
-        multiUserWarning:
-          "Gmail integration is not available in multi-user mode for security reasons. Please disable multi-user mode to use this feature.",
-        configuration: "Gmail Configuration",
-        deploymentId: "Deployment ID",
-        deploymentIdHelp:
-          "The deployment ID from your Google Apps Script web app",
-        apiKey: "API Key",
-        apiKeyHelp:
-          "The API key you configured in your Google Apps Script deployment",
-        configurationRequired:
-          "Please configure the Deployment ID and API Key to enable Gmail skills.",
-        configured: "Configured",
-        searchSkills: "Search skills...",
-        noSkillsFound: "No skills match your search.",
-        categories: {
-          search: {
-            title: "Search & Read Emails",
-            description: "Search and read emails from your Gmail inbox",
-          },
-          drafts: {
-            title: "Draft Emails",
-            description: "Create, edit, and manage email drafts",
-          },
-          send: {
-            title: "Send & Reply to Emails",
-            description: "Send emails and reply to threads immediately",
-          },
-          threads: {
-            title: "Manage Email Threads",
-            description:
-              "Manage email threads - mark read/unread, archive, trash",
-          },
-          account: {
-            title: "Integration Statistics",
-            description: "View mailbox statistics and account information",
-          },
-        },
-        skills: {
-          getInbox: {
-            title: "Get Inbox",
-            description: "Streamlined way to get the inbox emails from Gmail",
-          },
-          search: {
-            title: "Search Emails",
-            description: "Search emails using Gmail query syntax",
-          },
-          readThread: {
-            title: "Read Thread",
-            description: "Read a full email thread by ID",
-          },
-          createDraft: {
-            title: "Create Draft",
-            description: "Create a new draft email",
-          },
-          createDraftReply: {
-            title: "Create Draft Reply",
-            description: "Create a draft reply to an existing thread",
-          },
-          updateDraft: {
-            title: "Update Draft",
-            description: "Update an existing draft email",
-          },
-          getDraft: {
-            title: "Get Draft",
-            description: "Retrieve a specific draft by ID",
-          },
-          listDrafts: {
-            title: "List Drafts",
-            description: "List all draft emails",
-          },
-          deleteDraft: {
-            title: "Delete Draft",
-            description: "Delete a draft email",
-          },
-          sendDraft: {
-            title: "Send Draft",
-            description: "Send an existing draft email",
-          },
-          sendEmail: {
-            title: "Send Email",
-            description: "Send an email immediately",
-          },
-          replyToThread: {
-            title: "Reply to Thread",
-            description: "Reply to an email thread immediately",
-          },
-          markRead: {
-            title: "Mark Read",
-            description: "Mark a thread as read",
-          },
-          markUnread: {
-            title: "Mark Unread",
-            description: "Mark a thread as unread",
-          },
-          moveToTrash: {
-            title: "Move to Trash",
-            description: "Move a thread to trash",
-          },
-          moveToArchive: {
-            title: "Archive",
-            description: "Archive a thread",
-          },
-          moveToInbox: {
-            title: "Move to Inbox",
-            description: "Move a thread to inbox",
-          },
-          getMailboxStats: {
-            title: "Mailbox Stats",
-            description: "Get unread counts and mailbox statistics",
-          },
-        },
-      },
-      googleCalendar: {
-        title: "Google Calendar",
-        description:
-          "Enable your agent to interact with Google Calendar - view calendars, get events, create and update events, and manage RSVPs. <a>Read the documentation</a>.",
-        multiUserWarning:
-          "Google Calendar integration is not available in multi-user mode for security reasons. Please disable multi-user mode to use this feature.",
-        configuration: "Google Calendar Configuration",
-        deploymentId: "Deployment ID",
-        deploymentIdHelp:
-          "The deployment ID from your Google Apps Script web app",
-        apiKey: "API Key",
-        apiKeyHelp:
-          "The API key you configured in your Google Apps Script deployment",
-        configurationRequired:
-          "Please configure the Deployment ID and API Key to enable Google Calendar skills.",
-        configured: "Configured",
-        searchSkills: "Search skills...",
-        noSkillsFound: "No skills match your search.",
-        categories: {
-          calendars: {
-            title: "Calendars",
-            description: "View and manage your Google Calendars",
-          },
-          readEvents: {
-            title: "Read Events",
-            description: "View and search calendar events",
-          },
-          writeEvents: {
-            title: "Create & Update Events",
-            description: "Create new events and modify existing ones",
-          },
-          rsvp: {
-            title: "RSVP Management",
-            description: "Manage your response status for events",
-          },
-        },
-        skills: {
-          listCalendars: {
-            title: "List Calendars",
-            description: "List all calendars you own or are subscribed to",
-          },
-          getCalendar: {
-            title: "Get Calendar Details",
-            description: "Get detailed information about a specific calendar",
-          },
-          getEvent: {
-            title: "Get Event",
-            description: "Get detailed information about a specific event",
-          },
-          getEventsForDay: {
-            title: "Get Events for Day",
-            description: "Get all events scheduled for a specific day",
-          },
-          getEvents: {
-            title: "Get Events (Date Range)",
-            description: "Get events within a custom date range",
-          },
-          getUpcomingEvents: {
-            title: "Get Upcoming Events",
-            description:
-              "Get events for today, this week, or this month using simple keywords",
-          },
-          quickAdd: {
-            title: "Quick Add Event",
-            description:
-              "Create an event from natural language (e.g., 'Meeting tomorrow at 3pm')",
-          },
-          createEvent: {
-            title: "Create Event",
-            description:
-              "Create a new event with full control over all properties",
-          },
-          updateEvent: {
-            title: "Update Event",
-            description: "Update an existing calendar event",
-          },
-          setMyStatus: {
-            title: "Set RSVP Status",
-            description: "Accept, decline, or tentatively accept an event",
-          },
-        },
-      },
-      outlook: {
-        title: "Outlook",
-        description:
-          "Enable your agent to interact with Microsoft Outlook - search emails, read threads, compose drafts, send emails, and manage your inbox via Microsoft Graph API. <a>Read the documentation</a>.",
-        multiUserWarning:
-          "Outlook integration is not available in multi-user mode for security reasons. Please disable multi-user mode to use this feature.",
-        configuration: "Outlook Configuration",
-        authType: "Account Type",
-        authTypeHelp:
-          "Choose which types of Microsoft accounts can authenticate. 'All accounts' supports both personal and work/school accounts. 'Personal only' restricts to personal Microsoft accounts. 'Organization only' restricts to work/school accounts from a specific Azure AD tenant.",
-        authTypeCommon: "All accounts (personal & work/school)",
-        authTypeConsumers: "Personal Microsoft accounts only",
-        authTypeOrganization: "Organization accounts only (requires Tenant ID)",
-        clientId: "Application (Client) ID",
-        clientIdHelp:
-          "The Application (Client) ID from your Azure AD app registration",
-        tenantId: "Directory (Tenant) ID",
-        tenantIdHelp:
-          "The Directory (Tenant) ID from your Azure AD app registration. Required only for organization-only authentication.",
-        clientSecret: "Client Secret",
-        clientSecretHelp:
-          "The client secret value from your Azure AD app registration",
-        configurationRequired:
-          "Please configure the Client ID and Client Secret to enable Outlook skills.",
-        authRequired:
-          "Save your credentials first, then authenticate with Microsoft to complete the setup.",
-        authenticateWithMicrosoft: "Authenticate with Microsoft",
-        authenticated: "Successfully authenticated with Microsoft Outlook.",
-        revokeAccess: "Revoke Access",
-        configured: "Configured",
-        searchSkills: "Search skills...",
-        noSkillsFound: "No skills match your search.",
-        categories: {
-          search: {
-            title: "Search & Read Emails",
-            description: "Search and read emails from your Outlook inbox",
-          },
-          drafts: {
-            title: "Draft Emails",
-            description: "Create, edit, and manage email drafts",
-          },
-          send: {
-            title: "Send Emails",
-            description: "Send new emails or reply to messages immediately",
-          },
-          account: {
-            title: "Integration Statistics",
-            description: "View mailbox statistics and account information",
-          },
-        },
-        skills: {
-          getInbox: {
-            title: "Get Inbox",
-            description: "Get recent emails from your Outlook inbox",
-          },
-          search: {
-            title: "Search Emails",
-            description: "Search emails using Microsoft Search syntax",
-          },
-          readThread: {
-            title: "Read Conversation",
-            description: "Read a full email conversation thread",
-          },
-          createDraft: {
-            title: "Create Draft",
-            description:
-              "Create a new draft email or draft reply to an existing message",
-          },
-          updateDraft: {
-            title: "Update Draft",
-            description: "Update an existing draft email",
-          },
-          listDrafts: {
-            title: "List Drafts",
-            description: "List all draft emails",
-          },
-          deleteDraft: {
-            title: "Delete Draft",
-            description: "Delete a draft email",
-          },
-          sendDraft: {
-            title: "Send Draft",
-            description: "Send an existing draft email",
-          },
-          sendEmail: {
-            title: "Send Email",
-            description:
-              "Send a new email or reply to an existing message immediately",
-          },
-          getMailboxStats: {
-            title: "Mailbox Stats",
-            description: "Get folder counts and mailbox statistics",
-          },
-        },
-      },
       default_skill:
         "By default, this skill is enabled, but you can disable it if you don't want it to be available to the agent.",
     },
@@ -1055,15 +740,6 @@ const TRANSLATIONS = {
     chat: {
       title: "Chat",
       description: "Set your chat preferences for AnythingLLM.",
-      auto_submit: {
-        title: "Auto-Submit Speech Input",
-        description:
-          "Automatically submit speech input after a period of silence",
-      },
-      auto_speak: {
-        title: "Auto-Speak Responses",
-        description: "Automatically speak responses from the AI",
-      },
       spellcheck: {
         title: "Enable Spellcheck",
         description: "Enable or disable spellcheck in the chat input field",
@@ -1362,18 +1038,6 @@ const TRANSLATIONS = {
         "Routed to <route>{{model}}</route> via <rule>{{ruleTitle}}</rule>",
     },
   },
-  transcription: {
-    title: "Transcription Model Preference",
-    description:
-      "These are the credentials and settings for your preferred transcription model provider. Its important these keys are current and correct or else media files and audio will not transcribe.",
-    provider: "Transcription Provider",
-    "warn-start":
-      "Using the local whisper model on machines with limited RAM or CPU can stall AnythingLLM when processing media files.",
-    "warn-recommend":
-      "We recommend at least 2GB of RAM and upload files <10Mb.",
-    "warn-end":
-      "The built-in model will automatically download on the first use.",
-  },
   embedding: {
     title: "Embedding Preference",
     "desc-start":
@@ -1409,93 +1073,6 @@ const TRANSLATIONS = {
     provider: {
       title: "Vector Database Provider",
       description: "There is no configuration needed for LanceDB.",
-    },
-  },
-  embeddable: {
-    title: "Embeddable Chat Widgets",
-    description:
-      "Embeddable chat widgets are public facing chat interfaces that are tied to a single workspace. These allow you to build workspaces that then you can publish to the world.",
-    create: "Create embed",
-    table: {
-      workspace: "Workspace",
-      chats: "Sent Chats",
-      active: "Active Domains",
-      created: "Created",
-    },
-  },
-  "embed-chats": {
-    title: "Embed Chat History",
-    export: "Export",
-    description:
-      "These are all the recorded chats and messages from any embed that you have published.",
-    table: {
-      embed: "Embed",
-      sender: "Sender",
-      message: "Message",
-      response: "Response",
-      at: "Sent At",
-    },
-  },
-  telegram: {
-    title: "Telegram Bot",
-    description:
-      "Connect your AnythingLLM instance to Telegram so you can chat with your workspaces from any device.",
-    setup: {
-      step1: {
-        title: "Step 1: Create your Telegram bot",
-        description:
-          "Open @BotFather in Telegram, send <code>/newbot</code> to <code>@BotFather</code>, follow the prompts, and copy the API token.",
-        "open-botfather": "Open BotFather",
-        "instruction-1": "1. Open the link or scan the QR code",
-        "instruction-2":
-          "2. Send <code>/newbot</code> to <code>@BotFather</code>",
-        "instruction-3": "3. Choose a name and username for your bot",
-        "instruction-4": "4. Copy the API token you receive",
-      },
-      step2: {
-        title: "Step 2: Connect your bot",
-        description:
-          "Paste the API token you received from @BotFather to connect your bot.",
-        "bot-token": "Bot Token",
-        connecting: "Connecting...",
-        "connect-bot": "Connect Bot",
-      },
-      security: {
-        title: "Recommended Security Settings",
-        description:
-          "For additional security, configure these settings in @BotFather.",
-        "disable-groups": "— Prevent adding bot to groups",
-        "disable-inline": "— Prevent bot from being used in inline search",
-        "obscure-username":
-          "Use a non-obvious bot handle username to reduce discoverability",
-      },
-      "toast-enter-token": "Please enter a bot token.",
-      "toast-connect-failed": "Failed to connect bot.",
-    },
-    connected: {
-      status: "Connected",
-      "status-disconnected": "Disconnected — token may be expired or invalid",
-      "placeholder-token": "Paste new bot token...",
-      reconnect: "Reconnect",
-      workspace: "Workspace",
-      "bot-link": "Bot Link",
-      "voice-response": "Voice Response",
-      disconnecting: "Disconnecting...",
-      disconnect: "Disconnect",
-      "voice-text-only": "Text only",
-      "voice-mirror": "Mirror (reply with voice when user sends voice)",
-      "voice-always": "Always voice (send audio with every reply)",
-      "toast-disconnect-failed": "Failed to disconnect bot.",
-      "toast-reconnect-failed": "Failed to reconnect bot.",
-      "toast-voice-failed": "Failed to update voice mode.",
-      "toast-approve-failed": "Failed to approve user.",
-      "toast-deny-failed": "Failed to deny user.",
-      "toast-revoke-failed": "Failed to revoke user.",
-    },
-    users: {
-      "pending-description":
-        "Users waiting to be verified. Match the pairing code shown here with the one displayed in their Telegram chat.",
-      unknown: "Unknown",
     },
   },
   security: {
@@ -1545,23 +1122,8 @@ const TRANSLATIONS = {
     title: "Privacy & Data-Handling",
     description:
       "This is your configuration for how connected third party providers and AnythingLLM handle your data.",
-    anonymous: "Anonymous Telemetry Enabled",
   },
   connectors: {
-    "search-placeholder": "Search data connectors",
-    "no-connectors": "No data connectors found.",
-    obsidian: {
-      vault_location: "Vault Location",
-      vault_description:
-        "Select your Obsidian vault folder to import all notes and their connections.",
-      selected_files: "Found {{count}} markdown files",
-      importing: "Importing vault...",
-      import_vault: "Import Vault",
-      processing_time:
-        "This may take a while depending on the size of your vault.",
-      vault_warning:
-        "To avoid any conflicts, make sure your Obsidian vault is not currently open.",
-    },
     github: {
       name: "GitHub Repo",
       description:
@@ -1589,92 +1151,6 @@ const TRANSLATIONS = {
         "Without filling out the <b>GitHub Access Token</b> this data connector will only be able to collect the <b>top-level</b> files of the repo due to GitHub's public API rate-limits.",
       token_personal:
         "Get a free Personal Access Token with a GitHub account here.",
-    },
-    gitlab: {
-      name: "GitLab Repo",
-      description:
-        "Import an entire public or private GitLab repository in a single click.",
-      URL: "GitLab Repo URL",
-      URL_explained: "URL of the GitLab repo you wish to collect.",
-      token: "GitLab Access Token",
-      optional: "optional",
-      token_description:
-        "Select additional entities to fetch from the GitLab API.",
-      token_explained_start: "Without a ",
-      token_explained_link1: "Personal Access Token",
-      token_explained_middle:
-        ", the GitLab API may limit the number of files that can be collected due to rate limits. You can ",
-      token_explained_link2: "create a temporary Access Token",
-      token_explained_end: " to avoid this issue.",
-      fetch_issues: "Fetch Issues as Documents",
-      ignores: "File Ignores",
-      git_ignore:
-        "List in .gitignore format to ignore specific files during collection. Press enter after each entry you want to save.",
-      task_explained:
-        "Once complete, all files will be available for embedding into workspaces in the document picker.",
-      branch: "Branch you wish to collect files from",
-      branch_loading: "-- loading available branches --",
-      branch_explained: "Branch you wish to collect files from.",
-      token_information:
-        "Without filling out the <b>GitLab Access Token</b> this data connector will only be able to collect the <b>top-level</b> files of the repo due to GitLab's public API rate-limits.",
-      token_personal:
-        "Get a free Personal Access Token with a GitLab account here.",
-    },
-    youtube: {
-      name: "YouTube Transcript",
-      description:
-        "Import the transcription of an entire YouTube video from a link.",
-      URL: "YouTube Video URL",
-      URL_explained_start:
-        "Enter the URL of any YouTube video to fetch its transcript. The video must have ",
-      URL_explained_link: "closed captions",
-      URL_explained_end: " available.",
-      task_explained:
-        "Once complete, the transcript will be available for embedding into workspaces in the document picker.",
-    },
-    "website-depth": {
-      name: "Bulk Link Scraper",
-      description: "Scrape a website and its sub-links up to a certain depth.",
-      URL: "Website URL",
-      URL_explained: "URL of the website you want to scrape.",
-      depth: "Crawl Depth",
-      depth_explained:
-        "This is the number of child-links that the worker should follow from the origin URL.",
-      max_pages: "Maximum Pages",
-      max_pages_explained: "Maximum number of links to scrape.",
-      task_explained:
-        "Once complete, all scraped content will be available for embedding into workspaces in the document picker.",
-    },
-    confluence: {
-      name: "Confluence",
-      description: "Import an entire Confluence page in a single click.",
-      deployment_type: "Confluence deployment type",
-      deployment_type_explained:
-        "Determine if your Confluence instance is hosted on Atlassian cloud or self-hosted.",
-      base_url: "Confluence base URL",
-      base_url_explained: "This is the base URL of your Confluence space.",
-      space_key: "Confluence space key",
-      space_key_explained:
-        "This is the spaces key of your confluence instance that will be used. Usually begins with ~",
-      username: "Confluence Username",
-      username_explained: "Your Confluence username",
-      auth_type: "Confluence Auth Type",
-      auth_type_explained:
-        "Select the authentication type you want to use to access your Confluence pages.",
-      auth_type_username: "Username and Access Token",
-      auth_type_personal: "Personal Access Token",
-      token: "Confluence Access Token",
-      token_explained_start:
-        "You need to provide an access token for authentication. You can generate an access token",
-      token_explained_link: "here",
-      token_desc: "Access token for authentication",
-      pat_token: "Confluence Personal Access Token",
-      pat_token_explained: "Your Confluence personal access token.",
-      bypass_ssl: "Bypass SSL Certificate Validation",
-      bypass_ssl_explained:
-        "Enable this option to bypass SSL certificate validation for self-hosted confluence instances with self-signed certificate",
-      task_explained:
-        "Once complete, the page content will be available for embedding into workspaces in the document picker.",
     },
     manage: {
       documents: "Documents",
@@ -1728,6 +1204,8 @@ const TRANSLATIONS = {
       accept: "Okay, got it",
     },
     watching: {
+      supportedSources:
+        "Documents imported from a web page or GitHub repository can be refreshed.",
       what_watching: "What does watching a document do?",
       watch_explained_block1:
         "When you <b>watch</b> a document in AnythingLLM we will <i>automatically</i> sync your document content from it's original source on regular intervals. This will automatically update the content in every workspace where this file is managed.",
@@ -1751,13 +1229,7 @@ const TRANSLATIONS = {
     text_size: "Change text size.",
     export: "Export chat as...",
     exporting: "Exporting...",
-    microphone: "Speak your prompt.",
-    stt_unsupported: "Microphone access is not supported in this browser.",
-    stt_mic_denied:
-      "Could not access the microphone. Please grant permission and try again.",
-    stt_transcription_failed: "Transcription failed: {{error}}",
     send: "Send prompt message to workspace",
-    tts_speak_message: "TTS Speak message",
     copy: "Copy",
     regenerate: "Regenerate",
     regenerate_response: "Regenerate response",

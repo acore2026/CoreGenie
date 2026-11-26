@@ -5,7 +5,6 @@ const {
 const { fetchApiPieModels } = require("../AiProviders/apipie");
 const { perplexityModels } = require("../AiProviders/perplexity");
 const { fireworksAiModels } = require("../AiProviders/fireworksAi");
-const { ElevenLabsTTS } = require("../TextToSpeech/elevenLabs");
 const { fetchNovitaModels } = require("../AiProviders/novita");
 const { parseLMStudioBasePath } = require("../AiProviders/lmStudio");
 const { parseNvidiaNimBasePath } = require("../AiProviders/nvidiaNim");
@@ -30,7 +29,6 @@ const SUPPORT_CUSTOM_MODELS = [
   "lmstudio",
   "koboldcpp",
   "litellm",
-  "elevenlabs-tts",
   "groq",
   "deepseek",
   "apipie",
@@ -58,13 +56,6 @@ const SUPPORT_CUSTOM_MODELS = [
   "cohere-embedder",
   "openrouter-embedder",
   "lemonade-embedder",
-  // STT Engines
-  "openai-stt",
-  "deepgram-stt",
-  "lemonade-stt",
-  "groq-stt",
-  // TTS Engines
-  "kokoro-tts",
 ];
 
 async function getCustomModels(
@@ -79,8 +70,6 @@ async function getCustomModels(
   switch (provider) {
     case "openai":
       return await openAiModels(apiKey);
-    case "openai-stt":
-      return await openAiSttModels(apiKey);
     case "anthropic":
       return await anthropicModels(apiKey);
     case "localai":
@@ -103,8 +92,6 @@ async function getCustomModels(
       return await getKoboldCPPModels(basePath);
     case "litellm":
       return await liteLLMModels(basePath, apiKey);
-    case "elevenlabs-tts":
-      return await getElevenLabsModels(apiKey);
     case "groq":
       return await getGroqAiModels(apiKey);
     case "deepseek":
@@ -147,8 +134,6 @@ async function getCustomModels(
       return await getSambaNovaModels(apiKey);
     case "lemonade":
       return await getLemonadeModels(basePath);
-    case "lemonade-stt":
-      return await getLemonadeSTTModels(basePath);
     case "lemonade-embedder":
       return await getLemonadeModels(basePath, "embedding");
     case "omlx":
@@ -161,12 +146,6 @@ async function getCustomModels(
       return await getBedrockModels(apiKey, options);
     case "generic-openai":
       return await getGenericOpenAiModels(basePath, apiKey);
-    case "deepgram-stt":
-      return await getDeepgramSTTModels(apiKey);
-    case "groq-stt":
-      return await getGroqSTTModels(apiKey);
-    case "kokoro-tts":
-      return await kokoroTtsVoices(basePath, apiKey);
     default:
       return { models: [], error: "Invalid provider for custom models" };
   }
@@ -277,50 +256,6 @@ async function openAiModels(apiKey = null) {
   return { models: [...gpts, ...customModels], error: null };
 }
 
-async function openAiSttModels(apiKey = null) {
-  const fallback = [
-    { id: "whisper-1", name: "whisper-1", organization: "OpenAi" },
-    {
-      id: "gpt-4o-transcribe",
-      name: "gpt-4o-transcribe",
-      organization: "OpenAi",
-    },
-    {
-      id: "gpt-4o-mini-transcribe",
-      name: "gpt-4o-mini-transcribe",
-      organization: "OpenAi",
-    },
-  ];
-
-  const { OpenAI: OpenAIApi } = require("openai");
-  const openai = new OpenAIApi({
-    apiKey: apiKey || process.env.OPEN_AI_KEY,
-  });
-
-  const allModels = await openai.models
-    .list()
-    .then((results) => results.data)
-    .catch((e) => {
-      console.error(`OpenAI:listModels (stt)`, e.message);
-      return null;
-    });
-
-  if (!allModels) return { models: fallback, error: null };
-
-  // The /v1/models response has no category/type field, so we filter by id.
-  // Realtime variants use a separate WebSocket API and are not compatible
-  // with the audio.transcriptions.create endpoint we use server-side.
-  const models = allModels
-    .filter(
-      (m) =>
-        (m.id.includes("whisper") || m.id.includes("transcribe")) &&
-        !m.id.includes("realtime")
-    )
-    .map((m) => ({ ...m, name: m.id, organization: "OpenAi" }));
-
-  return { models: models.length ? models : fallback, error: null };
-}
-
 async function anthropicModels(_apiKey = null) {
   const apiKey =
     _apiKey === true
@@ -394,32 +329,6 @@ async function getGroqAiModels(_apiKey = null) {
 
   // Api Key was successful so lets save it for future uses
   if (models.length > 0 && !!apiKey) process.env.GROQ_API_KEY = apiKey;
-  return { models, error: null };
-}
-
-async function getGroqSTTModels(_apiKey = null) {
-  const { OpenAI: OpenAIApi } = require("openai");
-  const apiKey =
-    _apiKey === true
-      ? process.env.STT_GROQ_API_KEY
-      : _apiKey || process.env.STT_GROQ_API_KEY || null;
-
-  const openai = new OpenAIApi({
-    baseURL: "https://api.groq.com/openai/v1",
-    apiKey,
-  });
-  const models = (
-    await openai.models
-      .list()
-      .then((results) => results.data)
-      .catch((e) => {
-        console.error(`GroqSTT:listModels`, e.message);
-        return [];
-      })
-  ).filter((model) => model.id.includes("whisper"));
-
-  // Api Key was successful so lets save it for future uses
-  if (models.length > 0 && !!apiKey) process.env.GROQ_STT_API_KEY = apiKey;
   return { models, error: null };
 }
 
@@ -660,32 +569,6 @@ async function getMistralModels(apiKey = null) {
 
   // Api Key was successful so lets save it for future uses
   if (models.length > 0 && !!apiKey) process.env.MISTRAL_API_KEY = apiKey;
-  return { models, error: null };
-}
-
-async function getElevenLabsModels(apiKey = null) {
-  const models = (await ElevenLabsTTS.voices(apiKey)).map((model) => {
-    return {
-      id: model.voice_id,
-      organization: model.category,
-      name: model.name,
-    };
-  });
-
-  if (models.length === 0) {
-    return {
-      models: [
-        {
-          id: "21m00Tcm4TlvDq8ikWAM",
-          organization: "premade",
-          name: "Rachel (default)",
-        },
-      ],
-      error: null,
-    };
-  }
-
-  if (models.length > 0 && !!apiKey) process.env.TTS_ELEVEN_LABS_KEY = apiKey;
   return { models, error: null };
 }
 
@@ -1044,16 +927,6 @@ async function getLemonadeModels(basePath = null, task = "chat") {
   }
 }
 
-async function getLemonadeSTTModels(basePath = null) {
-  try {
-    const models = await getAllLemonadeModels(basePath, "transcription");
-    return { models, error: null };
-  } catch (e) {
-    console.error(`Lemonade:getLemonadeSTTModels`, e.message);
-    return { models: [], error: "Could not fetch Lemonade STT Models" };
-  }
-}
-
 async function getOMLXModels(basePath = null, _apiKey = null) {
   const { OpenAI } = require("openai");
   const { parseOMLXBasePath } = require("../AiProviders/omlx");
@@ -1081,50 +954,6 @@ async function getOMLXModels(basePath = null, _apiKey = null) {
   } catch (e) {
     console.error("OMLX:getOMLXModels", e.message);
     return { models: [], error: "Could not fetch OMLX models" };
-  }
-}
-
-/**
- * Get Deepgram STT models from the Management API.
- * https://api.deepgram.com/v1/models returns { stt: [...], tts: [...] }.
- * @param {string} _apiKey - Deepgram API key. Falls back to STT_DEEPGRAM_API_KEY.
- * @returns {Promise<{models: Array<{id: string, name: string, organization: string}>, error: string | null}>}
- */
-async function getDeepgramSTTModels(_apiKey = null) {
-  const apiKey =
-    _apiKey === true
-      ? process.env.STT_DEEPGRAM_API_KEY
-      : _apiKey || process.env.STT_DEEPGRAM_API_KEY || null;
-  if (!apiKey)
-    return { models: [], error: "No Deepgram API key was provided." };
-
-  try {
-    const response = await fetch("https://api.deepgram.com/v1/models", {
-      method: "GET",
-      headers: { Authorization: `Token ${apiKey}` },
-    });
-    if (!response.ok) throw new Error(`Deepgram returned ${response.status}`);
-
-    let models = new Map();
-    const data = await response.json();
-    (data?.stt ?? [])
-      .filter((m) => m.batch !== false)
-      .forEach((m) => {
-        if (models.has(m.canonical_name)) return;
-        models.set(m.canonical_name, {
-          id: m.canonical_name,
-          name: m.canonical_name,
-          organization: "Deepgram",
-        });
-      });
-
-    models = Array.from(models.values());
-    // Api Key was successful so lets save it for future uses
-    if (models.length > 0 && _apiKey) process.env.STT_DEEPGRAM_API_KEY = apiKey;
-    return { models, error: null };
-  } catch (e) {
-    console.error(`Deepgram:getDeepgramSTTModels`, e.message);
-    return { models: [], error: "Could not fetch Deepgram STT models" };
   }
 }
 
@@ -1278,58 +1107,6 @@ async function getGenericOpenAiModels(basePath = null, apiKey = null) {
     console.error(`GenericOpenAI:getGenericOpenAiModels`, e.message);
     return { models: [], error: "Could not fetch Generic OpenAI Models" };
   }
-}
-
-/**
- * Pulls the live voice list from a self-hosted kokoro-fastapi server's
- * /audio/voices endpoint. basePath is the OpenAI-compatible base URL the
- * user pointed at their kokoro instance (e.g. http://localhost:8880/v1).
- * @param {string} basePath - The base path to the Kokoro instance.
- * @param {string} apiKey - The API key to use.
- * @returns {Promise<{models: Array<{id: string, organization: string, name: string}>, error: string | null}>}
- */
-async function kokoroTtsVoices(basePath = null, apiKey = null) {
-  let endpoint = basePath || process.env.TTS_KOKORO_ENDPOINT;
-  if (!endpoint)
-    return { models: [], error: "No Kokoro endpoint was provided." };
-
-  endpoint = new URL(endpoint);
-  endpoint.pathname = "/v1/audio/voices";
-  const headers = { "Content-Type": "application/json" };
-  const key = typeof apiKey === "boolean" ? null : apiKey;
-  if (key) headers.Authorization = `Bearer ${key}`;
-
-  const voices = await fetch(endpoint.toString(), { method: "GET", headers })
-    .then((res) => {
-      if (!res.ok) throw new Error(res.statusText || "Failed to load voices");
-      return res.json();
-    })
-    .then((data) => (Array.isArray(data?.voices) ? data.voices : []))
-    .catch((e) => {
-      console.error(`Kokoro:listVoices`, e.message);
-      return null;
-    });
-
-  if (!voices || !Array.isArray(voices))
-    return { models: [], error: "Could not fetch Kokoro voices." };
-
-  // kokoro-fastapi < 0.3.x returns voices as plain id strings while >= 0.3.x
-  // returns { id, name } objects. Normalize both shapes to { id, name } so the
-  // voice list renders regardless of the kokoro-fastapi version being used.
-  const models = voices
-    .map((voice) => {
-      if (typeof voice === "string")
-        return { id: voice, name: voice, organization: "Kokoro" };
-      if (voice && typeof voice === "object" && voice.id)
-        return {
-          id: voice.id,
-          name: voice.name || voice.id,
-          organization: "Kokoro",
-        };
-      return null;
-    })
-    .filter(Boolean);
-  return { models, error: null };
 }
 
 /**

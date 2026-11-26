@@ -1,5 +1,4 @@
 const { ApiKey } = require("../models/apiKeys");
-const { BrowserExtensionApiKey } = require("../models/browserExtensionApiKey");
 const { Document } = require("../models/documents");
 const { EventLogs } = require("../models/eventLogs");
 const { Invite } = require("../models/invite");
@@ -143,7 +142,6 @@ function adminEndpoints(app) {
           return;
         }
 
-        await BrowserExtensionApiKey.deleteAllForUser(Number(id));
         await User.delete({ id: Number(id) });
         await EventLogs.logEvent(
           "user_deleted",
@@ -426,12 +424,6 @@ function adminEndpoints(app) {
               requestedSettings[label] = safeJsonParse(setting?.value, []);
               break;
             case "disabled_create_files_skills":
-              requestedSettings[label] = safeJsonParse(setting?.value, []);
-              break;
-            case "disabled_gmail_skills":
-              requestedSettings[label] = safeJsonParse(setting?.value, []);
-              break;
-            case "disabled_outlook_skills":
               requestedSettings[label] = safeJsonParse(setting?.value, []);
               break;
             case "imported_agent_skills":

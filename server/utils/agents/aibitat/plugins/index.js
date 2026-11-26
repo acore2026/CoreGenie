@@ -8,9 +8,6 @@ const { rechart } = require("./rechart.js");
 const { sqlAgent } = require("./sql-agent/index.js");
 const { filesystemAgent } = require("./filesystem/index.js");
 const { createFilesAgent } = require("./create-files/index.js");
-const { gmailAgent } = require("./gmail/index.js");
-const { outlookAgent } = require("./outlook/index.js");
-const { googleCalendarAgent } = require("./google-calendar/index.js");
 const { requestUserInput } = require("./request-user-input.js");
 const { createScheduledJob } = require("./create-scheduled-job/index.js");
 const { bash } = require("./sandbox/bash.js");
@@ -28,9 +25,6 @@ module.exports = {
   sqlAgent,
   filesystemAgent,
   createFilesAgent,
-  gmailAgent,
-  outlookAgent,
-  googleCalendarAgent,
   requestUserInput,
   createScheduledJob,
   bash,
@@ -48,9 +42,6 @@ module.exports = {
   [sqlAgent.name]: sqlAgent,
   [filesystemAgent.name]: filesystemAgent,
   [createFilesAgent.name]: createFilesAgent,
-  [gmailAgent.name]: gmailAgent,
-  [outlookAgent.name]: outlookAgent,
-  [googleCalendarAgent.name]: googleCalendarAgent,
   [requestUserInput.name]: requestUserInput,
   [createScheduledJob.name]: createScheduledJob,
   [bash.name]: bash,

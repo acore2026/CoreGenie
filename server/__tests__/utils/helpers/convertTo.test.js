@@ -3,10 +3,8 @@ const { prepareChatsForExport } = require("../../../utils/helpers/chat/convertTo
 
 // Mock the database models
 jest.mock("../../../models/workspaceChats");
-jest.mock("../../../models/embedChats");
 
 const { WorkspaceChats } = require("../../../models/workspaceChats");
-const { EmbedChats } = require("../../../models/embedChats");
 
 const mockChat = (withImages = false) => {
   return {
@@ -32,13 +30,19 @@ describe("prepareChatsForExport", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     WorkspaceChats.whereWithData = jest.fn().mockResolvedValue([]);
-    EmbedChats.whereWithEmbedAndWorkspace = jest.fn().mockResolvedValue([]);
   });
 
   test("should throw error for invalid chat type", async () => {
     await expect(prepareChatsForExport("json", "invalid"))
       .rejects
       .toThrow("Invalid chat type: invalid");
+  });
+
+  test("rejects legacy widget exports before reading workspace chats", async () => {
+    await expect(prepareChatsForExport("csv", "embed")).rejects.toThrow(
+      "Invalid chat type: embed"
+    );
+    expect(WorkspaceChats.whereWithData).not.toHaveBeenCalled();
   });
 
   test("should throw error for invalid export type", async () => {

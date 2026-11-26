@@ -87,10 +87,4 @@ async function grepAgents({
   return false;
 }
 
-// Transitional no-op for old scheduled/Telegram handlers that still import the
-// symbol while those callers are being moved to the durable run service.
-function getAndClearInvocationAttachments() {
-  return [];
-}
-
-module.exports = { grepAgents, getAndClearInvocationAttachments };
+module.exports = { grepAgents };

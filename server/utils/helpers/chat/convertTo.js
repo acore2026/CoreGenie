@@ -2,7 +2,6 @@
 // for external use by the user.
 
 const { WorkspaceChats } = require("../../../models/workspaceChats");
-const { EmbedChats } = require("../../../models/embedChats");
 const { safeJsonParse } = require("../../http");
 const { SystemSettings } = require("../../../models/systemSettings");
 
@@ -46,28 +45,16 @@ async function prepareChatsForExport(format = "jsonl", chatType = "workspace") {
   if (!exportMap.hasOwnProperty(format))
     throw new Error(`Invalid export type: ${format}`);
 
-  let chats;
-  if (chatType === "workspace") {
-    chats = await WorkspaceChats.whereWithData({}, null, null, {
-      id: "asc",
-    });
-  } else if (chatType === "embed") {
-    chats = await EmbedChats.whereWithEmbedAndWorkspace(
-      {},
-      null,
-      {
-        id: "asc",
-      },
-      null
-    );
-  } else {
+  if (chatType !== "workspace")
     throw new Error(`Invalid chat type: ${chatType}`);
-  }
+  const chats = await WorkspaceChats.whereWithData({}, null, null, {
+    id: "asc",
+  });
 
   if (format === "csv" || format === "json") {
     const preparedData = chats.map((chat) => {
       const responseJson = safeJsonParse(chat.response, {});
-      const baseData = {
+      return {
         id: chat.id,
         prompt: chat.prompt,
         response: responseJson.text,
@@ -84,19 +71,6 @@ async function prepareChatsForExport(format = "jsonl", chatType = "workspace") {
                   : [],
             }
           : {}),
-      };
-
-      if (chatType === "embed") {
-        return {
-          ...baseData,
-          workspace: chat.embed_config
-            ? chat.embed_config.workspace.name
-            : "unknown workspace",
-        };
-      }
-
-      return {
-        ...baseData,
         workspace: chat.workspace ? chat.workspace.name : "unknown workspace",
         username: chat.user
           ? chat.user.username

@@ -28,7 +28,6 @@ jest.mock("../../utils/middleware/multiUserProtected", () => ({
   flexUserRoleValid: jest.fn(),
   ROLES: {},
 }));
-jest.mock("../../models/telemetry", () => ({ Telemetry: {} }));
 jest.mock("../../models/eventLogs", () => ({
   EventLogs: { logEvent: jest.fn() },
 }));

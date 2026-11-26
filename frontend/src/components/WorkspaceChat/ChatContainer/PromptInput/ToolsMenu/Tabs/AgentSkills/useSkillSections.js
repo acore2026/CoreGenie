@@ -1,10 +1,6 @@
 import { useMemo } from "react";
 import { titleCase } from "text-case";
-import {
-  getSubSkillsForSkill,
-  hasSubSkills,
-  isSkillMultiUserSupported,
-} from "./skillRegistry";
+import { getSubSkillsForSkill, hasSubSkills } from "./skillRegistry";
 
 /**
  * Builds a skill item with optional sub-skills.
@@ -47,7 +43,6 @@ export default function useSkillSections({
   t,
   defaultSkills,
   configurableSkills,
-  appIntegrationSkills,
   importedSkills,
   mcpServers,
   isMultiUser,
@@ -87,31 +82,6 @@ export default function useSkillSections({
         name: t("chat_window.agent_skills"),
         items: skillItems,
         enabledCount: skillItems.filter((i) => i.enabled).length,
-      });
-    }
-
-    // App Integrations — skip skills unsupported in multi-user mode
-    const appIntegrationItems = [];
-    for (const [key, { title }] of Object.entries(appIntegrationSkills)) {
-      if (isMultiUser && !isSkillMultiUserSupported(key)) continue;
-      appIntegrationItems.push(
-        buildSkillItem({
-          key,
-          title,
-          isEnabled: isSkillEnabled,
-          onToggle: toggleSkill,
-          t,
-          isSubSkillEnabled,
-          toggleSubSkill,
-        })
-      );
-    }
-    if (appIntegrationItems.length > 0) {
-      sectionList.push({
-        id: "app-integrations",
-        name: t("chat_window.app_integrations"),
-        items: appIntegrationItems,
-        enabledCount: appIntegrationItems.filter((i) => i.enabled).length,
       });
     }
 
@@ -160,7 +130,6 @@ export default function useSkillSections({
     t,
     defaultSkills,
     configurableSkills,
-    appIntegrationSkills,
     importedSkills,
     mcpServers,
     isMultiUser,

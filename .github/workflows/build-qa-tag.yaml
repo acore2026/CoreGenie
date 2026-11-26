@@ -10,16 +10,12 @@ on:
     paths-ignore:
       - "**.md"
       - ".gitmodules"
-      - "cloud-deployments/**/*"
       - "images/**/*"
       - ".vscode/**/*"
       - "**/.env.example"
       - ".github/ISSUE_TEMPLATE/**/*"
       - ".devcontainer/**/*"
-      - "embed/**/*"
-      - "browser-extension/**/*"
       - "extras/**/*"
-      - 'open-computer/**/*'
 
 
 concurrency:

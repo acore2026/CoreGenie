@@ -3,7 +3,6 @@ const { validURL } = require("../../utils/url");
 const { processSingleFile } = require("../../processSingleFile");
 const { downloadURIToFile } = require("../../utils/downloadURIToFile");
 const { ACCEPTED_MIMES } = require("../../utils/constants");
-const { validYoutubeVideoUrl } = require("../../utils/url");
 
 /**
  * Parse a Content-Type header value and return the MIME type without charset or other parameters.
@@ -95,14 +94,10 @@ function returnResult({
 /**
  * Determine the content type of a link - should be a URL
  * @param {string} uri - The link to determine the content type of
- * @returns {Promise<{contentType: string|null, processVia: 'web' | 'file' | 'youtube'}>} - The content type of the link
+ * @returns {Promise<{contentType: string|null, processVia: 'web' | 'file'}>} - The content type of the link
  */
 async function determineContentType(uri) {
   let processVia = "web";
-
-  // Dont check for content type if it is a YouTube video URL
-  if (validYoutubeVideoUrl(uri))
-    return { contentType: "text/html", processVia: "youtube" };
 
   return await getContentTypeFromURL(uri)
     .then((result) => {

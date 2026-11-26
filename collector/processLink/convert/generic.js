@@ -7,9 +7,6 @@ const {
   determineContentType,
   processAsFile,
 } = require("../helpers");
-const {
-  loadYouTubeTranscript,
-} = require("../../utils/extensions/YoutubeTranscript");
 const { htmlToMarkdown } = require("../helpers/htmlToMarkdown");
 const { fetchPageHtml } = require("../../utils/fetchPage");
 
@@ -30,23 +27,18 @@ async function scrapeGenericUrl({
   metadata = {},
   saveAsDocument = true,
 }) {
-  /** @type {'web' | 'file' | 'youtube'} */
+  /** @type {'web' | 'file'} */
   console.log(`-- Working URL ${link} => (captureAs: ${captureAs}) --`);
   let { contentType, processVia } = await determineContentType(link);
   console.log(`-- URL determined to be ${contentType} (${processVia}) --`);
 
   /**
-   * When the content is a file or a YouTube video, we can use the existing processing functions
+   * When the content is a file, we can use the existing processing functions
    * These are self-contained and will return the correct response based on the saveAsDocument flag already
    * so we can return the content immediately.
    */
   if (processVia === "file")
     return await processAsFile({ uri: link, saveAsDocument });
-  else if (processVia === "youtube")
-    return await loadYouTubeTranscript(
-      { url: link },
-      { parseOnly: saveAsDocument === false }
-    );
 
   // Otherwise, assume the content is a webpage and scrape the content from the webpage
   const content = await getPageContent({

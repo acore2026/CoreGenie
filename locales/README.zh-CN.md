@@ -29,14 +29,14 @@
 </p>
 
 <p align="center">
-  <a href='../README.md'>English</a> · <b>简体中文</b> · <a href='./README.ja-JP.md'>日本語</a>
+  <a href='../README.md'>项目首页</a>
 </p>
 
 <p align="center">
 👉 适用于桌面（Mac、Windows和Linux）的AnythingLLM！<a href="https://anythingllm.com/download" target="_blank">立即下载</a>
 </p>
 
-这是一个全栈应用程序，可以将任何文档、资源（如网址链接、音频、视频）或内容片段转换为上下文，以便任何大语言模型（LLM）在聊天期间作为参考使用。此应用程序允许您选择使用哪个LLM或向量数据库，同时支持多用户管理并设置不同权限。
+这是一个全栈应用程序，可以将任何文档、资源（如网址链接）或内容片段转换为上下文，以便任何大语言模型（LLM）在聊天期间作为参考使用。此应用程序允许您选择使用哪个LLM或向量数据库，同时支持多用户管理并设置不同权限。
 
 ![Chatting](https://github.com/Mintplex-Labs/anything-llm/releases/download/v1.11.2/AnythingLLM720p.gif)
 
@@ -61,16 +61,15 @@ AnythingLLM还支持多用户，您可以控制每个用户的访问权限和体
 - [**自定义人工智能代理**](https://docs.anythingllm.com/agent/custom/introduction)
 - 👤 多用户实例支持和权限管理 _仅限Docker版本_
 - 🦾 工作区内的智能体（浏览网页、运行代码等）
-- 💬 [为您的网站定制的可嵌入聊天窗口](https://github.com/Mintplex-Labs/anythingllm-embed/blob/main/README.md)
 - 📖 支持多种文档类型（PDF、TXT、DOCX等）
 - 带有拖放功能和清晰引用的简洁聊天界面。
 - 100%云部署就绪。
-- 兼容所有主流的[闭源和开源大语言模型提供商](#支持的llm嵌入模型转录模型和向量数据库)。
+- 兼容所有主流的[闭源和开源大语言模型提供商](#支持的llm嵌入模型和向量数据库)。
 - 内置节省成本和时间的机制，用于处理超大文档，优于任何其他聊天界面。
 - 全套的开发人员API，用于自定义集成！
 - 而且还有更多精彩功能……安装后亲自体验吧！
 
-### 支持的LLM、嵌入模型、转录模型和向量数据库
+### 支持的LLM、嵌入模型和向量数据库
 
 **支持的LLM：**
 
@@ -119,23 +118,6 @@ AnythingLLM还支持多用户，您可以控制每个用户的访问权限和体
 - [LM Studio (全部)](https://lmstudio.ai)
 - [Cohere](https://cohere.com/)
 
-**支持的转录模型：**
-
-- [AnythingLLM内置](https://github.com/Mintplex-Labs/anything-llm/tree/master/server/storage/models#audiovideo-transcription) （默认）
-- [OpenAI](https://openai.com/)
-
-**TTS (文本转语音) 支持：**
-
-- 浏览器内置（默认）
-- [PiperTTSLocal - 在浏览器中运行](https://github.com/rhasspy/piper)
-- [OpenAI TTS](https://platform.openai.com/docs/guides/text-to-speech/voice-options)
-- [ElevenLabs](https://elevenlabs.io/)
-- 任何与 OpenAI 兼容的 TTS 服务
-
-**STT (语音转文本) 支持：**
-
-- 浏览器内置（默认）
-
 **支持的向量数据库：**
 
 - [LanceDB](https://github.com/lancedb/lancedb) （默认）
@@ -156,19 +138,10 @@ AnythingLLM还支持多用户，您可以控制每个用户的访问权限和体
 - `server`: 一个 NodeJS express 服务器，用于处理所有交互并进行所有向量数据库管理和 LLM 交互。
 - `collector`: NodeJS express 服务器，用于从UI处理和解析文档。
 - `docker`: Docker 指令和构建过程 + 从源代码构建的信息。
-- `embed`: 用于生成和创建[网页嵌入组件](https://github.com/Mintplex-Labs/anythingllm-embed)的子模块.
-- `browser-extension`: 用于[Chrome 浏览器扩展](https://github.com/Mintplex-Labs/anythingllm-extension)的子模块.
 
 ## 🛳 自托管
 
-Mintplex Labs和社区维护了许多部署方法、脚本和模板，您可以使用它们在本地运行AnythingLLM。请参阅下面的表格，了解如何在您喜欢的环境上部署，或自动部署。
-| Docker | AWS | GCP | Digital Ocean | Render.com |
-|----------------------------------------|----|-----|---------------|------------|
-| [![在 Docker 上部署][docker-btn]][docker-deploy] | [![在 AWS 上部署][aws-btn]][aws-deploy] | [![在 GCP 上部署][gcp-btn]][gcp-deploy] | [![在DigitalOcean上部署][do-btn]][do-deploy] | [![在 Render.com 上部署][render-btn]][render-deploy] |
-
-| Railway                                             | RepoCloud                                                 | Elestio                                             |
-| --------------------------------------------------- | --------------------------------------------------------- | --------------------------------------------------- |
-| [![在 Railway 上部署][railway-btn]][railway-deploy] | [![在 RepoCloud 上部署][repocloud-btn]][repocloud-deploy] | [![在 Elestio 上部署][elestio-btn]][elestio-deploy] |
+[使用 Docker 部署](../docker/HOW_TO_USE_DOCKER.md)
 
 [其他方案：不使用Docker配置AnythingLLM实例 →](../BARE_METAL.md)
 
@@ -181,39 +154,6 @@ Mintplex Labs和社区维护了许多部署方法、脚本和模板，您可以�
 - `yarn dev:collector` 然后运行文档收集器（从仓库的根目录）。
 
 [了解文档](../server/storage/documents/DOCUMENTS.md)
-
-## 远程信息收集与隐私保护
-
-由 Mintplex Labs Inc 开发的 AnythingLLM 包含一个收集匿名使用信息的 Telemetry 功能。
-
-<details>
-<summary><kbd>有关 AnythingLLM 的远程信息收集与隐私保护更多信息</kbd></summary>
-
-### 为什么收集信息？
-
-我们使用这些信息来帮助我们理解 AnythingLLM 的使用情况，帮助我们确定新功能和错误修复的优先级，并帮助我们提高 AnythingLLM 的性能和稳定性。
-
-### 怎样关闭
-
-在服务器或 Docker 的 .env 设置中将 `DISABLE_TELEMETRY` 设置为 "true"，即可选择不参与遥测数据收集。你也可以在应用内通过以下路径操作：侧边栏 > `Privacy` （隐私） > 关闭遥测功能。
-
-### 你们跟踪收集哪些信息？
-
-我们只会跟踪有助于我们做出产品和路线图决策的使用细节，具体包括：
-
-- 您的安装方式（Docker或桌面版）
-- 文档被添加或移除的时间。但不包括文档内的具体内容。我们只关注添加或移除文档这个行为。这些信息能让我们了解到文档功能的使用情况。
-- 使用中的向量数据库类型。让我们知道哪个向量数据库最受欢迎，并在后续更新中优先考虑相应的数据库。
-- 使用中的LLM类型。让我们知道谁才是最受欢迎的LLM模型，并在后续更新中优先考虑相应模型。
-- 信息被`发送`出去。这是最常规的“事件/行为/event”，并让我们了解到所有安装了这个项目的每日活动情况。同样，只收集`发送`这个行为的信息，我们不会收集关于聊天本身的性质或内容的任何信息。
-
-您可以通过查找所有调用`Telemetry.sendTelemetry`的位置来验证这些声明。此外，如果启用，这些事件也会被写入输出日志，因此您也可以看到发送了哪些具体数据。**IP或其他识别信息不会被收集**。Telemetry远程信息收集的方案来自[PostHog](https://posthog.com/) - 一个开源的远程信息收集服务。
-
-我们非常重视隐私，且不用烦人的弹窗问卷来获取反馈，希望你能理解为什么我们想要知道该工具的使用情况，这样我们才能打造真正值得使用的产品。所有匿名数据 _绝不会_ 与任何第三方共享。
-
-[在源代码中查看所有信息收集活动](https://github.com/search?q=repo%3AMintplex-Labs%2Fanything-llm%20.sendTelemetry(&type=code)
-
-</details>
 
 ## 👋 如何贡献
 
@@ -263,21 +203,3 @@ Mintplex Labs和社区维护了许多部署方法、脚本和模板，您可以�
 [profile-link]: https://github.com/mintplex-labs
 [vector-admin]: https://github.com/mintplex-labs/vector-admin
 [assistant-swarm]: https://github.com/Mintplex-Labs/openai-assistant-swarm
-[docker-btn]: ../images/deployBtns/docker.png
-[docker-deploy]: ../docker/HOW_TO_USE_DOCKER.md
-[aws-btn]: ../images/deployBtns/aws.png
-[aws-deploy]: ../cloud-deployments/aws/cloudformation/DEPLOY.md
-[gcp-btn]: https://deploy.cloud.run/button.svg
-[gcp-deploy]: ../cloud-deployments/gcp/deployment/DEPLOY.md
-[do-btn]: https://www.deploytodo.com/do-btn-blue.svg
-[do-deploy]: ../cloud-deployments/digitalocean/terraform/DEPLOY.md
-[render-btn]: https://render.com/images/deploy-to-render-button.svg
-[render-deploy]: https://render.com/deploy?repo=https://github.com/Mintplex-Labs/anything-llm&branch=render
-[render-btn]: https://render.com/images/deploy-to-render-button.svg
-[render-deploy]: https://render.com/deploy?repo=https://github.com/Mintplex-Labs/anything-llm&branch=render
-[railway-btn]: https://railway.app/button.svg
-[railway-deploy]: https://railway.app/template/HNSCS1?referralCode=WFgJkn
-[repocloud-btn]: https://d16t0pc4846x52.cloudfront.net/deploylobe.svg
-[repocloud-deploy]: https://repocloud.io/details/?app_id=276
-[elestio-btn]: https://elest.io/images/logos/deploy-to-elestio-btn.png
-[elestio-deploy]: https://elest.io/open-source/anythingllm

@@ -61,7 +61,6 @@ export default function LLMPreference({
       showing: true,
       disabled: false,
       onClick: async () => {
-        await System.markOnboardingComplete().catch(console.error);
         hiddenSubmitButtonRef.current?.click();
       },
     });

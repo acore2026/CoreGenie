@@ -11,17 +11,13 @@ on:
     paths-ignore:
       - '**.md'
       - '.gitmodules'
-      - 'cloud-deployments/**/*'
       - 'images/**/*'
       - '.vscode/**/*'
       - '**/.env.example'
       - '.github/ISSUE_TEMPLATE/**/*'
       - '.devcontainer/**/*'
-      - 'embed/**/*' # Embed is submodule
-      - 'browser-extension/**/*' # Chrome extension is submodule
       - 'server/utils/agents/aibitat/example/**/*' # Do not push new image for local dev testing of new aibitat images.
       - 'extras/**/*' # Extra is just for news and other local content.
-      - 'open-computer/**/*'
   workflow_dispatch: # Allow manual runs for debugging and rebuilds.
 
 jobs:

@@ -3,11 +3,6 @@ const { Agent } = require("undici");
 
 /**
  * @typedef {Object} CollectorOptions
- * @property {string} whisperProvider - The external transcription provider, defaults to "openai"
- * @property {string} openAiKey - The API key to use for OpenAI interfacing, mostly passed to OAI Whisper provider.
- * @property {string} WhisperGenericOpenAiBaseUrl - The base URL of the OpenAI compatible endpoint used by the generic Whisper provider.
- * @property {string} WhisperGenericOpenAiApiKey - The API key used by the generic (OpenAI compatible) Whisper provider.
- * @property {string} WhisperGenericOpenAiModel - The transcription model used by the generic (OpenAI compatible) Whisper provider.
  * @property {Object} ocr - The OCR options
  * @property {{allowAnyIp: "true"|null|undefined}} runtimeSettings - The runtime settings that are passed to the collector. Persisted across requests.
  */
@@ -63,14 +58,6 @@ class CollectorApi {
    */
   #attachOptions() {
     return {
-      whisperProvider: process.env.WHISPER_PROVIDER || "openai",
-      openAiKey: process.env.OPEN_AI_KEY || null,
-      WhisperGenericOpenAiBaseUrl:
-        process.env.WHISPER_GENERIC_OPEN_AI_BASE_URL || null,
-      WhisperGenericOpenAiApiKey:
-        process.env.WHISPER_GENERIC_OPEN_AI_API_KEY || null,
-      WhisperGenericOpenAiModel:
-        process.env.WHISPER_GENERIC_OPEN_AI_MODEL || null,
       ocr: {
         langList: process.env.TARGET_OCR_LANG || "eng",
       },
@@ -210,44 +197,6 @@ class CollectorApi {
       .catch((e) => {
         this.log(e.message);
         return { success: false, reason: e.message, documents: [] };
-      });
-  }
-
-  /**
-   * Convert an audio file in the shared hotdir to WAV via the collector's
-   * FFMPEG wrapper. The source file is trashed by the collector; caller must
-   * read and trash the resulting wav file.
-   * @param {string} filename - The filename of the source audio in the hotdir
-   * @returns {Promise<{success: boolean, reason: string|null, wavFilename: string|null}>}
-   */
-  async convertAudioToWav(filename = "") {
-    if (!filename)
-      return {
-        success: false,
-        reason: "No filename provided.",
-        wavFilename: null,
-      };
-
-    const data = JSON.stringify({ filename });
-    return await fetch(`${this.endpoint}/util/convert-audio-to-wav`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Integrity": this.comkey.sign(data),
-        "X-Payload-Signer": this.comkey.encrypt(
-          new EncryptionManager().xPayload
-        ),
-      },
-      body: data,
-    })
-      .then((res) => {
-        if (!res.ok) throw new Error("Response could not be completed");
-        return res.json();
-      })
-      .then((json) => json)
-      .catch((e) => {
-        this.log(e.message);
-        return { success: false, reason: e.message, wavFilename: null };
       });
   }
 

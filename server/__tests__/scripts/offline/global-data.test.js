@@ -26,7 +26,7 @@ describe("离线全局数据脚本", () => {
     expect(() => resolveWithin(root, "../outside", "test")).toThrow();
   });
 
-  test("全局数据表清单不包含 Workspace 表", () => {
+  test("全局数据表清单不包含 Workspace 表和已移除渠道的凭据", () => {
     const exported = new Set(TABLE_SPECS.map((spec) => spec.name));
     for (const banned of [
       "workspaces",
@@ -36,6 +36,9 @@ describe("离线全局数据脚本", () => {
       "agent_runs",
       "agent_run_events",
       "agent_tool_executions",
+      "browser_extension_api_keys",
+      "external_communication_connectors",
+      "desktop_mobile_devices",
     ]) {
       expect(exported.has(banned)).toBe(false);
     }

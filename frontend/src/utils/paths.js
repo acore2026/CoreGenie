@@ -42,9 +42,6 @@ export default {
     home: () => {
       return "/onboarding";
     },
-    survey: () => {
-      return "/onboarding/survey";
-    },
     llmPreference: () => {
       return "/onboarding/llm-preference";
     },
@@ -132,12 +129,6 @@ export default {
     llmPreference: () => {
       return "/settings/llm-preference";
     },
-    transcriptionPreference: () => {
-      return "/settings/transcription-preference";
-    },
-    audioPreference: () => {
-      return "/settings/audio-preference";
-    },
     embedder: {
       modelPreference: () => "/settings/embedding-preference",
       chunkingPreference: () => "/settings/text-splitter-preference",
@@ -189,23 +180,8 @@ export default {
     privacy: () => {
       return "/settings/privacy";
     },
-    embedChatWidgets: () => {
-      return `/settings/embed-chat-widgets`;
-    },
-    browserExtension: () => {
-      return `/settings/browser-extension`;
-    },
-    mobile: () => {
-      return `/settings/mobile-connections`;
-    },
     experimental: () => {
       return `/settings/beta-features`;
-    },
-    mobileConnections: () => {
-      return `/settings/mobile-connections`;
-    },
-    telegram: () => {
-      return `/settings/external-connections/telegram`;
     },
     scheduledJobs: () => {
       return `/settings/scheduled-jobs`;
@@ -219,9 +195,6 @@ export default {
   },
   // TODO: Migrate all docs.anythingllm.com links to the new docs.
   documentation: {
-    mobileIntroduction: () => {
-      return "https://docs.anythingllm.com/mobile/overview";
-    },
     contextWindows: () => {
       return "https://docs.anythingllm.com/chatting-with-documents/introduction#you-exceed-the-context-window---what-now";
     },

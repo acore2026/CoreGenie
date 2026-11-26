@@ -5,7 +5,6 @@ import Citations from "../Citation";
 import { v4 } from "uuid";
 import { EditMessageForm, useEditMessage } from "./Actions/EditMessage";
 import { useWatchDeleteMessage } from "./Actions/DeleteMessage";
-import TTSMessage from "./Actions/TTSButton";
 import paths from "@/utils/paths";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
@@ -236,11 +235,6 @@ const HistoricalMessage = ({
           />
         )}
         <div className="flex items-start md:items-center gap-x-1">
-          <TTSMessage
-            slug={workspace?.slug}
-            chatId={chatId}
-            message={message}
-          />
           <Actions
             message={message}
             chatId={chatId}

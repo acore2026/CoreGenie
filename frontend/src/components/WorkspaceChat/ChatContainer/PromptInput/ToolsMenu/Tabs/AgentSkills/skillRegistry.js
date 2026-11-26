@@ -1,17 +1,5 @@
 import { getCreateFileSkills } from "@/pages/Admin/Agents/CreateFileSkillPanel";
 import { getFileSystemSubSkills } from "@/pages/Admin/Agents/FileSystemSkillPanel";
-import { getGmailSkills } from "@/pages/Admin/Agents/GMailSkillPanel/utils";
-import { getGoogleCalendarSkills } from "@/pages/Admin/Agents/GoogleCalendarSkillPanel/utils";
-import { getOutlookSkills } from "@/pages/Admin/Agents/OutlookSkillPanel/utils";
-
-/**
- * Flattens categorized skills (used by app integrations) into a flat array.
- */
-function flattenCategorySkills(categorizedSkills) {
-  return Object.values(categorizedSkills).flatMap(
-    (category) => category.skills
-  );
-}
 
 /**
  * Registry of all skills that have sub-skills.
@@ -31,21 +19,6 @@ export const SUB_SKILL_REGISTRY = {
   "filesystem-agent": {
     preferenceKey: "disabled_filesystem_skills",
     getSubSkills: (t) => getFileSystemSubSkills(t),
-  },
-  "gmail-agent": {
-    preferenceKey: "disabled_gmail_skills",
-    getSubSkills: (t) => flattenCategorySkills(getGmailSkills(t)),
-    isMultiUserSupported: false,
-  },
-  "google-calendar-agent": {
-    preferenceKey: "disabled_google_calendar_skills",
-    getSubSkills: (t) => flattenCategorySkills(getGoogleCalendarSkills(t)),
-    isMultiUserSupported: false,
-  },
-  "outlook-agent": {
-    preferenceKey: "disabled_outlook_skills",
-    getSubSkills: (t) => flattenCategorySkills(getOutlookSkills(t)),
-    isMultiUserSupported: false,
   },
 };
 
@@ -81,12 +54,4 @@ export function getPreferenceKeyForSkill(skillKey) {
  */
 export function hasSubSkills(skillKey) {
   return skillKey in SUB_SKILL_REGISTRY;
-}
-
-/**
- * Check if a skill is supported in multi-user mode.
- * Skills without an explicit flag default to supported.
- */
-export function isSkillMultiUserSupported(skillKey) {
-  return SUB_SKILL_REGISTRY[skillKey]?.isMultiUserSupported !== false;
 }

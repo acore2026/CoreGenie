@@ -1,23 +1,15 @@
 const { BackgroundService } = require("../utils/BackgroundWorkers");
 const prisma = require("../utils/prisma");
 const { SystemSettings } = require("./systemSettings");
-const { Telemetry } = require("./telemetry");
 
 /**
- * @typedef {('link'|'youtube'|'confluence'|'github'|'gitlab')} validFileType
+ * @typedef {('link'|'github')} validFileType
  */
 
 const DocumentSyncQueue = {
   featureKey: "experimental_live_file_sync",
   // update the validFileTypes and .canWatch properties when adding elements here.
-  validFileTypes: [
-    "link",
-    "youtube",
-    "confluence",
-    "github",
-    "gitlab",
-    "drupalwiki",
-  ],
+  validFileTypes: ["link", "github"],
   /**
    * The default time (in milliseconds) a watched document waits before it is
    * considered "stale" and re-synced by the background worker.
@@ -73,11 +65,7 @@ const DocumentSyncQueue = {
 
     if (chunkSource.startsWith("link://") && title.endsWith(".html"))
       return true; // If is web-link material (prior to feature most chunkSources were links://)
-    if (chunkSource.startsWith("youtube://")) return true; // If is a youtube link
-    if (chunkSource.startsWith("confluence://")) return true; // If is a confluence document link
     if (chunkSource.startsWith("github://")) return true; // If is a GitHub file reference
-    if (chunkSource.startsWith("gitlab://")) return true; // If is a GitLab file reference
-    if (chunkSource.startsWith("drupalwiki://")) return true; // If is a DrupalWiki document link
     return false;
   },
 
@@ -258,13 +246,11 @@ const DocumentSyncQueue = {
    */
   toggleWatchStatus: async function (documentRecord, watchStatus = false) {
     if (!watchStatus) {
-      await Telemetry.sendTelemetry("document_unwatched");
       await this.unwatch(documentRecord);
       return;
     }
 
     await this.watch(documentRecord);
-    await Telemetry.sendTelemetry("document_watched");
     return;
   },
 };

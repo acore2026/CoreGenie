@@ -14,7 +14,6 @@ const { processLink, getLinkText } = require("./processLink");
 const { wipeCollectorStorage } = require("./utils/files");
 const extensions = require("./extensions");
 const { processRawText } = require("./processRawText");
-const { convertAudioToWav } = require("./convertAudioToWav");
 const { verifyPayloadIntegrity } = require("./middleware/verifyIntegrity");
 const { httpLogger } = require("./middleware/httpLogger");
 const app = express();
@@ -145,31 +144,6 @@ app.post(
         url: link,
         success: false,
         content: null,
-      });
-    }
-    return;
-  }
-);
-
-app.post(
-  "/util/convert-audio-to-wav",
-  [verifyPayloadIntegrity],
-  async function (request, response) {
-    const { filename } = reqBody(request);
-    try {
-      const {
-        success,
-        reason,
-        wavFilename = null,
-      } = await convertAudioToWav(filename);
-      response.status(200).json({ filename, success, reason, wavFilename });
-    } catch (e) {
-      console.error(e);
-      response.status(200).json({
-        filename,
-        success: false,
-        reason: "An audio conversion error occurred.",
-        wavFilename: null,
       });
     }
     return;

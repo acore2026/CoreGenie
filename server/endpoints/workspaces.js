@@ -14,7 +14,6 @@ const { WorkspaceChats } = require("../models/workspaceChats");
 const { getVectorDbClass, stripThinkingFromText } = require("../utils/helpers");
 const { handleFileUpload, handlePfpUpload } = require("../utils/files/multer");
 const { validatedRequest } = require("../utils/middleware/validatedRequest");
-const { Telemetry } = require("../models/telemetry");
 const {
   flexUserRoleValid,
   ROLES,
@@ -30,8 +29,6 @@ const {
   determineWorkspacePfpFilepath,
   fetchPfp,
 } = require("../utils/files/pfp");
-const { getTTSProvider } = require("../utils/TextToSpeech");
-const { getAudioFileInfo } = require("../utils/TextToSpeech/audioFormat");
 const { WorkspaceThread } = require("../models/workspaceThread");
 const {
   canViewThread,
@@ -44,7 +41,6 @@ const {
 
 const truncate = require("truncate");
 const { purgeDocument } = require("../utils/files/purgeDocument");
-const { getModelTag } = require("./utils");
 const { searchWorkspaceAndThreads } = require("../utils/helpers/search");
 const { workspaceParsedFilesEndpoints } = require("./workspacesParsedFiles");
 const {
@@ -129,18 +125,6 @@ function workspaceEndpoints(app) {
         );
         if (!workspace)
           return response.status(400).json({ workspace: null, message });
-        await Telemetry.sendTelemetry(
-          "workspace_created",
-          {
-            multiUserMode: multiUserMode(response),
-            LLMSelection: process.env.LLM_PROVIDER || "openai",
-            Embedder: process.env.EMBEDDING_ENGINE || "inherit",
-            VectorDbSelection: process.env.VECTOR_DB || "lancedb",
-            TTSSelection: process.env.TTS_PROVIDER || "native",
-            LLMModel: getModelTag(),
-          },
-          user?.id
-        );
 
         await EventLogs.logEvent(
           "workspace_created",
@@ -272,7 +256,6 @@ function workspaceEndpoints(app) {
         Collector.log(
           `Document ${originalname} uploaded processed and successfully. It is now available in documents.`
         );
-        await Telemetry.sendTelemetry("document_uploaded");
         await EventLogs.logEvent(
           "document_uploaded",
           {
@@ -317,7 +300,6 @@ function workspaceEndpoints(app) {
         Collector.log(
           `Link ${link} uploaded processed and successfully. It is now available in documents.`
         );
-        await Telemetry.sendTelemetry("link_uploaded");
         await EventLogs.logEvent(
           "link_uploaded",
           { link },
@@ -774,52 +756,6 @@ function workspaceEndpoints(app) {
   );
 
   app.get(
-    "/workspace/:slug/tts/:chatId",
-    [validatedRequest, flexUserRoleValid([ROLES.all]), validWorkspaceSlug],
-    async function (request, response) {
-      try {
-        const { chatId } = request.params;
-        const workspace = response.locals.workspace;
-        const user = await userFromSession(request, response);
-        const cacheKey = `${workspace.slug}:${chatId}`;
-        const wsChat = await WorkspaceChats.get({
-          id: Number(chatId),
-          workspaceId: workspace.id,
-          user_id: user?.id,
-        });
-
-        if (!wsChat) return response.sendStatus(404);
-        const cachedResponse = responseCache.get(cacheKey);
-        if (cachedResponse) {
-          response.writeHead(200, {
-            "Content-Type": cachedResponse.mime || "audio/mpeg",
-          });
-          response.end(cachedResponse.buffer);
-          return;
-        }
-
-        const text = safeJsonParse(wsChat.response, null)?.text;
-        if (!text) return response.sendStatus(204).end();
-
-        const TTSProvider = getTTSProvider();
-        const buffer = await TTSProvider.ttsBuffer(text);
-        if (buffer === null) return response.sendStatus(204).end();
-
-        const { mime } = getAudioFileInfo(buffer);
-        responseCache.set(cacheKey, { buffer, mime });
-        response.writeHead(200, {
-          "Content-Type": mime,
-        });
-        response.end(buffer);
-        return;
-      } catch (error) {
-        console.error("Error processing the TTS request:", error);
-        response.status(500).json({ message: "TTS could not be completed" });
-      }
-    }
-  );
-
-  app.get(
     "/workspace/:slug/pfp",
     [validatedRequest, flexUserRoleValid([ROLES.all]), validWorkspaceSlug],
     async function (request, response) {
@@ -1109,7 +1045,6 @@ function workspaceEndpoints(app) {
         Collector.log(
           `Document ${originalname} uploaded processed and successfully. It is now available in documents.`
         );
-        await Telemetry.sendTelemetry("document_uploaded");
         await EventLogs.logEvent(
           "document_uploaded",
           {

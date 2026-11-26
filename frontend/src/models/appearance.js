@@ -3,8 +3,6 @@ import { safeJsonParse } from "@/utils/request";
 
 /**
  * @typedef { 'showScrollbar' |
- * 'autoSubmitSttInput' |
- * 'autoPlayAssistantTtsResponse' |
  * 'enableSpellCheck' |
  * 'renderHTML'
  * } AvailableSettings - The supported settings for the appearance model.
@@ -13,15 +11,13 @@ import { safeJsonParse } from "@/utils/request";
 const Appearance = {
   defaultSettings: {
     showScrollbar: true,
-    autoSubmitSttInput: true,
-    autoPlayAssistantTtsResponse: false,
     enableSpellCheck: true,
     renderHTML: false,
   },
 
   /**
    * Fetches any locally storage settings for the user
-   * @returns {{showScrollbar: boolean, autoSubmitSttInput: boolean, autoPlayAssistantTtsResponse: boolean, enableSpellCheck: boolean, renderHTML: boolean}}
+   * @returns {{showScrollbar: boolean, enableSpellCheck: boolean, renderHTML: boolean}}
    */
   getSettings: () => {
     const settings = localStorage.getItem(APPEARANCE_SETTINGS);

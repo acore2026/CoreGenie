@@ -15,7 +15,7 @@ All translations are based on english dictionary. So the English dictionary must
 `cd extras/translator`
 
 **Target a specific language**
-`node index.mjs <lang-code>` eg: `node index.mjs es` for Spanish.
+`node index.mjs <lang-code>` e.g. `node index.mjs zh` for Simplified Chinese.
 
 **Do all languages**
 `node index.mjs --all` _this is NOT recommended_

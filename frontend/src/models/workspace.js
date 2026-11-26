@@ -289,14 +289,22 @@ const Workspace = {
       window.removeEventListener(ABORT_STREAM_EVENT, abortStream);
     }
   },
-  all: async function () {
+  all: async function ({ throwOnError = false } = {}) {
     const workspaces = await fetch(`${API_BASE}/workspaces`, {
       method: "GET",
       headers: baseHeaders(),
     })
-      .then((res) => res.json())
-      .then((res) => res.workspaces || [])
-      .catch(() => []);
+      .then(async (res) => {
+        if (!res.ok) throw new Error(res.statusText);
+        const { workspaces } = await res.json();
+        if (!Array.isArray(workspaces))
+          throw new Error("Invalid workspace list");
+        return workspaces;
+      })
+      .catch((error) => {
+        if (throwOnError) throw error;
+        return [];
+      });
 
     return workspaces;
   },
@@ -507,21 +515,6 @@ const Workspace = {
       .catch((e) => {
         console.error(e);
         return false;
-      });
-  },
-  ttsMessage: async function (slug, chatId) {
-    return await fetch(`${API_BASE}/workspace/${slug}/tts/${chatId}`, {
-      method: "GET",
-      cache: "no-cache",
-      headers: baseHeaders(),
-    })
-      .then((res) => {
-        if (res.ok && res.status !== 204) return res.blob();
-        throw new Error("Failed to fetch TTS.");
-      })
-      .then((blob) => (blob ? URL.createObjectURL(blob) : null))
-      .catch(() => {
-        return null;
       });
   },
   uploadPfp: async function (formData, slug) {

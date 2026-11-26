@@ -15,9 +15,6 @@ jest.mock("../../models/workspace", () => ({
 jest.mock("../../models/workspaceCreation", () => ({
   creationMembers: jest.fn(),
 }));
-jest.mock("../../models/telemetry", () => ({
-  Telemetry: { sendTelemetry: jest.fn() },
-}));
 jest.mock("../../models/eventLogs", () => ({
   EventLogs: { logEvent: jest.fn() },
 }));
@@ -36,7 +33,6 @@ jest.mock("../../utils/http", () => ({
 jest.mock("../../utils/middleware/validatedRequest", () => ({
   validatedRequest: jest.fn(),
 }));
-jest.mock("../../endpoints/utils", () => ({ getModelTag: () => "test" }));
 const { Workspace } = require("../../models/workspace");
 const { creationMembers } = require("../../models/workspaceCreation");
 const { workspaceEndpoints } = require("../../endpoints/workspaces");

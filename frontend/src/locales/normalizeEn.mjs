@@ -103,15 +103,6 @@ function normalizeTranslations(lang, source, target, _subdir = null) {
   return normalized;
 }
 
-function ISOToFilename(lang) {
-  const ISO_TO_FILENAME = {
-    "zh-tw": "zh_TW",
-    pt: "pt_BR",
-    vi: "vn",
-  };
-  return ISO_TO_FILENAME[lang] || lang.replace("-", "_");
-}
-
 const failed = [];
 const TRANSLATIONS = {};
 for (const [lang, { common }] of Object.entries(resources)) {
@@ -139,9 +130,8 @@ for (const [lang, translations] of Object.entries(TRANSLATIONS)) {
   console.log(`${langDisplayName(lang)} (${lang}): ${passed ? "✅" : "❌"}`);
   !passed && failed.push(lang);
 
-  const langFilename = ISOToFilename(lang);
   fs.writeFileSync(
-    `./${langFilename}/common.js`,
+    `./${lang}/common.js`,
     `// Anything with "null" requires a translation. Contribute to translation via a PR!
 const TRANSLATIONS = ${JSON.stringify(normalized, null, 2)}
 

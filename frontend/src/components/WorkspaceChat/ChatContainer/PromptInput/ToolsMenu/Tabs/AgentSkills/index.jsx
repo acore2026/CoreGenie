@@ -5,7 +5,6 @@ import paths from "@/utils/paths";
 import {
   getDefaultSkills,
   getConfigurableSkills,
-  getAppIntegrationSkills,
 } from "@/pages/Admin/Agents/skills";
 import useToolsMenuItems from "../../useToolsMenuItems";
 import useAgentSkillsState from "./useAgentSkillsState";
@@ -31,7 +30,6 @@ export default function AgentSkillsTab({
 
   // Get skill definitions
   const defaultSkills = getDefaultSkills(t);
-  const appIntegrationSkills = getAppIntegrationSkills(t);
 
   // All skill state management
   const {
@@ -68,7 +66,6 @@ export default function AgentSkillsTab({
     t,
     defaultSkills,
     configurableSkills,
-    appIntegrationSkills,
     importedSkills,
     mcpServers,
     isMultiUser,

@@ -8,7 +8,6 @@ import {
   Wrench,
 } from "@phosphor-icons/react";
 import StopGenerationButton from "./StopGenerationButton";
-import SpeechToText from "./SpeechToText";
 import { Tooltip } from "react-tooltip";
 import AttachmentManager from "./Attachments";
 import AttachItem from "./AttachItem";
@@ -489,7 +488,6 @@ function PromptInput({
                   <WorkspaceModelPicker
                     workspaceSlug={workspaceSlug ?? workspace?.slug}
                   />
-                  <SpeechToText sendCommand={sendCommand} />
                   {isStreaming || agentSessionActive ? (
                     <StopGenerationButton />
                   ) : (

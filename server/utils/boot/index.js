@@ -1,12 +1,9 @@
-const { Telemetry } = require("../../models/telemetry");
 const { BackgroundService } = require("../BackgroundWorkers");
 const { EncryptionManager } = require("../EncryptionManager");
 const { CommunicationKey } = require("../comKey");
-const setupTelemetry = require("../telemetry");
 const eagerLoadContextWindows = require("./eagerLoadContextWindows");
 const markOnboarded = require("./markOnboarded");
 const { PushNotifications } = require("../PushNotifications");
-const { TelegramBotService } = require("../telegramBot");
 const { configureHTTPServer } = require("./httpServer");
 const http = require("http");
 
@@ -31,19 +28,15 @@ function bootSSL(app, port = 3001) {
     const credentials = { key: privateKey, cert: certificate };
     const server = configureHTTPServer(https.createServer(credentials, app));
 
-    server
-      .listen(port, async () => {
-        await markOnboarded();
-        await setupTelemetry();
-        new CommunicationKey(true);
-        new EncryptionManager();
-        new BackgroundService().boot();
-        await eagerLoadContextWindows();
-        await PushNotifications.setupPushNotificationService();
-        await TelegramBotService.bootIfActive();
-        console.log(`Primary server in HTTPS mode listening on port ${port}`);
-      })
-      .on("error", catchSigTerms);
+    server.listen(port, async () => {
+      await markOnboarded();
+      new CommunicationKey(true);
+      new EncryptionManager();
+      new BackgroundService().boot();
+      await eagerLoadContextWindows();
+      await PushNotifications.setupPushNotificationService();
+      console.log(`Primary server in HTTPS mode listening on port ${port}`);
+    });
 
     return { app, server };
   } catch (e) {
@@ -64,32 +57,17 @@ function bootHTTP(app, port = 3001) {
   if (!app) throw new Error('No "app" defined - crashing!');
 
   const server = configureHTTPServer(http.createServer(app));
-  server
-    .listen(port, async () => {
-      await markOnboarded();
-      await setupTelemetry();
-      new CommunicationKey(true);
-      new EncryptionManager();
-      new BackgroundService().boot();
-      await eagerLoadContextWindows();
-      await PushNotifications.setupPushNotificationService();
-      await TelegramBotService.bootIfActive();
-      console.log(`Primary server in HTTP mode listening on port ${port}`);
-    })
-    .on("error", catchSigTerms);
+  server.listen(port, async () => {
+    await markOnboarded();
+    new CommunicationKey(true);
+    new EncryptionManager();
+    new BackgroundService().boot();
+    await eagerLoadContextWindows();
+    await PushNotifications.setupPushNotificationService();
+    console.log(`Primary server in HTTP mode listening on port ${port}`);
+  });
 
   return { app, server };
-}
-
-function catchSigTerms() {
-  process.once("SIGUSR2", function () {
-    Telemetry.flush();
-    process.kill(process.pid, "SIGUSR2");
-  });
-  process.on("SIGINT", function () {
-    Telemetry.flush();
-    process.kill(process.pid, "SIGINT");
-  });
 }
 
 module.exports = {

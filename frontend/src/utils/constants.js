@@ -1,10 +1,8 @@
 export const API_BASE = import.meta.env.VITE_API_BASE || "/api";
-export const ONBOARDING_SURVEY_URL = "https://onboarding.anythingllm.com";
 
 export const AUTH_USER = "anythingllm_user";
 export const AUTH_TOKEN = "anythingllm_authToken";
 export const AUTH_TIMESTAMP = "anythingllm_authTimestamp";
-export const COMPLETE_QUESTIONNAIRE = "anythingllm_completed_questionnaire";
 export const SEEN_DOC_PIN_ALERT = "anythingllm_pinned_document_alert";
 export const SEEN_WATCH_ALERT = "anythingllm_watched_document_alert";
 export const LAST_VISITED_WORKSPACE = "anythingllm_last_visited_workspace";
@@ -82,5 +80,3 @@ export function fullApiUrl() {
   if (API_BASE !== "/api") return API_BASE;
   return `${window.location.origin}/api`;
 }
-
-export const POPUP_BROWSER_EXTENSION_EVENT = "NEW_BROWSER_EXTENSION_CONNECTION";

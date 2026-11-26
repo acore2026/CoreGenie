@@ -9,11 +9,6 @@ dns.setDefaultResultOrder("verbatim")
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  assetsInclude: [
-    './public/piper/ort-wasm-simd-threaded.wasm',
-    './public/piper/piper_phonemize.wasm',
-    './public/piper/piper_phonemize.data',
-  ],
   worker: {
     format: 'es'
   },
@@ -76,7 +71,6 @@ export default defineConfig({
     }
   },
   optimizeDeps: {
-    include: ["@mintplex-labs/piper-tts-web"],
     esbuildOptions: {
       define: {
         global: "globalThis"

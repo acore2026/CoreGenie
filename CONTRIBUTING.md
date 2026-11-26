@@ -84,7 +84,7 @@ For the best chance of having your pull request accepted, please follow these gu
 
 ## Project structure
 
-The core library is written in Node.js. There are additional sub-repositories for the embed widget and browser extension. These are not part of the core AnythingLLM project, but are maintained by the AnythingLLM team.
+The core library is written in Node.js.
 
 * `server`: Node.js server source code
 * `frontend`: React frontend source code

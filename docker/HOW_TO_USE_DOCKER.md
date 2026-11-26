@@ -110,8 +110,6 @@ services:
       - EMBEDDING_MODEL_PREF=nomic-embed-text:latest
       - EMBEDDING_MODEL_MAX_CHUNK_LENGTH=8192
       - VECTOR_DB=lancedb
-      - WHISPER_PROVIDER=openai
-      - TTS_PROVIDER=native
       - PASSWORDMINCHAR=8
       # Add any other keys here for services or settings
       # you can find in the docker/.env.example file

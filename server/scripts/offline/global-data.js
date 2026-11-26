@@ -33,10 +33,24 @@ const GLOBAL_NAMESPACES = [GLOBAL_KNOWLEDGE_NAMESPACE, GLOBAL_MEMORY_NAMESPACE];
 
 // These tables are installation-wide or contain an explicitly global scope.
 // Workspace tables are intentionally absent from this list.
+const retiredSettings = [
+  "telemetry_id",
+  "gmail_agent_config",
+  "disabled_gmail_skills",
+  "google_calendar_agent_config",
+  "disabled_google_calendar_skills",
+  "outlook_agent_config",
+  "disabled_outlook_skills",
+];
+
 const TABLE_SPECS = [
   { name: "users", delegate: "users" },
   { name: "recovery_codes", delegate: "recovery_codes" },
-  { name: "system_settings", delegate: "system_settings" },
+  {
+    name: "system_settings",
+    delegate: "system_settings",
+    where: { label: { notIn: retiredSettings } },
+  },
   { name: "api_keys", delegate: "api_keys" },
   { name: "global_reference_entries", delegate: "global_reference_entries" },
   { name: "agent_feedback_reasons", delegate: "agent_feedback_reasons" },
@@ -54,10 +68,6 @@ const TABLE_SPECS = [
     where: { uid: 0 },
   },
   {
-    name: "external_communication_connectors",
-    delegate: "external_communication_connectors",
-  },
-  {
     name: "scheduled_jobs",
     delegate: "scheduled_jobs",
     where: { workspace_id: null },
@@ -68,14 +78,6 @@ const TABLE_SPECS = [
     where: { scope: "global", workspaceId: null },
   },
   { name: "event_logs", delegate: "event_logs" },
-  {
-    name: "browser_extension_api_keys",
-    delegate: "browser_extension_api_keys",
-  },
-  {
-    name: "desktop_mobile_devices",
-    delegate: "desktop_mobile_devices",
-  },
   {
     name: "invites",
     delegate: "invites",
@@ -585,12 +587,6 @@ async function importGlobalData(
   const root = path.resolve(packageRoot);
   const manifest = readManifest(root);
   await verifyChecksums(root, manifest);
-  const tableNames = Object.keys(manifest.tables || {}).filter(
-    (name) => name !== "scheduled_job_runs"
-  );
-  if (!allowExisting)
-    await ensureTargetEmpty([...tableNames, "scheduled_job_runs"]);
-
   const ordered = [
     "users",
     "recovery_codes",
@@ -607,23 +603,32 @@ async function importGlobalData(
     "model_router_rules",
     "system_prompt_variables",
     "slash_command_presets",
-    "external_communication_connectors",
     "scheduled_jobs",
     "scheduled_job_runs",
     "memories",
     "event_logs",
-    "browser_extension_api_keys",
-    "desktop_mobile_devices",
     "invites",
     "global_documents",
     "document_vectors",
   ];
+  if (!allowExisting) {
+    const tableNames = ordered.filter(
+      (name) =>
+        name === "scheduled_job_runs" ||
+        Object.hasOwn(manifest.tables || {}, name)
+    );
+    await ensureTargetEmpty(tableNames);
+  }
   await prisma.$transaction(async (client) => {
     for (const table of ordered) {
       const filePath = path.join(root, "tables", `${table}.json`);
       if (!(await exists(filePath))) continue;
       const rows = JSON.parse(await fsp.readFile(filePath, "utf8"));
-      await insertRows(client, table, rows, { allowExisting });
+      const activeRows =
+        table === "system_settings"
+          ? rows.filter((row) => !retiredSettings.includes(row.label))
+          : rows;
+      await insertRows(client, table, activeRows, { allowExisting });
     }
     await resetSequences(client, ordered);
   });

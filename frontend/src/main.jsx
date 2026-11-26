@@ -171,28 +171,6 @@ const router = createBrowserRouter([
         },
       },
       {
-        path: "/settings/transcription-preference",
-        lazy: async () => {
-          const { default: GeneralTranscriptionPreference } = await import(
-            "@/pages/GeneralSettings/TranscriptionPreference"
-          );
-          return {
-            element: <AdminRoute Component={GeneralTranscriptionPreference} />,
-          };
-        },
-      },
-      {
-        path: "/settings/audio-preference",
-        lazy: async () => {
-          const { default: GeneralAudioPreference } = await import(
-            "@/pages/GeneralSettings/AudioPreference"
-          );
-          return {
-            element: <AdminRoute Component={GeneralAudioPreference} />,
-          };
-        },
-      },
-      {
         path: "/settings/embedding-preference",
         lazy: async () => {
           const { default: GeneralEmbeddingPreference } = await import(
@@ -278,15 +256,6 @@ const router = createBrowserRouter([
           return { element: <AdminRoute Component={AdminLogs} /> };
         },
       },
-      {
-        path: "/settings/embed-chat-widgets",
-        lazy: async () => {
-          const { default: ChatEmbedWidgets } = await import(
-            "@/pages/GeneralSettings/ChatEmbedWidgets"
-          );
-          return { element: <AdminRoute Component={ChatEmbedWidgets} /> };
-        },
-      },
       // Manager routes
       {
         path: "/settings/security",
@@ -363,17 +332,6 @@ const router = createBrowserRouter([
         },
       },
       {
-        path: "/settings/browser-extension",
-        lazy: async () => {
-          const { default: GeneralBrowserExtension } = await import(
-            "@/pages/GeneralSettings/BrowserExtensionApiKey"
-          );
-          return {
-            element: <ManagerRoute Component={GeneralBrowserExtension} />,
-          };
-        },
-      },
-      {
         path: "/settings/workspace-chats",
         lazy: async () => {
           const { default: GeneralChats } = await import(
@@ -444,24 +402,6 @@ const router = createBrowserRouter([
           return {
             element: <AdminRoute Component={LiveDocumentSyncManage} />,
           };
-        },
-      },
-      {
-        path: "/settings/mobile-connections",
-        lazy: async () => {
-          const { default: MobileConnections } = await import(
-            "@/pages/GeneralSettings/MobileConnections"
-          );
-          return { element: <ManagerRoute Component={MobileConnections} /> };
-        },
-      },
-      {
-        path: "/settings/external-connections/telegram",
-        lazy: async () => {
-          const { default: TelegramBotSettings } = await import(
-            "@/pages/GeneralSettings/Connections/TelegramBot"
-          );
-          return { element: <AdminRoute Component={TelegramBotSettings} /> };
         },
       },
       {

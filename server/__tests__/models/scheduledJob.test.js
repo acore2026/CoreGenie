@@ -116,3 +116,17 @@ describe("ScheduledJob structured schedules", () => {
     expect(deferred.nextRunAt.getTime()).toBeGreaterThan(Date.now());
   });
 });
+
+describe("ScheduledJob.toolsForRun", () => {
+  it.each(["gmail-agent#gmail-get-inbox", "google-calendar-agent#gcal-list-events", "outlook-agent"])(
+    "reports a retired tool in an existing job (%s)",
+    (id) => expect(() => ScheduledJob.toolsForRun(JSON.stringify(["knowledge.search", id])))
+      .toThrow("已移除的邮件或日历工具")
+  );
+
+  it("preserves explicit tool selection and the default selection", () => {
+    expect(ScheduledJob.toolsForRun(null)).toBeUndefined();
+    expect(ScheduledJob.toolsForRun("[]")).toEqual([]);
+    expect(ScheduledJob.toolsForRun('["knowledge.search"]')).toEqual(["knowledge.search"]);
+  });
+});

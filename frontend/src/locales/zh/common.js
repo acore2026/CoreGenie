@@ -775,21 +775,8 @@ const TRANSLATIONS = {
     data: {
       title: "数据处理与隐私",
       description: "我们致力于在涉及你的个人数据时提供透明度和控制权。",
+      finishError: "未能完成设置，请重试。",
       settingsHint: "这些设置可以随时在设置中重新配置。",
-    },
-    survey: {
-      title: "欢迎使用 CoreGenie",
-      description: "帮助我们为你的需求打造 CoreGenie。可选。",
-      email: "你的电子邮件是什么？",
-      useCase: "你将如何使用 CoreGenie？",
-      useCaseWork: "用于工作",
-      useCasePersonal: "用于个人使用",
-      useCaseOther: "其他",
-      comment: "你是如何听说 CoreGenie 的？",
-      commentPlaceholder:
-        "Reddit，Twitter，GitHub，YouTube 等 - 让我们知道你是如何找到我们的！",
-      skip: "跳过调查",
-      thankYou: "感谢你的反馈！",
     },
   },
   common: {
@@ -842,12 +829,9 @@ const TRANSLATIONS = {
     chat: "聊天",
     "api-keys": "开发者API",
     llm: "大语言模型（LLM）",
-    transcription: "转录模型",
     embedder: "嵌入器（Embedder）",
     "text-splitting": "文本分割",
-    "voice-speech": "语音和讲话",
     "vector-database": "向量数据库",
-    embeds: "嵌入式对话",
     security: "用户与安全",
     "event-logs": "事件日志",
     privacy: "隐私与数据",
@@ -862,18 +846,12 @@ const TRANSLATIONS = {
     tools: "工具",
     "experimental-features": "实验功能",
     contact: "联系支持",
-    "browser-extension": "浏览器扩展",
     "system-prompt-variables": "系统提示变量",
-    "mobile-app": "CoreGenie 移动版",
     "community-hub": {
       title: "社区中心",
       trending: "探索热门",
       "your-account": "您的账户",
       "import-item": "进口商品",
-    },
-    channels: "频道",
-    "available-channels": {
-      telegram: "电报",
     },
     "scheduled-jobs": "计划好的任务",
     "model-router": "型号路由器",
@@ -1981,286 +1959,6 @@ const TRANSLATIONS = {
           },
         },
       },
-      gmail: {
-        title: "Gmail 连接器",
-        description:
-          "让您的Agent能够与Gmail互动：搜索邮件、阅读邮件线程、撰写草稿、发送邮件以及管理您的收件箱。请参考相关文档。",
-        multiUserWarning:
-          "为了安全原因，在多用户模式下无法使用 Gmail 集成功能。请先禁用多用户模式，然后才能使用此功能。",
-        configuration: "Gmail 设置",
-        deploymentId: "部署 ID",
-        deploymentIdHelp: "您的 Google Apps Script 网页应用的部署 ID",
-        apiKey: "API 密钥",
-        apiKeyHelp: "您在 Google Apps Script 部署中配置的 API 密钥。",
-        configurationRequired: "请配置部署 ID 和 API 密钥，以启用 Gmail 功能。",
-        configured: "已配置",
-        searchSkills: "搜索技巧...",
-        noSkillsFound: "未找到与您的搜索条件匹配的技能。",
-        categories: {
-          search: {
-            title: "搜索和阅读电子邮件",
-            description: "搜索并阅读您 Gmail 收件箱中的邮件。",
-          },
-          drafts: {
-            title: "草稿邮件",
-            description: "创建、编辑和管理电子邮件草稿",
-          },
-          send: {
-            title: "发送和回复电子邮件",
-            description: "立即发送电子邮件并回复讨论串",
-          },
-          threads: {
-            title: "管理电子邮件线程",
-            description: "管理邮件线程 - 标记为已读/未读，归档，删除",
-          },
-          account: {
-            title: "集成统计",
-            description: "查看邮件收件箱统计数据和账户信息",
-          },
-        },
-        skills: {
-          search: {
-            title: "搜索邮件",
-            description: "使用 Gmail 的查询语法搜索电子邮件",
-          },
-          readThread: {
-            title: "阅读此主题",
-            description: "阅读由ID发起的完整邮件往来",
-          },
-          createDraft: {
-            title: "创建草稿",
-            description: "创建一个新的电子邮件草稿",
-          },
-          createDraftReply: {
-            title: "创建草稿回复",
-            description: "创建一个针对现有主题的回应草稿",
-          },
-          updateDraft: {
-            title: "更新草稿",
-            description: "更新已有的电子邮件草稿",
-          },
-          getDraft: {
-            title: "获取草稿",
-            description: "通过ID检索特定草稿",
-          },
-          listDrafts: {
-            title: "草稿清单",
-            description: "列出所有草稿邮件",
-          },
-          deleteDraft: {
-            title: "删除草稿",
-            description: "删除草稿邮件",
-          },
-          sendDraft: {
-            title: "发送草稿",
-            description: "发送已有的电子邮件草稿",
-          },
-          sendEmail: {
-            title: "发送电子邮件",
-            description: "立即发送一封电子邮件",
-          },
-          replyToThread: {
-            title: "回复主题",
-            description: "立即回复邮件线程",
-          },
-          markRead: {
-            title: "马克·瑞德",
-            description: "将某个主题标记为已阅读",
-          },
-          markUnread: {
-            title: "标记为未读",
-            description: "将某个主题标记为未读",
-          },
-          moveToTrash: {
-            title: "移动到垃圾箱",
-            description: "将某个主题归档到垃圾箱",
-          },
-          moveToArchive: {
-            title: "存档",
-            description: "存档该主题",
-          },
-          moveToInbox: {
-            title: "移动到收件箱",
-            description: "将某个主题移动到收件箱",
-          },
-          getMailboxStats: {
-            title: "邮箱统计",
-            description: "获取未读邮件数量和邮箱统计信息",
-          },
-          getInbox: {
-            title: "查看收件箱",
-            description: "一种便捷的方式，可以从 Gmail 中获取收件邮件。",
-          },
-        },
-      },
-      outlook: {
-        title: "Outlook 连接器",
-        description:
-          "让您的Agent通过 Microsoft Graph API 与 Microsoft Outlook 交互——搜索邮件、阅读邮件线程、撰写草稿、发送邮件以及管理您的收件箱。请查阅相关文档。",
-        multiUserWarning:
-          "由于安全原因，在多用户模式下无法使用 Outlook 集成功能。请先关闭多用户模式，然后再使用此功能。",
-        configuration: "Outlook 设置",
-        authType: "账户类型",
-        authTypeHelp:
-          '选择哪些类型的 Microsoft 账户可以进行身份验证。 "所有账户" 支持个人账户和工作/学校账户。 "仅限个人账户" 仅限于个人 Microsoft 账户。 "仅限工作/学校账户" 仅限于特定 Azure AD 租户的工作/学校账户。',
-        authTypeCommon: "所有账户（包括个人账户和工作/学习账户）",
-        authTypeConsumers: "仅限个人 Microsoft 账户",
-        authTypeOrganization: "仅限组织账户 (需要租户 ID)",
-        clientId: "申请人（客户）ID",
-        clientIdHelp: "您 Azure AD 应用程序注册的应用程序 ID",
-        tenantId: "租户 ID",
-        tenantIdHelp:
-          "您的 Azure AD 应用注册的“租户 ID”。仅在组织内部身份验证时需要。",
-        clientSecret: "客户端密钥",
-        clientSecretHelp: "您的 Azure AD 应用程序注册的客户端机密值",
-        configurationRequired:
-          "请配置客户端 ID 和客户端密钥，以便启用 Outlook 相关功能。",
-        authRequired:
-          "首先保存您的凭据，然后通过 Microsoft 进行身份验证以完成设置。",
-        authenticateWithMicrosoft: "使用 Microsoft 身份验证",
-        authenticated: "已成功与 Microsoft Outlook 认证。",
-        revokeAccess: "撤销权限",
-        configured: "已配置",
-        searchSkills: "搜索技巧...",
-        noSkillsFound: "未找到与您的搜索条件匹配的技能。",
-        categories: {
-          search: {
-            title: "搜索和阅读电子邮件",
-            description: "搜索并阅读您 Outlook 收件箱中的电子邮件。",
-          },
-          drafts: {
-            title: "草稿邮件",
-            description: "创建、编辑和管理电子邮件草稿",
-          },
-          send: {
-            title: "发送电子邮件",
-            description: "立即发送新邮件或回复消息",
-          },
-          account: {
-            title: "集成统计",
-            description: "查看邮件收件箱统计数据和账户信息",
-          },
-        },
-        skills: {
-          getInbox: {
-            title: "查看收件箱",
-            description: "从您的 Outlook 收件箱获取最近的邮件",
-          },
-          search: {
-            title: "搜索邮件",
-            description: "使用 Microsoft 搜索语法搜索电子邮件",
-          },
-          readThread: {
-            title: "阅读对话",
-            description: "阅读完整的电子邮件对话记录",
-          },
-          createDraft: {
-            title: "创建草稿",
-            description: "创建一个新的电子邮件草稿，或回复一个已存在的邮件。",
-          },
-          updateDraft: {
-            title: "更新草稿",
-            description: "更新已有的电子邮件草稿",
-          },
-          listDrafts: {
-            title: "草稿清单",
-            description: "列出所有草稿邮件",
-          },
-          deleteDraft: {
-            title: "删除草稿",
-            description: "删除草稿邮件",
-          },
-          sendDraft: {
-            title: "发送草稿",
-            description: "发送已有的邮件草稿",
-          },
-          sendEmail: {
-            title: "发送电子邮件",
-            description: "立即发送一封新的电子邮件，或回复已存在的消息。",
-          },
-          getMailboxStats: {
-            title: "邮件收件统计",
-            description: "获取文件夹数量和邮箱统计信息",
-          },
-        },
-      },
-      googleCalendar: {
-        title: "Google 日历连接器",
-        description:
-          "让您的Agent能够与 Google 日历互动：查看日历、获取活动、创建和更新活动，以及管理确认回复。请参考相关文档。",
-        multiUserWarning:
-          "由于安全原因，在多用户模式下无法使用 Google 日历集成功能。请先禁用多用户模式，然后再使用此功能。",
-        configuration: "谷歌日历配置",
-        deploymentId: "部署ID",
-        deploymentIdHelp: "您的 Google Apps Script 网页应用的部署 ID",
-        apiKey: "API 密钥",
-        apiKeyHelp: "您在 Google Apps Script 部署中配置的 API 密钥。",
-        configurationRequired:
-          "请配置部署 ID 和 API 密钥，以启用 Google 日历功能。",
-        configured: "已配置",
-        searchSkills: "搜索技巧...",
-        noSkillsFound: "未找到与您搜索条件匹配的技能。",
-        categories: {
-          calendars: {
-            title: "日历",
-            description: "查看和管理您的 Google 日历",
-          },
-          readEvents: {
-            title: "查看活动",
-            description: "查看和搜索日历活动",
-          },
-          writeEvents: {
-            title: "创建和更新活动",
-            description: "创建新的活动，并修改现有的活动。",
-          },
-          rsvp: {
-            title: "请回复确认",
-            description: "管理您对活动的响应状态",
-          },
-        },
-        skills: {
-          listCalendars: {
-            title: "日历列表",
-            description: "列出您拥有的或订阅的全部日历。",
-          },
-          getCalendar: {
-            title: "获取日历详情",
-            description: "获取有关特定日历的详细信息",
-          },
-          getEvent: {
-            title: "获取活动",
-            description: "获取有关特定活动的详细信息",
-          },
-          getEventsForDay: {
-            title: "获取当日活动",
-            description: "获取指定日期的所有活动",
-          },
-          getEvents: {
-            title: "获取活动（日期范围）",
-            description: "获取指定日期范围内的活动",
-          },
-          getUpcomingEvents: {
-            title: "查看即将举办的活动",
-            description: "使用简单的关键词，查找今天、本周或本月的活动",
-          },
-          quickAdd: {
-            title: "快速添加活动",
-            description: "从自然语言（例如“明天下午3点开会”）创建一个活动。",
-          },
-          createEvent: {
-            title: "创建活动",
-            description: "创建一个新的活动，并完全控制所有属性。",
-          },
-          updateEvent: {
-            title: "活动更新",
-            description: "更新现有的日历事件",
-          },
-          setMyStatus: {
-            title: "设置回复状态",
-            description: "接受、拒绝或表示初步接受某个活动",
-          },
-        },
-      },
       scheduledJob: {
         title: "创建计划任务",
         description:
@@ -2370,14 +2068,6 @@ const TRANSLATIONS = {
     chat: {
       title: "聊天",
       description: "设置您的 CoreGenie 聊天偏好。",
-      auto_submit: {
-        title: "自动提交语音输入",
-        description: "在静音一段时间后自动提交语音输入",
-      },
-      auto_speak: {
-        title: "自动语音回复",
-        description: "自动朗读 AI 的回复内容",
-      },
       spellcheck: {
         title: "启用拼写检查",
         description: "在聊天输入框中启用或禁用拼写检查",
@@ -2492,12 +2182,6 @@ const TRANSLATIONS = {
       },
     },
   },
-  transcription: {
-    title: "转录模型首选项",
-    description:
-      "这些是你的首选转录模型提供商的凭据和设置。重要的是这些密钥是最新且正确的，否则媒体文件和音频将无法转录。",
-    provider: "转录提供商",
-  },
   embedding: {
     title: "嵌入首选项",
     "desc-start":
@@ -2532,30 +2216,6 @@ const TRANSLATIONS = {
       description: "LanceDB 不需要任何配置。",
     },
   },
-  embeddable: {
-    title: "可嵌入的聊天小部件",
-    description:
-      "可嵌入的聊天小部件是与单个工作区绑定的面向公众的聊天界面。这些允许你构建工作区，然后你可以将其发布到全世界。",
-    create: "创建嵌入式对话",
-    table: {
-      workspace: "工作区",
-      chats: "已发送聊天",
-      active: "活动域",
-      created: "建立",
-    },
-  },
-  "embed-chats": {
-    title: "嵌入的聊天历史纪录",
-    export: "导出",
-    description: "这些是你发布的任何嵌入的所有记录的聊天和消息。",
-    table: {
-      embed: "嵌入",
-      sender: "发送者",
-      message: "消息",
-      response: "响应",
-      at: "发送时间",
-    },
-  },
   event: {
     title: "事件日志",
     description: "查看此实例上发生的所有操作和事件以进行监控。",
@@ -2569,11 +2229,8 @@ const TRANSLATIONS = {
   privacy: {
     title: "隐私和数据处理",
     description: "这是你对如何处理连接的第三方提供商和CoreGenie的数据的配置。",
-    anonymous: "启用匿名遥测",
   },
   connectors: {
-    "search-placeholder": "搜索数据连接器",
-    "no-connectors": "未找到数据连接器。",
     github: {
       name: "GitHub 仓库",
       description: "一键导入整个公共或私有的 GitHub 仓库。",
@@ -2598,83 +2255,6 @@ const TRANSLATIONS = {
       token_information:
         "如果未填写 <b>GitHub 访问令牌</b>，由于 GitHub 的公共 API 限制，此数据连接器将只能收集仓库的 <b>顶层</b> 文件。",
       token_personal: "在此处使用 GitHub 账户获取免费的个人访问令牌。",
-    },
-    gitlab: {
-      name: "GitLab 仓库",
-      description: "一键导入整个公共或私有的 GitLab 仓库。",
-      URL: "GitLab 仓库链接",
-      URL_explained: "您希望收集的 GitLab 仓库链接。",
-      token: "GitLab 访问令牌",
-      optional: "可选",
-      token_description: "选择要从 GitLab API 获取的额外实体。",
-      token_explained_start: "如果没有 ",
-      token_explained_link1: "个人访问令牌",
-      token_explained_middle:
-        "，由于 GitLab API 的速率限制，可能无法收集所有文件。您可以 ",
-      token_explained_link2: "创建临时访问令牌",
-      token_explained_end: " 来避免此问题。",
-      fetch_issues: "将问题作为文档获取",
-      ignores: "文件忽略列表",
-      git_ignore:
-        ".gitignore 格式的列表，用于在收集过程中忽略特定文件。输入后按回车保存每一项。",
-      task_explained: "完成后，所有文件将可用于在文档选择器中嵌入至工作区。",
-      branch: "您希望收集文件的分支",
-      branch_loading: "-- 正在加载可用分支 --",
-      branch_explained: "您希望收集文件的分支。",
-      token_information:
-        "如果未填写 <b>GitLab 访问令牌</b>，由于 GitLab 的公共 API 限制，此数据连接器将只能收集仓库的 <b>顶层</b> 文件。",
-      token_personal: "在此处使用 GitLab 账户获取免费的个人访问令牌。",
-    },
-    youtube: {
-      name: "YouTube 字幕",
-      description: "通过链接导入整个 YouTube 视频的转录内容。",
-      URL: "YouTube 视频链接",
-      URL_explained_start:
-        "输入任何 YouTube 视频的链接以获取其转录内容。视频必须启用 ",
-      URL_explained_link: "隐藏字幕",
-      URL_explained_end: " 功能。",
-      task_explained: "完成后，转录内容将可用于在文档选择器中嵌入至工作区。",
-    },
-    "website-depth": {
-      name: "批量链接爬虫",
-      description: "爬取一个网站及其指定深度的子链接。",
-      URL: "网站链接",
-      URL_explained: "您希望爬取的网站链接。",
-      depth: "爬取深度",
-      depth_explained: "这是爬虫从起始链接向下跟踪的子链接层级数量。",
-      max_pages: "最大页面数",
-      max_pages_explained: "要爬取的最大链接数。",
-      task_explained:
-        "完成后，所有抓取的内容将可用于在文档选择器中嵌入至工作区。",
-    },
-    confluence: {
-      name: "Confluence",
-      description: "一键导入整个 Confluence 页面。",
-      deployment_type: "Confluence 部署类型",
-      deployment_type_explained:
-        "判断您的 Confluence 实例是部署在 Atlassian 云端还是自托管。",
-      base_url: "Confluence 基础链接",
-      base_url_explained: "这是您 Confluence 空间的基础链接。",
-      space_key: "Confluence 空间标识",
-      space_key_explained:
-        "您将使用的 Confluence 实例空间标识，通常以 ~ 开头。",
-      username: "Confluence 用户名",
-      username_explained: "您的 Confluence 用户名",
-      auth_type: "Confluence 认证方式",
-      auth_type_explained: "选择您希望用于访问 Confluence 页面内容的认证方式。",
-      auth_type_username: "用户名和访问令牌",
-      auth_type_personal: "个人访问令牌",
-      token: "Confluence 访问令牌",
-      token_explained_start:
-        "您需要提供访问令牌用于认证。您可以在此生成访问令牌",
-      token_explained_link: "此处",
-      token_desc: "用于认证的访问令牌",
-      pat_token: "Confluence 个人访问令牌",
-      pat_token_explained: "您的 Confluence 个人访问令牌。",
-      task_explained: "完成后，页面内容将可用于在文档选择器中嵌入至工作区。",
-      bypass_ssl: "绕过 SSL 证书验证",
-      bypass_ssl_explained:
-        "启用此选项以绕过对自托管 Confluence 实例的 SSL 证书验证，特别是使用自签名证书的情况。",
     },
     manage: {
       documents: "RAG 知识库",
@@ -2728,6 +2308,7 @@ const TRANSLATIONS = {
       accept: "好的，知道了",
     },
     watching: {
+      supportedSources: "可定期更新通过网页链接或 GitHub 仓库导入的文档。",
       what_watching: "什么是监控文档？",
       watch_explained_block1:
         "当您在 CoreGenie 中<b>监控</b>一个文档时，我们会<i>自动</i>按定期间隔从其原始来源同步文档内容。系统会自动更新在所有使用该文档的工作区中的内容。",
@@ -2737,16 +2318,6 @@ const TRANSLATIONS = {
       watch_explained_block3_link: "文件管理器",
       watch_explained_block3_end: " 管理视图中管理被监控的文档。",
       accept: "好的，知道了",
-    },
-    obsidian: {
-      vault_location: "仓库位置",
-      vault_description:
-        "选择你的 Obsidian 仓库文件夹，以导入所有笔记及其关联。",
-      selected_files: "找到 {{count}} 个 Markdown 文件",
-      importing: "正在导入保险库…",
-      import_vault: "导入保险库",
-      processing_time: "根据你的仓库大小，这可能需要一些时间。",
-      vault_warning: "为避免冲突，请确保你的 Obsidian 仓库当前未被打开。",
     },
   },
   chat_window: {
@@ -2817,10 +2388,8 @@ const TRANSLATIONS = {
       },
     },
     text_size: "更改文字大小。",
-    microphone: "语音输入你的提示。",
     send: "将提示消息发送到工作区",
     attachments_processing: "附件正在处理，请稍候……",
-    tts_speak_message: "TTS 播报消息",
     copy: "复制",
     regenerate: "重新",
     regenerate_response: "重新回应",
@@ -3118,9 +2687,6 @@ const TRANSLATIONS = {
         cancel: "取消",
       },
     },
-    stt_unsupported: "此浏览器不支持麦克风访问。",
-    stt_mic_denied: "无法访问麦克风。请您先授予权限，然后重新尝试。",
-    stt_transcription_failed: "转录失败：{{error}}",
     export: "导出聊天记录为…",
     exporting: "出口…",
   },
@@ -3136,7 +2702,7 @@ const TRANSLATIONS = {
     password_description: "密码长度必须至少为 8 个字符",
     bio: "个人简介",
     bio_placeholder: "简单介绍一下自己…",
-    preferences: "界面与语音",
+    preferences: "界面设置",
     cancel: "取消",
     update_account: "保存修改",
     theme: "主题偏好",
@@ -3290,67 +2856,6 @@ const TRANSLATIONS = {
     notAssigned:
       "你目前还没有分配到任何工作区。\n请联系你的管理员请求访问一个工作区。",
     goToWorkspace: '前往 "{{workspace}}"',
-  },
-  telegram: {
-    title: "Telegram 机器人",
-    description:
-      "将您的 CoreGenie 实例与 Telegram 连接起来，这样您就可以从任何设备与您的工作空间进行聊天。",
-    setup: {
-      step1: {
-        title: "第一步：创建您的 Telegram 机器人",
-        description:
-          "打开 Telegram 上的 @BotFather，发送 `/newbot` 到 <code>@BotFather</code>，按照提示操作，并复制 API 令牌。",
-        "open-botfather": "启动 BotFather",
-        "instruction-1": "1. 打开链接或扫描二维码",
-        "instruction-2":
-          "2. 将 <code>/newbot</code> 发送给 <code>@BotFather</code>",
-        "instruction-3": "3. 为您的机器人选择一个名称和用户名",
-        "instruction-4": "4. 复制您收到的 API 令牌",
-      },
-      step2: {
-        title: "步骤 2：连接您的机器人",
-        description:
-          "将您从 @BotFather 获得的 API 令牌粘贴到指定位置，并选择一个默认的工作区，以便您的机器人可以进行对话。",
-        "bot-token": "机器人代币",
-        connecting: "正在连接...",
-        "connect-bot": "连接机器人",
-      },
-      security: {
-        title: "推荐的安全设置",
-        description: "为了进一步增强安全性，请在 @BotFather 中配置这些设置。",
-        "disable-groups": "— 阻止机器人加入群组",
-        "disable-inline": "— 阻止机器人被用于内联搜索",
-        "obscure-username":
-          "使用一个不显眼的机器人用户名，以降低其被发现的可能性。",
-      },
-      "toast-enter-token": "请您输入一个机器人令牌。",
-      "toast-connect-failed": "未能连接机器人。",
-    },
-    connected: {
-      status: "连接",
-      "status-disconnected": "未连接—— 令牌可能已过期或无效",
-      "placeholder-token": "粘贴新的机器人令牌...",
-      reconnect: "重新连接",
-      workspace: "工作空间",
-      "bot-link": "机器人链接",
-      "voice-response": "语音响应",
-      disconnecting: "断开连接...",
-      disconnect: "断开",
-      "voice-text-only": "仅提供文字",
-      "voice-mirror": "回声（当用户发送语音时，会以语音形式回复）",
-      "voice-always": "请务必在回复中添加语音（发送音频）。",
-      "toast-disconnect-failed": "未能成功断开机器人。",
-      "toast-reconnect-failed": "机器人连接失败。",
-      "toast-voice-failed": "无法更新语音模式。",
-      "toast-approve-failed": "未能批准用户。",
-      "toast-deny-failed": "未能拒绝用户请求。",
-      "toast-revoke-failed": "未能撤销用户权限。",
-    },
-    users: {
-      "pending-description":
-        "等待验证的用户。请将此处显示的配对代码与他们在 Telegram 聊天中显示的配对代码进行匹配。",
-      unknown: "未知",
-    },
   },
   scheduledJobs: {
     title: "计划任务",

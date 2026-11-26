@@ -4,9 +4,11 @@ import showToast from "@/utils/toast";
 import { ArrowSquareOut } from "@phosphor-icons/react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import Toggle from "@/components/lib/Toggle";
 
 export default function LiveSyncToggle({ enabled = false, onToggle }) {
+  const { t } = useTranslation();
   const [status, setStatus] = useState(enabled);
 
   async function toggleFeatureFlag() {
@@ -50,8 +52,7 @@ export default function LiveSyncToggle({ enabled = false, onToggle }) {
             are referenced in at the same time of update.
           </p>
           <p className="text-theme-text-secondary text-xs italic">
-            This feature only applies to web-based content, such as websites,
-            Confluence, YouTube, and GitHub files.
+            {t("connectors.watching.supportedSources")}
           </p>
         </div>
       </div>

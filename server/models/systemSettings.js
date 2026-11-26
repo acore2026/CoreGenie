@@ -21,21 +21,6 @@ function isNullOrNaN(value) {
   return isNaN(value);
 }
 
-/**
- * Merges a string field from source to target if it passes validation.
- * @param {Object} target - The target object to merge into
- * @param {Object} source - The source object to read from
- * @param {string} fieldName - The field name to merge
- * @param {Function|null} validator - Optional validator function that returns false to reject the value
- */
-function mergeStringField(target, source, fieldName, validator = null) {
-  const value = source[fieldName];
-  if (value && typeof value === "string" && value.trim()) {
-    if (validator && !validator(value)) return;
-    target[fieldName] = value.trim();
-  }
-}
-
 const SystemSettings = {
   /** A default system prompt that is used when no other system prompt is set or available to the function caller. */
   saneDefaultSystemPrompt:
@@ -53,12 +38,6 @@ const SystemSettings = {
     "disabled_agent_skills",
     "disabled_filesystem_skills",
     "disabled_create_files_skills",
-    "disabled_gmail_skills",
-    "gmail_agent_config",
-    "disabled_google_calendar_skills",
-    "google_calendar_agent_config",
-    "disabled_outlook_skills",
-    "outlook_agent_config",
     "imported_agent_skills",
     "agent_clarifying_questions_enabled",
     "agent_clarifying_questions_max_per_turn",
@@ -79,7 +58,6 @@ const SystemSettings = {
   ],
   supportedFields: [
     "logo_filename",
-    "telemetry_id",
     "footer_data",
     "support_email",
 
@@ -90,12 +68,6 @@ const SystemSettings = {
     "disabled_agent_skills",
     "disabled_filesystem_skills",
     "disabled_create_files_skills",
-    "disabled_gmail_skills",
-    "gmail_agent_config",
-    "disabled_google_calendar_skills",
-    "google_calendar_agent_config",
-    "disabled_outlook_skills",
-    "outlook_agent_config",
     "agent_sql_connections",
     "agent_clarifying_questions_enabled",
     "agent_clarifying_questions_max_per_turn",
@@ -277,138 +249,6 @@ const SystemSettings = {
         return JSON.stringify([]);
       }
     },
-    disabled_gmail_skills: (updates) => {
-      try {
-        const skills = updates.split(",").filter((skill) => !!skill);
-        return JSON.stringify(skills);
-      } catch {
-        console.error(`Could not validate disabled gmail skills.`);
-        return JSON.stringify([]);
-      }
-    },
-    gmail_agent_config: async (update) => {
-      const GmailBridge = require("../utils/agents/aibitat/plugins/gmail/lib");
-      try {
-        if (!update) return JSON.stringify({});
-
-        const newConfig =
-          typeof update === "string" ? safeJsonParse(update, {}) : update;
-        const existingConfig = safeJsonParse(
-          (await SystemSettings.get({ label: "gmail_agent_config" }))?.value,
-          {}
-        );
-
-        const mergedConfig = { ...existingConfig };
-
-        mergeStringField(mergedConfig, newConfig, "deploymentId");
-        mergeStringField(
-          mergedConfig,
-          newConfig,
-          "apiKey",
-          (v) => !v.match(/^\*+$/)
-        );
-
-        return JSON.stringify(mergedConfig);
-      } catch (e) {
-        console.error(`Could not validate gmail agent config:`, e.message);
-        return JSON.stringify({});
-      } finally {
-        GmailBridge.reset();
-      }
-    },
-    disabled_google_calendar_skills: (updates) => {
-      try {
-        const skills = updates.split(",").filter((skill) => !!skill);
-        return JSON.stringify(skills);
-      } catch {
-        console.error(`Could not validate disabled google calendar skills.`);
-        return JSON.stringify([]);
-      }
-    },
-    google_calendar_agent_config: async (update) => {
-      const GoogleCalendarBridge = require("../utils/agents/aibitat/plugins/google-calendar/lib");
-      try {
-        if (!update) return JSON.stringify({});
-
-        const newConfig =
-          typeof update === "string" ? safeJsonParse(update, {}) : update;
-        const existingConfig = safeJsonParse(
-          (await SystemSettings.get({ label: "google_calendar_agent_config" }))
-            ?.value,
-          {}
-        );
-
-        const mergedConfig = { ...existingConfig };
-
-        mergeStringField(mergedConfig, newConfig, "deploymentId");
-        mergeStringField(
-          mergedConfig,
-          newConfig,
-          "apiKey",
-          (v) => !v.match(/^\*+$/)
-        );
-
-        return JSON.stringify(mergedConfig);
-      } catch (e) {
-        console.error(
-          `Could not validate google calendar agent config:`,
-          e.message
-        );
-        return JSON.stringify({});
-      } finally {
-        GoogleCalendarBridge.reset();
-      }
-    },
-    disabled_outlook_skills: (updates) => {
-      try {
-        const skills = updates.split(",").filter((skill) => !!skill);
-        return JSON.stringify(skills);
-      } catch {
-        console.error(`Could not validate disabled outlook skills.`);
-        return JSON.stringify([]);
-      }
-    },
-    outlook_agent_config: async (update) => {
-      const OutlookBridge = require("../utils/agents/aibitat/plugins/outlook/lib");
-      try {
-        if (!update) return JSON.stringify({});
-
-        const newConfig =
-          typeof update === "string" ? safeJsonParse(update, {}) : update;
-        const existingConfig = safeJsonParse(
-          (await SystemSettings.get({ label: "outlook_agent_config" }))?.value,
-          {}
-        );
-
-        const mergedConfig = { ...existingConfig };
-
-        mergeStringField(mergedConfig, newConfig, "clientId");
-        mergeStringField(mergedConfig, newConfig, "tenantId");
-        mergeStringField(
-          mergedConfig,
-          newConfig,
-          "clientSecret",
-          (v) => !v.match(/^\*+$/)
-        );
-
-        if (newConfig.accessToken !== undefined) {
-          mergedConfig.accessToken = newConfig.accessToken;
-        }
-        if (newConfig.refreshToken !== undefined) {
-          mergedConfig.refreshToken = newConfig.refreshToken;
-        }
-        if (newConfig.tokenExpiry !== undefined) {
-          mergedConfig.tokenExpiry = newConfig.tokenExpiry;
-        }
-
-        return JSON.stringify(mergedConfig);
-      } catch (e) {
-        console.error(`Could not validate outlook agent config:`, e.message);
-        return JSON.stringify({});
-      } finally {
-        OutlookBridge.reset();
-      }
-    },
     agent_sql_connections: async (updates) => {
       const existingConnections = safeJsonParse(
         (await SystemSettings.get({ label: "agent_sql_connections" }))?.value,
@@ -510,7 +350,6 @@ const SystemSettings = {
       PublicRegistrationEnabled: await this.publicRegistrationEnabled(),
       MemoryEnabled: await this.memoriesEnabled(),
       MemoryAutoExtraction: await this.memoryAutoExtractionSetting(),
-      DisableTelemetry: process.env.DISABLE_TELEMETRY || "false",
 
       // --------------------------------------------------------
       // Embedder Provider Selection Settings & Configs
@@ -552,63 +391,6 @@ const SystemSettings = {
       LLMModel: getBaseLLMProviderModel({ provider: llmProvider }) || null,
       ModelRouterId: process.env.MODEL_ROUTER_ID || null,
       ...this.llmPreferenceKeys(),
-
-      // --------------------------------------------------------
-      // Whisper (Audio transcription) Selection Settings & Configs
-      // - Currently the only 3rd party is OpenAI, so is OPEN_AI_KEY is set
-      // - then it can be shared.
-      // --------------------------------------------------------
-      WhisperProvider: process.env.WHISPER_PROVIDER || "openai",
-      WhisperGenericOpenAiBaseUrl: process.env.WHISPER_GENERIC_OPEN_AI_BASE_URL,
-      WhisperGenericOpenAiApiKey: !!process.env.WHISPER_GENERIC_OPEN_AI_API_KEY,
-      WhisperGenericOpenAiModel: process.env.WHISPER_GENERIC_OPEN_AI_MODEL,
-
-      // --------------------------------------------------------
-      // TTS/STT  Selection Settings & Configs
-      // - Currently the only 3rd party is OpenAI or the native browser-built in
-      // --------------------------------------------------------
-      TextToSpeechProvider: process.env.TTS_PROVIDER || "native",
-      TTSOpenAIKey: !!process.env.TTS_OPEN_AI_KEY,
-      TTSOpenAIVoiceModel: process.env.TTS_OPEN_AI_VOICE_MODEL,
-
-      // Eleven Labs TTS
-      TTSElevenLabsKey: !!process.env.TTS_ELEVEN_LABS_KEY,
-      TTSElevenLabsVoiceModel: process.env.TTS_ELEVEN_LABS_VOICE_MODEL,
-      // Piper TTS
-      TTSPiperTTSVoiceModel:
-        process.env.TTS_PIPER_VOICE_MODEL ?? "en_US-hfc_female-medium",
-      // OpenAI Generic TTS
-      TTSOpenAICompatibleKey: !!process.env.TTS_OPEN_AI_COMPATIBLE_KEY,
-      TTSOpenAICompatibleModel: process.env.TTS_OPEN_AI_COMPATIBLE_MODEL,
-      TTSOpenAICompatibleVoiceModel:
-        process.env.TTS_OPEN_AI_COMPATIBLE_VOICE_MODEL,
-      TTSOpenAICompatibleEndpoint: process.env.TTS_OPEN_AI_COMPATIBLE_ENDPOINT,
-      // Kokoro TTS
-      TTSKokoroEndpoint: process.env.TTS_KOKORO_ENDPOINT,
-      TTSKokoroKey: !!process.env.TTS_KOKORO_KEY,
-      TTSKokoroVoiceModel: process.env.TTS_KOKORO_VOICE_MODEL,
-
-      // STT Selection
-      SpeechToTextProvider: process.env.STT_PROVIDER || "native",
-      // STT OpenAI
-      STTOpenAIModel: process.env.STT_OPEN_AI_MODEL,
-
-      // STT Lemonade
-      STTLemonadeBasePath: process.env.STT_LEMONADE_BASE_PATH,
-      STTLemonadeModelPref: process.env.STT_LEMONADE_MODEL_PREF,
-
-      // STT Deepgram
-      STTDeepgramApiKey: !!process.env.STT_DEEPGRAM_API_KEY,
-      STTDeepgramModel: process.env.STT_DEEPGRAM_MODEL,
-
-      // STT Generic OpenAI
-      STTOpenAICompatibleKey: !!process.env.STT_OPEN_AI_COMPATIBLE_KEY,
-      STTOpenAICompatibleModel: process.env.STT_OPEN_AI_COMPATIBLE_MODEL,
-      STTOpenAICompatibleEndpoint: process.env.STT_OPEN_AI_COMPATIBLE_ENDPOINT,
-
-      // STT Groq
-      STTGroqApiKey: !!process.env.STT_GROQ_API_KEY,
-      STTGroqModel: process.env.STT_GROQ_MODEL,
 
       // --------------------------------------------------------
       // Agent Settings & Configs
@@ -870,10 +652,10 @@ const SystemSettings = {
 
   markOnboardingComplete: async function () {
     try {
-      await this._updateSettings({ onboarding_complete: true });
-      const { Telemetry } = require("./telemetry");
-      await Telemetry.sendTelemetry("onboarding_complete");
-      return true;
+      const { success } = await this._updateSettings({
+        onboarding_complete: true,
+      });
+      return success;
     } catch (error) {
       console.error(error.message);
       return false;

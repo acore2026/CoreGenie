@@ -1,5 +1,4 @@
 const { log, conclude } = require("./helpers/index.js");
-const { safeJsonParse } = require("../utils/http");
 const {
   SCHEDULED_JOB_TIMEOUT_MS,
   sendWebPushNotification,
@@ -62,7 +61,6 @@ process.on("message", async (payload) => {
       throw new Error(
         "Scheduled Agent jobs require at least one workspace to provide resource scope."
       );
-    const toolOverrides = safeJsonParse(job.tools, []);
     const startTime = Date.now();
     const result = await runAgentToCompletion(
       {
@@ -73,7 +71,7 @@ process.on("message", async (payload) => {
         prompt: job.prompt,
         configuration: {
           approvalMode: "always_allow",
-          toolOverrides: job.tools === null ? undefined : toolOverrides,
+          toolOverrides: ScheduledJob.toolsForRun(job.tools),
           persistChat: false,
           autoTitle: false,
           excludeToolIds: ["schedule.create"],

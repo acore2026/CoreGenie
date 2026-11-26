@@ -39,3 +39,17 @@ describe("DocumentSyncQueue.defaultStaleAfter", () => {
     expect(DocumentSyncQueue.defaultStaleAfter).toBe(DEFAULT_STALE_AFTER);
   });
 });
+
+describe("DocumentSyncQueue.canWatch", () => {
+  it.each(["link", "github"])("can refresh a %s document", (type) => {
+    expect(DocumentSyncQueue.canWatch({ title: "example.html", chunkSource: type + "://source" })).toBe(true);
+  });
+
+  it.each(["gitlab", "youtube", "confluence", "drupalwiki", "obsidian", "paperless-ngx"])(
+    "leaves existing %s documents out of the refresh queue",
+    (type) => {
+      expect(DocumentSyncQueue.validFileTypes).not.toContain(type);
+      expect(DocumentSyncQueue.canWatch({ title: "example.html", chunkSource: type + "://source" })).toBe(false);
+    }
+  );
+});

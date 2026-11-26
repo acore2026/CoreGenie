@@ -82,8 +82,7 @@ function catalogIdSet(catalog) {
 
 /**
  * Filter the catalog down to tools that are configured and ready to use,
- * dropping anything still requiring setup (e.g. Gmail/Calendar/Outlook with no
- * credentials, SQL with no connection). This mirrors the manual Scheduled Jobs
+ * dropping tools that still require setup (e.g. SQL with no connection). This mirrors the manual Scheduled Jobs
  * UI, which disables selection of `requiresSetup` tools. A tool is treated as
  * not-ready if either the item or its category is flagged `requiresSetup`.
  */

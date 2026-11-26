@@ -24,7 +24,7 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
         unzip curl gnupg libgfortran5 tzdata netcat-openbsd poppler-utils \
         libc6 libcairo2 libexpat1 libfontconfig1 libgcc1 libglib2.0-0 libpango-1.0-0 \
         ca-certificates fonts-liberation git build-essential pkg-config libcairo2-dev libpango1.0-dev \
-        libjpeg-dev libgif-dev librsvg2-dev ffmpeg && \
+        libjpeg-dev libgif-dev librsvg2-dev && \
     mkdir -p /etc/apt/keyrings && \
     curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg && \
     echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_24.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list && \
@@ -81,7 +81,7 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
         unzip curl gnupg libgfortran5 tzdata netcat-openbsd poppler-utils \
         libc6 libcairo2 libexpat1 libfontconfig1 libgcc1 libglib2.0-0 libpango-1.0-0 \
         ca-certificates fonts-liberation git build-essential pkg-config libcairo2-dev libpango1.0-dev \
-        libjpeg-dev libgif-dev librsvg2-dev ffmpeg && \
+        libjpeg-dev libgif-dev librsvg2-dev && \
     mkdir -p /etc/apt/keyrings && \
     curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg && \
     echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_24.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list && \

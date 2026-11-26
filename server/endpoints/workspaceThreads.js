@@ -5,7 +5,6 @@ const {
   safeJsonParse,
 } = require("../utils/http");
 const { validatedRequest } = require("../utils/middleware/validatedRequest");
-const { Telemetry } = require("../models/telemetry");
 const {
   flexUserRoleValid,
   ROLES,
@@ -21,7 +20,6 @@ const {
 const { WorkspaceChats } = require("../models/workspaceChats");
 const { User } = require("../models/user");
 const { convertToChatHistory } = require("../utils/helpers/chat/responses");
-const { getModelTag } = require("./utils");
 const { canCollaborateOnThread } = require("../utils/workspaceCollaboration");
 const {
   threadVisibility,
@@ -40,18 +38,6 @@ function workspaceThreadEndpoints(app) {
         const workspace = response.locals.workspace;
         const { thread, message } = await WorkspaceThread.new(
           workspace,
-          user?.id
-        );
-        await Telemetry.sendTelemetry(
-          "workspace_thread_created",
-          {
-            multiUserMode: multiUserMode(response),
-            LLMSelection: process.env.LLM_PROVIDER || "openai",
-            Embedder: process.env.EMBEDDING_ENGINE || "inherit",
-            VectorDbSelection: process.env.VECTOR_DB || "lancedb",
-            TTSSelection: process.env.TTS_PROVIDER || "native",
-            LLMModel: getModelTag(),
-          },
           user?.id
         );
 

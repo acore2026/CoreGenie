@@ -13,9 +13,6 @@ const DEFAULT_ENABLED_CONFIGURABLE_SKILLS = [
   "web-browsing",
   "sql-agent",
   "create-scheduled-job",
-  "gmail-agent",
-  "google-calendar-agent",
-  "outlook-agent",
   "bash",
   "python",
 ];

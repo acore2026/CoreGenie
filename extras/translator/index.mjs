@@ -222,14 +222,9 @@ ${text}`
     }
 
     writeTranslations(langCode, translations) {
-        let langFilename = langCode.toLowerCase();
-        // Special cases
-        if(langCode === 'pt') langFilename = 'pt_BR';
-        if(langCode === 'zh-tw') langFilename = 'zh_TW';
-        if(langCode === 'vi') langFilename = 'vn';
 
         fs.writeFileSync(
-            `../../frontend/src/locales/${langFilename}/common.js`,
+            `../../frontend/src/locales/${langCode}/common.js`,
             `// Anything with "null" requires a translation. Contribute to translation via a PR!
 const TRANSLATIONS = ${JSON.stringify(translations, null, 2)}
 

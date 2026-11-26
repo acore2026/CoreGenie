@@ -15,10 +15,6 @@ import {
   CircleNotch,
   WarningCircle,
 } from "@phosphor-icons/react";
-import {
-  TTSProvider,
-  useWatchForAutoPlayAssistantTTSResponse,
-} from "../contexts/TTSProvider";
 import { PENDING_HOME_MESSAGE } from "@/utils/constants";
 import { useTranslation } from "react-i18next";
 import { getConversationRuntime } from "@/utils/chat/conversationRuntime";
@@ -38,7 +34,6 @@ export default function WorkspaceChat({
   requestedWorkspaceSlug = workspace?.slug,
 }) {
   const { t } = useTranslation();
-  useWatchForAutoPlayAssistantTTSResponse();
   const { threadSlug = null } = useParams();
   const navigate = useNavigate();
   // Stores { key, workspace, history } currently rendered. Lags the props so
@@ -229,27 +224,25 @@ export default function WorkspaceChat({
       className="relative h-full min-w-0 flex-1"
       aria-busy={switchingConversation && !currentLoadFailed}
     >
-      <TTSProvider>
-        <DnDWrapper
-          loaded={loaded}
-          opts={{
-            files: [],
-            ready: true,
-            dragging,
-            setDragging,
-            onDrop: handleDropWithoutThread,
-            parseAttachments: () => [],
-          }}
-        >
-          <ChatContainer
-            key={loaded.key}
-            workspace={loaded.workspace}
-            threadSlug={loaded.threadSlug}
-            thread={loaded.thread}
-            knownHistory={loaded.history}
-          />
-        </DnDWrapper>
-      </TTSProvider>
+      <DnDWrapper
+        loaded={loaded}
+        opts={{
+          files: [],
+          ready: true,
+          dragging,
+          setDragging,
+          onDrop: handleDropWithoutThread,
+          parseAttachments: () => [],
+        }}
+      >
+        <ChatContainer
+          key={loaded.key}
+          workspace={loaded.workspace}
+          threadSlug={loaded.threadSlug}
+          thread={loaded.thread}
+          knownHistory={loaded.history}
+        />
+      </DnDWrapper>
       {switchingConversation && (
         <div className="absolute inset-0 z-[80] flex items-center justify-center bg-theme-bg-secondary/35 px-4 backdrop-blur-[1px]">
           <ConversationLoadStatus

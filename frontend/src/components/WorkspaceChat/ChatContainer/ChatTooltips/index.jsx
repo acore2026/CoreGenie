@@ -20,12 +20,6 @@ export const ChatTooltips = memo(function ChatTooltips() {
   return (
     <>
       <Tooltip
-        id="message-to-speech"
-        place="bottom"
-        delayShow={300}
-        className="tooltip !text-xs"
-      />
-      <Tooltip
         id="regenerate-assistant-text"
         place="bottom"
         delayShow={300}

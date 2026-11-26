@@ -18,7 +18,6 @@ import {
   PencilSimpleLine,
   Nut,
   Toolbox,
-  Plugs,
 } from "@phosphor-icons/react";
 import AgentIcon from "@/media/animations/agent-static.png";
 import useUser from "@/hooks/useUser";
@@ -305,18 +304,6 @@ const SidebarOptions = ({ user = null, t }) => (
               flex: true,
               roles: ["admin"],
             },
-            {
-              btnText: t("settings.voice-speech"),
-              href: paths.settings.audioPreference(),
-              flex: true,
-              roles: ["admin"],
-            },
-            {
-              btnText: t("settings.transcription"),
-              href: paths.settings.transcriptionPreference(),
-              flex: true,
-              roles: ["admin"],
-            },
           ]}
         />
         <Option
@@ -430,30 +417,10 @@ const SidebarOptions = ({ user = null, t }) => (
           ]}
         />
         <Option
-          btnText={t("settings.channels")}
-          icon={<Plugs className="h-5 w-5 flex-shrink-0" />}
-          user={user}
-          childOptions={[
-            {
-              btnText: t("settings.available-channels.telegram"),
-              href: paths.settings.telegram(),
-              flex: true,
-              hidden: !!user,
-            },
-          ]}
-        />
-        <Option
           btnText={t("settings.tools")}
           icon={<Toolbox className="h-5 w-5 flex-shrink-0" />}
           user={user}
           childOptions={[
-            {
-              hidden: !canViewChatHistory,
-              btnText: t("settings.embeds"),
-              href: paths.settings.embedChatWidgets(),
-              flex: true,
-              roles: ["admin"],
-            },
             {
               btnText: t("settings.event-logs"),
               href: paths.settings.logs(),
@@ -477,12 +444,6 @@ const SidebarOptions = ({ user = null, t }) => (
               href: paths.settings.systemPromptVariables(),
               flex: true,
               roles: ["admin"],
-            },
-            {
-              btnText: t("settings.browser-extension"),
-              href: paths.settings.browserExtension(),
-              flex: true,
-              roles: ["admin", "manager"],
             },
           ]}
         />

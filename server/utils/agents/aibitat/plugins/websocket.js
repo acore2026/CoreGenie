@@ -1,5 +1,4 @@
 const chalk = require("chalk");
-const { Telemetry } = require("../../../../models/telemetry");
 const { v4: uuidv4 } = require("uuid");
 const { safeJsonParse } = require("../../../http");
 const { skillIsAutoApproved } = require("../../../helpers/agents");
@@ -354,8 +353,7 @@ const websocket = {
 
         aibitat.onMessage((message) => {
           if (message.from !== "USER")
-            Telemetry.sendTelemetry("agent_chat_sent");
-          if (message.from === "USER" && muteUserReply) return;
+            if (message.from === "USER" && muteUserReply) return;
           socket.send(JSON.stringify(message));
         });
 

@@ -1,4 +1,3 @@
-const { Telemetry } = require("../../models/telemetry");
 const { resetAllVectorStores } = require("../vectorStore/resetAllVectorStores");
 
 const KEY_MAPPING = {
@@ -489,28 +488,6 @@ const KEY_MAPPING = {
     checks: [isNotEmpty],
   },
 
-  // Whisper (transcription) providers
-  WhisperProvider: {
-    envKey: "WHISPER_PROVIDER",
-    checks: [isNotEmpty, supportedTranscriptionProvider],
-    postUpdate: [],
-  },
-  WhisperGenericOpenAiBaseUrl: {
-    envKey: "WHISPER_GENERIC_OPEN_AI_BASE_URL",
-    checks: [isValidURL],
-    postUpdate: [],
-  },
-  WhisperGenericOpenAiApiKey: {
-    envKey: "WHISPER_GENERIC_OPEN_AI_API_KEY",
-    checks: [],
-    postUpdate: [],
-  },
-  WhisperGenericOpenAiModel: {
-    envKey: "WHISPER_GENERIC_OPEN_AI_MODEL",
-    checks: [isNotEmpty],
-    postUpdate: [],
-  },
-
   // System Settings
   AuthToken: {
     envKey: "AUTH_TOKEN",
@@ -519,15 +496,6 @@ const KEY_MAPPING = {
   JWTSecret: {
     envKey: "JWT_SECRET",
     checks: [requiresForceMode],
-  },
-  DisableTelemetry: {
-    envKey: "DISABLE_TELEMETRY",
-    checks: [],
-    preUpdate: [
-      (_, __, nextValue) => {
-        if (nextValue === "true") Telemetry.sendTelemetry("telemetry_disabled");
-      },
-    ],
   },
 
   // Agent Integration ENVs
@@ -590,126 +558,6 @@ const KEY_MAPPING = {
   AgentCrwApiUrl: {
     envKey: "AGENT_CRW_API_URL",
     checks: [],
-  },
-
-  // TTS/STT Integration ENVS
-  TextToSpeechProvider: {
-    envKey: "TTS_PROVIDER",
-    checks: [supportedTTSProvider],
-  },
-
-  // TTS OpenAI
-  TTSOpenAIKey: {
-    envKey: "TTS_OPEN_AI_KEY",
-    checks: [validOpenAIKey],
-  },
-  TTSOpenAIVoiceModel: {
-    envKey: "TTS_OPEN_AI_VOICE_MODEL",
-    checks: [],
-  },
-
-  // TTS ElevenLabs
-  TTSElevenLabsKey: {
-    envKey: "TTS_ELEVEN_LABS_KEY",
-    checks: [isNotEmpty],
-  },
-  TTSElevenLabsVoiceModel: {
-    envKey: "TTS_ELEVEN_LABS_VOICE_MODEL",
-    checks: [],
-  },
-
-  // PiperTTS Local
-  TTSPiperTTSVoiceModel: {
-    envKey: "TTS_PIPER_VOICE_MODEL",
-    checks: [],
-  },
-
-  // OpenAI Generic TTS
-  TTSOpenAICompatibleKey: {
-    envKey: "TTS_OPEN_AI_COMPATIBLE_KEY",
-    checks: [],
-  },
-  TTSOpenAICompatibleModel: {
-    envKey: "TTS_OPEN_AI_COMPATIBLE_MODEL",
-    checks: [],
-  },
-  TTSOpenAICompatibleVoiceModel: {
-    envKey: "TTS_OPEN_AI_COMPATIBLE_VOICE_MODEL",
-    checks: [isNotEmpty],
-  },
-  TTSOpenAICompatibleEndpoint: {
-    envKey: "TTS_OPEN_AI_COMPATIBLE_ENDPOINT",
-    checks: [isValidURL],
-  },
-
-  // Kokoro TTS (self-hosted kokoro-fastapi)
-  TTSKokoroEndpoint: {
-    envKey: "TTS_KOKORO_ENDPOINT",
-    checks: [isValidURL],
-  },
-  TTSKokoroKey: {
-    envKey: "TTS_KOKORO_KEY",
-    checks: [],
-  },
-  TTSKokoroVoiceModel: {
-    envKey: "TTS_KOKORO_VOICE_MODEL",
-    checks: [isNotEmpty],
-  },
-
-  // STT Selection
-  SpeechToTextProvider: {
-    envKey: "STT_PROVIDER",
-    checks: [supportedSTTProvider],
-  },
-
-  // STT OpenAI
-  STTOpenAIModel: {
-    envKey: "STT_OPEN_AI_MODEL",
-    checks: [],
-  },
-
-  // STT Lemonade
-  STTLemonadeBasePath: {
-    envKey: "STT_LEMONADE_BASE_PATH",
-    checks: [isValidURL],
-  },
-  STTLemonadeModelPref: {
-    envKey: "STT_LEMONADE_MODEL_PREF",
-    checks: [],
-  },
-
-  // STT Deepgram
-  STTDeepgramApiKey: {
-    envKey: "STT_DEEPGRAM_API_KEY",
-    checks: [isNotEmpty],
-  },
-  STTDeepgramModel: {
-    envKey: "STT_DEEPGRAM_MODEL",
-    checks: [isNotEmpty],
-  },
-
-  // STT OpenAI Generic
-  STTOpenAICompatibleKey: {
-    envKey: "STT_OPEN_AI_COMPATIBLE_KEY",
-    checks: [],
-  },
-  STTOpenAICompatibleModel: {
-    envKey: "STT_OPEN_AI_COMPATIBLE_MODEL",
-    checks: [],
-  },
-  STTOpenAICompatibleEndpoint: {
-    envKey: "STT_OPEN_AI_COMPATIBLE_ENDPOINT",
-    checks: [isValidURL],
-  },
-
-  // STT Groq
-  STTGroqApiKey: {
-    envKey: "STT_GROQ_API_KEY",
-    checks: [isNotEmpty],
-  },
-  STTGroqModel: {
-    envKey: "STT_GROQ_MODEL",
-    checks: [isNotEmpty],
   },
 
   // DeepSeek Options
@@ -1006,40 +854,9 @@ function validOllamaLLMBasePath(input = "") {
   }
 }
 
-function supportedTTSProvider(input = "") {
-  const validSelection = [
-    "native",
-    "openai",
-    "elevenlabs",
-    "piper_local",
-    "generic-openai",
-    "kokoro",
-  ].includes(input);
-  return validSelection ? null : `${input} is not a valid TTS provider.`;
-}
-
-function supportedSTTProvider(input = "") {
-  const validSelection = [
-    "native",
-    "openai",
-    "lemonade",
-    "deepgram",
-    "groq",
-    "generic-openai",
-  ].includes(input);
-  return validSelection ? null : `${input} is not a valid STT provider.`;
-}
-
 function supportedLLM(input = "") {
   const validSelection = ["openai", "generic-openai"].includes(input);
   return validSelection ? null : `${input} is not a valid LLM provider.`;
-}
-
-function supportedTranscriptionProvider(input = "") {
-  const validSelection = ["openai", "generic-openai"].includes(input);
-  return validSelection
-    ? null
-    : `${input} is not a valid transcription model provider.`;
 }
 
 function validGeminiSafetySetting(input = "") {
@@ -1408,9 +1225,6 @@ function dumpENV() {
     // Allow setting a custom fetch timeouts for providers
     "ANYTHINGLLM_FETCH_TIMEOUT",
     "ANYTHINGLLM_MAX_RETRIES",
-
-    // Deny-by-default for embed widgets that have no allowlist configured
-    "EMBED_REQUIRE_ALLOWLIST",
   ];
 
   // Simple sanitization of each value to prevent ENV injection via newline or quote escaping.

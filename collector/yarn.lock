@@ -106,11 +106,6 @@
     "@eslint/core" "^0.17.0"
     levn "^0.4.1"
 
-"@fastify/busboy@^2.0.0":
-  version "2.1.1"
-  resolved "https://registry.yarnpkg.com/@fastify/busboy/-/busboy-2.1.1.tgz#b9da6a878a371829a0502c9b6c1c143ef6663f4d"
-  integrity sha512-vBZP4NlzfOlerQTnba4aqZoMhE/a9HY7HRqoOPaETQcSQuWEIyZMHGfVu6w9wGtGK5fED5qRs2DteVCjOH60sA==
-
 "@humanfs/core@^0.19.1":
   version "0.19.1"
   resolved "https://registry.yarnpkg.com/@humanfs/core/-/core-0.19.1.tgz#17c55ca7d426733fe3c561906b8173c336b40a77"
@@ -484,11 +479,6 @@ acorn@^8.15.0:
   version "8.16.0"
   resolved "https://registry.yarnpkg.com/acorn/-/acorn-8.16.0.tgz#4ce79c89be40afe7afe8f3adb902a1f1ce9ac08a"
   integrity sha512-UVJyE9MttOsBQIDKw1skb9nAwQuR5wuGD3+82K6JgJlm/Y+KI92oNsMNGZCYdDsVtRHSak0pcV5Dno5+4jh9sw==
-
-acorn@^8.8.0:
-  version "8.15.0"
-  resolved "https://registry.yarnpkg.com/acorn/-/acorn-8.15.0.tgz#a360898bc415edaac46c8241f6383975b930b816"
-  integrity sha512-NZyJarBfL7nWwIq+FDL6Zp/yHEhePMNnnJ0y3qfieCrmNvYct8uvtiV41UvlSe6apAfk0fY1FbWx+NwfmpvtTg==
 
 adm-zip@^0.5.10:
   version "0.5.16"
@@ -1949,13 +1939,6 @@ jackspeak@^3.1.2:
   optionalDependencies:
     "@pkgjs/parseargs" "^0.11.0"
 
-jintr@^1.1.0:
-  version "1.2.0"
-  resolved "https://registry.yarnpkg.com/jintr/-/jintr-1.2.0.tgz#f000275ee86f32a7d3d9eb9b71ffdb3c93600f50"
-  integrity sha512-OYPVJPlDih+G7LXjnLR5Brsz8ClxkXYn0ZmWyJVIUmFI6lySQu/dzpGRK/ujBLAYCvuJu/VqXzf84C1edowbLg==
-  dependencies:
-    acorn "^8.8.0"
-
 js-tiktoken@^1.0.12, js-tiktoken@^1.0.7, js-tiktoken@^1.0.8:
   version "1.0.21"
   resolved "https://registry.yarnpkg.com/js-tiktoken/-/js-tiktoken-1.0.21.tgz#368a9957591a30a62997dd0c4cf30866f00f8221"
@@ -2489,19 +2472,6 @@ onetime@^5.1.2:
   integrity sha512-kbpaSSGJTWdAY5KPVeMOKXSrPtr8C8C7wodJbcsd51jRnmD+GZu8Y0VoU6Dm5Z4vWr0Ig/1NKuWRKf7j5aaYSg==
   dependencies:
     mimic-fn "^2.1.0"
-
-openai@4.95.1:
-  version "4.95.1"
-  resolved "https://registry.yarnpkg.com/openai/-/openai-4.95.1.tgz#7157697c2b150a546b13eb860180c4a6058051da"
-  integrity sha512-IqJy+ymeW+k/Wq+2YVN3693OQMMcODRtHEYOlz263MdUwnN/Dwdl9c2EXSxLLtGEHkSHAfvzpDMHI5MaWJKXjQ==
-  dependencies:
-    "@types/node" "^18.11.18"
-    "@types/node-fetch" "^2.6.4"
-    abort-controller "^3.0.0"
-    agentkeepalive "^4.2.1"
-    form-data-encoder "1.7.2"
-    formdata-node "^4.3.2"
-    node-fetch "^2.6.7"
 
 openai@^4.41.1, openai@^4.57.3:
   version "4.104.0"
@@ -3387,13 +3357,6 @@ undici-types@~7.16.0:
   resolved "https://registry.yarnpkg.com/undici-types/-/undici-types-7.16.0.tgz#ffccdff36aea4884cbfce9a750a0580224f58a46"
   integrity sha512-Zz+aZWSj8LE6zoxD+xrjh4VfkIG8Ya6LvYkZqtUQGJPZjYl53ypCaUwWqo7eI0x66KBGeRo+mlBEkMSeSZ38Nw==
 
-undici@^5.19.1:
-  version "5.29.0"
-  resolved "https://registry.yarnpkg.com/undici/-/undici-5.29.0.tgz#419595449ae3f2cdcba3580a2e8903399bd1f5a3"
-  integrity sha512-raqeBD6NQK4SkWhQzeYKd1KmIG6dllBOTt55Rmkt4HtI9mwdWtJljnrXjAFUBLTSN67HWrOIZ3EPF4kjUw80Bg==
-  dependencies:
-    "@fastify/busboy" "^2.0.0"
-
 unpipe@~1.0.0:
   version "1.0.0"
   resolved "https://registry.yarnpkg.com/unpipe/-/unpipe-1.0.0.tgz#b2bf4ee8514aae6165b4817829d21b2ef49904ec"
@@ -3582,20 +3545,6 @@ yocto-queue@^0.1.0:
   version "0.1.0"
   resolved "https://registry.yarnpkg.com/yocto-queue/-/yocto-queue-0.1.0.tgz#0294eb3dee05028d31ee1a5fa2c556a6aaf10a1b"
   integrity sha512-rVksvsnNCdJ/ohGc6xgPwyN8eheCxsiLM8mxuE/t/mOVqJewPuO1miLpTHQiRgTKCLexL4MeAFVagts7HmNZ2Q==
-
-youtube-transcript-plus@^1.1.2:
-  version "1.1.2"
-  resolved "https://registry.yarnpkg.com/youtube-transcript-plus/-/youtube-transcript-plus-1.1.2.tgz#f86851852a056088c11f4f6523ab0f8dba7d9711"
-  integrity sha512-bLlqkA6gVVUorZpcc+THuECXyAwOpnHqW2lOav9g6gGovxAP3FCD8s9GBFVjmSl3cWWwwPPXtG/zY1nD+GvQ7A==
-
-youtubei.js@^9.1.0:
-  version "9.4.0"
-  resolved "https://registry.yarnpkg.com/youtubei.js/-/youtubei.js-9.4.0.tgz#ccccaf4a295b96e3e17134a66730bbc82461594b"
-  integrity sha512-8plCOZD2WabqWSEgZU3RjzigIIeR7sF028EERJENYrC9xO/6awpLMZfeoE1gNrNEbKcA+bzbMvonqlvBdxGdKg==
-  dependencies:
-    jintr "^1.1.0"
-    tslib "^2.5.0"
-    undici "^5.19.1"
 
 zlibjs@^0.3.1:
   version "0.3.1"

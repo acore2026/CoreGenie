@@ -357,33 +357,12 @@ const ScheduledJob = {
     const {
       listSQLConnections,
     } = require("../utils/agents/aibitat/plugins/sql-agent/SQLConnectors");
-    const {
-      GmailBridge,
-    } = require("../utils/agents/aibitat/plugins/gmail/lib");
-    const {
-      GoogleCalendarBridge,
-    } = require("../utils/agents/aibitat/plugins/google-calendar/lib");
-    const {
-      OutlookBridge,
-    } = require("../utils/agents/aibitat/plugins/outlook/lib");
 
     const categories = [];
 
     // Check which skills need setup
     const sqlConnections = await listSQLConnections();
     const sqlNeedsSetup = sqlConnections.length === 0;
-
-    const gmailConfig = await GmailBridge.getConfig();
-    const gmailNeedsSetup = !gmailConfig.deploymentId || !gmailConfig.apiKey;
-
-    const gcalConfig = await GoogleCalendarBridge.getConfig();
-    const gcalNeedsSetup = !gcalConfig.deploymentId || !gcalConfig.apiKey;
-
-    const outlookConfig = await OutlookBridge.getConfig();
-    const outlookNeedsSetup =
-      !outlookConfig.clientId ||
-      !outlookConfig.clientSecret ||
-      !outlookConfig.accessToken;
 
     // Default skills (always available)
     const DEFAULT_SKILLS = [
@@ -435,10 +414,10 @@ const ScheduledJob = {
       });
     }
 
-    // Helper to prettify a sub-skill name (e.g., "gmail-get-inbox" -> "Get Inbox")
+    // Helper to prettify a sub-skill name (e.g., "filesystem-read-file" -> "Read File")
     const prettifySubSkillName = (name, prefix) => {
       let cleaned = name;
-      const prefixes = [prefix, "gcal", "filesystem", "create"];
+      const prefixes = [prefix, "filesystem", "create"];
       for (const p of prefixes) {
         if (cleaned.startsWith(`${p}-`)) {
           cleaned = cleaned.slice(p.length + 1);
@@ -483,51 +462,6 @@ const ScheduledJob = {
       });
     }
 
-    // Gmail Agent (has sub-skills)
-    const gmailItems = buildSubSkillItems("gmailAgent", "gmail");
-    if (gmailItems.length > 0) {
-      categories.push({
-        category: "gmail-agent",
-        name: "Gmail",
-        items: gmailItems.map((item) => ({
-          ...item,
-          requiresSetup: gmailNeedsSetup,
-        })),
-        requiresSetup: gmailNeedsSetup,
-      });
-    }
-
-    // Google Calendar Agent (has sub-skills)
-    const googleCalendarItems = buildSubSkillItems(
-      "googleCalendarAgent",
-      "gcal"
-    );
-    if (googleCalendarItems.length > 0) {
-      categories.push({
-        category: "google-calendar-agent",
-        name: "Google Calendar",
-        items: googleCalendarItems.map((item) => ({
-          ...item,
-          requiresSetup: gcalNeedsSetup,
-        })),
-        requiresSetup: gcalNeedsSetup,
-      });
-    }
-
-    // Outlook Agent (has sub-skills)
-    const outlookItems = buildSubSkillItems("outlookAgent", "outlook");
-    if (outlookItems.length > 0) {
-      categories.push({
-        category: "outlook-agent",
-        name: "Outlook",
-        items: outlookItems.map((item) => ({
-          ...item,
-          requiresSetup: outlookNeedsSetup,
-        })),
-        requiresSetup: outlookNeedsSetup,
-      });
-    }
-
     // MCP servers category - get all servers
     // MCP servers are selected as a whole (@@mcp_serverName), not individual tools.
     // The agent loader expands the server into its individual tools at runtime.
@@ -560,6 +494,22 @@ const ScheduledJob = {
     }
 
     return categories;
+  },
+
+  toolsForRun: function (storedTools) {
+    if (storedTools === null) return undefined;
+    const tools = safeJsonParse(storedTools, []);
+    if (
+      Array.isArray(tools) &&
+      tools.some((id) =>
+        /^(gmail|google-calendar|outlook)-agent(?:#|$)/.test(id)
+      )
+    ) {
+      throw new Error(
+        "此定时任务使用了已移除的邮件或日历工具。请编辑任务并重新选择工具。"
+      );
+    }
+    return tools;
   },
 
   availableTools: async function () {

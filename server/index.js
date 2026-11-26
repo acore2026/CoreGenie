@@ -14,8 +14,6 @@ const { reqBody } = require("./utils/http");
 const { systemEndpoints } = require("./endpoints/system");
 const { workspaceEndpoints } = require("./endpoints/workspaces");
 const { chatEndpoints } = require("./endpoints/chat");
-const { embeddedEndpoints } = require("./endpoints/embed");
-const { embedManagementEndpoints } = require("./endpoints/embedManagement");
 const { getVectorDbClass } = require("./utils/helpers");
 const { adminEndpoints } = require("./endpoints/admin");
 const { inviteEndpoints } = require("./endpoints/invite");
@@ -31,21 +29,12 @@ const {
 } = require("./endpoints/agentSkillWhitelist");
 const { agentFileServerEndpoints } = require("./endpoints/agentFileServer");
 const { experimentalEndpoints } = require("./endpoints/experimental");
-const { browserExtensionEndpoints } = require("./endpoints/browserExtension");
 const { mcpServersEndpoints } = require("./endpoints/mcpServers");
-const { mobileEndpoints } = require("./endpoints/mobile");
 const { webPushEndpoints } = require("./endpoints/webPush");
-const { telegramEndpoints } = require("./endpoints/telegram");
 const { scheduledJobEndpoints } = require("./endpoints/scheduledJobs");
 const {
   workspaceScheduledJobEndpoints,
 } = require("./endpoints/workspaceScheduledJobs");
-const {
-  outlookAgentEndpoints,
-} = require("./endpoints/utils/outlookAgentUtils");
-const {
-  googleAgentSkillEndpoints,
-} = require("./endpoints/utils/googleAgentSkillEndpoints");
 const { memoryEndpoints } = require("./endpoints/memory");
 const { publicChatShareEndpoints } = require("./endpoints/publicChatShare");
 const { workspaceFileEndpoints } = require("./endpoints/workspaceFiles");
@@ -103,7 +92,6 @@ workspaceThreadEndpoints(apiRouter);
 chatEndpoints(apiRouter);
 adminEndpoints(apiRouter);
 inviteEndpoints(apiRouter);
-embedManagementEndpoints(apiRouter);
 utilEndpoints(apiRouter);
 documentEndpoints(apiRouter);
 agentRunEndpoints(apiRouter);
@@ -112,13 +100,9 @@ agentFileServerEndpoints(apiRouter);
 experimentalEndpoints(apiRouter);
 developerEndpoints(app, apiRouter);
 mcpServersEndpoints(apiRouter);
-mobileEndpoints(apiRouter);
 webPushEndpoints(apiRouter);
-telegramEndpoints(apiRouter);
 scheduledJobEndpoints(apiRouter);
 workspaceScheduledJobEndpoints(apiRouter);
-outlookAgentEndpoints(apiRouter);
-googleAgentSkillEndpoints(apiRouter);
 memoryEndpoints(apiRouter);
 publicChatShareEndpoints(apiRouter);
 workspaceFileEndpoints(apiRouter);
@@ -134,11 +118,6 @@ require("./agent-system/supervisor")
   .catch((error) =>
     console.error(`Agent run supervisor failed to start: ${error.message}`)
   );
-// Externally facing embedder endpoints
-embeddedEndpoints(apiRouter);
-
-// Externally facing browser extension endpoints
-browserExtensionEndpoints(apiRouter);
 
 if (process.env.NODE_ENV !== "development") {
   const { MetaGenerator } = require("./utils/boot/MetaGenerator");
@@ -191,6 +170,8 @@ export default function StaleAssetRecovery() { return null; }
     return;
   });
 
+  // Unmatched API requests must not fall through to the HTML app shell.
+  app.use("/api", (_request, response) => response.sendStatus(404));
   app.use("/", function (_, response) {
     IndexPage.generate(response);
     return;

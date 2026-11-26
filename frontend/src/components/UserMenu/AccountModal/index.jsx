@@ -1,16 +1,12 @@
 import usePfp from "@/hooks/usePfp";
 import System from "@/models/system";
-import Appearance from "@/models/appearance";
 import { AUTH_USER } from "@/utils/constants";
 import showToast from "@/utils/toast";
-import { Info, Plus, X } from "@phosphor-icons/react";
+import { Plus, X } from "@phosphor-icons/react";
 import ModalWrapper from "@/components/ModalWrapper";
 import { useTheme } from "@/hooks/useTheme";
 import { useTranslation } from "react-i18next";
-import { useState, useEffect } from "react";
-import { Tooltip } from "react-tooltip";
 import { safeJsonParse } from "@/utils/request";
-import Toggle from "@/components/lib/Toggle";
 import {
   USERNAME_MIN_LENGTH,
   USERNAME_MAX_LENGTH,
@@ -262,8 +258,6 @@ export default function AccountModal({ user, hideModal }) {
                 </h3>
                 <div className="space-y-1">
                   <ThemePreference />
-                  <AutoSubmitPreference />
-                  <AutoSpeakPreference />
                 </div>
               </section>
             </div>
@@ -312,97 +306,6 @@ function ThemePreference() {
           </option>
         ))}
       </select>
-    </div>
-  );
-}
-
-function AutoSubmitPreference() {
-  const [autoSubmitSttInput, setAutoSubmitSttInput] = useState(true);
-  const { t } = useTranslation();
-
-  useEffect(() => {
-    const settings = Appearance.getSettings();
-    setAutoSubmitSttInput(settings.autoSubmitSttInput ?? true);
-  }, []);
-
-  const handleChange = (checked) => {
-    setAutoSubmitSttInput(checked);
-    Appearance.updateSettings({ autoSubmitSttInput: checked });
-  };
-
-  return (
-    <div className="flex min-h-12 items-center justify-between gap-4 rounded-lg px-2 py-2 hover:bg-theme-sidebar-subitem-hover">
-      <div className="flex items-center gap-1">
-        <label
-          htmlFor="autoSubmit"
-          className="text-sm font-medium text-theme-text-primary"
-        >
-          {t("customization.chat.auto_submit.title")}
-        </label>
-        <div
-          data-tooltip-id="auto-submit-info"
-          data-tooltip-content={t("customization.chat.auto_submit.description")}
-          className="h-fit cursor-help"
-        >
-          <Info size={15} className="text-theme-text-secondary" />
-        </div>
-      </div>
-      <Toggle size="lg" enabled={autoSubmitSttInput} onChange={handleChange} />
-      <Tooltip
-        id="auto-submit-info"
-        place="bottom"
-        delayShow={300}
-        className="allm-tooltip !allm-text-xs"
-      />
-    </div>
-  );
-}
-
-function AutoSpeakPreference() {
-  const [autoPlayAssistantTtsResponse, setAutoPlayAssistantTtsResponse] =
-    useState(false);
-  const { t } = useTranslation();
-
-  useEffect(() => {
-    const settings = Appearance.getSettings();
-    setAutoPlayAssistantTtsResponse(
-      settings.autoPlayAssistantTtsResponse ?? false
-    );
-  }, []);
-
-  const handleChange = (checked) => {
-    setAutoPlayAssistantTtsResponse(checked);
-    Appearance.updateSettings({ autoPlayAssistantTtsResponse: checked });
-  };
-
-  return (
-    <div className="flex min-h-12 items-center justify-between gap-4 rounded-lg px-2 py-2 hover:bg-theme-sidebar-subitem-hover">
-      <div className="flex items-center gap-1">
-        <label
-          htmlFor="autoSpeak"
-          className="text-sm font-medium text-theme-text-primary"
-        >
-          {t("customization.chat.auto_speak.title")}
-        </label>
-        <div
-          data-tooltip-id="auto-speak-info"
-          data-tooltip-content={t("customization.chat.auto_speak.description")}
-          className="h-fit cursor-help"
-        >
-          <Info size={15} className="text-theme-text-secondary" />
-        </div>
-      </div>
-      <Toggle
-        size="lg"
-        enabled={autoPlayAssistantTtsResponse}
-        onChange={handleChange}
-      />
-      <Tooltip
-        id="auto-speak-info"
-        place="bottom"
-        delayShow={300}
-        className="allm-tooltip !allm-text-xs"
-      />
     </div>
   );
 }
