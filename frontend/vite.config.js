@@ -1,81 +1,51 @@
-import { defineConfig } from "vite"
-import { fileURLToPath, URL } from "url"
+import { defineConfig, loadEnv, searchForWorkspaceRoot } from "vite"
+import { fileURLToPath } from "node:url"
 import postcss from "./postcss.config.js"
 import react from "@vitejs/plugin-react"
-import dns from "dns"
 import { visualizer } from "rollup-plugin-visualizer"
 
-dns.setDefaultResultOrder("verbatim")
+const localPath = (relative) =>
+  fileURLToPath(new URL(relative, import.meta.url))
 
-// https://vitejs.dev/config/
-export default defineConfig({
-  worker: {
-    format: 'es'
-  },
-  server: {
-    port: 3000,
-    host: "localhost"
-  },
-  define: {
-    "process.env": process.env
-  },
-  css: {
-    postcss
-  },
+export default defineConfig(({ mode }) => ({
   plugins: [
     react(),
     visualizer({
-      template: "treemap", // or sunburst
-      open: false,
+      template: "treemap",
       gzipSize: true,
-      brotliSize: true,
-      filename: "bundleinspector.html" // will be saved in project's root
+      filename: "bundleinspector.html"
     })
   ],
+  envPrefix: [],
+  define: {
+    "import.meta.env.VITE_API_BASE": JSON.stringify(
+      loadEnv(mode, localPath("."), "VITE_API_BASE").VITE_API_BASE || ""
+    )
+  },
+  worker: { format: "es" },
+  server: {
+    port: 3000,
+    host: "localhost",
+    fs: {
+      allow: [
+        searchForWorkspaceRoot(localPath(".")),
+        localPath("../server/contracts")
+      ]
+    }
+  },
+  css: { postcss },
   resolve: {
-    alias: [
-      {
-        find: "@",
-        replacement: fileURLToPath(new URL("./src", import.meta.url))
-      },
-      {
-        process: "process/browser",
-        stream: "stream-browserify",
-        zlib: "browserify-zlib",
-        util: "util",
-        find: /^~.+/,
-        replacement: (val) => {
-          return val.replace(/^~/, "")
-        }
-      }
-    ]
+    alias: { "@": localPath("./src") },
+    dedupe: ["zod"]
   },
   build: {
-    rollupOptions: {
+    rolldownOptions: {
+      external: [/@phosphor-icons\/react\/dist\/ssr/],
       output: {
-        // These settings ensure the primary JS and CSS file references are always index.{js,css}
-        // so we can SSR the index.html as text response from server/index.js without breaking references each build.
-        entryFileNames: 'index.js',
-        assetFileNames: (assetInfo) => {
-          if (assetInfo.name === 'index.css') return `index.css`;
-          return assetInfo.name;
-        },
-      },
-      external: [
-        // Reduces transformation time by 50% and we don't even use this variant, so we can ignore.
-        /@phosphor-icons\/react\/dist\/ssr/,
-      ]
-    },
-    commonjsOptions: {
-      transformMixedEsModules: true
-    }
-  },
-  optimizeDeps: {
-    esbuildOptions: {
-      define: {
-        global: "globalThis"
-      },
-      plugins: []
+        // The Node server serves the generated HTML and these stable entry assets.
+        entryFileNames: "index.js",
+        assetFileNames: "[name][extname]"
+      }
     }
   }
-})
+}))

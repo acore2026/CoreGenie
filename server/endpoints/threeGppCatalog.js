@@ -1,3 +1,8 @@
+const {
+  meetingCatalog,
+  meetingWorkbook,
+  meetingError,
+} = require("../contracts/meetingLists.mts");
 const { validatedRequest } = require("../utils/middleware/validatedRequest");
 const {
   flexUserRoleValid,
@@ -46,7 +51,7 @@ function threeGppCatalogEndpoints(app) {
         )
           return response
             .status(400)
-            .json({ error: "请选择有效的工作组和会议。" });
+            .json(meetingError.parse({ error: "请选择有效的工作组和会议。" }));
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), 60000);
         const close = () => controller.abort();
@@ -66,13 +71,19 @@ function threeGppCatalogEndpoints(app) {
             : downloadMeetingList(group, meeting, controller.signal);
           const data = await Promise.race([lookup, cancelled]);
           response.set("Cache-Control", "no-store");
-          return response.json(data);
+          const schema = path.endsWith("meeting-lists")
+            ? meetingCatalog
+            : meetingWorkbook;
+          return response.json(schema.parse(data));
         } catch (error) {
           if (response.destroyed) return;
           console.warn("[3GPP meeting list]", error.message);
-          return response.status(502).json({
-            error: "暂时无法下载官方清单。请稍后重试，或手动上传 Excel 清单。",
-          });
+          return response.status(502).json(
+            meetingError.parse({
+              error:
+                "暂时无法下载官方清单。请稍后重试，或手动上传 Excel 清单。",
+            })
+          );
         } finally {
           clearTimeout(timer);
           response.off("close", close);

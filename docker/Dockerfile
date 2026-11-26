@@ -129,7 +129,7 @@ WORKDIR /app
 
 # Install & Build frontend layer
 # Use BUILDPLATFORM to run on the native host architecture (not emulated).
-# This avoids esbuild crashing under QEMU when cross-compiling.
+# Run the native bundler on the build host when cross-compiling.
 # The output (static HTML/CSS/JS) is platform-independent.
 FROM --platform=$BUILDPLATFORM node:24-slim AS frontend-build
 WORKDIR /app/frontend
@@ -139,11 +139,10 @@ RUN sed -i \
       -e "s#https://registry.yarnpkg.com#${YARN_REGISTRY}#g" \
       -e "s#https://registry.npmjs.org#${YARN_REGISTRY}#g" \
       yarn.lock && \
-    yarn install --network-timeout 100000 && yarn cache clean
-ARG VITE_AGENT_TRANSPORT=auto
-ENV VITE_AGENT_TRANSPORT=$VITE_AGENT_TRANSPORT
+    yarn install --frozen-lockfile --network-timeout 100000 && yarn cache clean
 ENV VITE_API_BASE=/api
 COPY ./frontend/ ./
+COPY ./server/contracts/ /app/server/contracts/
 RUN yarn build
 WORKDIR /app
 

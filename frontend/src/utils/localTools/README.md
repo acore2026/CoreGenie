@@ -20,13 +20,13 @@ CR 更新 TDoc、CR、rev、Current version；普通提案只更新 TDoc，保�
 在 `frontend/` 运行：
 
 ```bash
-yarn typecheck:tools
+yarn typecheck
 node --test src/utils/meetingSelection.test.mjs
 yarn test:proposal-fill
 yarn build
 ```
 
-`tsconfig.tools.json` 对工具启用严格类型检查，现有 JavaScript 模块保留原有检查方式。
-`yarn build` 会先执行工具类型检查；类型错误会阻止构建。
+`tsconfig.json` 对工具启用严格类型检查，现有 JavaScript 模块保留原有检查方式。
+`yarn build` 会先检查已迁移的 TypeScript 模块，类型错误会阻止构建。
 浏览器测试首次运行前需安装 Playwright Chromium，或设置
 `PLAYWRIGHT_CHROMIUM_EXECUTABLE` 指向已有 Chrome。

@@ -7,38 +7,11 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { chromium } from "playwright";
 import { createServer } from "vite";
+import { mockAPI } from "./mockAPI.mjs";
 
 let server, browser, page, baseURL, artifacts;
 const errors = [];
 const root = fileURLToPath(new URL("../../", import.meta.url));
-
-async function mockAPI(context) {
-  await context.addInitScript(() => localStorage.setItem("theme", "light"));
-  await context.route("**/api/**", async (route) => {
-    const pathname = new URL(route.request().url()).pathname;
-    let body = {};
-    if (pathname.endsWith("/onboarding")) body = { onboardingComplete: true };
-    else if (pathname.endsWith("/setup-complete"))
-      body = { results: { MultiUserMode: false, RequiresAuth: false } };
-    else if (pathname.endsWith("/system/refresh-user"))
-      body = { success: true, user: null };
-    else if (pathname.endsWith("/ping")) body = { online: true };
-    else if (pathname.endsWith("/workspaces")) body = { workspaces: [] };
-    else if (pathname.endsWith("/announcements"))
-      body = { announcements: [] };
-    else if (pathname.endsWith("/user/sidebar-preferences"))
-      body = {
-        preferences: {
-          groups: { groups: [], assignments: {}, collapsed: {} },
-          favorites: { workspaces: [], threads: [] },
-        },
-      };
-    else if (pathname.includes("logo") || pathname.includes("/pfp"))
-      return route.fulfill({ status: 204 });
-    else if (pathname.includes("footer")) body = { footerData: [] };
-    await route.fulfill({ status: 200, json: body });
-  });
-}
 
 before(async () => {
   server = await createServer({
@@ -904,10 +877,23 @@ test("downloads an official list, shows provenance and retains it on failure", a
   await page.getByRole("button", { name: "下载并使用清单", exact: true }).click();
   await page.getByRole("link", { name: "查看官方清单来源" }).waitFor();
   assert.equal(await page.getByRole("link", { name: "查看官方清单来源" }).getAttribute("href"), "https://www.3gpp.org/ftp/test/list.xlsx");
-  await page.route("**/3gpp/meeting-list?**", (route) => route.fulfill({ status: 502, json: { error: "unavailable" } }));
+  await page.route("**/3gpp/meeting-list?**", (route) => route.fulfill({ status: 502, json: { error: "官网未能读取官方清单" } }));
   await page.getByRole("button", { name: "下载并使用清单", exact: true }).click();
   await page.getByRole("alert").filter({ hasText: "未能读取官方清单" }).waitFor();
   assert.equal(await page.getByRole("link", { name: "查看官方清单来源" }).count(), 1);
+  for (const [endpoint, button, json] of [
+    ["meeting-lists", "读取官网会议", { meetings: [{ id: 12 }], fetchedAt: "yesterday" }],
+    ["meeting-list", "下载并使用清单", { name: "bad.xlsx", source: "https://example.org", fetchedAt: "2026-11-10T00:00:00Z", content: "%%%"}],
+  ]) {
+    await page.route(`**/3gpp/${endpoint}?**`, route => route.fulfill({ json }));
+    await Promise.all([
+      page.waitForResponse(response => response.url().includes(`/3gpp/${endpoint}?`)),
+      page.getByRole("button", { name: button, exact: true }).click(),
+    ]);
+    await page.getByRole("alert").filter({ hasText: "未能读取官方清单" }).waitFor();
+    assert.equal(await page.getByLabel("会议", { exact:true }).inputValue(), "CT4_138");
+    assert.equal(await page.getByRole("link", { name:"查看官方清单来源" }).getAttribute("href"), "https://www.3gpp.org/ftp/test/list.xlsx");
+  }
   await page.screenshot({ path: path.join(artifacts, "download-desktop.png"), fullPage: true });
   const mobile = await browser.newContext({
     viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true,

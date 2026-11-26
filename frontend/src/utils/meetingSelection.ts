@@ -1,3 +1,7 @@
+import type { OfficialMeeting } from "../../../server/contracts/meetingLists.mts";
+
+export type { OfficialMeeting } from "../../../server/contracts/meetingLists.mts";
+
 /** A meeting in the Agent picker can come from the catalogue or be entered manually. */
 export interface MeetingChoice {
   id?: string;
@@ -56,13 +60,6 @@ export function inferAgentMeetings(
     next: dated.find(({ date }) => date > today)?.item,
     today,
   };
-}
-
-export interface OfficialMeeting extends MeetingChoice {
-  id: string;
-  number: number;
-  suffix: string;
-  date: string | null;
 }
 
 // For official downloads, use the UTC day. A month-only meeting in the

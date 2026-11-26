@@ -81,12 +81,12 @@ const config = [
 ]
 
 
-// TypeScript adoption is scoped to local tools. The existing JS rules stay intact.
+// Check migrated TypeScript modules alongside the existing JavaScript.
 export default [
   ...config,
   {
     ...config[2],
-    files: ["src/pages/LocalTools/**/*.{ts,tsx}", "src/utils/localTools/**/*.ts", "src/utils/meetingSelection.ts", "src/components/PredefinedAgents/MeetingSelect.tsx"],
+    files: ["src/**/*.{ts,tsx}"],
     languageOptions: { ...config[2].languageOptions, parser: tsParser },
     rules: {
       ...config[2].rules,

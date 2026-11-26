@@ -7,6 +7,7 @@
     "jsx": "react-jsx",
     "strict": true,
     "noEmit": true,
+    "allowImportingTsExtensions": true,
     "allowJs": true,
     "checkJs": false,
     "skipLibCheck": true,
@@ -16,14 +17,8 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "baseUrl": ".",
-    "paths": { "@/*": ["src/*"] },
+    "paths": { "@/*": ["src/*"], "zod": ["./node_modules/zod"] },
     "types": ["vite/client"]
   },
-  "include": [
-    "src/utils/localTools/**/*.ts",
-    "src/pages/LocalTools/**/*.tsx",
-    "src/pages/LocalTools/**/*.ts",
-    "src/utils/meetingSelection.ts",
-    "src/components/PredefinedAgents/MeetingSelect.tsx"
-  ]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "../server/contracts/**/*.mts"]
 }

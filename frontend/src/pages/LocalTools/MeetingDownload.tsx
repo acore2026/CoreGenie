@@ -4,6 +4,7 @@ import { defaultDownloadMeetingId } from "@/utils/meetingSelection";
 import { useTranslation } from "react-i18next";
 import {
   GROUPS,
+  MeetingResponseError,
   loadMeetings,
   downloadList,
 } from "@/utils/localTools/meetingDownload";
@@ -58,7 +59,9 @@ export default function MeetingDownload({
         setError(
           error instanceof LocalToolError
             ? t(`local_tools.errors.${error.code}`, error.params)
-            : tr("download_failed")
+            : error instanceof MeetingResponseError && error.message
+              ? error.message
+              : tr("download_failed")
         );
     } finally {
       if (!controller.signal.aborted) {

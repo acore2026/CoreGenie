@@ -50,6 +50,10 @@ const groupedProviders = [
   "docker-model-runner",
   "sambanova",
 ];
+/** @typedef {string | { id:string, name?:string, downloaded?:boolean }} ProviderModel */
+/** @param {string | null} provider
+ * @returns {{defaultModels:ProviderModel[], customModels:ProviderModel[] | Record<string,ProviderModel[]>, loading:boolean, downloadedModels:ProviderModel[]}}
+ */
 export default function useGetProviderModels(provider = null) {
   const [defaultModels, setDefaultModels] = useState([]);
   const [customModels, setCustomModels] = useState([]);

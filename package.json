@@ -50,6 +50,7 @@
   },
   "private": false,
   "devDependencies": {
+    "typescript": "5.9.3",
     "concurrently": "^9.1.2",
     "jest": "^29.7.0"
   }

@@ -23,6 +23,7 @@ const PredefinedAgent = {
       defaultAgentId: data.defaultAgentId || null,
     };
   },
+  /** @returns {Promise<import("./predefinedAgentTypes").AdminData | { error: string }>} */
   adminList: async () => jsonRequest(`${API_BASE}/admin/predefined-agents`),
   create: async (payload) =>
     jsonRequest(`${API_BASE}/admin/predefined-agents`, {

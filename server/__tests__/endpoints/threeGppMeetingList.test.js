@@ -59,13 +59,19 @@ test.each([
 });
 test("returns live catalog with stale status intact", async () => {
   catalog.meetings.mockResolvedValue({
-    meetings: [{ id: "CT4_138" }],
+    meetings: [
+      { id: "CT4_138", number: 138, label: "CT4#138", suffix: "", date: null },
+    ],
+    fetchedAt: "2026-01-01T00:00:00Z",
     stale: true,
   });
   const res = response();
   await routes["/3gpp/meeting-lists"].handler({ query: { group: "CT4" } }, res);
   expect(res.json).toHaveBeenCalledWith({
-    meetings: [{ id: "CT4_138" }],
+    meetings: [
+      { id: "CT4_138", number: 138, label: "CT4#138", suffix: "", date: null },
+    ],
+    fetchedAt: "2026-01-01T00:00:00Z",
     stale: true,
     groups: ["CT4", "SA2"],
   });
@@ -74,10 +80,20 @@ test("returns live catalog with stale status intact", async () => {
 });
 test("returns bounded loader result and a manual fallback on failure", async () => {
   const query = { group: "CT4", meeting: "CT4_138" };
-  downloadMeetingList.mockResolvedValue({ name: "list.xlsx", content: "data" });
+  downloadMeetingList.mockResolvedValue({
+    name: "list.xlsx",
+    content: "data",
+    source: "https://www.3gpp.org/list.xlsx",
+    fetchedAt: "2026-01-01T00:00:00Z",
+  });
   const ok = response();
   await routes["/3gpp/meeting-list"].handler({ query }, ok);
-  expect(ok.json).toHaveBeenCalledWith({ name: "list.xlsx", content: "data" });
+  expect(ok.json).toHaveBeenCalledWith({
+    name: "list.xlsx",
+    content: "data",
+    source: "https://www.3gpp.org/list.xlsx",
+    fetchedAt: "2026-01-01T00:00:00Z",
+  });
   downloadMeetingList.mockRejectedValue(new Error("remote error"));
   const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
   const fail = response();
@@ -95,10 +111,37 @@ test("catalog requests return an error after the time limit", async () => {
   try {
     catalog.meetings.mockImplementation(() => new Promise(() => {}));
     const res = response();
-    const pending = routes["/3gpp/meeting-lists"].handler({ query: { group: "CT4" } }, res);
+    const pending = routes["/3gpp/meeting-lists"].handler(
+      { query: { group: "CT4" } },
+      res
+    );
     await jest.advanceTimersByTimeAsync(60000);
     await pending;
     expect(res.statusCode).toBe(502);
     expect(res.off).toHaveBeenCalled();
-  } finally { warn.mockRestore(); jest.useRealTimers(); }
+  } finally {
+    warn.mockRestore();
+    jest.useRealTimers();
+  }
+});
+
+test.each([
+  ["/3gpp/meeting-lists", catalog.meetings, { meetings: [{}] }],
+  ["/3gpp/meeting-list", downloadMeetingList, { content: "%%%" }],
+])("rejects malformed upstream data at %s", async (path, load, data) => {
+  const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
+  try {
+    load.mockResolvedValue(data);
+    const res = response();
+    await routes[path].handler(
+      { query: { group: "CT4", meeting: "CT4_138" } },
+      res
+    );
+    expect(res.statusCode).toBe(502);
+    expect(res.json).toHaveBeenCalledWith({
+      error: expect.stringContaining("手动上传"),
+    });
+  } finally {
+    warn.mockRestore();
+  }
 });

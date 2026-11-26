@@ -1,6 +1,14 @@
-import type { OfficialMeeting } from "../meetingSelection";
+import {
+  meetingCatalog,
+  meetingWorkbook,
+  meetingError,
+} from "../../../../server/contracts/meetingLists.mts";
+import type { MeetingCatalog } from "../../../../server/contracts/meetingLists.mts";
+export type { MeetingCatalog } from "../../../../server/contracts/meetingLists.mts";
 import { API_BASE } from "@/utils/constants";
 import { baseHeaders } from "@/utils/request";
+
+export class MeetingResponseError extends Error {}
 
 export const GROUPS = [
   "CT",
@@ -22,11 +30,6 @@ export const GROUPS = [
   "RAN4",
   "RAN5",
 ];
-export interface MeetingCatalog {
-  meetings: OfficialMeeting[];
-  stale?: boolean;
-  fetchedAt: string;
-}
 export interface DownloadedList {
   file: File;
   source: string;
@@ -46,24 +49,28 @@ async function request(
     `${API_BASE}/3gpp/${path}?${new URLSearchParams(params)}`,
     { headers, signal }
   );
-  if (!response.ok) throw new Error("download_failed");
-  return response.json();
+  const data: unknown = await response.json();
+  if (!response.ok) {
+    const reason = meetingError.safeParse(data);
+    throw new MeetingResponseError(reason.success ? reason.data.error : "");
+  }
+  return data;
 }
 export async function loadMeetings(
   group: string,
   signal?: AbortSignal
 ): Promise<MeetingCatalog> {
   const data = await request("meeting-lists", { group }, signal);
-  if (!Array.isArray(data.meetings) || !data.meetings.length)
-    throw new Error("download_failed");
-  return data;
+  return meetingCatalog.parse(data);
 }
 export async function downloadList(
   group: string,
   meeting: string,
   signal?: AbortSignal
 ): Promise<DownloadedList> {
-  const data = await request("meeting-list", { group, meeting }, signal);
+  const data = meetingWorkbook.parse(
+    await request("meeting-list", { group, meeting }, signal)
+  );
   const bytes = Uint8Array.from(atob(data.content), (c) => c.charCodeAt(0));
   return {
     file: new File([bytes], data.name),
