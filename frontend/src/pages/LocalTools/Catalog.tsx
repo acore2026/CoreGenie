@@ -4,6 +4,7 @@ import { isMobile } from "react-device-detect";
 import { useTranslation } from "react-i18next";
 import Sidebar, { SidebarMobileHeader } from "@/components/Sidebar";
 import paths from "@/utils/paths";
+import PlannedToolSketch from "./PlannedToolSketch";
 
 // Each tool has its own route and catalog entry; the catalog owns no tool state.
 const tools = [
@@ -25,6 +26,8 @@ const tools = [
   },
 ];
 
+const plannedCategories = ["documents", "data", "meetings"] as const;
+
 export default function ToolCatalog() {
   const { t } = useTranslation();
   return (
@@ -36,29 +39,55 @@ export default function ToolCatalog() {
           <p className="mt-2 text-sm leading-6 text-theme-text-secondary">
             {t("local_tools.catalog_description")}
           </p>
-          <ul className="mt-8 grid gap-4 md:grid-cols-2">
-            {tools.map(({ id, path, title, description, category, Icon }) => (
-              <li key={id}>
-                <Link
-                  to={path()}
-                  className="group flex h-full flex-col rounded-lg border border-theme-sidebar-border p-5 transition-colors hover:bg-theme-sidebar-item-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-button"
-                >
-                  <div className="flex items-center gap-2 text-xs text-theme-text-secondary">
-                    <Icon size={20} />
-                    {t(category)}
-                  </div>
-                  <h2 className="mt-4 text-lg font-semibold">{t(title)}</h2>
-                  <p className="mt-2 text-sm leading-6 text-theme-text-secondary">
-                    {t(description)}
+          <section className="mt-8" aria-labelledby="standard-tools-title">
+            <h2 id="standard-tools-title" className="text-lg font-semibold">
+              {t("local_tools.catalog.standards")}
+            </h2>
+            <ul className="mt-3 grid gap-4 md:grid-cols-2">
+              {tools.map(({ id, path, title, description, category, Icon }) => (
+                <li key={id}>
+                  <Link
+                    to={path()}
+                    className="group flex h-full flex-col rounded-xl border border-theme-sidebar-border border-l-[3px] border-l-cyan-500 p-5 transition-colors hover:bg-theme-sidebar-item-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-button"
+                  >
+                    <div className="flex items-center gap-2 text-xs text-theme-text-secondary">
+                      <Icon size={20} />
+                      {t(category)}
+                    </div>
+                    <h3 className="mt-4 text-lg font-semibold">{t(title)}</h3>
+                    <p className="mt-2 text-sm leading-6 text-theme-text-secondary">
+                      {t(description)}
+                    </p>
+                    <span className="mt-6 inline-flex items-center gap-2 text-sm font-medium">
+                      {t("local_tools.open_tool")}
+                      <ArrowRight size={16} />
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+          <section
+            className="mt-8 border-t border-theme-sidebar-border pt-6"
+            aria-labelledby="planned-tools-title"
+          >
+            <h2 id="planned-tools-title" className="text-lg font-semibold">
+              {t("local_tools.catalog.planned")}
+            </h2>
+            <ul className="mt-3 grid gap-4 sm:grid-cols-3">
+              {plannedCategories.map((title) => (
+                <li key={title} className="min-w-0">
+                  <PlannedToolSketch tool={title} />
+                  <h3 className="mt-3 text-base font-semibold">
+                    {t(`local_tools.catalog.${title}`)}
+                  </h3>
+                  <p className="mt-1 text-sm leading-6 text-theme-text-secondary">
+                    {t(`local_tools.catalog.${title}_hint`)}
                   </p>
-                  <span className="mt-6 inline-flex items-center gap-2 text-sm font-medium">
-                    {t("local_tools.open_tool")}
-                    <ArrowRight size={16} />
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
+                </li>
+              ))}
+            </ul>
+          </section>
         </div>
       </main>
     </div>
