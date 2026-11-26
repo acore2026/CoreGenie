@@ -7,6 +7,7 @@ const prisma = require("../utils/prisma");
 const { SystemSettings } = require("../models/systemSettings");
 
 const COOKIE = "coregenie_oauth";
+const HANDOFF_TTL_MS = 5 * 60_000;
 const digest = (value) =>
   createHash("sha256")
     .update(String(value || ""))
@@ -220,7 +221,13 @@ function idaasEndpoints(app, dependencies = {}) {
       });
       const user = await resolveUser(profile, config);
       flow.userId = user.id;
-      flow.expiresAt = now() + 60_000;
+      flow.expiresAt = now() + HANDOFF_TTL_MS;
+      // Keep the browser cookie alive for the full handoff window, even after
+      // a long provider login.
+      res.cookie(COOKIE, browserKey(req), {
+        ...cookieOptions(config),
+        maxAge: HANDOFF_TTL_MS,
+      });
       res.redirect(303, "/oauth/complete");
     } catch (error) {
       flows.delete(digest(browserKey(req)).toString("hex"));

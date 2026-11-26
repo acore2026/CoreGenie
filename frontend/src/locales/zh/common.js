@@ -365,7 +365,6 @@ const TRANSLATIONS = {
     enter: "进入工作台",
     have_account: "已有账户，登录",
     note: "从一个问题或一份文件开始。",
-    registration_closed: "此工作台暂未开放注册，请联系管理员获取账户。",
     how: "如何使用",
     workflow_title: "从资料到结果，每一步都清楚。",
     workflow: {

@@ -45,9 +45,37 @@ describe("IDaaS login", () => {
     expect((await f.callback({...s,state:"wrong"})).location).toContain("expired");expect(f.fetch).not.toHaveBeenCalled();
     await f.callback(s);
     expect((await f.call("POST","/auth/idaas/session",{headers:{...f.headers(s),origin:"https://evil.test"}})).statusCode).toBe(403);
-    f.advance(61000);expect((await f.call("POST","/auth/idaas/session",{headers:f.headers(s)})).statusCode).toBe(401);
+    f.advance(300000);expect((await f.call("POST","/auth/idaas/session",{headers:f.headers(s)})).statusCode).toBe(401);
     const s2=await f.start();f.advance(600001);expect((await f.callback(s2)).location).toContain("expired");
   });
+  test.each([61_000, 299_999])(
+    "allows a slow handoff after %i ms and renews the cookie after a long login",
+    async (delay) => {
+      const f = fixture();
+      const s = await f.start();
+      f.advance(599_000);
+      const callback = await f.callback(s);
+      expect(callback.location).toBe("/oauth/complete");
+      expect(callback.cookie).toBe(s.cookie);
+      expect(callback.cookieOptions).toMatchObject({
+        httpOnly: true,
+        secure: true,
+        sameSite: "lax",
+        path: "/api/auth/idaas",
+        maxAge: 300_000,
+      });
+      f.advance(delay);
+      const response = await f.call("POST", "/auth/idaas/session", {
+        headers: f.headers(s),
+      });
+      expect(response.statusCode).toBe(200);
+      expect(response.body.valid).toBe(true);
+      expect(f.db.oauth_sessions.create).toHaveBeenCalledTimes(1);
+      expect((await f.call("POST", "/auth/idaas/session", {
+        headers: f.headers(s),
+      })).statusCode).toBe(401);
+    }
+  );
   test("denies suspended users and provider errors without revealing responses", async () => {
     jest.spyOn(console,"warn").mockImplementation(()=>{});
     const f=fixture({resolveUser:async()=>{throw Error("ACCOUNT_SUSPENDED");}});expect((await f.callback(await f.start())).location).toBe("/login?oauthError=suspended");

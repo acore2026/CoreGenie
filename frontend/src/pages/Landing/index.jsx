@@ -82,11 +82,6 @@ export default function Landing() {
               <ArrowDown size={16} />
             </a>
           </div>
-          {registration === false && !signedIn && (
-            <p className="home-registration-note">
-              {t("public_page.registration_closed")}
-            </p>
-          )}
         </section>
         <section
           className="home-product"

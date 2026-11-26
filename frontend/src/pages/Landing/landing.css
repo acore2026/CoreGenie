@@ -122,11 +122,6 @@
 .home-secondary:hover {
   color: var(--home-ink);
 }
-.home-registration-note {
-  margin: 16px 0 0;
-  font-size: 11px;
-  color: var(--home-muted);
-}
 .home-product {
   max-width: 1120px;
   margin: 0 auto;

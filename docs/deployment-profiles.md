@@ -17,13 +17,13 @@
 
 本地代理访问 3GPP 出现 `ECONNRESET`、但直连已验证可用时，可在下方部署命令追加 `--no-proxy-append '3gpp.org,.3gpp.org'`。脚本合并已有 `NO_PROXY`、`no_proxy` 并同时追加域名，不更换代理地址；默认不追加。此例不适用于必须经 SWG 出网的远端环境。
 
-## 下载镜像部署（v1.15.1）
+## 下载镜像部署（v1.15.2）
 
-镜像：`ghcr.io/acore2026/coregenie:1.15.1`，支持 x86_64（amd64）。无需拉取源码或本地构建。先下载脚本：
+镜像：`ghcr.io/acore2026/coregenie:1.15.2`，支持 x86_64（amd64）。无需拉取源码或本地构建。先下载脚本：
 
 ```bash
 curl -fL --retry 3 -o deploy-image.sh \
-  https://github.com/acore2026/CoreGenie/releases/download/v1.15.1/deploy-image.sh
+  https://github.com/acore2026/CoreGenie/releases/download/v1.15.2/deploy-image.sh
 ```
 
 ### 更新已有安装
