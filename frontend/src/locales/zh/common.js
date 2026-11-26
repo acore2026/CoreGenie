@@ -2289,6 +2289,16 @@ const TRANSLATIONS = {
     settings: {
       title: "Agent技能设置",
       close: "关闭",
+      "context-compaction": {
+        title: "自动整理长任务上下文",
+        description:
+          "默认开启，仅对新启动的 ReAct 任务生效。按 169984 token 输入预算，在估算用量达到 95% 时生成历史摘要；必要时移除早期工具交互，保留执行记录和文件产物。",
+        "enabled-toast": "已开启，新启动的 ReAct 任务将自动整理上下文",
+        "disabled-toast": "已关闭，新启动的任务将保持原有行为",
+        "error-toast": "设置保存失败，请重试",
+        "load-error": "设置加载失败，请重试",
+        retry: "重新加载",
+      },
       "execution-limits": {
         title: "关闭 Agent 执行限制",
         temporary: "临时",

@@ -66,6 +66,8 @@ async function submitAgentRun({
     await SystemSettings.agentExecutionLimitsDisabled();
   const enforceSkillToolRestrictions =
     await SystemSettings.agentSkillToolRestrictionsEnabled();
+  const contextCompactionEnabled =
+    await SystemSettings.agentContextCompactionEnabled();
   const disableModelCallLimit =
     disableExecutionLimits ||
     agent.runtimeConfig?.disableModelCallLimit === true;
@@ -92,6 +94,7 @@ async function submitAgentRun({
       disableExecutionLimits,
       disableModelCallLimit,
       enforceSkillToolRestrictions,
+      contextCompactionEnabled,
       maxRuntimeMs: disableExecutionLimits
         ? null
         : Math.min(
@@ -110,6 +113,7 @@ async function submitAgentRun({
       disableExecutionLimits,
       disableModelCallLimit,
       enforceSkillToolRestrictions,
+      contextCompactionEnabled,
       maxToolCalls: disableExecutionLimits
         ? null
         : Math.min(Number(configuration.maxToolCalls) || 10_000, 10_000),

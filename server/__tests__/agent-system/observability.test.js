@@ -30,7 +30,7 @@ describe("Langfuse Agent observability", () => {
       baseUrl: "https://cloud.langfuse.com",
       captureContent: true,
       sampleRate: 1,
-      release: "anythingllm-1.15.0",
+      release: `anythingllm-${require("../../package.json").version}`,
       serviceName: "anythingllm-agent-runtime",
     });
     expect(

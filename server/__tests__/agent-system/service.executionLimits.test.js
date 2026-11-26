@@ -36,6 +36,7 @@ jest.mock("../../models/systemSettings", () => ({
   SystemSettings: {
     agentExecutionLimitsDisabled: jest.fn().mockResolvedValue(true),
     agentSkillToolRestrictionsEnabled: jest.fn().mockResolvedValue(false),
+    agentContextCompactionEnabled: jest.fn().mockResolvedValue(false),
   },
 }));
 
@@ -178,5 +179,42 @@ describe("submitAgentRun execution limit override", () => {
         }),
       })
     );
+  });
+});
+
+describe("context-compaction setting snapshots", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockCreate.mockImplementation(async (input) => ({ id: "run-1", ...input }));
+  });
+  it("honors an explicitly disabled system setting even when a caller asks to enable it", async () => {
+    SystemSettings.agentContextCompactionEnabled.mockResolvedValueOnce(false);
+    await submitAgentRun({
+      workspace: { id: 7 },
+      prompt: "test",
+      configuration: { contextCompactionEnabled: true },
+    });
+    expect(
+      mockCreate.mock.calls.at(-1)[0].configuration.contextCompactionEnabled
+    ).toBe(false);
+    expect(
+      mockCreate.mock.calls.at(-1)[0].policySnapshot.contextCompactionEnabled
+    ).toBe(false);
+  });
+
+  it("copies the saved setting into a new run independently of execution limits", async () => {
+    SystemSettings.agentContextCompactionEnabled.mockResolvedValueOnce(true);
+    SystemSettings.agentExecutionLimitsDisabled.mockResolvedValueOnce(true);
+    await submitAgentRun({
+      workspace: { id: 7 },
+      prompt: "test",
+      configuration: { contextCompactionEnabled: false },
+    });
+    expect(
+      mockCreate.mock.calls.at(-1)[0].configuration.contextCompactionEnabled
+    ).toBe(true);
+    expect(
+      mockCreate.mock.calls.at(-1)[0].policySnapshot.contextCompactionEnabled
+    ).toBe(true);
   });
 });

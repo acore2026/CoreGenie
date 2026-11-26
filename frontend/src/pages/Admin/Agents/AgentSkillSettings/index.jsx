@@ -7,6 +7,7 @@ import AgentClarifyingQuestions from "./AgentClarifyingQuestions";
 import AgentSkillReranker from "./AgentSkillReranker";
 import ExecutionLimitsOverride from "./ExecutionLimitsOverride";
 import SkillToolRestrictions from "./SkillToolRestrictions";
+import ContextCompaction from "./ContextCompaction";
 
 export default function AgentSkillSettings() {
   const { isOpen, openModal, closeModal } = useModal();
@@ -50,6 +51,8 @@ function AgentSkillSettingsModal({ isOpen, closeModal }) {
 
         <div className="flex flex-col w-full">
           <div className="flex flex-col gap-y-5 w-full">
+            <ContextCompaction />
+            <div className="border-b border-white/10 h-[1px] w-full" />
             <ExecutionLimitsOverride />
             <div className="border-b border-white/10 h-[1px] w-full" />
             <SkillToolRestrictions />

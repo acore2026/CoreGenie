@@ -19,6 +19,7 @@ function createChatModel({
   model = null,
   temperature = null,
   maxTokens = null,
+  maxRetries = 2,
   thinking = true,
 } = {}) {
   const provider = selectedProvider(workspace);
@@ -35,7 +36,7 @@ function createChatModel({
       workspace?.openAiTemp ??
       toValidNumber(process.env.OPEN_AI_TEMPERATURE, 0.7),
     ...(maxTokens ? { maxTokens: Number(maxTokens) } : {}),
-    maxRetries: 2,
+    maxRetries,
   };
 
   if (provider === "openai") {

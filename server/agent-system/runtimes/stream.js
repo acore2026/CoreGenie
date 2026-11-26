@@ -17,6 +17,11 @@ async function consumeGraphStream(
     const [message, metadata = {}] = data;
     if (!isAssistantMessage(message)) continue;
     if (
+      metadata.purpose === "context-compaction" ||
+      metadata.tags?.includes("coregenie:context-compaction")
+    )
+      continue;
+    if (
       visibleNodes &&
       !visibleNodes.has(metadata.langgraph_node || metadata.langgraphNode)
     )

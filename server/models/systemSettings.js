@@ -64,6 +64,7 @@ const SystemSettings = {
     "agent_clarifying_questions_max_per_turn",
     "agent_execution_limits_disabled",
     "agent_skill_tool_restrictions_enabled",
+    "agent_context_compaction_enabled",
     "custom_app_name",
     "feature_flags",
     "meta_page_title",
@@ -100,6 +101,7 @@ const SystemSettings = {
     "agent_clarifying_questions_max_per_turn",
     "agent_execution_limits_disabled",
     "agent_skill_tool_restrictions_enabled",
+    "agent_context_compaction_enabled",
     "custom_app_name",
     "default_predefined_agent_id",
     "global_system_prompt",
@@ -122,6 +124,8 @@ const SystemSettings = {
     "public_registration_enabled",
   ],
   validations: {
+    agent_context_compaction_enabled: (update) =>
+      String(update) === "true" ? "true" : "false",
     agent_execution_limits_disabled: (update) =>
       String(update) === "true" ? "true" : "false",
     agent_skill_tool_restrictions_enabled: (update) =>
@@ -659,6 +663,7 @@ const SystemSettings = {
         )) || 3
       ),
       AgentExecutionLimitsDisabled: await this.agentExecutionLimitsDisabled(),
+      AgentContextCompactionEnabled: await this.agentContextCompactionEnabled(),
       AgentSkillToolRestrictionsEnabled:
         await this.agentSkillToolRestrictionsEnabled(),
     };
@@ -797,6 +802,15 @@ const SystemSettings = {
       console.error(error.message);
       return false;
     }
+  },
+
+  agentContextCompactionEnabled: async function () {
+    return (
+      (await this.getValueOrFallback(
+        { label: "agent_context_compaction_enabled" },
+        "true"
+      )) === "true"
+    );
   },
 
   agentSkillToolRestrictionsEnabled: async function () {

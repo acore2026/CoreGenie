@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// CoreGenie deployment helper version: 1.15.3
+// CoreGenie deployment helper version: 1.15.4
 // Recreate one existing container without importing another deployment's data/config.
 const fs = require("node:fs");
 const path = require("node:path");

@@ -463,6 +463,9 @@ function adminEndpoints(app) {
             case "global_system_prompt":
               requestedSettings[label] = setting?.value ?? "";
               break;
+            case "agent_context_compaction_enabled":
+              requestedSettings[label] = setting?.value ?? "true";
+              break;
             case "agent_execution_limits_disabled":
               requestedSettings[label] = setting?.value ?? "false";
               break;

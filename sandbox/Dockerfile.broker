@@ -7,6 +7,6 @@ COPY --from=docker-cli /usr/local/bin/docker /usr/local/bin/docker
 COPY broker.py /opt/anythingllm-sandbox/broker.py
 
 ENV HOME=/tmp
-ENV DEPLOYMENT_VERSION=1.15.3
+ENV DEPLOYMENT_VERSION=1.15.4
 
 ENTRYPOINT ["python3", "/opt/anythingllm-sandbox/broker.py"]

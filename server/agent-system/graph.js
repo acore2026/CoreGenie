@@ -137,6 +137,32 @@ async function buildAgentGraph({
   const model = createChatModel(modelOptions);
   const middleware = [];
   if (
+    run.runtimeKey === "default-react" &&
+    run.configuration?.contextCompactionEnabled === true
+  ) {
+    const {
+      contextCompactionMiddleware,
+      SUMMARY_TOKENS,
+    } = require("./contextCompaction");
+    middleware.push(
+      contextCompactionMiddleware({
+        run,
+        systemPrompt,
+        tools,
+        signal,
+        emit,
+        createSummaryModel: () =>
+          createChatModel({
+            ...modelOptions,
+            maxTokens: SUMMARY_TOKENS,
+            temperature: 0,
+            thinking: false,
+            maxRetries: 0,
+          }),
+      })
+    );
+  }
+  if (
     !executionLimitsDisabled(run) &&
     run.configuration?.disableModelCallLimit !== true
   )
