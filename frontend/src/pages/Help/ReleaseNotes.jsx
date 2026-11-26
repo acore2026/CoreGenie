@@ -1,4 +1,5 @@
 import {
+  ArrowRight,
   Books,
   FileText,
   FolderOpen,
@@ -12,11 +13,102 @@ import {
   Wrench,
 } from "@phosphor-icons/react";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
+import paths from "@/utils/paths";
 
 const FEATURE_ICONS = [Presentation, GitDiff, Sliders, Books];
 const WORKBENCH_ICONS = [ListChecks, FolderOpen, FileText, HardDrives];
 
 export default function ReleaseNotes() {
+  const { t } = useTranslation();
+  const note = (key) => t(`help.november_release.${key}`);
+  const heading = "text-lg font-semibold text-white light:text-slate-950";
+  const link =
+    "inline-flex min-h-10 items-center gap-2 rounded text-sm font-semibold text-cyan-300 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 light:text-cyan-800";
+  const tools = [
+    {
+      key: "pdf",
+      title: t("local_tools.protocol.title"),
+      href: paths.protocolFinder(),
+    },
+    {
+      key: "proposal",
+      title: t("local_tools.title"),
+      href: paths.proposalFill(),
+    },
+  ];
+
+  return (
+    <>
+      <article
+        aria-labelledby="november-title"
+        className="space-y-7 text-sm leading-7 text-zinc-300 light:text-slate-700"
+      >
+        <header>
+          <p className="text-sm font-semibold text-cyan-300 light:text-cyan-800">
+            {t("help.tabs.new_badge")}
+          </p>
+          <h1
+            id="november-title"
+            className="mt-2 text-2xl font-bold tracking-tight text-white light:text-slate-950 md:text-3xl"
+          >
+            {note("title")}
+          </h1>
+        </header>
+        <div className="grid gap-6 border-y border-white/[0.07] py-6 light:border-slate-200 lg:grid-cols-2">
+          <section className="space-y-2">
+            <h2 className={heading}>{note("access")}</h2>
+            <p>{note("address")}</p>
+            <p>{note("availability")}</p>
+            <p>{note("hosting")}</p>
+            <a href="http://101.245.78.174:7555/" className={link}>
+              {note("blue")} <ArrowRight size={15} />
+            </a>
+          </section>
+          <section className="space-y-2">
+            <h2 className={heading}>{note("accounts")}</h2>
+            <ul className="list-disc space-y-2 pl-5">
+              <li>{note("sign_in")}</li>
+              <li>{note("existing")}</li>
+            </ul>
+          </section>
+        </div>
+        <section>
+          <h2 className={heading}>{t("local_tools.nav")}</h2>
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            {tools.map(({ key, title, href }) => (
+              <div
+                key={key}
+                className="rounded-xl border border-white/[0.08] bg-zinc-950/30 px-5 py-4 light:border-slate-200 light:bg-slate-50"
+              >
+                <h3>
+                  <Link className={link} to={href}>
+                    {title} <ArrowRight size={15} />
+                  </Link>
+                </h3>
+                <p className="mb-2 text-xs text-zinc-400 light:text-slate-600">
+                  {t("help.november_release.credit", {
+                    name: note(`${key}.contributor`),
+                  })}
+                </p>
+                <p>{note(`${key}.description`)}</p>
+              </div>
+            ))}
+          </div>
+          <p className="mt-4">{note("feedback")}</p>
+        </section>
+      </article>
+      <details className="mt-8 border-t border-white/[0.07] pt-3 light:border-slate-200">
+        <summary className="cursor-pointer rounded py-3 text-base font-semibold text-zinc-200 hover:text-cyan-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 light:text-slate-800 light:hover:text-cyan-800">
+          {t("help.release_notes.badge")} · {t("help.release_notes.title")}
+        </summary>
+        <SeptemberRelease />
+      </details>
+    </>
+  );
+}
+
+function SeptemberRelease() {
   const { t } = useTranslation();
   const rawFeatures = t("help.release_notes.features", {
     returnObjects: true,

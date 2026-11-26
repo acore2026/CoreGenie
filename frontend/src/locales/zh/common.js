@@ -1012,7 +1012,36 @@ const TRANSLATIONS = {
     tabs: {
       guide: "使用指南",
       updates: "更新记录",
-      new_badge: "9 月更新",
+      new_badge: "11 月更新",
+    },
+    november_release: {
+      title: "在绿区用 w3 登录，查规范、填提案编号",
+      access: "绿区访问",
+      address:
+        "用绿区便携访问 aicore.tool.huawei.com，即可在公司内网上传文件。绿区工作台使用公司内部模型，目前支持 GLM-5.3 和 deepseek-v4.1-flash-1017。",
+      availability:
+        "黄区安全 PC 目前无法直连绿区工作台，后续会考虑在黄区单独部署。",
+      hosting:
+        "如果你也有项目想部署在绿区，可以联系 CoreGenie 维护人，了解研究部的服务器资源。",
+      blue: "访问原蓝区站点",
+      accounts: "用 w3 账号登录",
+      sign_in:
+        "在绿区登录页选择“使用华为账号登录”，用日常办公的 w3 账号完成认证。首次登录会自动创建 CoreGenie 账号，无需另外注册或设置密码。",
+      existing:
+        "如果想沿用已有的 CoreGenie 账号，请在首次用 w3 登录前联系管理员绑定原账号，之后就能用 w3 继续访问原来的工作区。",
+      pdf: {
+        contributor: "刘佳明",
+        description:
+          "查 TS 23.502 这样的大文档时，光等 Word 打开就可能花上几分钟。输入规范编号或文件名，选好 Release 和修订版本，就能直接打开 ETSI 官方 PDF，也可以复制该版本的引用。",
+      },
+      proposal: {
+        contributor: "戚彩霞",
+        description:
+          "会议分配正式编号后，逐份改 Word 封面和文件名容易漏改。选好会议清单和一批 Word 草稿，检查匹配结果，就能下载已回填编号并重命名的副本。CR 草稿还可以一起填写 CR 号、修订号和规范版本。",
+      },
+      credit: "贡献人：{{name}}",
+      feedback:
+        "还有哪些工作要反复查、反复填？欢迎把具体步骤和最费时的地方告诉 CoreGenie 维护人，帮助我们决定下一项日常工具做什么。",
     },
     release_notes: {
       badge: "CoreGenie 9 月更新",
