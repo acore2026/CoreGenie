@@ -57,7 +57,7 @@ if [[ "$mode" != install ]]; then
   fi
   docker container inspect "$target_name" >/dev/null
   helper="$SCRIPT_DIR/deploy-existing-container.cjs"
-  if [[ ! -f "$helper" ]]; then
+  if [[ ! -f "$helper" ]] || ! grep -Fxq "// CoreGenie deployment helper version: $VERSION" "$helper"; then
     command -v curl >/dev/null
     temp_dir="$(mktemp -d)"
     trap 'rm -r -- "$temp_dir"' EXIT
