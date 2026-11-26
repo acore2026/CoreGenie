@@ -9,6 +9,7 @@ import json
 import os
 import re
 import secrets
+import ssl
 import signal
 import socketserver
 import subprocess
@@ -179,6 +180,9 @@ class SandboxBroker:
         proxy_url: str | None,
         runner_memory: str = "4g",
         queue_timeout: float = 120,
+        ca_bundle: Path | None = None,
+        docker_ca_bundle: Path | None = None,
+        no_proxy: str = "localhost,127.0.0.1,::1",
     ):
         self.token = token
         self.workspace_root = workspace_root.resolve()
@@ -204,6 +208,23 @@ class SandboxBroker:
             raise BrokerError("sandbox proxy URL must not contain newlines")
         self.network = network
         self.proxy_url = proxy_url
+        if any(c in no_proxy for c in "\r\n"):
+            raise BrokerError("sandbox bypass list must not contain newlines")
+        self.no_proxy = no_proxy
+        if bool(ca_bundle) != bool(docker_ca_bundle):
+            raise BrokerError("both CA bundle paths are required")
+        self.docker_ca_bundle = docker_ca_bundle
+        if ca_bundle:
+            if not ca_bundle.is_absolute() or not ca_bundle.is_file():
+                raise BrokerError("CA bundle must be an existing absolute file")
+            if not docker_ca_bundle.is_absolute() or any(
+                c in str(docker_ca_bundle) for c in ",\r\n"
+            ):
+                raise BrokerError("Docker CA bundle must be an absolute mount-safe path")
+            try:
+                ssl.create_default_context(cafile=str(ca_bundle))
+            except (OSError, ssl.SSLError) as exc:
+                raise BrokerError("CA bundle cannot be loaded") from exc
 
     def workspace_path(self, workspace_id: int) -> Path:
         self.workspace_root.mkdir(parents=True, exist_ok=True, mode=0o770)
@@ -334,11 +355,24 @@ class SandboxBroker:
             command.extend(
                 [
                     "--env",
-                    "NO_PROXY=localhost,127.0.0.1,::1",
+                    "NODE_USE_ENV_PROXY=1",
                     "--env",
-                    "no_proxy=localhost,127.0.0.1,::1",
+                    f"NO_PROXY={self.no_proxy}",
+                    "--env",
+                    f"no_proxy={self.no_proxy}",
                 ]
             )
+        if self.docker_ca_bundle:
+            destination = "/etc/coregenie/ca-bundle.pem"
+            command.extend([
+                "--mount",
+                f"type=bind,src={self.docker_ca_bundle},dst={destination},readonly",
+            ])
+            for variable in (
+                "SSL_CERT_FILE", "REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE",
+                "NODE_EXTRA_CA_CERTS", "GIT_SSL_CAINFO", "PIP_CERT",
+            ):
+                command.extend(["--env", f"{variable}={destination}"])
         command.append(self.image)
         if request["language"] == "bash":
             command.extend(["bash", "--noprofile", "--norc", "-s"])
@@ -541,6 +575,9 @@ def main() -> None:
     parser.add_argument("--workspace-gid", type=int, default=1000)
     parser.add_argument("--network", choices=("bridge", "none"), default="bridge")
     parser.add_argument("--proxy-url")
+    parser.add_argument("--no-proxy", default="localhost,127.0.0.1,::1")
+    parser.add_argument("--ca-bundle", type=Path)
+    parser.add_argument("--docker-ca-bundle", type=Path)
     args = parser.parse_args()
 
     if args.max_concurrency < 1 or args.max_concurrency > 64:
@@ -562,6 +599,9 @@ def main() -> None:
         workspace_gid=args.workspace_gid,
         network=args.network,
         proxy_url=args.proxy_url,
+        no_proxy=args.no_proxy,
+        ca_bundle=args.ca_bundle,
+        docker_ca_bundle=args.docker_ca_bundle,
     )
     # Publish only after listen/permissions are ready. Existing connections to
     # an older broker keep working while the new broker accepts fresh calls.

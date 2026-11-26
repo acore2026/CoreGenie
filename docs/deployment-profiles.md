@@ -17,13 +17,13 @@
 
 本地代理访问 3GPP 出现 `ECONNRESET`、但直连已验证可用时，可在下方部署命令追加 `--no-proxy-append '3gpp.org,.3gpp.org'`。脚本合并已有 `NO_PROXY`、`no_proxy` 并同时追加域名，不更换代理地址；默认不追加。此例不适用于必须经 SWG 出网的远端环境。
 
-## 下载镜像部署（v1.15.2）
+## 下载镜像部署（v1.15.3）
 
-镜像：`ghcr.io/acore2026/coregenie:1.15.2`，支持 x86_64（amd64）。无需拉取源码或本地构建。先下载脚本：
+镜像：`ghcr.io/acore2026/coregenie:1.15.3`，支持 x86_64（amd64）。无需拉取源码或本地构建。先下载脚本：
 
 ```bash
 curl -fL --retry 3 -o deploy-image.sh \
-  https://github.com/acore2026/CoreGenie/releases/download/v1.15.2/deploy-image.sh
+  https://github.com/acore2026/CoreGenie/releases/download/v1.15.3/deploy-image.sh
 ```
 
 ### 更新已有安装
@@ -84,3 +84,53 @@ node scripts/deploy-existing-container.cjs \
 首次切换新认证模式前，应测试账号登录。检查 `/api/auth/config`：本地应返回 `{"provider":"local"}`。同时检查公共知识库、工作区和聊天记录仍在。
 
 不要把远端的一次性 `reset-old-data`、账号迁移、知识库恢复脚本加入部署入口。`pull-and-update-from-ghcr.sh` 是既有远端专用脚本，带特定代理默认值，不用于保留本地配置的更新。
+
+## 企业代理与可信证书
+
+应用服务器请求会议列表，执行沙箱下载提案，两者需要分别配置网络。
+从 1.15.3 起，部署脚本支持可选的代理配置文件与 CA 挂载。同一份业务镜像可用于直连或企业代理环境。
+
+将代理设置保存在部署机上的私密文件，例如 `/absolute/private/network.env`，权限设为 600：
+
+```dotenv
+HTTP_PROXY=http://proxy.example:8080
+HTTPS_PROXY=http://proxy.example:8080
+http_proxy=http://proxy.example:8080
+https_proxy=http://proxy.example:8080
+NO_PROXY=localhost,127.0.0.1,::1,internal-model-host
+no_proxy=localhost,127.0.0.1,::1,internal-model-host
+```
+
+按本机实际路由补充内部模型服务、数据库和认证服务地址。凭据需要 URL 编码；不要提交此文件。
+CA 文件须为包含公共根与企业根的 PEM 证书集合，例如已经配置好企业信任的宿主机
+`/etc/ssl/certs/ca-certificates.crt`。无需把企业证书或代理凭据写进镜像。
+
+更新现有主应用：
+
+```bash
+NETWORK_ENV_FILE=/absolute/private/network.env \
+CA_BUNDLE_FILE=/etc/ssl/certs/ca-certificates.crt \
+bash deploy-image.sh update
+```
+
+`install` 也接受这两个选项。代理在 Node 启动前注入，并启用 `NODE_USE_ENV_PROXY=1`；
+CA 以只读方式挂载，通过 `NODE_EXTRA_CA_CERTS` 加载。已有 OAuth、端口、数据卷和内部服务配置保留。
+
+更新已安装的执行沙箱 broker：
+
+```bash
+NETWORK_ENV_FILE=/absolute/private/network.env \
+CA_BUNDLE_FILE=/etc/ssl/certs/ca-certificates.crt \
+bash deploy-image.sh update-broker
+```
+
+默认下载 `ghcr.io/acore2026/coregenie-sandbox-broker:1.15.3`。broker 本身仍禁网；
+保留原 runner 镜像、工作区挂载及并发限制，并向每次新建的执行沙箱传入代理、
+旁路地址和只读 CA。Python、curl、Git、pip 和 Node 使用该证书集合，TLS 校验保持开启。
+存在运行中任务或执行沙箱时，更新会拒绝替换；启动失败会恢复旧容器。
+
+后续不传这两个选项时，更新继续保留已配置的网络和证书挂载。如更换证书内容，
+重新运行更新以确保 Node 等进程重新加载信任。
+
+源码部署首次创建容器也可设置 `ANYTHINGLLM_CA_BUNDLE`、`SANDBOX_CA_BUNDLE`
+和 `SANDBOX_NO_PROXY`；已有安装优先使用上述保留配置的更新命令。

@@ -1,6 +1,6 @@
 {
   "name": "coregenie",
-  "version": "1.15.2",
+  "version": "1.15.3",
   "description": "A Chinese Agent workbench for 3GPP standards research and knowledge workflows.",
   "main": "index.js",
   "type": "module",

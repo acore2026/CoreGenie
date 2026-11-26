@@ -31,6 +31,8 @@ async function main() {
     }
   }
 
+  await require("../agent-skills/commands").seedBuiltinCommands(prisma);
+
   for (const reason of feedbackReasons) {
     await prisma.agent_feedback_reasons.upsert({
       where: { code: reason.code },

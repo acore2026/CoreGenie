@@ -10,6 +10,10 @@ function install(options = {}) {
   const log = path.join(dir, 'calls');
   const config = path.join(dir, 'config');
   const idaas = path.join(dir, 'idaas.json');
+  const ca = path.join(dir, 'ca.pem');
+  const network = path.join(dir, 'network.env');
+  fs.writeFileSync(ca, 'test certificate');
+  fs.writeFileSync(network, 'HTTPS_PROXY=http://proxy:8080\nNO_PROXY=localhost,internal\n');
   fs.writeFileSync(idaas, '{}');
   fs.writeFileSync(path.join(dir, 'docker'), `#!${process.execPath}
 const fs = require('node:fs');
@@ -26,6 +30,7 @@ if (a[0] === 'run' && a.includes('--rm')) {
 }
 `, { mode: 0o755 });
   const env = { ...process.env, PATH: dir + ':' + process.env.PATH, TEST_LOG: log, CONFIG_DIR: config,
+    NETWORK_ENV_FILE: options.network ? network : '', CA_BUNDLE_FILE: options.network ? ca : '',
     IMAGE: 'test:1.15.1', VERSION: '1.15.1', CONTAINER_NAME: 'install-test', ENV_FILE: '',
     IDAAS_CONFIG_FILE: options.oauth ? idaas : '', TEST_EXISTING: options.exists ? 'install-test' : '',
     TEST_PULL_FAIL: options.pullFails ? '1' : '' };
@@ -54,4 +59,14 @@ test('pull failure leaves configuration and containers untouched', () => {
   const r = install({ pullFails: true });
   assert.notEqual(r.status, 0); assert.equal(r.persisted, false);
   assert.equal(r.calls.some(x => ['run', 'stop', 'rm'].includes(x[0])), false);
+});
+
+test('fresh install injects network settings before startup and mounts trusted CA read-only', () => {
+  const r = install({ network: true });
+  assert.equal(r.status, 0, r.stderr);
+  const run = r.calls.find(x => x[0] === 'run' && x.includes('-d'));
+  assert.ok(run.includes('NODE_USE_ENV_PROXY=1'));
+  assert.ok(run.includes('NODE_EXTRA_CA_CERTS=/etc/coregenie/ca-bundle.pem'));
+  assert.ok(run.some(x => x.endsWith('target=/etc/coregenie/ca-bundle.pem,readonly')));
+  assert.equal(run.filter(x => x === '--env-file').length, 2);
 });

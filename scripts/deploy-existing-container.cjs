@@ -16,6 +16,15 @@ const mode = option("--auth-mode");
 const directory = option("--state-dir") || option("--backup-dir") ||
   fs.mkdtempSync(path.join(os.tmpdir(), "coregenie-deploy-"));
 const noProxyAppend = option("--no-proxy-append");
+const networkEnvFile = option("--network-env-file");
+const caBundle = option("--ca-bundle");
+const brokerMode = args.includes("--broker");
+const appName = option("--app-container") || "anythingllm";
+const CA_TARGET = "/etc/coregenie/ca-bundle.pem";
+const networkKeys = new Set([
+  "HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy",
+  "NO_PROXY", "no_proxy", "NODE_USE_ENV_PROXY",
+]);
 const envOverrides = args.flatMap((value, index) =>
   value === "--env" ? [args[index + 1]] : []
 );
@@ -39,7 +48,35 @@ function api(method, endpoint, body) {
     request.end(body ? JSON.stringify(body) : undefined);
   });
 }
+function networkOverrides() {
+  if (!networkEnvFile) return [];
+  if (!path.isAbsolute(networkEnvFile)) throw new Error("Network env file must be absolute.");
+  const values = [];
+  for (const line of fs.readFileSync(networkEnvFile, "utf8").split(/\r?\n/)) {
+    const entry = line.trim();
+    if (!entry || entry.startsWith("#")) continue;
+    const index = entry.indexOf("=");
+    if (index < 1 || !networkKeys.has(entry.slice(0, index)))
+      throw new Error("Network env file contains an unsupported setting.");
+    values.push(entry);
+  }
+  if (!brokerMode && values.some(value => /^(?:HTTP_PROXY|HTTPS_PROXY|http_proxy|https_proxy)=.+/.test(value)) &&
+      !values.some(value => value.startsWith("NODE_USE_ENV_PROXY=")))
+    values.push("NODE_USE_ENV_PROXY=1");
+  return values;
+}
 async function main() {
+  const networkEnv = networkOverrides();
+  let caSource;
+  if (caBundle) {
+    if (!path.isAbsolute(caBundle) || !fs.statSync(caBundle).isFile())
+      throw new Error("CA bundle must be an existing absolute file.");
+    caSource = fs.realpathSync(caBundle);
+    if (/[,\r\n]/.test(caSource)) throw new Error("CA bundle path is not mount-safe.");
+    const certificates = fs.readFileSync(caSource, "utf8").match(/-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/g);
+    if (!certificates?.length) throw new Error("CA bundle contains no certificates.");
+    for (const certificate of certificates) new (require("node:crypto").X509Certificate)(certificate);
+  }
   if (envOverrides.some(value => !/^[A-Za-z_][A-Za-z0-9_]*=[^\r\n]*$/.test(value || "")))
     throw new Error("Each --env must be followed by NAME=value.");
   if (!image || !directory || !path.isAbsolute(directory) ||
@@ -56,9 +93,11 @@ async function main() {
   const imageConfig = JSON.parse(docker("image", "inspect", image))[0];
   const imageId = imageConfig.Id;
   const active = () => {
-    const output = docker("exec", name, "node", "-e",
+    const output = docker("exec", brokerMode ? appName : name, "node", "-e",
       'const p=require("/app/server/utils/prisma");p.agent_runs.count({where:{status:{in:["running","queued"]}}}).then(n=>console.log("ACTIVE="+n)).finally(()=>p.$disconnect())');
     if (!/ACTIVE=0(?:\s|$)/.test(output) && !allowRunning) throw new Error("Agent tasks are running; wait before deployment or explicitly authorize --allow-running.");
+    if (brokerMode && docker("ps", "--filter", "label=anythingllm.sandbox=true", "--format", "{{.ID}}") && !allowRunning)
+      throw new Error("Sandbox runners are active; wait before replacing the broker.");
   };
   active();
   fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
@@ -75,7 +114,7 @@ async function main() {
     body.Env = (body.Env || []).filter(value => !value.startsWith("DEPLOYMENT_VERSION="));
     body.Env.push(version);
   }
-  for (const value of envOverrides) {
+  for (const value of [...networkEnv, ...envOverrides]) {
     const prefix = value.slice(0, value.indexOf("=") + 1);
     body.Env = (body.Env || []).filter(entry => !entry.startsWith(prefix));
     body.Env.push(value);
@@ -89,6 +128,38 @@ async function main() {
     ].map(value => value.trim()).filter(Boolean));
     body.Env = (body.Env || []).filter(value => !/^(?:NO_PROXY|no_proxy)=/.test(value));
     for (const key of ["NO_PROXY", "no_proxy"]) body.Env.push(`${key}=${[...entries].join(",")}`);
+  }
+  if (caSource) {
+    // Do not remove any unrelated mounts from the installation.
+    if ((body.HostConfig.Binds || []).some(bind => bind.split(":")[1] === CA_TARGET))
+      throw new Error("CA target is already occupied by a legacy bind mount.");
+    body.HostConfig.Mounts = (body.HostConfig.Mounts || []).filter(mount => mount.Target !== CA_TARGET);
+    body.HostConfig.Mounts.push({ Type: "bind", Source: caSource, Target: CA_TARGET, ReadOnly: true });
+    if (!brokerMode) {
+      body.Env = (body.Env || []).filter(value => !/^(?:NODE_EXTRA_CA_CERTS|SSL_CERT_FILE)=/.test(value));
+      body.Env.push("NODE_EXTRA_CA_CERTS=" + CA_TARGET, "SSL_CERT_FILE=" + CA_TARGET);
+    }
+  }
+  if (brokerMode) {
+    body.Cmd = [...(body.Cmd || [])];
+    const setArgument = (key, value) => {
+      const index = body.Cmd.indexOf(key);
+      if (index >= 0) body.Cmd.splice(index, 2);
+      body.Cmd.push(key, value);
+    };
+    if (caSource) {
+      setArgument("--ca-bundle", CA_TARGET);
+      setArgument("--docker-ca-bundle", caSource);
+    }
+    if (networkEnv.length) {
+      const env = Object.fromEntries(body.Env.map(entry => {
+        const index = entry.indexOf("="); return [entry.slice(0, index), entry.slice(index + 1)];
+      }));
+      const proxy = env.HTTPS_PROXY ?? env.https_proxy ?? env.HTTP_PROXY ?? env.http_proxy;
+      if (proxy !== undefined) setArgument("--proxy-url", proxy);
+      const bypass = env.NO_PROXY ?? env.no_proxy;
+      if (bypass !== undefined) setArgument("--no-proxy", bypass);
+    }
   }
   if (mode) {
     body.Env = (body.Env || []).filter(value => !value.startsWith("COREGENIE_AUTH_MODE="));
@@ -114,7 +185,18 @@ async function main() {
     for (let i = 0; i < 90; i++) {
       const state = JSON.parse(docker("inspect", name))[0].State;
       if (!state.Running) throw new Error("Candidate container exited.");
-      if (state.Health?.Status === "healthy") {
+      let healthy = state.Health?.Status === "healthy";
+      if (brokerMode) {
+        try {
+          const socketIndex = body.Cmd.indexOf("--socket");
+          if (socketIndex < 0) throw new Error("Broker socket argument missing.");
+          docker("exec", name, "python3", "-c",
+            "import socket,sys; s=socket.socket(socket.AF_UNIX); s.settimeout(2); s.connect(sys.argv[1]); s.close()",
+            body.Cmd[socketIndex + 1]);
+          healthy = true;
+        } catch { healthy = false; }
+      }
+      if (healthy) {
         const result = { container: name, image, imageId, backup, authMode: mode || "preserved", ports: old.HostConfig.PortBindings };
         fs.writeFileSync(path.join(directory, "deployment.json"), JSON.stringify(result, null, 2), { mode: 0o600, flag: "wx" });
         console.log(JSON.stringify(result));

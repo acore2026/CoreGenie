@@ -154,7 +154,7 @@ docker compose -f docker/docker-compose.yml up -d --build
 
 ```bash
 curl -fL --retry 3 -o deploy-image.sh \
-  https://github.com/acore2026/CoreGenie/releases/download/v1.15.2/deploy-image.sh
+  https://github.com/acore2026/CoreGenie/releases/download/v1.15.3/deploy-image.sh
 bash deploy-image.sh install
 ```
 

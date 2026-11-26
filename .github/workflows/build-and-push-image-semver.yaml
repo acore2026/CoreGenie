@@ -34,7 +34,13 @@ jobs:
           [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
           image="ghcr.io/${REPOSITORY,,}"
           commit="$(git rev-parse HEAD)"
-          docker buildx imagetools create \
-            --tag "$image:${RELEASE_TAG#v}" \
-            --tag "$image:$RELEASE_TAG" \
-            "$image:sha-$commit"
+          repositories=("$image")
+          if grep -q '^ENV DEPLOYMENT_VERSION=' sandbox/Dockerfile.broker; then
+            repositories+=("$image-sandbox-broker")
+          fi
+          for repository in "${repositories[@]}"; do
+            docker buildx imagetools create \
+              --tag "$repository:${RELEASE_TAG#v}" \
+              --tag "$repository:$RELEASE_TAG" \
+              "$repository:sha-$commit"
+          done

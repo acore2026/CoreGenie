@@ -18,12 +18,25 @@ async function deploy(options = {}) {
     NetworkSettings: { Networks: { app: { Aliases: ['anythingllm', 'a'.repeat(64), 'a'.repeat(12)] } } },
   };
   const processMock = { argv: ['node', 'helper', '--image', 'test:1.15.1', '--state-dir', directory, '--pull'], env: {}, exitCode: 0 };
+  if (options.network) {
+    const file = path.join(directory, "network.env");
+    fs.writeFileSync(file, options.network);
+    processMock.argv.push("--network-env-file", file);
+  }
+  if (options.ca) processMock.argv.push("--ca-bundle", options.ca);
+  if (options.broker) processMock.argv.push("--broker", "--app-container", "main-app");
+  if (options.broker) old.Config.Cmd = ["--socket", "/broker/run.sock", "--image", "existing-runner"];
   const docker = (_, args) => {
     calls.push(args);
     if (args[0] === 'context') return 'unix:///var/run/docker.sock';
     if (args[0] === 'pull' && options.pullFails) throw Error('pull failed');
     if (args[0] === 'image') return JSON.stringify([{ Id: 'sha256:immutable', Config: { Env: ['DEPLOYMENT_VERSION=1.15.1'] } }]);
     if (args[0] === 'inspect') return JSON.stringify([swapped ? { State: { Running: !options.unhealthy, Health: { Status: 'healthy' } } } : old]);
+    if (args[0] === 'ps') return options.activeRunner ? "runner-id" : "";
+    if (args[0] === 'exec' && args[2] === 'python3') {
+      if (options.socketFails) throw Error("socket unavailable");
+      return "";
+    }
     if (args[0] === 'exec') return `ACTIVE=${++checks === options.busyCheck ? 1 : 0}`;
     if (args[0] === 'rename' && args[1].includes('-candidate-')) swapped = true;
     return '';
@@ -79,5 +92,41 @@ test('failed candidate restores and starts previous container', async () => {
   const r = await deploy({ unhealthy: true });
   assert.equal(r.code, 1); assert.equal(r.metadata, false);
   assert.ok(r.calls.some(x => x[0] === 'rename' && x[1].includes('-before-') && x[2] === 'anythingllm'));
+  assert.deepEqual(Array.from(r.calls.at(-1)), ['start', 'anythingllm']);
+});
+
+test('network profile is injected before Node startup and CA is mounted read-only', async () => {
+  const ca = '/etc/ssl/certs/ca-certificates.crt';
+  const r = await deploy({ network: 'HTTPS_PROXY=http://proxy:8080\nNO_PROXY=localhost,internal\n', ca });
+  assert.equal(r.code, 0, r.messages.join('\n'));
+  assert.ok(r.body.Env.includes('NODE_USE_ENV_PROXY=1'));
+  assert.ok(r.body.Env.includes('NODE_EXTRA_CA_CERTS=/etc/coregenie/ca-bundle.pem'));
+  assert.ok(r.body.Env.includes('NO_PROXY=localhost,internal'));
+  assert.equal(r.body.HostConfig.Mounts.at(-1).ReadOnly, true);
+  assert.equal(r.body.HostConfig.Mounts.at(-1).Source, fs.realpathSync(ca));
+  assert.ok(r.body.HostConfig.Binds.includes('/data:/app/server/storage'));
+});
+test('invalid network settings fail before touching the running container', async () => {
+  const r = await deploy({ network: 'NODE_TLS_REJECT_UNAUTHORIZED=0\n' });
+  assert.equal(r.code, 1);
+  assert.equal(r.calls.length, 0);
+});
+test('broker update preserves runner image and verifies its socket, with the same CA on runners', async () => {
+  const r = await deploy({ broker: true, network: 'HTTPS_PROXY=http://proxy:8080\nNO_PROXY=localhost,internal', ca: '/etc/ssl/certs/ca-certificates.crt' });
+  assert.equal(r.code, 0, r.messages.join('\n'));
+  assert.ok(r.body.Cmd.includes('existing-runner'));
+  assert.ok(r.body.Cmd.includes('--docker-ca-bundle'));
+  assert.ok(r.body.Cmd.includes('--no-proxy'));
+  assert.ok(r.calls.some(x => x[0] === 'exec' && x[1] === 'main-app' && x[2] === 'node'));
+  assert.ok(r.calls.some(x => x[0] === 'exec' && x[2] === 'python3'));
+});
+test('active runner prevents broker replacement', async () => {
+  const r = await deploy({ broker: true, activeRunner: true });
+  assert.equal(r.code, 1);
+  assert.equal(r.calls.some(x => x[0] === 'stop'), false);
+});
+test('unreachable broker socket restores the previous broker', async () => {
+  const r = await deploy({ broker: true, socketFails: true });
+  assert.equal(r.code, 1);
   assert.deepEqual(Array.from(r.calls.at(-1)), ['start', 'anythingllm']);
 });

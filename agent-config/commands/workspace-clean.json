@@ -1,0 +1,5 @@
+{
+  "command": "/workspace-clean",
+  "prompt": "请分析并整理工作区文件",
+  "description": "整理工作区文件"
+}

@@ -194,6 +194,47 @@ class BrokerValidationTests(unittest.TestCase):
             self.assertIn("PIP_USER=1", command)
             self.assertIn("XDG_CACHE_HOME=/workspace/.agent/cache", command)
 
+    def test_runner_mounts_trusted_ca_and_bypass_without_disabling_tls(self):
+        with tempfile.TemporaryDirectory() as root:
+            ca = Path(root) / "ca.pem"
+            ca.write_text("test certificate")
+            with patch("sandbox.broker.ssl.create_default_context") as trust:
+                broker = SandboxBroker(
+                    token=self.token, workspace_root=Path(root),
+                    docker_workspace_root=Path(root), global_skills_root=Path(root),
+                    docker_global_skills_root=Path(root), image="runner",
+                    docker_binary="docker", max_concurrency=1,
+                    workspace_uid=1000, workspace_gid=1000, network="bridge",
+                    proxy_url="http://proxy:8080", ca_bundle=ca,
+                    docker_ca_bundle=Path("/host/ca.pem"), no_proxy="localhost,internal",
+                )
+            trust.assert_called_once_with(cafile=str(ca))
+            request = validate_request(self.payload, self.token)
+            command, _ = broker.docker_command(request, broker.workspace_path(12))
+            self.assertIn("type=bind,src=/host/ca.pem,dst=/etc/coregenie/ca-bundle.pem,readonly", command)
+            for key in ["REQUESTS_CA_BUNDLE", "SSL_CERT_FILE", "CURL_CA_BUNDLE", "NODE_EXTRA_CA_CERTS", "GIT_SSL_CAINFO", "PIP_CERT"]:
+                self.assertIn(key + "=/etc/coregenie/ca-bundle.pem", command)
+            self.assertIn("NO_PROXY=localhost,internal", command)
+            self.assertNotIn("NODE_TLS_REJECT_UNAUTHORIZED=0", command)
+
+    def test_invalid_ca_fails_before_any_runner_is_created(self):
+        with tempfile.TemporaryDirectory() as root:
+            ca = Path(root) / "ca.pem"
+            ca.write_text("not a certificate")
+            common = dict(token=self.token, workspace_root=Path(root),
+                          docker_workspace_root=Path(root), global_skills_root=Path(root),
+                          docker_global_skills_root=Path(root), image="runner",
+                          docker_binary="docker", max_concurrency=1, workspace_uid=1000,
+                          workspace_gid=1000, network="bridge", proxy_url=None)
+            for extra in [
+                dict(ca_bundle=ca),
+                dict(ca_bundle=ca, docker_ca_bundle=Path("relative.pem")),
+                dict(ca_bundle=ca, docker_ca_bundle=Path("/host/ca.pem")),
+                dict(no_proxy="localhost\ninvalid"),
+            ]:
+                with self.subTest(extra=extra), self.assertRaises(BrokerError):
+                    SandboxBroker(**common, **extra)
+
     def test_reader_start_failure_reaps_docker_and_restores_capacity(self):
         with tempfile.TemporaryDirectory() as root:
             broker = SandboxBroker(

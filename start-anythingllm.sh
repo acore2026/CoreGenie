@@ -20,6 +20,9 @@ Environment overrides:
   POSTGRES_PORT          Host PostgreSQL port (default: 55433)
   ANYTHINGLLM_PROXY      Optional container HTTP(S) proxy URL
   ANYTHINGLLM_NO_PROXY   Container proxy bypass list
+  ANYTHINGLLM_CA_BUNDLE  Optional absolute PEM trust bundle for the application
+  SANDBOX_CA_BUNDLE      Optional absolute PEM trust bundle for new runners
+  SANDBOX_NO_PROXY       Runner bypass list (default: loopback addresses)
   ANYTHINGLLM_UID        Image user ID used for root-created storage (default: 1000)
   ANYTHINGLLM_GID        Image group ID used for root-created storage (default: 1000)
   APP_REBUILD            Rebuild the AnythingLLM image before start (default: false)
@@ -141,6 +144,15 @@ SANDBOX_NETWORK="${SANDBOX_NETWORK:-bridge}"
 SANDBOX_PROXY="${SANDBOX_PROXY:-${OFFLINE_SANDBOX_PROXY:-${ANYTHINGLLM_PROXY:-http://host.docker.internal:7890}}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 
+ANYTHINGLLM_CA_BUNDLE="${ANYTHINGLLM_CA_BUNDLE:-}"
+SANDBOX_CA_BUNDLE="${SANDBOX_CA_BUNDLE:-$ANYTHINGLLM_CA_BUNDLE}"
+SANDBOX_NO_PROXY="${SANDBOX_NO_PROXY:-localhost,127.0.0.1,::1}"
+for certificate in "$ANYTHINGLLM_CA_BUNDLE" "$SANDBOX_CA_BUNDLE"; do
+  if [[ -n "$certificate" && ( "$certificate" != /* || ! -f "$certificate" || "$certificate" == *,* ) ]]; then
+    echo "CA bundle must be an existing absolute mount-safe path." >&2
+    exit 2
+  fi
+done
 PROXY_ARGS=()
 if [[ -n "${ANYTHINGLLM_PROXY:-}" ]]; then
   PROXY_ARGS+=(
@@ -148,10 +160,20 @@ if [[ -n "${ANYTHINGLLM_PROXY:-}" ]]; then
     --env "HTTPS_PROXY=$ANYTHINGLLM_PROXY"
     --env "http_proxy=$ANYTHINGLLM_PROXY"
     --env "https_proxy=$ANYTHINGLLM_PROXY"
+    --env NODE_USE_ENV_PROXY=1
   )
 fi
 
-SANDBOX_PROXY_ARGS=()
+if [[ -n "$ANYTHINGLLM_CA_BUNDLE" ]]; then
+  PROXY_ARGS+=(--mount "type=bind,src=$ANYTHINGLLM_CA_BUNDLE,dst=/etc/coregenie/ca-bundle.pem,readonly"
+    --env NODE_EXTRA_CA_CERTS=/etc/coregenie/ca-bundle.pem)
+fi
+SANDBOX_CA_MOUNTS=()
+SANDBOX_PROXY_ARGS=(--no-proxy "$SANDBOX_NO_PROXY")
+if [[ -n "$SANDBOX_CA_BUNDLE" ]]; then
+  SANDBOX_CA_MOUNTS+=(--mount "type=bind,src=$SANDBOX_CA_BUNDLE,dst=/etc/coregenie/ca-bundle.pem,readonly")
+  SANDBOX_PROXY_ARGS+=(--ca-bundle /etc/coregenie/ca-bundle.pem --docker-ca-bundle "$SANDBOX_CA_BUNDLE")
+fi
 if [[ -n "$SANDBOX_PROXY" ]]; then
   SANDBOX_PROXY_ARGS+=(--proxy-url "$SANDBOX_PROXY")
 fi
@@ -531,6 +553,7 @@ start_sandbox_broker() {
       --volume "$STORAGE_LOCATION/sandbox:/broker" \
       --volume "$workspace_root:/workspaces" \
       --volume "$global_skills_root:/global-skills:ro" \
+      "${SANDBOX_CA_MOUNTS[@]}" \
       "$SANDBOX_BROKER_IMAGE" \
       --socket /broker/run.sock \
       --token-file /broker/token \

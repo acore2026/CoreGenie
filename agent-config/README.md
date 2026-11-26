@@ -77,3 +77,13 @@ Regression tests live in `server/__tests__/agent-skills/`; the publication and
 runtime configuration checks live in `server/__tests__/tools/knowledge.test.js`
 and `server/__tests__/agent-system/runtimeRegistry.test.js`. Python cache files
 are excluded from package resources and revision hashes.
+
+
+## Bundled slash commands
+
+`commands/*.json` contains installation-wide command presets with `command`,
+`prompt` and `description`. Startup imports missing presets once per
+`builtin_commands_seed_*` version. Existing custom commands are preserved, and
+commands deliberately removed after initialization are not recreated on restart.
+These presets are separate from the live Agent/Skill/quick-task synchronizer.
+When adding new presets, bump `server/agent-skills/commands.js` and its tests.

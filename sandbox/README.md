@@ -61,3 +61,19 @@ image as in use so ordinary `docker image prune -a` and `docker system prune
 -a` commands do not remove it between Agent calls. When the runner image is
 rebuilt, the script replaces the guard automatically. Sandbox calls follow the
 configured global and per-tool approval policy.
+
+
+## Optional enterprise CA bundle
+
+The broker accepts `--ca-bundle` (readable broker path) and
+`--docker-ca-bundle` (absolute Docker-host path) together. It validates the PEM
+bundle at startup and bind-mounts it read-only in each runner. Use a combined
+public + enterprise trust bundle. Requests, curl, Python/OpenSSL, Git, pip and
+Node receive the matching CA environment variables; verification stays enabled.
+`--no-proxy` controls the runner bypass list.
+
+Published broker images use `ghcr.io/acore2026/coregenie-sandbox-broker:<version>`.
+See [deployment profiles](../docs/deployment-profiles.md) for the
+`deploy-image.sh update-broker` path, including active-run checks and rollback.
+Changing a broker environment alone does not configure runner trust: the broker
+must receive both CA paths so it can mount the host file into each new runner.
