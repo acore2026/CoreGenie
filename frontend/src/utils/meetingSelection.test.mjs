@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { inferMeetings, toggleMeeting } from "./meetingSelection.mjs";
+import {
+  defaultDownloadMeetingId,
+  inferAgentMeetings,
+  toggleMeeting,
+} from "./meetingSelection.ts";
 
 test("infer current and next using sorted dates, not catalogue order", () => {
   const entries = [
@@ -10,7 +14,7 @@ test("infer current and next using sorted dates, not catalogue order", () => {
     { id: "invalid", date: "2026-99" },
     { id: "unknown" },
   ];
-  const result = inferMeetings(entries, new Date(2026, 8, 29));
+  const result = inferAgentMeetings(entries, new Date(2026, 8, 29));
   assert.equal(result.current.id, "current");
   assert.equal(result.next.id, "next");
   assert.equal(result.today, "2026-09-29");
@@ -18,7 +22,7 @@ test("infer current and next using sorted dates, not catalogue order", () => {
 });
 
 test("full dates distinguish later meetings in the same month and reject invalid days", () => {
-  const result = inferMeetings(
+  const result = inferAgentMeetings(
     [
       { id: "future", date: "2026-09-30" },
       { id: "today", date: "2026-09-29" },
@@ -31,10 +35,16 @@ test("full dates distinguish later meetings in the same month and reject invalid
 });
 
 test("empty and one-sided catalogues do not invent adjacent meetings", () => {
-  assert.equal(inferMeetings([]).current, undefined);
+  assert.equal(inferAgentMeetings([]).current, undefined);
   const entries = [{ id: "one", date: "2026-09" }];
-  assert.equal(inferMeetings(entries, new Date(2026, 0, 1)).current, undefined);
-  assert.equal(inferMeetings(entries, new Date(2026, 11, 1)).next, undefined);
+  assert.equal(
+    inferAgentMeetings(entries, new Date(2026, 0, 1)).current,
+    undefined
+  );
+  assert.equal(
+    inferAgentMeetings(entries, new Date(2026, 11, 1)).next,
+    undefined
+  );
 });
 
 test("deselecting a normal item preserves other normal and manual meetings", () => {
@@ -54,4 +64,35 @@ test("limit blocks additions but permits deselection; single selection can be re
     toggleMeeting([one], two, { multiple: false, group: "SA2" }),
     [{ ...two, group: "SA2" }]
   );
+});
+
+test("month-only meetings may be current in the Agent picker but need an explicit download choice", () => {
+  const entries = [
+    { id: "last", date: "2026-08", number: 1, suffix: "" },
+    { id: "current", date: "2026-09", number: 2, suffix: "" },
+    { id: "future", date: "2026-10", number: 3, suffix: "" },
+    { id: "unknown", date: null, number: 4, suffix: "" },
+    { id: "invalid", date: "2026-02-30", number: 5, suffix: "" },
+  ];
+  const agent = inferAgentMeetings(entries, new Date(2026, 8, 1));
+  assert.equal(agent.current.id, "current");
+  assert.equal(agent.next.id, "future");
+  assert.equal(defaultDownloadMeetingId(entries, "2026-09-01"), "last");
+  assert.equal(defaultDownloadMeetingId(entries.slice(1), "2026-09-01"), "");
+});
+
+test("download selection includes today and resolves tied dates by meeting number and suffix", () => {
+  const meeting = (id, number, suffix) => ({
+    id,
+    number,
+    suffix,
+    date: "2026-09-01",
+  });
+  const entries = [
+    meeting("old", 1, ""),
+    meeting("next", 2, "bis"),
+    meeting("regular", 2, ""),
+  ];
+  assert.equal(defaultDownloadMeetingId(entries, "2026-09-01"), "next");
+  assert.equal(defaultDownloadMeetingId(entries, "2026-08-31"), "");
 });

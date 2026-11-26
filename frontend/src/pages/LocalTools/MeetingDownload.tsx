@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { LocalToolError } from "@/utils/localTools/proposalFill";
+import { defaultDownloadMeetingId } from "@/utils/meetingSelection";
 import { useTranslation } from "react-i18next";
 import {
   GROUPS,
   loadMeetings,
-  latestMeeting,
   downloadList,
 } from "@/utils/localTools/meetingDownload";
 import type {
@@ -50,7 +50,7 @@ export default function MeetingDownload({
         const result = await loadMeetings(group, controller.signal);
         if (!controller.signal.aborted) {
           setCatalog(result);
-          setMeeting(latestMeeting(result.meetings));
+          setMeeting(defaultDownloadMeetingId(result.meetings));
         }
       }
     } catch (error) {

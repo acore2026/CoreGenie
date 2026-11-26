@@ -1,3 +1,4 @@
+import type { OfficialMeeting } from "../meetingSelection";
 import { API_BASE } from "@/utils/constants";
 import { baseHeaders } from "@/utils/request";
 
@@ -21,13 +22,6 @@ export const GROUPS = [
   "RAN4",
   "RAN5",
 ];
-export interface OfficialMeeting {
-  id: string;
-  number: number;
-  suffix: string;
-  date: string | null;
-  label: string;
-}
 export interface MeetingCatalog {
   meetings: OfficialMeeting[];
   stale?: boolean;
@@ -63,27 +57,6 @@ export async function loadMeetings(
   if (!Array.isArray(data.meetings) || !data.meetings.length)
     throw new Error("download_failed");
   return data;
-}
-// Dates are meeting dates from directory names, never directory modification dates.
-// Without a dated past/current meeting, require an explicit selection.
-export function latestMeeting(
-  meetings: OfficialMeeting[],
-  today = new Date().toISOString().slice(0, 10)
-): string {
-  return (
-    meetings
-      .filter(
-        (m) =>
-          m.date &&
-          (m.date.length === 7 ? m.date < today.slice(0, 7) : m.date <= today)
-      )
-      .sort(
-        (a, b) =>
-          (b.date || "").localeCompare(a.date || "") ||
-          b.number - a.number ||
-          b.suffix.localeCompare(a.suffix)
-      )[0]?.id || ""
-  );
 }
 export async function downloadList(
   group: string,

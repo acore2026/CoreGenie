@@ -884,9 +884,9 @@ test("ordinary proposals reject ambiguous covers and numbered meeting headers", 
 
 test("latest meeting excludes future dates and does not infer unknown dates", async () => {
   const result = await page.evaluate(async () => {
-    const { latestMeeting } = await import("/src/utils/localTools/meetingDownload.ts");
+    const { defaultDownloadMeetingId } = await import("/src/utils/meetingSelection.ts");
     const meetings = [{ id: "past", date: "2026-08-01", number: 175, suffix: "" }, { id: "future", date: "2027-01-01", number: 177, suffix: "" }, { id: "unknown", date: null, number: 178, suffix: "" }, { id: "month-only", date: "2026-11", number: 179, suffix: "" }];
-    return [latestMeeting(meetings, "2026-11-10"), latestMeeting(meetings.slice(1), "2026-11-10")];
+    return [defaultDownloadMeetingId(meetings, "2026-11-10"), defaultDownloadMeetingId(meetings.slice(1), "2026-11-10")];
   });
   assert.deepEqual(result, ["past", ""]);
 });

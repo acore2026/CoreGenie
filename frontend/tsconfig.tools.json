@@ -19,5 +19,11 @@
     "paths": { "@/*": ["src/*"] },
     "types": ["vite/client"]
   },
-  "include": ["src/utils/localTools/**/*.ts", "src/pages/LocalTools/**/*.tsx", "src/pages/LocalTools/**/*.d.ts"]
+  "include": [
+    "src/utils/localTools/**/*.ts",
+    "src/pages/LocalTools/**/*.tsx",
+    "src/pages/LocalTools/**/*.ts",
+    "src/utils/meetingSelection.ts",
+    "src/components/PredefinedAgents/MeetingSelect.tsx"
+  ]
 }

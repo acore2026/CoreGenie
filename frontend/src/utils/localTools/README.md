@@ -12,7 +12,7 @@ CR 更新 TDoc、CR、rev、Current version；普通提案只更新 TDoc，保�
 待修改编号必须能在文档开头唯一定位；历史引用、正文、图片和嵌入对象保留。
 
 `meetingDownload.ts` 和 `MeetingDownload.tsx` 支持选择工作组和会议，再下载官方清单。
-默认选择有日期且已开始的最近会议；无日期时不推断，要求用户选择。
+下载清单时默认选择已开始的最近会议。只有年月的当月会议、日期缺失或无效的会议，需要手动选择。Agent 的会议选择器按本地日期推断当前和下一场会议，当月只有年月时按月初计算。两处共用日期解析。
 服务端仅接受工作组和会议 ID，不接受任意 URL，并复用官方地址、重定向和 8 MB 下载限制。
 官网不可用时保留当前清单，可继续手动上传。缓存会议会明确标记。
 下载的清单需包含 TDoc_List 工作表；尚未发布清单的会议无法自动导入。
@@ -21,6 +21,7 @@ CR 更新 TDoc、CR、rev、Current version；普通提案只更新 TDoc，保�
 
 ```bash
 yarn typecheck:tools
+node --test src/utils/meetingSelection.test.mjs
 yarn test:proposal-fill
 yarn build
 ```

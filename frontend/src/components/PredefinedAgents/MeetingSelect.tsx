@@ -3,15 +3,30 @@ import { Popover } from "@headlessui/react";
 import { CaretDown, CalendarBlank } from "@phosphor-icons/react";
 import { useTranslation } from "react-i18next";
 import {
-  inferMeetings,
+  inferAgentMeetings,
   meetingKey,
+  type MeetingChoice,
   toggleMeeting,
-} from "@/utils/meetingSelection.mjs";
+} from "@/utils/meetingSelection";
 
 const control =
   "min-h-[40px] rounded-lg border border-theme-chat-input-border bg-theme-bg-chat-input px-3 py-2 text-sm text-theme-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-button disabled:cursor-not-allowed disabled:opacity-50";
 const button =
   "dsh-control min-h-[40px] rounded-lg px-3 text-sm hover:bg-theme-sidebar-subitem-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-button disabled:cursor-not-allowed disabled:opacity-50";
+
+interface MeetingSelectProps {
+  entries: MeetingChoice[];
+  value?: MeetingChoice | MeetingChoice[] | null;
+  onChange: (value: MeetingChoice[]) => void;
+  group: string;
+  limit: number;
+  multiple: boolean;
+  invalid?: boolean;
+  label: string;
+  loading?: boolean;
+  placeholder?: string;
+  examples?: string[];
+}
 
 export default function MeetingSelect({
   entries,
@@ -25,25 +40,25 @@ export default function MeetingSelect({
   loading,
   placeholder,
   examples,
-}) {
+}: MeetingSelectProps) {
   const { t } = useTranslation();
   const hintId = useId();
   const [query, setQuery] = useState("");
   const [manual, setManual] = useState("");
   const selected = Array.isArray(value) ? value : value ? [value] : [];
   const selectedKeys = new Set(selected.map(meetingKey));
-  const { current, next, today } = inferMeetings(entries);
-  const badge = (item) =>
+  const { current, next, today } = inferAgentMeetings(entries);
+  const badge = (item: MeetingChoice) =>
     meetingKey(item) === meetingKey(current)
       ? t("agent_wizard.current_meeting_tag")
       : meetingKey(item) === meetingKey(next)
         ? t("agent_wizard.next_meeting_tag")
         : null;
-  const matches = (item) =>
+  const matches = (item: MeetingChoice) =>
     `${item.label} ${item.description || ""} ${item.date || ""}`
       .toLowerCase()
       .includes(query.trim().toLowerCase());
-  const nearMeetings = [current, next].filter(Boolean);
+  const nearMeetings = [current, next].filter((entry) => entry !== undefined);
   const nearKeys = new Set(nearMeetings.map(meetingKey));
   const other = entries
     .filter((item) => !nearKeys.has(meetingKey(item)) && matches(item))
@@ -57,7 +72,7 @@ export default function MeetingSelect({
           numeric: true,
         })
     );
-  const yearOf = (item) =>
+  const yearOf = (item: MeetingChoice) =>
     String(
       item.year || item.date?.slice(0, 4) || t("agent_wizard.unknown_year")
     );
@@ -82,7 +97,7 @@ export default function MeetingSelect({
     })),
   ].filter((section) => section.items.length);
   const atLimit = multiple && selected.length >= limit;
-  const toggle = (item) =>
+  const toggle = (item: MeetingChoice) =>
     onChange(toggleMeeting(selected, item, { limit, multiple, group }));
   const duplicate = selected.some((item) => item.label === manual.trim());
   const addManual = () => {
@@ -260,7 +275,19 @@ export default function MeetingSelect({
   );
 }
 
-function MeetingOption({ item, badge, checked, disabled, onChange }) {
+function MeetingOption({
+  item,
+  badge,
+  checked,
+  disabled,
+  onChange,
+}: {
+  item: MeetingChoice;
+  badge: string | null;
+  checked: boolean;
+  disabled: boolean;
+  onChange: () => void;
+}) {
   return (
     <label
       className={`flex min-h-[44px] items-start gap-3 rounded-md px-2 py-2 text-sm focus-within:ring-2 focus-within:ring-inset focus-within:ring-primary-button ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:bg-theme-sidebar-subitem-hover"} ${checked ? "bg-theme-sidebar-item-default-selected" : ""}`}

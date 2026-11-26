@@ -86,7 +86,7 @@ export default [
   ...config,
   {
     ...config[2],
-    files: ["src/pages/LocalTools/**/*.{ts,tsx}", "src/utils/localTools/**/*.ts"],
+    files: ["src/pages/LocalTools/**/*.{ts,tsx}", "src/utils/localTools/**/*.ts", "src/utils/meetingSelection.ts", "src/components/PredefinedAgents/MeetingSelect.tsx"],
     languageOptions: { ...config[2].languageOptions, parser: tsParser },
     rules: {
       ...config[2].rules,
