@@ -1,5 +1,20 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { createRequire } from "node:module";
+import { once } from "node:events";
+
+const serverRequire = createRequire(new URL("../../server/package.json", import.meta.url));
+const express = serverRequire("express");
+const bodyParser = serverRequire("body-parser");
+// Use the production parser order: a browser JSON string without its media type
+// is text/plain and must not silently become an object in the mocked API.
+const parserApp = express();
+parserApp.use(bodyParser.text({ limit: "2mb" }));
+parserApp.use(bodyParser.json({ limit: "2mb" }));
+parserApp.all("/parse", (req, res) => res.json({ body: req.body ?? null }));
+const parserServer = parserApp.listen(0, "127.0.0.1");
+await once(parserServer, "listening");
+const parserUrl = "http://127.0.0.1:" + parserServer.address().port + "/parse";
 import { chromium } from "playwright";
 
 const browser = await chromium.launch({
@@ -40,7 +55,21 @@ await page.route("**/personal-skills**", async (route) => {
     const filtered = records.filter((r) => view === "mine" ? r.isOwner : view === "enabled" ? !r.isOwner && r.enabled && r.isShared : !r.isOwner && r.isShared);
     return route.fulfill({ json: { success: true, skills: filtered, template } });
   }
-  const body = request.postData() ? request.postDataJSON() : {};
+  let body = {};
+  if (request.postData()) {
+    const parsed = await fetch(parserUrl, {
+      method,
+      headers: { "Content-Type": request.headers()["content-type"] || "" },
+      body: request.postData(),
+    });
+    body = (await parsed.json()).body;
+    if (!body || typeof body !== "object")
+      return route.fulfill({ status: 400, json: { success: false, error: "共享开关必须为布尔值。请求体未解析为 JSON。" } });
+  }
+  if (suffix.endsWith("/sharing") && typeof body.isShared !== "boolean")
+    return route.fulfill({ status: 400, json: { success: false, error: "共享开关必须为布尔值。" } });
+  if (suffix.endsWith("/enabled") && typeof body.enabled !== "boolean")
+    return route.fulfill({ status: 400, json: { success: false, error: "启用开关必须为布尔值。" } });
   writes.push({ method, suffix, body });
   await new Promise((resolve) => setTimeout(resolve, 120));
   if (failSave) return route.fulfill({ status: 400, json: { success: false, error: "测试保存失败" } });
@@ -71,6 +100,14 @@ try {
   await page.goto((process.env.CONTEXT_PREVIEW_URL || "http://127.0.0.1:7876") + "/__personal-skills-preview");
   await card("my-review").waitFor();
   assert.equal(writes.length, 0, "opening the library must not change sharing or subscriptions");
+  const transportResults = await page.evaluate(async () => {
+    const { default: api } = await import("/src/models/personalSkills.js");
+    return [await api.share(1, false), await api.share(1, true)];
+  });
+  for (const result of transportResults)
+    assert.equal(result.success, true, result.error || "sharing request must reach the API as JSON");
+  assert.equal(writes[0].body.isShared, false);
+  assert.equal(writes[1].body.isShared, true);
   assert.equal(await page.getByRole("link", { name: "Skills 广场" }).getAttribute("href"), "/skills");
   for (const width of [1440, 390]) for (const theme of ["light", "dark"]) {
     await page.setViewportSize({ width, height: 900 });
@@ -142,7 +179,11 @@ try {
 
   const saveBox = await dialog.getByRole("button", { name: "保存 Skill", exact: true }).boundingBox();
   assert.ok(saveBox && saveBox.y + saveBox.height <= 900, "mobile save button must remain visible");
-  await page.keyboard.press("Escape");
+  await dialog.getByRole("button", { name: "保存 Skill", exact: true }).click();
+  await dialog.waitFor({ state: "detached" });
+  assert.equal(writes.at(-1).method, "PUT");
+  assert.equal(writes.at(-1).body.isShared, undefined, "editing content must not change sharing");
+  assert.equal(records.find(r => r.id === 3).isShared, false);
   await page.getByRole("searchbox").fill("不存在的名称");
   await page.getByText("没有匹配的 Skill。", { exact: true }).waitFor();
 
@@ -154,5 +195,5 @@ try {
   await page.getByRole("button", { name: "重试", exact: true }).click();
   await card("shared-analysis").waitFor();
   assert.deepEqual(errors, []);
-  console.log(JSON.stringify({ checks: ["colored-entry", "no-write-on-mount", "default-shared-create", "sharing-failure", "private-toggle", "readonly-preview", "script-preview", "enable", "disable", "edit-saved-private", "mobile-footer", "fullscreen-escape", "escape", "search", "failed-load-retry", "responsive-light-dark"], widths: [1440,390] }));
-} catch (error) { console.log("BROWSER_ERRORS", errors); console.log("BODY", (await page.locator("body").innerText()).slice(0,1800)); await page.screenshot({path:"/tmp/coregenie-skills-error.png"}); throw error; } finally { fs.unlinkSync(previewPath); await browser.close(); }
+  console.log(JSON.stringify({ checks: ["production-json-parser", "boolean-sharing-both-directions", "json-edit-save", "colored-entry", "no-write-on-mount", "default-shared-create", "sharing-failure", "private-toggle", "readonly-preview", "script-preview", "enable", "disable", "edit-saved-private", "mobile-footer", "fullscreen-escape", "escape", "search", "failed-load-retry", "responsive-light-dark"], widths: [1440,390] }));
+} catch (error) { console.log("BROWSER_ERRORS", errors); console.log("BODY", (await page.locator("body").innerText()).slice(0,1800)); await page.screenshot({path:"/tmp/coregenie-skills-error.png"}); throw error; } finally { fs.unlinkSync(previewPath); await browser.close(); parserServer.closeAllConnections(); await new Promise(resolve => parserServer.close(resolve)); }

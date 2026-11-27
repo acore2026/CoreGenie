@@ -5,7 +5,10 @@ async function request(path = "", method = "GET", body) {
   try {
     const response = await fetch(`${API_BASE}/personal-skills${path}`, {
       method,
-      headers: baseHeaders(),
+      headers: {
+        ...baseHeaders(),
+        ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+      },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
     const data = await response.json();
