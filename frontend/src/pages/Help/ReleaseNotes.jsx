@@ -15,10 +15,14 @@ import {
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import protocolResult from "@/media/release-notes/protocol-result.png";
-import proposalExample from "@/media/release-notes/proposal-example.png";
 import paths from "@/utils/paths";
 
-import { DeploymentSketch, SignInSketch, IdeasSketch } from "./ReleaseSketches";
+import {
+  DeploymentSketch,
+  SignInSketch,
+  ProposalFillSketch,
+  IdeasSketch,
+} from "./ReleaseSketches";
 
 const FEATURE_ICONS = [Presentation, GitDiff, Sliders, Books];
 const WORKBENCH_ICONS = [ListChecks, FolderOpen, FileText, HardDrives];
@@ -40,7 +44,7 @@ export default function ReleaseNotes() {
       key: "proposal",
       title: t("local_tools.title"),
       href: paths.proposalFill(),
-      image: proposalExample,
+      sketch: <ProposalFillSketch />,
     },
   ];
 
@@ -91,17 +95,25 @@ export default function ReleaseNotes() {
         <section>
           <h2 className={heading}>{t("local_tools.nav")}</h2>
           <div className="mt-4 grid gap-4 md:grid-cols-2">
-            {tools.map(({ key, title, href, image }) => (
+            {tools.map(({ key, title, href, image, sketch }) => (
               <div
                 key={key}
                 className="overflow-hidden rounded-xl border border-white/[0.08] bg-zinc-950/30 light:border-slate-200 light:bg-slate-50"
               >
-                <div className="flex aspect-[2/1] items-center border-b border-white/[0.08] bg-cyan-100/10 px-3 light:border-slate-200 light:bg-cyan-50 sm:px-4">
-                  <img
-                    src={image}
-                    alt={note(`${key}.alt`)}
-                    className="max-h-full w-full rounded-md object-contain"
-                  />
+                <div
+                  className={
+                    sketch
+                      ? "aspect-[2/1] overflow-hidden border-b border-white/[0.08] bg-[#fdfcf8] light:border-slate-200"
+                      : "flex aspect-[2/1] items-center border-b border-white/[0.08] bg-cyan-100/10 px-3 light:border-slate-200 light:bg-cyan-50 sm:px-4"
+                  }
+                >
+                  {sketch || (
+                    <img
+                      src={image}
+                      alt={note(`${key}.alt`)}
+                      className="max-h-full w-full rounded-md object-contain"
+                    />
+                  )}
                 </div>
                 <div className="px-5 py-4">
                   <h3>
