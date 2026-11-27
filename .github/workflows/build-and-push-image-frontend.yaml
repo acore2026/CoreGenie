@@ -1,0 +1,89 @@
+name: Publish frontend-only CoreGenie image
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_version:
+        description: Full release used as the backend base (without v)
+        required: true
+        default: "1.15.5"
+        type: string
+
+concurrency:
+  group: frontend-image-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: yarn
+          cache-dependency-path: frontend/yarn.lock
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Test base compatibility checks
+        run: node --test scripts/tests/frontend-image.test.cjs
+      - name: Pin base image and reject backend changes
+        id: base
+        env:
+          BASE_VERSION: ${{ inputs.base_version }}
+        run: node scripts/prepare-frontend-image.cjs "$BASE_VERSION"
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: yarn install --frozen-lockfile --network-timeout 100000
+      - name: Check and build frontend
+        working-directory: frontend
+        env:
+          VITE_API_BASE: /api
+        run: |
+          yarn lint:check
+          yarn build
+      - name: Publish frontend layer over the existing release
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend/dist
+          file: ./docker/Dockerfile.frontend
+          platforms: linux/amd64
+          push: true
+          provenance: mode=min
+          build-args: |
+            BASE_IMAGE=${{ steps.base.outputs.base_image }}
+            FRONTEND_VERSION=${{ steps.base.outputs.version }}
+          tags: |
+            ${{ steps.base.outputs.image }}:${{ steps.base.outputs.version }}
+            ${{ steps.base.outputs.image }}:ui-${{ github.sha }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.base.outputs.version }}
+            org.opencontainers.image.base.name=${{ steps.base.outputs.base_image }}
+            io.coregenie.backend.revision=${{ steps.base.outputs.base_revision }}
+            io.coregenie.frontend-only=true
+      - name: Record the immutable image
+        env:
+          IMAGE: ${{ steps.base.outputs.image }}
+          VERSION: ${{ steps.base.outputs.version }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+          BASE: ${{ steps.base.outputs.base_image }}
+        run: |
+          {
+            echo "Frontend image: $IMAGE:$VERSION"
+            echo "Immutable reference: $IMAGE@$DIGEST"
+            echo "Backend base: $BASE"
+            echo "Update the application container only; keep the existing sandbox broker and runner."
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { List, MagnifyingGlass, Wrench, X } from "@phosphor-icons/react";
+import { List, MagnifyingGlass, X } from "@phosphor-icons/react";
 import NewWorkspaceModal, {
   useNewWorkspaceModal,
 } from "../Modals/NewWorkspace";
@@ -14,6 +14,7 @@ import { Tooltip } from "react-tooltip";
 import { createPortal } from "react-dom";
 import HelpShortcut from "./HelpShortcut";
 import SkillsLink from "./SkillsLink";
+import LocalToolsLink from "./LocalToolsLink";
 import { CLOSE_MOBILE_SIDEBAR_EVENT } from "./events";
 import { useTranslation } from "react-i18next";
 import { ModalPortalContext } from "@/components/ModalWrapper";
@@ -84,8 +85,10 @@ export default function Sidebar() {
         >
           <div className="flex h-full min-h-0 flex-col">
             <div className="px-3 pb-4">
-              <SkillsLink />
-              <LocalToolsLink />
+              <div className="mb-3 grid gap-1">
+                <SkillsLink />
+                <LocalToolsLink />
+              </div>
               <div className="flex items-center gap-1">
                 <div className="min-w-0 flex-1">
                   <SearchBox />
@@ -221,8 +224,10 @@ export function SidebarMobileHeader() {
               </button>
             </div>
             <div className="px-3 pb-4">
-              <SkillsLink />
-              <LocalToolsLink />
+              <div className="mb-3 grid gap-1">
+                <SkillsLink />
+                <LocalToolsLink />
+              </div>
               <div className="flex items-center gap-1">
                 <div className="min-w-0 flex-1">
                   <SearchBox />
@@ -312,24 +317,5 @@ function WorkspaceAndThreadTooltips() {
       />
     </React.Fragment>,
     document.body
-  );
-}
-
-function LocalToolsLink({ iconOnly = false }) {
-  const { t } = useTranslation();
-  const { pathname } = useLocation();
-  const active =
-    pathname === paths.tools() || pathname.startsWith(`${paths.tools()}/`);
-  return (
-    <Link
-      to={paths.tools()}
-      aria-label={t("local_tools.nav")}
-      aria-current={active ? "page" : undefined}
-      title={iconOnly ? t("local_tools.nav") : undefined}
-      className={`${navControl} focus-visible:ring-primary-button ${iconOnly ? "w-10 justify-center !px-0" : "mb-3"} ${active ? "bg-theme-sidebar-item-selected" : ""}`}
-    >
-      <Wrench size={20} />
-      {!iconOnly && t("local_tools.nav")}
-    </Link>
   );
 }
