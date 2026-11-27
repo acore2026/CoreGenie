@@ -1,10 +1,11 @@
 # AnythingLLM disposable code sandbox
 
-The `bash` and `python` agent tools call `broker.py` over a Unix socket. The
-broker runs in a separate, tightly constrained, restart-managed container. Only
-that narrow broker receives the Docker socket; the AnythingLLM container never
-does. AnythingLLM receives only the broker socket and token through its existing
-storage mount.
+The `bash` and `python` agent tools call the sandbox broker (`broker.py` /
+`sandbox_broker/`) over a Unix socket. The broker runs in a separate, tightly
+constrained, restart-managed container using Python standard library modules
+only. Only that narrow broker receives the Docker socket; the AnythingLLM
+container never does. AnythingLLM receives only the broker socket and token
+through its existing storage mount.
 
 Each tool call starts a new container with outbound access through Docker's
 bridge network, a read-only root filesystem, no capabilities, an unprivileged
@@ -24,10 +25,18 @@ The runner includes Bash, Python, pip, curl, wget, Git, jq/yq, ripgrep, fd,
 find/grep/sed/awk, SQLite, rsync/SSH, network diagnostics, shellcheck, a native
 build toolchain, and common archive formats. Python includes a practical base
 set for HTTP/YAML/HTML, data and spreadsheets, images/PDF/Word documents,
-validation, databases, retries, and testing; see `requirements.txt` for the
-exact pinned package set. Plain `pip install` stores additional packages under
-`/workspace/.python`, so they persist and remain importable in later
-invocations for the same AnythingLLM workspace.
+validation, databases, retries, and testing; see `pyproject.toml` and `uv.lock`
+for the exact pinned package set (installed with `uv`). Plain `pip install`
+stores additional packages under `/workspace/.python`, so they persist and
+remain importable in later invocations for the same AnythingLLM workspace.
+
+For local broker development, type checking, and unit tests:
+
+```bash
+cd sandbox
+npx pyright
+uv run python -m unittest discover -s tests -v
+```
 
 To build the runner with a package mirror, run
 `docker build --build-arg PIP_INDEX_URL=https://mirror.example.org/simple -t anythingllm-sandbox:local sandbox/`

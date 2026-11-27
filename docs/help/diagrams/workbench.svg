@@ -1,14 +1,114 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 440" role="img" aria-labelledby="title"><title id="title">工作台、服务端与文档和 Agent 的调用关系</title>
-<defs><pattern id="dots" width="16" height="16" patternUnits="userSpaceOnUse"><circle cx="3" cy="4" r=".85" fill="#d7d0bd"/></pattern><marker id="tip" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="6" markerHeight="6" orient="auto"><path d="m2 1 8 5-8 5" fill="none" stroke="#37444a" stroke-width="2"/></marker></defs><rect width="100%" height="100%" rx="15" fill="#fffcf4"/><rect width="100%" height="100%" fill="url(#dots)"/><g stroke-linejoin="round" stroke-linecap="round" font-family="KaiTi, Kaiti SC, WenQuanYi Zen Hei, sans-serif" fill="#24353b">
-<g transform="translate(250 18)"><path d="M8 2 Q130 -1 253 1 Q261 0 260 9 L259 59 Q260 67 252 66 L8 65 Q0 66 1 58 L0 9 Q0 2 8 2Z" fill="#dbeefa" stroke="#37444a" stroke-width="2"/><path d="M6 6 Q86 2 173 4" fill="none" stroke="#68777a" opacity=".4"/><text x="130" y="30" text-anchor="middle" font-size="21">React 工作台</text><text x="130" y="54" text-anchor="middle" font-size="15">frontend</text></g>
-<path d="M380 86 Q378 104 380 123" fill="none" stroke="#37444a" stroke-width="2" marker-end="url(#tip)"/>
-<g transform="translate(250 126)"><path d="M8 2 Q130 -1 253 1 Q261 0 260 9 L259 59 Q260 67 252 66 L8 65 Q0 66 1 58 L0 9 Q0 2 8 2Z" fill="#dbeefa" stroke="#37444a" stroke-width="2"/><path d="M6 6 Q86 2 173 4" fill="none" stroke="#68777a" opacity=".4"/><text x="130" y="30" text-anchor="middle" font-size="21">Node.js 服务端</text><text x="130" y="54" text-anchor="middle" font-size="15">工作区 API</text></g>
-<path d="M380 195 Q380 215 136 217 L136 244" fill="none" stroke="#37444a" stroke-width="2" marker-end="url(#tip)"/>
-<g transform="translate(31 247)"><path d="M8 2 Q105 -1 203 1 Q211 0 210 9 L209 59 Q210 67 202 66 L8 65 Q0 66 1 58 L0 9 Q0 2 8 2Z" fill="#faeaba" stroke="#37444a" stroke-width="2"/><path d="M6 6 Q70 2 140 4" fill="none" stroke="#68777a" opacity=".4"/><text x="105" y="30" text-anchor="middle" font-size="21">普通对话</text><text x="105" y="54" text-anchor="middle" font-size="15">检索与模型回复</text></g>
-<path d="M380 195 Q380 215 380 217 L380 244" fill="none" stroke="#37444a" stroke-width="2" marker-end="url(#tip)"/>
-<g transform="translate(275 247)"><path d="M8 2 Q105 -1 203 1 Q211 0 210 9 L209 59 Q210 67 202 66 L8 65 Q0 66 1 58 L0 9 Q0 2 8 2Z" fill="#e1efdb" stroke="#37444a" stroke-width="2"/><path d="M6 6 Q70 2 140 4" fill="none" stroke="#68777a" opacity=".4"/><text x="105" y="30" text-anchor="middle" font-size="21">Agent 运行时</text><text x="105" y="54" text-anchor="middle" font-size="15">调度任务、调用工具</text></g>
-<path d="M380 195 Q380 215 624 217 L624 244" fill="none" stroke="#37444a" stroke-width="2" marker-end="url(#tip)"/>
-<g transform="translate(519 247)"><path d="M8 2 Q105 -1 203 1 Q211 0 210 9 L209 59 Q210 67 202 66 L8 65 Q0 66 1 58 L0 9 Q0 2 8 2Z" fill="#f9e0d1" stroke="#37444a" stroke-width="2"/><path d="M6 6 Q70 2 140 4" fill="none" stroke="#68777a" opacity=".4"/><text x="105" y="30" text-anchor="middle" font-size="21">Collector</text><text x="105" y="54" text-anchor="middle" font-size="15">解析上传的文档</text></g>
-<path d="M380 316 Q380 338 380 355" fill="none" stroke="#37444a" stroke-width="2" marker-end="url(#tip)"/>
-<g transform="translate(249 359)"><path d="M8 2 Q131 -1 255 1 Q263 0 262 9 L261 58 Q262 66 254 65 L8 64 Q0 65 1 57 L0 9 Q0 2 8 2Z" fill="#e1efdb" stroke="#37444a" stroke-width="2"/><path d="M6 6 Q87 2 174 4" fill="none" stroke="#68777a" opacity=".4"/><text x="131" y="30" text-anchor="middle" font-size="21">模型、Skill 与工具</text><text x="131" y="54" text-anchor="middle" font-size="15">工作区文件、知识库、沙箱</text></g>
-</g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 510" role="img" aria-labelledby="title">
+  <title id="title">CoreGenie 系统上下文与进程拓扑</title>
+  <defs>
+    <pattern id="dots" width="16" height="16" patternUnits="userSpaceOnUse">
+      <circle cx="3" cy="4" r=".85" fill="#d7d0bd"/>
+    </pattern>
+    <marker id="tip" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="6.5" markerHeight="6.5" orient="auto">
+      <path d="m2 1 8 5-8 5" fill="none" stroke="#37444a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <style>
+      .t { font-family: "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", "WenQuanYi Zen Hei", sans-serif; fill: #1e293b; }
+      .m { font-family: "JetBrains Mono", "SFMono-Regular", Menlo, Consolas, monospace; fill: #475569; }
+      .h { font-size: 16px; font-weight: 700; }
+      .s { font-size: 12.5px; fill: #475569; }
+      .tag { font-size: 11px; font-weight: 600; fill: #334155; }
+      .zone { font-size: 11.5px; font-weight: 700; fill: #64748b; letter-spacing: 0.04em; }
+    </style>
+  </defs>
+
+  <rect width="100%" height="100%" rx="16" fill="#fdfcf8"/>
+  <rect width="100%" height="100%" rx="16" fill="url(#dots)"/>
+
+  <!-- Top: Browser -->
+  <g transform="translate(155 20)">
+    <rect width="570" height="66" rx="12" fill="#dbeefa" stroke="#37444a" stroke-width="2"/>
+    <text x="285" y="28" text-anchor="middle" class="t h">浏览器：React 工作台 + 纯前端本地工具</text>
+    <text x="285" y="50" text-anchor="middle" class="t s">工作台对话（全走 Agent SSE）· 管理后台 · 提案编号回填（正文不上传）· 共享 @coregenie/contracts</text>
+  </g>
+
+  <!-- Arrow Browser -> Server -->
+  <line x1="440" y1="86" x2="440" y2="128" stroke="#37444a" stroke-width="2" marker-end="url(#tip)"/>
+  <rect x="330" y="95" width="220" height="22" rx="6" fill="#fdfcf8" stroke="#cbd5e1" stroke-width="1"/>
+  <text x="440" y="110" text-anchor="middle" class="m tag">HTTP / SSE  (/api/* · /api/v1/*)</text>
+
+  <!-- Middle Zone: Main App Container (single Node process with in-process collector) -->
+  <rect x="36" y="132" width="808" height="148" rx="14" fill="#ffffff" fill-opacity="0.65" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="6 5"/>
+  <text x="54" y="153" class="t zone">主应用容器（单 Node.js 进程 · pnpm workspace）</text>
+
+  <!-- Server Box -->
+  <g transform="translate(56 164)">
+    <rect width="768" height="100" rx="12" fill="#e1efdb" stroke="#37444a" stroke-width="2"/>
+    <text x="384" y="27" text-anchor="middle" class="t h">Node.js 主服务端（Express · Prisma · LangGraph）</text>
+    <g transform="translate(16 42)">
+      <rect width="194" height="44" rx="8" fill="#faeaba" stroke="#37444a" stroke-width="1.4"/>
+      <text x="97" y="19" text-anchor="middle" class="t" font-size="13" font-weight="700">Agent 运行时与调度</text>
+      <text x="97" y="36" text-anchor="middle" class="m" font-size="10.8">Supervisor + Runtime</text>
+    </g>
+    <g transform="translate(224 42)">
+      <rect width="174" height="44" rx="8" fill="#f9e0d1" stroke="#37444a" stroke-width="1.4"/>
+      <text x="87" y="19" text-anchor="middle" class="t" font-size="13" font-weight="600">进程内 Collector</text>
+      <text x="87" y="36" text-anchor="middle" class="m" font-size="10.8">@coregenie/collector</text>
+    </g>
+    <g transform="translate(412 42)">
+      <rect width="166" height="44" rx="8" fill="#ffffff" stroke="#64748b" stroke-width="1.4"/>
+      <text x="83" y="19" text-anchor="middle" class="t" font-size="13" font-weight="600">对外 Developer API</text>
+      <text x="83" y="36" text-anchor="middle" class="m" font-size="10.8">OpenAI 兼容 · 同步 RAG</text>
+    </g>
+    <g transform="translate(592 42)">
+      <rect width="160" height="44" rx="8" fill="#ffffff" stroke="#64748b" stroke-width="1.4"/>
+      <text x="80" y="19" text-anchor="middle" class="t" font-size="13" font-weight="600">认证 · 配置同步</text>
+      <text x="80" y="36" text-anchor="middle" class="m" font-size="10.8">Local/IDaaS · Sync</text>
+    </g>
+  </g>
+
+  <!-- Arrows from Server to Bottom 3 Pillars -->
+  <path d="M170 264 L170 330" fill="none" stroke="#37444a" stroke-width="2" marker-end="url(#tip)"/>
+  <rect x="108" y="286" width="124" height="21" rx="5" fill="#fdfcf8" stroke="#cbd5e1"/>
+  <text x="170" y="300" text-anchor="middle" class="m" font-size="11">Prisma / FS / API</text>
+
+  <path d="M440 264 L440 330" fill="none" stroke="#37444a" stroke-width="2" marker-end="url(#tip)"/>
+  <rect x="366" y="286" width="148" height="21" rx="5" fill="#fdfcf8" stroke="#cbd5e1"/>
+  <text x="440" y="300" text-anchor="middle" class="m" font-size="11">Unix Socket + Token</text>
+
+  <path d="M724 264 L724 330" fill="none" stroke="#37444a" stroke-width="2" marker-end="url(#tip)"/>
+  <rect x="642" y="286" width="164" height="21" rx="5" fill="#fdfcf8" stroke="#cbd5e1"/>
+  <text x="724" y="300" text-anchor="middle" class="m" font-size="11">HTTPS (服务端代理/CA)</text>
+
+  <!-- Bottom Pillar 1: Storage -->
+  <g transform="translate(36 334)">
+    <rect width="266" height="152" rx="12" fill="#eae4f8" stroke="#37444a" stroke-width="2"/>
+    <text x="133" y="28" text-anchor="middle" class="t h">持久化与检索层</text>
+    <rect x="14" y="42" width="238" height="28" rx="6" fill="#ffffff" stroke="#64748b" stroke-width="1.2"/>
+    <text x="133" y="60" text-anchor="middle" class="t" font-size="12">关系库：PostgreSQL（单 Schema）</text>
+    <rect x="14" y="77" width="238" height="28" rx="6" fill="#ffffff" stroke="#64748b" stroke-width="1.2"/>
+    <text x="133" y="95" text-anchor="middle" class="t" font-size="11.8">LangGraph 检查点（PG Schema）</text>
+    <rect x="14" y="112" width="238" height="28" rx="6" fill="#ffffff" stroke="#64748b" stroke-width="1.2"/>
+    <text x="133" y="130" text-anchor="middle" class="t" font-size="12">STORAGE_DIR + LanceDB/pgvector</text>
+  </g>
+
+  <!-- Bottom Pillar 2: Sandbox -->
+  <g transform="translate(320 334)">
+    <rect width="268" height="152" rx="12" fill="#faeaba" stroke="#37444a" stroke-width="2"/>
+    <text x="134" y="28" text-anchor="middle" class="t h">代码执行沙箱（容器隔离）</text>
+    <rect x="14" y="42" width="240" height="40" rx="7" fill="#ffffff" stroke="#37444a" stroke-width="1.3"/>
+    <text x="134" y="60" text-anchor="middle" class="t" font-size="11.5" font-weight="600">Broker 容器（断网 · 持 Docker Socket）</text>
+    <text x="134" y="75" text-anchor="middle" class="m" font-size="10.5">并发排队 ≤12 · 资源与超时控制</text>
+    <line x1="134" y1="82" x2="134" y2="99" stroke="#37444a" stroke-width="1.8" marker-end="url(#tip)"/>
+    <rect x="14" y="102" width="240" height="38" rx="7" fill="#e1efdb" stroke="#37444a" stroke-width="1.3"/>
+    <text x="134" y="119" text-anchor="middle" class="t" font-size="12.5" font-weight="600">一次性 Runner 容器（用完即毁）</text>
+    <text x="134" y="134" text-anchor="middle" class="m" font-size="10.5">/workspace (rw) · /skills (ro)</text>
+  </g>
+
+  <!-- Bottom Pillar 3: External -->
+  <g transform="translate(606 334)">
+    <rect width="238" height="152" rx="12" fill="#f1f5f9" stroke="#37444a" stroke-width="2"/>
+    <text x="119" y="28" text-anchor="middle" class="t h">外部依赖与数据源</text>
+    <rect x="14" y="42" width="210" height="28" rx="6" fill="#ffffff" stroke="#64748b" stroke-width="1.2"/>
+    <text x="119" y="60" text-anchor="middle" class="t" font-size="12">OpenAI / 兼容网关 LLM 与向量模型</text>
+    <rect x="14" y="77" width="210" height="28" rx="6" fill="#ffffff" stroke="#64748b" stroke-width="1.2"/>
+    <text x="119" y="95" text-anchor="middle" class="t" font-size="12">3GPP 官方站点与会议目录</text>
+    <rect x="14" y="112" width="210" height="28" rx="6" fill="#ffffff" stroke="#64748b" stroke-width="1.2"/>
+    <text x="119" y="130" text-anchor="middle" class="t" font-size="12">华为 IDaaS OAuth · 联网搜索</text>
+  </g>
+</svg>

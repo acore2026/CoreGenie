@@ -70,13 +70,20 @@ RUN sed -i \
       --home-dir /tmp --shell /bin/bash sandbox
 
 # Keep the expensive Python dependency layer independent from application code.
-COPY requirements.txt /opt/anythingllm-sandbox/requirements.txt
-# pip reads these build arguments from its environment during this layer.
+COPY pyproject.toml uv.lock /opt/anythingllm-sandbox/
+# Preserve PIP_INDEX_URL / PIP_TRUSTED_HOST build arguments while installing via uv.
 ARG PIP_INDEX_URL=https://pypi.org/simple
 ARG PIP_TRUSTED_HOST=
-RUN python3 -m pip install --no-cache-dir \
-      --requirement /opt/anythingllm-sandbox/requirements.txt && \
-    rm /opt/anythingllm-sandbox/requirements.txt
+RUN python3 -m pip install --no-cache-dir uv==0.12.7 && \
+    UV_DEFAULT_INDEX="${PIP_INDEX_URL}" \
+    UV_INSECURE_HOST="${PIP_TRUSTED_HOST}" \
+    uv export --frozen --no-dev --no-emit-project \
+      --directory /opt/anythingllm-sandbox \
+      --output-file /tmp/runner-requirements.txt && \
+    UV_DEFAULT_INDEX="${PIP_INDEX_URL}" \
+    UV_INSECURE_HOST="${PIP_TRUSTED_HOST}" \
+    uv pip install --system --no-cache --requirement /tmp/runner-requirements.txt && \
+    rm -f /tmp/runner-requirements.txt /opt/anythingllm-sandbox/pyproject.toml /opt/anythingllm-sandbox/uv.lock
 
 USER sandbox:sandbox
 WORKDIR /workspace

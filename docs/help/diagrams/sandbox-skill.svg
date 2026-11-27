@@ -1,0 +1,109 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 470" role="img" aria-labelledby="title">
+  <title id="title">配置体系、Skill 三阶段加载与代码执行沙箱隔离</title>
+  <defs>
+    <pattern id="dots" width="16" height="16" patternUnits="userSpaceOnUse">
+      <circle cx="3" cy="4" r=".85" fill="#d7d0bd"/>
+    </pattern>
+    <marker id="tip" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="6.5" markerHeight="6.5" orient="auto">
+      <path d="m2 1 8 5-8 5" fill="none" stroke="#37444a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <style>
+      .t { font-family: "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", "WenQuanYi Zen Hei", sans-serif; fill: #1e293b; }
+      .m { font-family: "JetBrains Mono", "SFMono-Regular", Menlo, Consolas, monospace; fill: #334155; }
+      .h { font-size: 15px; font-weight: 700; }
+      .s { font-size: 12px; fill: #475569; }
+      .zone { font-size: 11.5px; font-weight: 700; fill: #64748b; }
+    </style>
+  </defs>
+
+  <rect width="100%" height="100%" rx="16" fill="#fdfcf8"/>
+  <rect width="100%" height="100%" rx="16" fill="url(#dots)"/>
+
+  <!-- Left Zone: Config & Skill -->
+  <rect x="24" y="20" width="388" height="430" rx="14" fill="#ffffff" fill-opacity="0.65" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="6 5"/>
+  <text x="42" y="42" class="t zone">配置单一来源与 Skill 三阶段加载</text>
+
+  <!-- agent-config -->
+  <g transform="translate(42 56)">
+    <rect width="352" height="76" rx="11" fill="#dbeefa" stroke="#37444a" stroke-width="2"/>
+    <text x="176" y="26" text-anchor="middle" class="m h">agent-config/（仓库唯一源）</text>
+    <text x="176" y="47" text-anchor="middle" class="t s">global-prompt.md · agents/*.yaml · quick-tasks/*.yaml</text>
+    <text x="176" y="65" text-anchor="middle" class="t s">skills/*/SKILL.md + references/ + scripts/</text>
+  </g>
+
+  <line x1="218" y1="132" x2="218" y2="168" stroke="#37444a" stroke-width="2" marker-end="url(#tip)"/>
+  <rect x="86" y="139" width="264" height="21" rx="5" fill="#fdfcf8" stroke="#cbd5e1"/>
+  <text x="218" y="153" text-anchor="middle" class="m" font-size="11">seed.js（种子）或 config-sync（2s 同步）</text>
+
+  <!-- Skill 3 scopes -->
+  <g transform="translate(42 172)">
+    <rect width="352" height="90" rx="11" fill="#eae4f8" stroke="#37444a" stroke-width="2"/>
+    <text x="176" y="25" text-anchor="middle" class="t h">Skill 三级候选目录（registry.js）</text>
+    <rect x="12" y="38" width="104" height="40" rx="7" fill="#ffffff" stroke="#64748b" stroke-width="1.2"/>
+    <text x="64" y="55" text-anchor="middle" class="m" font-size="11.5" font-weight="700">global</text>
+    <text x="64" y="71" text-anchor="middle" class="t" font-size="11" fill="#475569">锁定修订号</text>
+
+    <rect x="124" y="38" width="104" height="40" rx="7" fill="#ffffff" stroke="#64748b" stroke-width="1.2"/>
+    <text x="176" y="55" text-anchor="middle" class="m" font-size="11.5" font-weight="700">workspace</text>
+    <text x="176" y="71" text-anchor="middle" class="t" font-size="11" fill="#475569">重名不覆盖</text>
+
+    <rect x="236" y="38" width="104" height="40" rx="7" fill="#ffffff" stroke="#64748b" stroke-width="1.2"/>
+    <text x="288" y="55" text-anchor="middle" class="m" font-size="11.5" font-weight="700">personal</text>
+    <text x="288" y="71" text-anchor="middle" class="t" font-size="11" fill="#475569">个人订阅</text>
+  </g>
+
+  <line x1="218" y1="262" x2="218" y2="294" stroke="#37444a" stroke-width="2" marker-end="url(#tip)"/>
+
+  <!-- 3 stages -->
+  <g transform="translate(42 298)">
+    <rect width="352" height="134" rx="11" fill="#e1efdb" stroke="#37444a" stroke-width="2"/>
+    <text x="176" y="25" text-anchor="middle" class="t h">Skill 生效三阶段 &amp; Tool 层</text>
+    <text x="18" y="49" class="t s"><tspan font-weight="700" fill="#1e293b">1. 绑定</tspan>：规划时仅暴露名称与简介，省上下文</text>
+    <text x="18" y="72" class="t s"><tspan font-weight="700" fill="#1e293b">2. 激活</tspan>：activate_skill 加载完整 SKILL.md（不跑脚本）</text>
+    <text x="18" y="95" class="t s"><tspan font-weight="700" fill="#1e293b">3. 执行</tspan>：经 defineTool 统一校验幂等/重试/审计</text>
+    <text x="18" y="118" class="m" font-size="11">bash / python / 3gpp.convert-markdown ──►</text>
+  </g>
+
+  <!-- Right Zone: Sandbox Isolation -->
+  <rect x="462" y="20" width="394" height="430" rx="14" fill="#ffffff" fill-opacity="0.65" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="6 5"/>
+  <text x="480" y="42" class="t zone">代码执行沙箱（三层权限隔离）</text>
+
+  <!-- Server side client -->
+  <g transform="translate(480 58)">
+    <rect width="358" height="72" rx="11" fill="#dbeefa" stroke="#37444a" stroke-width="2"/>
+    <text x="179" y="27" text-anchor="middle" class="t h">主服务端沙箱客户端</text>
+    <text x="179" y="47" text-anchor="middle" class="t s">不挂载 Docker Socket · 仅见共享卷中的 Socket/Token</text>
+    <text x="179" y="63" text-anchor="middle" class="m" font-size="11">agent_tool_executions 记录全量调用与耗时</text>
+  </g>
+
+  <line x1="659" y1="130" x2="659" y2="174" stroke="#37444a" stroke-width="2" marker-end="url(#tip)"/>
+  <rect x="577" y="140" width="164" height="22" rx="5" fill="#fdfcf8" stroke="#cbd5e1"/>
+  <text x="659" y="155" text-anchor="middle" class="m" font-size="11">Unix Socket + Token</text>
+
+  <!-- Broker -->
+  <g transform="translate(480 178)">
+    <rect width="358" height="86" rx="11" fill="#faeaba" stroke="#37444a" stroke-width="2"/>
+    <text x="179" y="26" text-anchor="middle" class="t h">Broker 容器（sandbox/broker.py）</text>
+    <text x="179" y="47" text-anchor="middle" class="t s">无外网权限 · 唯一持有宿主机 Docker Socket</text>
+    <text x="179" y="67" text-anchor="middle" class="m" font-size="11">默认并发 ≤12 · 队列等 120s · 超时强制清理</text>
+  </g>
+
+  <line x1="659" y1="264" x2="659" y2="304" stroke="#37444a" stroke-width="2" marker-end="url(#tip)"/>
+  <rect x="582" y="272" width="154" height="22" rx="5" fill="#fdfcf8" stroke="#cbd5e1"/>
+  <text x="659" y="287" text-anchor="middle" class="m" font-size="11">Docker API 每次新建</text>
+
+  <!-- Ephemeral Runner -->
+  <g transform="translate(480 308)">
+    <rect width="358" height="124" rx="11" fill="#f9e0d1" stroke="#37444a" stroke-width="2"/>
+    <text x="179" y="26" text-anchor="middle" class="t h">一次性 Runner 容器（执行完即销毁）</text>
+    <text x="179" y="47" text-anchor="middle" class="t s">只读根文件系统 · 无 Capabilities · 非特权用户</text>
+    <text x="179" y="66" text-anchor="middle" class="m" font-size="11">4GiB / 2CPU / 512 PIDs / 输出截断 1MiB</text>
+    <rect x="14" y="79" width="158" height="32" rx="6" fill="#ffffff" stroke="#64748b" stroke-width="1.2"/>
+    <text x="93" y="99" text-anchor="middle" class="m" font-size="11">/workspace (rw)</text>
+    <rect x="186" y="79" width="158" height="32" rx="6" fill="#ffffff" stroke="#64748b" stroke-width="1.2"/>
+    <text x="265" y="99" text-anchor="middle" class="m" font-size="11">/skills/&lt;name&gt; (ro)</text>
+  </g>
+
+  <!-- Bridge Arrow Left -> Right (drawn on top of both zones) -->
+  <path d="M394 405 L438 405 L438 94 L476 94" fill="none" stroke="#37444a" stroke-width="2" marker-end="url(#tip)"/>
+</svg>

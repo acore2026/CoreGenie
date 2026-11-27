@@ -1,0 +1,120 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 490" role="img" aria-labelledby="title">
+  <title id="title">CoreGenie 完整生产部署容器拓扑与双出网通道</title>
+  <defs>
+    <pattern id="dots" width="16" height="16" patternUnits="userSpaceOnUse">
+      <circle cx="3" cy="4" r=".85" fill="#d7d0bd"/>
+    </pattern>
+    <marker id="tip" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="6.5" markerHeight="6.5" orient="auto">
+      <path d="m2 1 8 5-8 5" fill="none" stroke="#37444a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <style>
+      .t { font-family: "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", "WenQuanYi Zen Hei", sans-serif; fill: #1e293b; }
+      .m { font-family: "JetBrains Mono", "SFMono-Regular", Menlo, Consolas, monospace; fill: #334155; }
+      .h { font-size: 14.5px; font-weight: 700; }
+      .s { font-size: 11.8px; fill: #475569; }
+      .zone { font-size: 11.5px; font-weight: 700; fill: #64748b; }
+    </style>
+  </defs>
+
+  <rect width="100%" height="100%" rx="16" fill="#fdfcf8"/>
+  <rect width="100%" height="100%" rx="16" fill="url(#dots)"/>
+
+  <!-- Top: User Access -->
+  <g transform="translate(120 18)">
+    <rect width="440" height="54" rx="11" fill="#dbeefa" stroke="#37444a" stroke-width="2"/>
+    <text x="220" y="24" text-anchor="middle" class="t h">用户浏览器访问</text>
+    <text x="220" y="43" text-anchor="middle" class="t s">认证隔离：Local JWT 或 华为 IDaaS OAuth（403 拦截本地登录）</text>
+  </g>
+
+  <line x1="340" y1="72" x2="340" y2="108" stroke="#37444a" stroke-width="2" marker-end="url(#tip)"/>
+
+  <!-- Docker Host Boundary -->
+  <rect x="24" y="112" width="588" height="358" rx="14" fill="#ffffff" fill-opacity="0.65" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="6 5"/>
+  <text x="42" y="134" class="t zone">Docker 宿主机（bridge 网络 + 持久化卷）</text>
+
+  <!-- Main App Container -->
+  <g transform="translate(42 146)">
+    <rect width="330" height="102" rx="11" fill="#e1efdb" stroke="#37444a" stroke-width="2"/>
+    <text x="165" y="25" text-anchor="middle" class="t h">主应用容器（UID 1000 · 单进程）</text>
+    <text x="165" y="45" text-anchor="middle" class="t s">Node.js Server (:3001) + 前端静态资源</text>
+    <text x="165" y="64" text-anchor="middle" class="t s">内置 @coregenie/collector 文档解析模块</text>
+    <text x="165" y="86" text-anchor="middle" class="m" font-size="10.5">只读挂载 IDaaS 密钥 · 无 Docker Socket</text>
+  </g>
+
+  <!-- PostgreSQL Container -->
+  <g transform="translate(396 146)">
+    <rect width="198" height="62" rx="11" fill="#eae4f8" stroke="#37444a" stroke-width="2"/>
+    <text x="99" y="26" text-anchor="middle" class="t h">PostgreSQL 容器</text>
+    <text x="99" y="46" text-anchor="middle" class="t s">业务表 + langgraph Schema</text>
+  </g>
+  <line x1="372" y1="178" x2="392" y2="178" stroke="#37444a" stroke-width="2" marker-end="url(#tip)"/>
+
+  <!-- STORAGE_DIR Volume -->
+  <g transform="translate(396 222)">
+    <rect width="198" height="62" rx="11" fill="#f1f5f9" stroke="#37444a" stroke-width="1.8"/>
+    <text x="99" y="26" text-anchor="middle" class="m h">STORAGE_DIR 卷</text>
+    <text x="99" y="46" text-anchor="middle" class="t s">工作区 · Skill · Broker Socket</text>
+  </g>
+  <path d="M372 232 L392 248" fill="none" stroke="#37444a" stroke-width="1.8" marker-end="url(#tip)"/>
+
+  <!-- Server -> Broker via Unix Socket -->
+  <line x1="154" y1="248" x2="154" y2="300" stroke="#37444a" stroke-width="2" marker-end="url(#tip)"/>
+  <rect x="82" y="263" width="144" height="21" rx="5" fill="#fdfcf8" stroke="#cbd5e1"/>
+  <text x="154" y="277" text-anchor="middle" class="m" font-size="10.8">Unix Socket + Token</text>
+
+  <!-- Broker Container -->
+  <g transform="translate(42 304)">
+    <rect width="234" height="84" rx="11" fill="#faeaba" stroke="#37444a" stroke-width="2"/>
+    <text x="117" y="26" text-anchor="middle" class="t h">Broker 容器</text>
+    <text x="117" y="46" text-anchor="middle" class="t s">断网运行 · 持宿主机 docker.sock</text>
+    <text x="117" y="67" text-anchor="middle" class="m" font-size="10.5">--ca-bundle + --docker-ca-bundle</text>
+  </g>
+
+  <!-- Broker -> Runner -->
+  <line x1="276" y1="346" x2="318" y2="346" stroke="#37444a" stroke-width="2" marker-end="url(#tip)"/>
+
+  <!-- Ephemeral Runner -->
+  <g transform="translate(322 304)">
+    <rect width="272" height="84" rx="11" fill="#f9e0d1" stroke="#37444a" stroke-width="2"/>
+    <text x="136" y="26" text-anchor="middle" class="t h">一次性 Runner 容器（≤12 并发）</text>
+    <text x="136" y="46" text-anchor="middle" class="t s">挂载 /workspace(rw) + 企业 CA(ro)</text>
+    <text x="136" y="67" text-anchor="middle" class="m" font-size="10.5">SANDBOX_NETWORK=none 可彻底断网</text>
+  </g>
+
+  <!-- Image Guard -->
+  <g transform="translate(42 404)">
+    <rect width="552" height="48" rx="9" fill="#ffffff" stroke="#94a3b8" stroke-width="1.4"/>
+    <text x="276" y="21" text-anchor="middle" class="t" font-size="12.5" font-weight="700">Image Guard 容器（无网络 · 无挂载 · 仅休眠） + 防中断更新脚本</text>
+    <text x="276" y="39" text-anchor="middle" class="t s">防止 docker prune 清理 Runner 镜像 · 更新时默认拒绝打断活动 Agent 任务，健康检查失败回退旧容器</text>
+  </g>
+
+  <!-- Right External Zone: Dual Egress -->
+  <rect x="634" y="112" width="222" height="358" rx="14" fill="#ffffff" fill-opacity="0.72" stroke="#37444a" stroke-width="1.6" stroke-dasharray="6 5"/>
+  <text x="652" y="134" class="t zone">两条独立出网通道</text>
+
+  <!-- Egress Channel A -->
+  <g transform="translate(650 154)">
+    <rect width="190" height="122" rx="11" fill="#dbeefa" stroke="#37444a" stroke-width="1.8"/>
+    <text x="95" y="25" text-anchor="middle" class="t h">通道 A：服务端出网</text>
+    <text x="95" y="46" text-anchor="middle" class="m" font-size="10.5">HTTP(S)_PROXY</text>
+    <text x="95" y="63" text-anchor="middle" class="m" font-size="10.5">NODE_USE_ENV_PROXY=1</text>
+    <text x="95" y="80" text-anchor="middle" class="m" font-size="10.5">NODE_EXTRA_CA_CERTS</text>
+    <text x="95" y="106" text-anchor="middle" class="t s">LLM · IDaaS · 3GPP 目录</text>
+  </g>
+
+  <!-- Arrow App -> Channel A -->
+  <path d="M372 158 L384 158 L384 138 L618 138 L618 214 L646 214" fill="none" stroke="#37444a" stroke-width="1.8" marker-end="url(#tip)"/>
+
+  <!-- Egress Channel B -->
+  <g transform="translate(650 304)">
+    <rect width="190" height="122" rx="11" fill="#f9e0d1" stroke="#37444a" stroke-width="1.8"/>
+    <text x="95" y="25" text-anchor="middle" class="t h">通道 B：沙箱出网</text>
+    <text x="95" y="46" text-anchor="middle" class="m" font-size="10.5">SANDBOX_PROXY</text>
+    <text x="95" y="63" text-anchor="middle" class="m" font-size="10.5">--no-proxy</text>
+    <text x="95" y="80" text-anchor="middle" class="m" font-size="10.5">Runner 绑定挂载 CA</text>
+    <text x="95" y="106" text-anchor="middle" class="t s">TDoc 下载 · pip · 抓取</text>
+  </g>
+
+  <!-- Arrow Runner -> Channel B -->
+  <line x1="594" y1="346" x2="646" y2="346" stroke="#37444a" stroke-width="1.8" marker-end="url(#tip)"/>
+</svg>

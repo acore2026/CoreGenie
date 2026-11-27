@@ -1,18 +1,125 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 530" role="img" aria-labelledby="title"><title id="title">分步运行时从请求到结果的主要分支</title>
-<defs><pattern id="dots" width="16" height="16" patternUnits="userSpaceOnUse"><circle cx="3" cy="4" r=".85" fill="#d7d0bd"/></pattern><marker id="tip" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="6" markerHeight="6" orient="auto"><path d="m2 1 8 5-8 5" fill="none" stroke="#37444a" stroke-width="2"/></marker></defs><rect width="100%" height="100%" rx="15" fill="#fffcf4"/><rect width="100%" height="100%" fill="url(#dots)"/><g stroke-linejoin="round" stroke-linecap="round" font-family="KaiTi, Kaiti SC, WenQuanYi Zen Hei, sans-serif" fill="#24353b">
-<g transform="translate(236 18)"><path d="M8 2 Q124 -1 241 1 Q249 0 248 9 L247 59 Q248 67 240 66 L8 65 Q0 66 1 58 L0 9 Q0 2 8 2Z" fill="#dbeefa" stroke="#37444a" stroke-width="2"/><path d="M6 6 Q82 2 165 4" fill="none" stroke="#68777a" opacity=".4"/><text x="124" y="30" text-anchor="middle" font-size="21">准备上下文</text><text x="124" y="54" text-anchor="middle" font-size="15">请求、附件与运行配置</text></g>
-<path d="M360 85 Q359 104 360 118" fill="none" stroke="#37444a" stroke-width="2" marker-end="url(#tip)"/>
-<g transform="translate(236 121)"><path d="M8 2 Q124 -1 241 1 Q249 0 248 9 L247 59 Q248 67 240 66 L8 65 Q0 66 1 58 L0 9 Q0 2 8 2Z" fill="#faeaba" stroke="#37444a" stroke-width="2"/><path d="M6 6 Q82 2 165 4" fill="none" stroke="#68777a" opacity=".4"/><text x="124" y="30" text-anchor="middle" font-size="21">控制器</text><text x="124" y="54" text-anchor="middle" font-size="15">判断接下来做什么</text></g>
-<path d="M360 190 Q362 208 124 212 L124 237" fill="none" stroke="#37444a" stroke-width="2" marker-end="url(#tip)"/>
-<g transform="translate(19 240)"><path d="M8 2 Q105 -1 203 1 Q211 0 210 9 L209 59 Q210 67 202 66 L8 65 Q0 66 1 58 L0 9 Q0 2 8 2Z" fill="#e1efdb" stroke="#37444a" stroke-width="2"/><path d="M6 6 Q70 2 140 4" fill="none" stroke="#68777a" opacity=".4"/><text x="105" y="30" text-anchor="middle" font-size="21">直接完成</text><text x="105" y="54" text-anchor="middle" font-size="15">回答或执行固定转换</text></g>
-<path d="M360 190 Q362 208 360 212 L360 237" fill="none" stroke="#37444a" stroke-width="2" marker-end="url(#tip)"/>
-<g transform="translate(255 240)"><path d="M8 2 Q105 -1 203 1 Q211 0 210 9 L209 59 Q210 67 202 66 L8 65 Q0 66 1 58 L0 9 Q0 2 8 2Z" fill="#faeaba" stroke="#37444a" stroke-width="2"/><path d="M6 6 Q70 2 140 4" fill="none" stroke="#68777a" opacity=".4"/><text x="105" y="30" text-anchor="middle" font-size="21">制定计划</text><text x="105" y="54" text-anchor="middle" font-size="15">列出任务与依赖</text></g>
-<path d="M360 190 Q362 208 596 212 L596 237" fill="none" stroke="#37444a" stroke-width="2" marker-end="url(#tip)"/>
-<g transform="translate(491 240)"><path d="M8 2 Q105 -1 203 1 Q211 0 210 9 L209 59 Q210 67 202 66 L8 65 Q0 66 1 58 L0 9 Q0 2 8 2Z" fill="#f9e0d1" stroke="#37444a" stroke-width="2"/><path d="M6 6 Q70 2 140 4" fill="none" stroke="#68777a" opacity=".4"/><text x="105" y="30" text-anchor="middle" font-size="21">需要补充输入</text><text x="105" y="54" text-anchor="middle" font-size="15">收到回答后回到控制器</text></g>
-<path d="M360 308 L360 343" fill="none" stroke="#37444a" stroke-width="2" marker-end="url(#tip)"/>
-<g transform="translate(235 347)"><path d="M8 2 Q125 -1 243 1 Q251 0 250 9 L249 59 Q250 67 242 66 L8 65 Q0 66 1 58 L0 9 Q0 2 8 2Z" fill="#e1efdb" stroke="#37444a" stroke-width="2"/><path d="M6 6 Q83 2 166 4" fill="none" stroke="#68777a" opacity=".4"/><text x="125" y="30" text-anchor="middle" font-size="21">调度与执行</text><text x="125" y="54" text-anchor="middle" font-size="15">运行就绪任务，收集结果</text></g>
-<path d="M360 415 L360 446" fill="none" stroke="#37444a" stroke-width="2" marker-end="url(#tip)"/>
-<g transform="translate(235 450)"><path d="M8 2 Q125 -1 243 1 Q251 0 250 9 L249 59 Q250 67 242 66 L8 65 Q0 66 1 58 L0 9 Q0 2 8 2Z" fill="#dbeefa" stroke="#37444a" stroke-width="2"/><path d="M6 6 Q83 2 166 4" fill="none" stroke="#68777a" opacity=".4"/><text x="125" y="30" text-anchor="middle" font-size="21">检查并汇总</text><text x="125" y="54" text-anchor="middle" font-size="15">接受、补做或说明缺口</text></g>
-<path d="M486 483 Q530 484 532 452 L532 390 Q530 380 488 380" fill="none" stroke="#37444a" stroke-width="2" marker-end="url(#tip)"/>
-<text x="599" y="444" text-anchor="middle" font-size="15">有可补做的任务</text>
-</g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 560" role="img" aria-labelledby="title">
+  <title id="title">governed-agent LangGraph 状态机与恢复机制</title>
+  <defs>
+    <pattern id="dots" width="16" height="16" patternUnits="userSpaceOnUse">
+      <circle cx="3" cy="4" r=".85" fill="#d7d0bd"/>
+    </pattern>
+    <marker id="tip" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="6.5" markerHeight="6.5" orient="auto">
+      <path d="m2 1 8 5-8 5" fill="none" stroke="#37444a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <style>
+      .t { font-family: "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", "WenQuanYi Zen Hei", sans-serif; fill: #1e293b; }
+      .m { font-family: "JetBrains Mono", "SFMono-Regular", Menlo, Consolas, monospace; fill: #334155; }
+      .h { font-size: 15px; font-weight: 700; }
+      .s { font-size: 12px; fill: #475569; }
+      .lbl { font-size: 11.5px; fill: #475569; font-weight: 600; }
+    </style>
+  </defs>
+
+  <rect width="100%" height="100%" rx="16" fill="#fdfcf8"/>
+  <rect width="100%" height="100%" rx="16" fill="url(#dots)"/>
+
+  <!-- Node 1: prepare_context -->
+  <g transform="translate(275 20)">
+    <rect width="290" height="58" rx="11" fill="#dbeefa" stroke="#37444a" stroke-width="2"/>
+    <text x="145" y="25" text-anchor="middle" class="m h">prepare_context</text>
+    <text x="145" y="45" text-anchor="middle" class="t s">装载运行快照、历史、附件与 Skill 目录</text>
+  </g>
+
+  <line x1="420" y1="78" x2="420" y2="108" stroke="#37444a" stroke-width="2" marker-end="url(#tip)"/>
+
+  <!-- Node 2: controller -->
+  <g transform="translate(275 112)">
+    <rect width="290" height="58" rx="11" fill="#faeaba" stroke="#37444a" stroke-width="2"/>
+    <text x="145" y="25" text-anchor="middle" class="m h">controller（routeControl）</text>
+    <text x="145" y="45" text-anchor="middle" class="t s">判断：直接完成 / 固定流程 / 拆计划 / 问用户</text>
+  </g>
+
+  <!-- 3 branches from controller -->
+  <path d="M320 170 L320 192 L135 192 L135 220" fill="none" stroke="#37444a" stroke-width="2" marker-end="url(#tip)"/>
+  <line x1="420" y1="170" x2="420" y2="220" stroke="#37444a" stroke-width="2" marker-end="url(#tip)"/>
+  <path d="M520 170 L520 192 L695 192 L695 220" fill="none" stroke="#37444a" stroke-width="2" marker-end="url(#tip)"/>
+
+  <!-- Branch Left: Direct / Fixed -->
+  <g transform="translate(26 224)">
+    <rect width="218" height="66" rx="11" fill="#e1efdb" stroke="#37444a" stroke-width="2"/>
+    <text x="109" y="27" text-anchor="middle" class="t h">直接回答 / 固定转换</text>
+    <text x="109" y="48" text-anchor="middle" class="t s">如 3gpp-markdown-conversion</text>
+  </g>
+  <path d="M135 290 L135 508 L296 508" fill="none" stroke="#37444a" stroke-width="1.8" stroke-dasharray="5 4" marker-end="url(#tip)"/>
+  <text x="82" y="404" text-anchor="middle" class="t lbl">跳过规划</text>
+
+  <!-- Branch Center: schedule -->
+  <g transform="translate(290 224)">
+    <rect width="260" height="66" rx="11" fill="#faeaba" stroke="#37444a" stroke-width="2"/>
+    <text x="130" y="27" text-anchor="middle" class="m h">schedule（dispatch）</text>
+    <text x="130" y="48" text-anchor="middle" class="t s">检查任务依赖，按并发上限派发就绪任务</text>
+  </g>
+
+  <!-- Branch Right: request_input -->
+  <g transform="translate(586 224)">
+    <rect width="224" height="66" rx="11" fill="#f9e0d1" stroke="#37444a" stroke-width="2"/>
+    <text x="112" y="27" text-anchor="middle" class="m h">request_input</text>
+    <text x="112" y="48" text-anchor="middle" class="t s">挂起 waiting_for_input</text>
+  </g>
+  <!-- Loop request_input -> controller -->
+  <path d="M770 224 L770 141 L570 141" fill="none" stroke="#37444a" stroke-width="1.8" marker-end="url(#tip)"/>
+  <rect x="612" y="128" width="144" height="22" rx="5" fill="#fdfcf8" stroke="#cbd5e1"/>
+  <text x="684" y="143" text-anchor="middle" class="t lbl">commands 恢复执行</text>
+
+  <!-- schedule <-> worker loop -->
+  <path d="M370 290 L370 326" fill="none" stroke="#37444a" stroke-width="2" marker-end="url(#tip)"/>
+  <text x="330" y="313" text-anchor="middle" class="t lbl">派发任务</text>
+
+  <g transform="translate(290 330)">
+    <rect width="260" height="60" rx="11" fill="#e1efdb" stroke="#37444a" stroke-width="2"/>
+    <text x="130" y="25" text-anchor="middle" class="m h">worker</text>
+    <text x="130" y="45" text-anchor="middle" class="t s">激活 Skill · 调用工具/沙箱 · 产出摘要</text>
+  </g>
+
+  <path d="M470 330 L470 295" fill="none" stroke="#37444a" stroke-width="2" marker-end="url(#tip)"/>
+  <text x="512" y="313" text-anchor="middle" class="t lbl">返回结果</text>
+
+  <!-- schedule -> review_results (routed cleanly via left side of worker) -->
+  <path d="M290 257 L264 257 L264 434 L290 434" fill="none" stroke="#37444a" stroke-width="2" marker-end="url(#tip)"/>
+  <text x="220" y="352" text-anchor="middle" class="t lbl">全部就绪</text>
+  <text x="220" y="368" text-anchor="middle" class="t lbl">任务结束</text>
+
+  <!-- review_results -->
+  <g transform="translate(290 406)">
+    <rect width="260" height="58" rx="11" fill="#dbeefa" stroke="#37444a" stroke-width="2"/>
+    <text x="130" y="25" text-anchor="middle" class="m" font-size="13.5" font-weight="700">review_results (afterReview)</text>
+    <text x="130" y="45" text-anchor="middle" class="t s">复查完整性：接受结果或指出缺口</text>
+  </g>
+
+  <!-- apply_revision loop -->
+  <path d="M550 435 L584 435" fill="none" stroke="#37444a" stroke-width="2" marker-end="url(#tip)"/>
+  <g transform="translate(588 406)">
+    <rect width="222" height="58" rx="11" fill="#faeaba" stroke="#37444a" stroke-width="2"/>
+    <text x="111" y="25" text-anchor="middle" class="m h">apply_revision</text>
+    <text x="111" y="45" text-anchor="middle" class="t s">生成补做任务（受轮数限制）</text>
+  </g>
+  <path d="M699 406 L699 354 L568 354 L568 257 L555 257" fill="none" stroke="#37444a" stroke-width="1.8" marker-end="url(#tip)"/>
+  <text x="646" y="346" text-anchor="middle" class="t lbl">有可补做缺口</text>
+
+  <!-- review_results -> synthesize -->
+  <line x1="420" y1="464" x2="420" y2="486" stroke="#37444a" stroke-width="2" marker-end="url(#tip)"/>
+
+  <!-- synthesize -->
+  <g transform="translate(300 490)">
+    <rect width="240" height="50" rx="11" fill="#eae4f8" stroke="#37444a" stroke-width="2"/>
+    <text x="120" y="22" text-anchor="middle" class="m h">synthesize → END</text>
+    <text x="120" y="40" text-anchor="middle" class="t s">汇总答复 · 产物登记 · 写入聊天记录</text>
+  </g>
+
+  <!-- Side info card: Checkpointer & SSE -->
+  <g transform="translate(26 20)">
+    <rect width="218" height="148" rx="11" fill="#ffffff" fill-opacity="0.85" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="5 4"/>
+    <text x="109" y="24" text-anchor="middle" class="t" font-size="13" font-weight="700" fill="#334155">持久化与可观测保障</text>
+    <text x="16" y="49" class="t s">• 每步状态写入 Checkpointer</text>
+    <text x="16" y="71" class="t s">• Supervisor 5 分钟租约 +</text>
+    <text x="26" y="88" class="t s">10 秒心跳防重复领取</text>
+    <text x="16" y="110" class="t s">• 事件落库并经 SSE 推送，</text>
+    <text x="26" y="127" class="t s">支持 Last-Event-ID 补发</text>
+  </g>
+</svg>

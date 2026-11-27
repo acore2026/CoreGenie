@@ -1,0 +1,107 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 470" role="img" aria-labelledby="title">
+  <title id="title">文档处理三条路径与四层持久化存储</title>
+  <defs>
+    <pattern id="dots" width="16" height="16" patternUnits="userSpaceOnUse">
+      <circle cx="3" cy="4" r=".85" fill="#d7d0bd"/>
+    </pattern>
+    <marker id="tip" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="6.5" markerHeight="6.5" orient="auto">
+      <path d="m2 1 8 5-8 5" fill="none" stroke="#37444a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <style>
+      .t { font-family: "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", "WenQuanYi Zen Hei", sans-serif; fill: #1e293b; }
+      .m { font-family: "JetBrains Mono", "SFMono-Regular", Menlo, Consolas, monospace; fill: #334155; }
+      .h { font-size: 15px; font-weight: 700; }
+      .s { font-size: 12px; fill: #475569; }
+      .zone { font-size: 11.5px; font-weight: 700; fill: #64748b; }
+    </style>
+  </defs>
+
+  <rect width="100%" height="100%" rx="16" fill="#fdfcf8"/>
+  <rect width="100%" height="100%" rx="16" fill="url(#dots)"/>
+
+  <!-- Top Input -->
+  <g transform="translate(190 18)">
+    <rect width="500" height="50" rx="11" fill="#dbeefa" stroke="#37444a" stroke-width="2"/>
+    <text x="250" y="30" text-anchor="middle" class="t h">用户输入：上传文件（DOCX/PDF/Excel）· TDoc 编号 · 链接</text>
+  </g>
+
+  <!-- 3 diverging arrows -->
+  <path d="M330 68 L330 88 L152 88 L152 110" fill="none" stroke="#37444a" stroke-width="2" marker-end="url(#tip)"/>
+  <line x1="440" y1="68" x2="440" y2="110" stroke="#37444a" stroke-width="2" marker-end="url(#tip)"/>
+  <path d="M550 68 L550 88 L728 88 L728 110" fill="none" stroke="#37444a" stroke-width="2" marker-end="url(#tip)"/>
+
+  <!-- Lane 1: Browser Local Tools -->
+  <g transform="translate(26 114)">
+    <rect width="252" height="184" rx="12" fill="#ffffff" fill-opacity="0.82" stroke="#37444a" stroke-width="1.8"/>
+    <rect width="252" height="36" rx="11" fill="#e1efdb" stroke="#37444a" stroke-width="1.8"/>
+    <text x="126" y="23" text-anchor="middle" class="t h">① 浏览器本地工具</text>
+    <text x="126" y="60" text-anchor="middle" class="t" font-size="13" font-weight="600">提案编号回填 · 协议本地检索</text>
+    <text x="126" y="84" text-anchor="middle" class="t s">Word / Excel 在浏览器内存改写</text>
+    <text x="126" y="106" text-anchor="middle" class="t s">文档正文不上传服务端</text>
+    <rect x="16" y="124" width="220" height="44" rx="8" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.2"/>
+    <text x="126" y="143" text-anchor="middle" class="t s">直接导出本地文件副本</text>
+    <text x="126" y="160" text-anchor="middle" class="m" font-size="10.5">（仅代拉 3GPP 官网清单经服务端）</text>
+  </g>
+
+  <!-- Lane 2: Collector -->
+  <g transform="translate(314 114)">
+    <rect width="252" height="184" rx="12" fill="#ffffff" fill-opacity="0.82" stroke="#37444a" stroke-width="1.8"/>
+    <rect width="252" height="36" rx="11" fill="#f9e0d1" stroke="#37444a" stroke-width="1.8"/>
+    <text x="126" y="23" text-anchor="middle" class="t" font-size="13.5" font-weight="700">② 通用解析（@coregenie/collector）</text>
+    <text x="126" y="60" text-anchor="middle" class="m" font-size="12">进程内直接调用 · parsed</text>
+    <text x="126" y="84" text-anchor="middle" class="t s">文本抽取 · 文档分块 · 向量化</text>
+    <text x="126" y="106" text-anchor="middle" class="t s">面向知识库 RAG 检索与普通附件</text>
+    <rect x="16" y="124" width="220" height="44" rx="8" fill="#fff7ed" stroke="#fdba74" stroke-width="1.2"/>
+    <text x="126" y="143" text-anchor="middle" class="t s">追求可检索纯文本</text>
+    <text x="126" y="160" text-anchor="middle" class="t s">不保留 Word 修订/嵌入对象</text>
+  </g>
+
+  <!-- Lane 3: Workspace File + Sandbox -->
+  <g transform="translate(602 114)">
+    <rect width="252" height="184" rx="12" fill="#ffffff" fill-opacity="0.82" stroke="#37444a" stroke-width="1.8"/>
+    <rect width="252" height="36" rx="11" fill="#faeaba" stroke="#37444a" stroke-width="1.8"/>
+    <text x="126" y="23" text-anchor="middle" class="t h">③ 工作区原文件 + 沙箱脚本</text>
+    <text x="126" y="60" text-anchor="middle" class="m" font-size="12">attachmentMode: workspace_file</text>
+    <text x="126" y="84" text-anchor="middle" class="t s">保留完整原文件（或拉取官方 TDoc）</text>
+    <text x="126" y="106" text-anchor="middle" class="t s">Runner 跑 Skill 脚本保留原图/修订</text>
+    <rect x="16" y="124" width="220" height="44" rx="8" fill="#ecfdf5" stroke="#6ee7b7" stroke-width="1.2"/>
+    <text x="126" y="143" text-anchor="middle" class="t" font-size="12" font-weight="700">artifactRegistration 自动登记</text>
+    <text x="126" y="160" text-anchor="middle" class="t s">过滤内部目录 · 对话提供下载卡片</text>
+  </g>
+
+  <!-- Arrows down to Storage Layer -->
+  <line x1="440" y1="298" x2="440" y2="334" stroke="#37444a" stroke-width="2" marker-end="url(#tip)"/>
+  <line x1="728" y1="298" x2="728" y2="334" stroke="#37444a" stroke-width="2" marker-end="url(#tip)"/>
+
+  <!-- Bottom: 4-layer Storage -->
+  <rect x="26" y="338" width="828" height="114" rx="14" fill="#eae4f8" fill-opacity="0.7" stroke="#37444a" stroke-width="2"/>
+  <text x="44" y="361" class="t zone">四层持久化存储（迁移与备份各自独立）</text>
+
+  <g transform="translate(42 372)">
+    <rect width="190" height="66" rx="9" fill="#ffffff" stroke="#37444a" stroke-width="1.4"/>
+    <text x="95" y="23" text-anchor="middle" class="t" font-size="13" font-weight="700">关系库（Prisma）</text>
+    <text x="95" y="42" text-anchor="middle" class="t s">PostgreSQL（测试用 PGlite）</text>
+    <text x="95" y="57" text-anchor="middle" class="t" font-size="11" fill="#64748b">用户 · 会话 · Run/产物表</text>
+  </g>
+
+  <g transform="translate(244 372)">
+    <rect width="190" height="66" rx="9" fill="#ffffff" stroke="#37444a" stroke-width="1.4"/>
+    <text x="95" y="23" text-anchor="middle" class="t" font-size="13" font-weight="700">图检查点存储</text>
+    <text x="95" y="42" text-anchor="middle" class="t s">PostgresSaver</text>
+    <text x="95" y="57" text-anchor="middle" class="t" font-size="11" fill="#64748b">langgraph / custom Schema</text>
+  </g>
+
+  <g transform="translate(446 372)">
+    <rect width="190" height="66" rx="9" fill="#ffffff" stroke="#37444a" stroke-width="1.4"/>
+    <text x="95" y="23" text-anchor="middle" class="t" font-size="13" font-weight="700">文件系统卷</text>
+    <text x="95" y="42" text-anchor="middle" class="m" font-size="11.5">STORAGE_DIR</text>
+    <text x="95" y="57" text-anchor="middle" class="t" font-size="11" fill="#64748b">工作区产物 · Skill 修订</text>
+  </g>
+
+  <g transform="translate(648 372)">
+    <rect width="190" height="66" rx="9" fill="#ffffff" stroke="#37444a" stroke-width="1.4"/>
+    <text x="95" y="23" text-anchor="middle" class="t" font-size="13" font-weight="700">向量数据库</text>
+    <text x="95" y="42" text-anchor="middle" class="t s">LanceDB / pgvector</text>
+    <text x="95" y="57" text-anchor="middle" class="t" font-size="11" fill="#64748b">知识库分块向量索引</text>
+  </g>
+</svg>
