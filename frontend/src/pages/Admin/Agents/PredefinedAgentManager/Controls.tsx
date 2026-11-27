@@ -1,3 +1,5 @@
+import { useEffect, useId, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { Check, X } from "@phosphor-icons/react";
 
 export function ModalShell({
@@ -13,14 +15,54 @@ export function ModalShell({
   children: React.ReactNode;
   wide?: boolean;
 }) {
+  const titleId = useId();
+  const box = useRef<HTMLDivElement>(null);
+  const { t } = useTranslation();
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
+    box.current?.querySelector<HTMLElement>("button")?.focus();
+    return () => previous?.focus?.();
+  }, []);
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={titleId}
+      ref={box}
+      onKeyDown={(event) => {
+        // Native fullscreen editors use a portal and manage their own keys.
+        if (!box.current?.contains(event.target as Node)) return;
+        if (event.key === "Escape") {
+          event.stopPropagation();
+          onClose();
+        }
+        if (event.key !== "Tab") return;
+        const items = [
+          ...(box.current?.querySelectorAll<HTMLElement>(
+            'button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), a[href], [tabindex="0"]'
+          ) || []),
+        ].filter((item) => item.getClientRects().length > 0);
+        const first = items[0],
+          last = items.at(-1);
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last?.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first?.focus();
+        }
+      }}
+      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+    >
       <div
         className={`flex max-h-[92vh] w-full ${wide ? "max-w-6xl" : "max-w-3xl"} flex-col overflow-hidden rounded-2xl border border-white/10 bg-zinc-900 shadow-2xl light:border-slate-200 light:bg-white`}
       >
         <header className="flex shrink-0 items-start justify-between border-b border-white/10 px-5 py-4 light:border-slate-200">
           <div>
-            <h2 className="text-base font-semibold text-white light:text-slate-900">
+            <h2
+              id={titleId}
+              className="text-base font-semibold text-white light:text-slate-900"
+            >
               {title}
             </h2>
             <p className="mt-1 text-xs text-zinc-500 light:text-slate-500">
@@ -29,6 +71,7 @@ export function ModalShell({
           </div>
           <button
             type="button"
+            aria-label={t("personal_skills.close")}
             onClick={onClose}
             className="rounded-lg p-1.5 text-zinc-500 hover:bg-white/5 hover:text-white light:hover:bg-slate-100 light:hover:text-slate-900"
           >

@@ -13,6 +13,7 @@ import SearchBox, { CreateMenuButton } from "./SearchBox";
 import { Tooltip } from "react-tooltip";
 import { createPortal } from "react-dom";
 import HelpShortcut from "./HelpShortcut";
+import SkillsLink from "./SkillsLink";
 import { CLOSE_MOBILE_SIDEBAR_EVENT } from "./events";
 import { useTranslation } from "react-i18next";
 import { ModalPortalContext } from "@/components/ModalWrapper";
@@ -83,6 +84,7 @@ export default function Sidebar() {
         >
           <div className="flex h-full min-h-0 flex-col">
             <div className="px-3 pb-4">
+              <SkillsLink />
               <LocalToolsLink />
               <div className="flex items-center gap-1">
                 <div className="min-w-0 flex-1">
@@ -113,6 +115,7 @@ export default function Sidebar() {
         </div>
         {!expanded && (
           <div className="flex flex-1 flex-col items-center gap-2 pb-3">
+            <SkillsLink iconOnly />
             <LocalToolsLink iconOnly />
             <CreateMenuButton showNewWsModal={showNewWsModal} />
             <button
@@ -218,6 +221,7 @@ export function SidebarMobileHeader() {
               </button>
             </div>
             <div className="px-3 pb-4">
+              <SkillsLink />
               <LocalToolsLink />
               <div className="flex items-center gap-1">
                 <div className="min-w-0 flex-1">

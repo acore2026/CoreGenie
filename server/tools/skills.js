@@ -10,8 +10,18 @@ const { readPackageResource } = require("../agent-skills/package");
 
 async function currentSkill(name, context) {
   const active = context.activatedSkill?.(name);
-  if (active) return resolveActivatedSkillSnapshot(active, context.workspace);
-  return resolveAvailableSkill(context.agent, context.workspace, name);
+  if (active)
+    return resolveActivatedSkillSnapshot(
+      active,
+      context.workspace,
+      context.user?.id ?? context.run?.user_id
+    );
+  return resolveAvailableSkill(
+    context.agent,
+    context.workspace,
+    name,
+    context.user?.id ?? context.run?.user_id
+  );
 }
 
 function canonicalSkillToolId(toolId) {

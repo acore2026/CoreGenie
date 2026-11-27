@@ -20,6 +20,7 @@ function applyOptions(path, options = {}) {
 }
 
 export default {
+  personalSkills: () => "/skills",
   home: () => {
     return "/";
   },

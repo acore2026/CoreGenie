@@ -35,7 +35,11 @@ async function resolveSkillMount(cwd, context) {
         retryable: false,
       },
     };
-  const skill = await resolveActivatedSkillSnapshot(active, context.workspace);
+  const skill = await resolveActivatedSkillSnapshot(
+    active,
+    context.workspace,
+    context.user?.id ?? context.run?.user_id
+  );
   if (!skill)
     return {
       skill: null,
@@ -71,6 +75,7 @@ async function resolveSkillMount(cwd, context) {
       name: skill.name,
       scope: skill.scope,
       revision: skill.revision,
+      ...(skill.scope === "personal" ? { ownerId: skill.ownerId } : {}),
     },
     result: null,
   };

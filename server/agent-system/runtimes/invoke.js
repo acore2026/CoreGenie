@@ -79,7 +79,12 @@ async function invokeAgentRuntime({
   };
   const { runtime } = requireRuntime(run.runtimeKey, run.runtimeVersion);
   const activatedSkillScope = new Map();
-  await restoreActivatedSkills(inheritedSkills, workspace, activatedSkillScope);
+  await restoreActivatedSkills(
+    inheritedSkills,
+    workspace,
+    activatedSkillScope,
+    user?.id ?? run?.user_id
+  );
   try {
     const result = await runtime.executeSegment({
       run,

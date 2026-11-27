@@ -54,14 +54,23 @@ function skillRevisionChangedError(skill) {
   return error;
 }
 
-async function restoreActivatedSkills(skills = [], workspace, target) {
+async function restoreActivatedSkills(
+  skills = [],
+  workspace,
+  target,
+  userId = null
+) {
   const scope =
     target instanceof Map
       ? target
       : target.activatedSkills || (target.activatedSkills = new Map());
   const restored = [];
   for (const snapshot of skills || []) {
-    const current = await resolveActivatedSkillSnapshot(snapshot, workspace);
+    const current = await resolveActivatedSkillSnapshot(
+      snapshot,
+      workspace,
+      userId
+    );
     if (!current || current.revision !== snapshot.revision)
       throw skillRevisionChangedError(snapshot);
     scope.set(current.name, current);

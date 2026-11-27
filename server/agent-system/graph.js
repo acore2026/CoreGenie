@@ -110,6 +110,7 @@ async function buildAgentGraph({
         includeSkillCatalog
           ? await skillCatalogPrompt(configuredAgent, workspace, null, {
               visibleToolIds,
+              userId: user?.id ?? run?.user_id,
               enforceAllowedTools:
                 run?.configuration?.enforceSkillToolRestrictions === true ||
                 run?.policySnapshot?.enforceSkillToolRestrictions === true,

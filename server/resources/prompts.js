@@ -13,6 +13,7 @@ async function composeAgentPrompt({
   const catalog = includeSkillCatalog
     ? await skillCatalogPrompt(agent, workspace, null, {
         visibleToolIds,
+        userId: user?.id,
         enforceAllowedTools: enforceSkillToolRestrictions,
       })
     : "";

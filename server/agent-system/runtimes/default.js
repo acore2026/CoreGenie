@@ -34,7 +34,12 @@ async function executeSegment({
   };
   const skillScope =
     activatedSkillScope || sharedBudget.activatedSkills || new Map();
-  await restoreActivatedSkills(inheritedSkills, workspace, skillScope);
+  await restoreActivatedSkills(
+    inheritedSkills,
+    workspace,
+    skillScope,
+    user?.id ?? run?.user_id
+  );
   const inheritedSkillContext = activatedSkillsPrompt(inheritedSkills);
   let sources = [];
   let retrievedContext = [];

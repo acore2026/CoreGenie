@@ -22,6 +22,61 @@ class BrokerValidationTests(unittest.TestCase):
             "timeoutSeconds": 5,
         }
 
+
+    def test_personal_skill_mount_is_owner_scoped_and_read_only(self):
+        with tempfile.TemporaryDirectory() as root:
+            root = Path(root)
+            broker = SandboxBroker(
+                token=self.token, workspace_root=root / "workspaces",
+                docker_workspace_root=root / "workspaces",
+                global_skills_root=root / "global",
+                docker_global_skills_root=root / "docker-global",
+                image="runner", docker_binary="docker", max_concurrency=1,
+                workspace_uid=1000, workspace_gid=1000, network="none", proxy_url=None,
+            )
+            revision = "a" * 64
+            package = root / "global" / ".personal" / "7" / "9" / "revisions" / revision
+            package.mkdir(parents=True)
+            skill = {"scope": "personal", "ownerId": 7, "id": 9,
+                     "name": "personal-9", "revision": revision}
+            request = validate_request({**self.payload, "skill": skill}, self.token)
+            workdir, mounts = broker.skill_runtime(request, root / "workspaces" / "12")
+            self.assertEqual(workdir, "/skills/personal-9")
+            self.assertEqual(mounts, ["--mount",
+                f"type=bind,src={root}/docker-global/.personal/7/9/revisions/{revision},dst=/skills/personal-9,readonly"])
+            request["skill"]["ownerId"] = 8
+            with self.assertRaises(BrokerError):
+                broker.skill_runtime(request, root / "workspaces" / "12")
+
+    def test_personal_skill_rejects_invalid_owner_or_id(self):
+        skill = {"scope": "personal", "ownerId": 7, "id": 9,
+                 "name": "personal-9", "revision": "a" * 64}
+        for key in ("ownerId", "id"):
+            for value in (None, 0, -1, "../7", True):
+                with self.subTest(key=key, value=value), self.assertRaises(BrokerError):
+                    validate_request({**self.payload, "skill": {**skill, key: value}}, self.token)
+
+    def test_personal_skill_cannot_escape_through_an_owner_symlink(self):
+        with tempfile.TemporaryDirectory() as root:
+            root = Path(root)
+            broker = SandboxBroker(
+                token=self.token, workspace_root=root / "workspaces",
+                docker_workspace_root=root / "workspaces",
+                global_skills_root=root / "global",
+                docker_global_skills_root=root / "global",
+                image="runner", docker_binary="docker", max_concurrency=1,
+                workspace_uid=1000, workspace_gid=1000, network="none", proxy_url=None,
+            )
+            outside = root / "outside"
+            (outside / "9" / "revisions" / ("a" * 64)).mkdir(parents=True)
+            (root / "global" / ".personal").mkdir(parents=True)
+            (root / "global" / ".personal" / "7").symlink_to(outside, target_is_directory=True)
+            request = validate_request({**self.payload, "skill": {
+                "scope": "personal", "ownerId": 7, "id": 9,
+                "name": "personal-9", "revision": "a" * 64}}, self.token)
+            with self.assertRaises(BrokerError):
+                broker.skill_runtime(request, root / "workspaces" / "12")
+
     def test_accepts_narrow_request(self):
         request = validate_request(self.payload, self.token)
         self.assertEqual(request["workspace_id"], 12)

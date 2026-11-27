@@ -109,6 +109,7 @@ workspaceFileEndpoints(apiRouter);
 predefinedAgentEndpoints(apiRouter);
 require("./endpoints/threeGppCatalog").threeGppCatalogEndpoints(apiRouter);
 workspaceSkillEndpoints(apiRouter);
+require("./endpoints/personalSkills").personalSkillEndpoints(apiRouter);
 agentFeedbackEndpoints(apiRouter);
 require("./endpoints/configSync").configSyncEndpoints(apiRouter);
 require("./config-sync").start();

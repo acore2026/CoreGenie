@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Download a published image; no local build and no data backups.
 set -Eeuo pipefail
-VERSION="${VERSION:-1.15.4}"
+VERSION="${VERSION:-1.15.5}"
 IMAGE="${IMAGE:-ghcr.io/acore2026/coregenie:${VERSION}}"
 CONTAINER_NAME="${CONTAINER_NAME:-anythingllm}"
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
@@ -15,7 +15,7 @@ if startup fails. Requires Docker and Node.js 18+ on the host.
 install: start a new basic SQLite installation with a persistent Docker volume.
 Requires Docker. Code execution sandbox is not included in a basic install.
 
-VERSION          Image version and deployment helper release (default: 1.15.4)
+VERSION          Image version and deployment helper release (default: 1.15.5)
 IMAGE            Override image reference, including an immutable digest
 CONTAINER_NAME   Container name (default: anythingllm)
 HOST_PORT        New installation port (default: 7555)

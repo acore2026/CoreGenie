@@ -505,7 +505,49 @@ async function readPackageResource(root, resourcePath, offset = 0) {
   }
 }
 
+function personalRevisionRoot(ownerId, skillId, revision) {
+  if (
+    ![ownerId, skillId].every((id) => Number.isSafeInteger(id) && id > 0) ||
+    !/^[a-f0-9]{64}$/.test(String(revision))
+  )
+    throw new Error("Invalid personal skill revision.");
+  return path.join(
+    globalSkillsRoot(),
+    ".personal",
+    String(ownerId),
+    String(skillId),
+    "revisions",
+    revision
+  );
+}
+
+async function savePersonalRevision(ownerId, skillId, input, baseRoot = null) {
+  // Validate IDs before creating anything on disk.
+  personalRevisionRoot(ownerId, skillId, "0".repeat(64));
+  const stagingRoot = path.join(globalSkillsRoot(), ".personal", ".staging");
+  await fs.mkdir(stagingRoot, { recursive: true });
+  const stage = await fs.mkdtemp(path.join(stagingRoot, "skill-"));
+  try {
+    const pkg = await applyPackageInput(stage, input, baseRoot);
+    if (!pkg.valid) throw new Error(pkg.errors.join(" "));
+    const destination = personalRevisionRoot(ownerId, skillId, pkg.sha256);
+    await fs.mkdir(path.dirname(destination), { recursive: true });
+    try {
+      await fs.rename(stage, destination);
+    } catch (error) {
+      if (!["EEXIST", "ENOTEMPTY"].includes(error.code)) throw error;
+      await fs.rm(stage, { recursive: true, force: true });
+    }
+    return { ...pkg, root: destination };
+  } catch (error) {
+    await fs.rm(stage, { recursive: true, force: true });
+    throw error;
+  }
+}
+
 module.exports = {
+  personalRevisionRoot,
+  savePersonalRevision,
   MAX_BINARY_FILE_BYTES,
   MAX_PACKAGE_BYTES,
   MAX_PACKAGE_FILES,

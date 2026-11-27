@@ -108,14 +108,16 @@ def validate_request(payload: object, expected_token: str) -> dict:
         revision = skill.get("revision")
         if not isinstance(name, str) or not SKILL_NAME_PATTERN.fullmatch(name):
             raise BrokerError("invalid skill name")
-        if scope not in {"global", "workspace"}:
-            raise BrokerError("skill scope must be global or workspace")
+        if scope not in {"global", "workspace", "personal"}:
+            raise BrokerError("skill scope must be global, workspace or personal")
         if not isinstance(revision, str) or not re.fullmatch(r"[a-f0-9]{64}", revision):
             raise BrokerError("invalid skill revision")
         skill_id = None
-        if scope == "global":
+        if scope in {"global", "personal"}:
             skill_id = parse_positive_int(skill.get("id"), "skill.id")
+        owner_id = parse_positive_int(skill.get("ownerId"), "skill.ownerId") if scope == "personal" else None
         skill = {
+            **({"ownerId": owner_id} if scope == "personal" else {}),
             "id": skill_id,
             "name": name,
             "scope": scope,
@@ -261,15 +263,20 @@ class SandboxBroker:
             return f"/workspace/.agent/skills/{name}", []
 
         relative = Path(str(skill["id"])) / "revisions" / skill["revision"]
+        if skill["scope"] == "personal":
+            relative = Path(".personal") / str(skill["ownerId"]) / relative
         candidate = self.global_skills_root / relative
-        if candidate.is_symlink() or not candidate.is_dir():
-            raise BrokerError("global skill revision is unavailable")
-        resolved = candidate.resolve()
-        expected_parent = (
-            self.global_skills_root / str(skill["id"]) / "revisions"
-        ).resolve()
-        if resolved.parent != expected_parent:
-            raise BrokerError("invalid global skill path")
+        if not candidate.is_dir():
+            raise BrokerError("skill revision is unavailable")
+        # Personal packages reuse the existing read-only skill volume. Never
+        # follow a symlink in any owner/id/revision component of that volume.
+        current = self.global_skills_root
+        for part in relative.parts:
+            current = current / part
+            if current.is_symlink():
+                raise BrokerError("invalid skill path")
+        if candidate.resolve() != candidate:
+            raise BrokerError("invalid skill path")
         docker_source = self.docker_global_skills_root / relative
         destination = f"/skills/{name}"
         return destination, [

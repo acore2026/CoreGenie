@@ -1,4 +1,7 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
+import PersonalSkills from "@/models/personalSkills";
+import Toggle from "@/components/lib/Toggle";
 import { Code, FileText, Trash, UploadSimple } from "@phosphor-icons/react";
 import PredefinedAgent from "@/models/predefinedAgent";
 import showToast from "@/utils/toast";
@@ -17,30 +20,52 @@ export default function SkillEditor({
   skill,
   scope,
   workspaceSlug,
+  initialSkillMd,
+  readOnly = false,
+  onEnable,
   onClose,
   onSaved,
 }: EditorActions & {
   skill: Skill | null;
   scope: Scope;
   workspaceSlug: string;
+  initialSkillMd?: string;
+  readOnly?: boolean;
+  onEnable?: () => Promise<void>;
 }) {
-  const newSkillMd = `---\nname: new-skill\ndescription: Describe what this skill does and when the Agent should use it.\n---\n\n# New skill\n\nWrite the skill instructions here.\n`;
+  const { t } = useTranslation();
+  const newSkillMd =
+    initialSkillMd ||
+    `---\nname: new-skill\ndescription: Describe what this skill does and when the Agent should use it.\n---\n\n# New skill\n\nWrite the skill instructions here.\n`;
   const [skillMd, setSkillMd] = useState(skill?.skillMd || newSkillMd);
   const [files, setFiles] = useState(skill?.files || []);
   const [deletedPaths, setDeletedPaths] = useState<string[]>([]);
   const [selectedPath, setSelectedPath] = useState("SKILL.md");
   const [loading, setLoading] = useState(Boolean(skill));
   const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const [isShared, setIsShared] = useState(skill?.isShared ?? true);
+  const [sharingDirty, setSharingDirty] = useState(false);
+  const [revision, setRevision] = useState(skill?.revision);
 
   useEffect(() => {
     if (!skill) return;
     const loader =
-      scope === "workspace"
-        ? PredefinedAgent.getWorkspaceSkill(workspaceSlug, skill.name)
-        : PredefinedAgent.getSkill(skill.id);
+      scope === "personal"
+        ? PersonalSkills.get(skill.id)
+        : scope === "workspace"
+          ? PredefinedAgent.getWorkspaceSkill(workspaceSlug, skill.name)
+          : PredefinedAgent.getSkill(skill.id);
     loader.then((result) => {
-      if (!result.skill) showToast(result.error || "无法加载 Skill", "error");
-      else {
+      if (!result.skill) {
+        setLoadError(true);
+        showToast(
+          result.error || t("personal_skills.load_skill_error"),
+          "error"
+        );
+      } else {
+        setIsShared(result.skill.isShared ?? true);
+        setRevision(result.skill.revision);
         setSkillMd(result.skill.skillMd || newSkillMd);
         setFiles(result.skill.files || []);
       }
@@ -67,10 +92,12 @@ export default function SkillEditor({
 
   function addTextFile(folder: string, extension: string) {
     const proposed = `${folder}/new-${folder === "scripts" ? "script" : "resource"}.${extension}`;
-    const value = window.prompt("Package-relative file path", proposed)?.trim();
+    const value = window
+      .prompt(t("personal_skills.path_prompt"), proposed)
+      ?.trim();
     if (!value || value === "SKILL.md") return;
     if (files.some((file) => file.path === value))
-      return showToast("文件已经存在", "error");
+      return showToast(t("personal_skills.file_exists"), "error");
     setFiles((current) => [
       ...current,
       { path: value, content: "", encoding: "utf8", text: true, size: 0 },
@@ -91,7 +118,7 @@ export default function SkillEditor({
     event.target.value = "";
     if (!file) return;
     const target = window
-      .prompt("Package-relative asset path", `assets/${file.name}`)
+      .prompt(t("personal_skills.asset_prompt"), `assets/${file.name}`)
       ?.trim();
     if (!target) return;
     const text =
@@ -121,6 +148,7 @@ export default function SkillEditor({
 
   async function save(event: React.FormEvent) {
     event.preventDefault();
+    if (readOnly || saving || loading || loadError) return;
     setSaving(true);
     const payload = {
       skillMd,
@@ -128,71 +156,139 @@ export default function SkillEditor({
         .filter((file) => file.content != null)
         .map(({ path, content, encoding }) => ({ path, content, encoding })),
       deletedPaths,
+      ...(scope === "personal"
+        ? { revision, ...(!skill || sharingDirty ? { isShared } : {}) }
+        : {}),
       ...(scope === "workspace" && skill ? { previousName: skill.name } : {}),
     };
     const result: SaveResult =
-      scope === "workspace"
-        ? await PredefinedAgent.saveWorkspaceSkill(workspaceSlug, payload)
-        : skill
-          ? await PredefinedAgent.updateSkill(skill.id, payload)
-          : await PredefinedAgent.createSkill(payload);
+      scope === "personal"
+        ? skill
+          ? await PersonalSkills.update(skill.id, payload)
+          : await PersonalSkills.create(payload)
+        : scope === "workspace"
+          ? await PredefinedAgent.saveWorkspaceSkill(workspaceSlug, payload)
+          : skill
+            ? await PredefinedAgent.updateSkill(skill.id, payload)
+            : await PredefinedAgent.createSkill(payload);
     if (!result.success) {
-      showToast(result.error || "保存失败", "error");
+      showToast(result.error || t("personal_skills.save_error"), "error");
       setSaving(false);
       return;
     }
-    showToast(skill ? "Skill 已更新" : "Skill 已创建", "success");
+    showToast(t("personal_skills.save_success"), "success");
     await onSaved();
   }
 
   async function remove() {
-    if (!skill || !window.confirm(`删除 Skill“${skill.name}”？`)) return;
+    if (
+      readOnly ||
+      saving ||
+      loading ||
+      loadError ||
+      !skill ||
+      !window.confirm(t("personal_skills.delete_confirm", { name: skill.name }))
+    )
+      return;
+    setSaving(true);
     const result: SaveResult =
-      scope === "workspace"
-        ? await PredefinedAgent.deleteWorkspaceSkill(workspaceSlug, skill.name)
-        : await PredefinedAgent.deleteSkill(skill.id);
-    if (!result.success) return showToast(result.error || "删除失败", "error");
-    showToast("Skill 已删除", "success");
+      scope === "personal"
+        ? await PersonalSkills.remove(skill.id)
+        : scope === "workspace"
+          ? await PredefinedAgent.deleteWorkspaceSkill(
+              workspaceSlug,
+              skill.name
+            )
+          : await PredefinedAgent.deleteSkill(skill.id);
+    if (!result.success) {
+      setSaving(false);
+      return showToast(
+        result.error || t("personal_skills.action_error"),
+        "error"
+      );
+    }
+    showToast(t("personal_skills.delete_success"), "success");
     await onSaved();
   }
 
   return (
     <ModalShell
-      title={skill ? `编辑 ${skill.name}` : "新建 Skill"}
-      subtitle={`${scope === "workspace" ? "Workspace · live" : "Global · versioned"} · Agent Skills specification`}
+      title={
+        skill
+          ? t(
+              readOnly
+                ? "personal_skills.preview_title"
+                : "personal_skills.edit_title",
+              { name: skill.name }
+            )
+          : t(
+              scope === "personal"
+                ? "personal_skills.editor_title"
+                : "personal_skills.new_skill"
+            )
+      }
+      subtitle={t(
+        readOnly
+          ? "personal_skills.readonly_subtitle"
+          : scope === "personal"
+            ? "personal_skills.editor_subtitle"
+            : scope === "workspace"
+              ? "personal_skills.workspace_subtitle"
+              : "personal_skills.global_subtitle"
+      )}
       onClose={onClose}
       wide
     >
       <form onSubmit={save} className="flex min-h-0 flex-1 flex-col">
-        <div className="grid min-h-0 flex-1 md:grid-cols-[250px_minmax(0,1fr)]">
+        {scope === "personal" && !readOnly && (
+          <div className="border-b border-white/10 px-5 py-3 light:border-slate-200">
+            <Toggle
+              variant="horizontal"
+              size="lg"
+              label={t("personal_skills.share")}
+              description={t("personal_skills.share_hint")}
+              enabled={isShared}
+              onChange={(value) => {
+                setIsShared(value);
+                setSharingDirty(true);
+              }}
+              disabled={saving || loading || loadError}
+              labelClassName="!text-sm"
+              descriptionClassName="!text-xs !leading-5"
+            />
+          </div>
+        )}
+        <div className="grid min-h-0 flex-1 overflow-y-auto md:grid-cols-[250px_minmax(0,1fr)]">
           <aside className="min-h-0 overflow-y-auto border-r border-white/10 p-3 light:border-slate-200">
-            <div className="mb-3 flex flex-wrap gap-1.5">
-              <button
-                type="button"
-                onClick={() => addTextFile("scripts", "py")}
-                className={miniButtonClass}
-              >
-                <Code size={12} /> Python
-              </button>
-              <button
-                type="button"
-                onClick={() => addTextFile("scripts", "sh")}
-                className={miniButtonClass}
-              >
-                <Code size={12} /> Bash
-              </button>
-              <button
-                type="button"
-                onClick={() => addTextFile("references", "md")}
-                className={miniButtonClass}
-              >
-                <FileText size={12} /> Reference
-              </button>
-              <label className={`${miniButtonClass} cursor-pointer`}>
-                <UploadSimple size={12} /> Asset
-                <input type="file" className="hidden" onChange={addAsset} />
-              </label>
-            </div>
+            {!readOnly && (
+              <div className="mb-3 flex flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => addTextFile("scripts", "py")}
+                  className={miniButtonClass}
+                >
+                  <Code size={12} /> Python
+                </button>
+                <button
+                  type="button"
+                  onClick={() => addTextFile("scripts", "sh")}
+                  className={miniButtonClass}
+                >
+                  <Code size={12} /> Bash
+                </button>
+                <button
+                  type="button"
+                  onClick={() => addTextFile("references", "md")}
+                  className={miniButtonClass}
+                >
+                  <FileText size={12} /> {t("personal_skills.reference")}
+                </button>
+                <label className={`${miniButtonClass} cursor-pointer`}>
+                  <UploadSimple size={12} /> {t("personal_skills.asset")}
+                  <input type="file" className="hidden" onChange={addAsset} />
+                </label>
+              </div>
+            )}
             {[{ path: "SKILL.md", text: true }, ...files].map((file) => (
               <button
                 key={file.path}
@@ -223,27 +319,33 @@ export default function SkillEditor({
                   {selectedPath}
                 </p>
                 <p className="m-0 mt-1 text-[10px] text-theme-text-secondary">
-                  {currentName} · changes become available on the next Agent
-                  step
+                  {currentName} · {t("personal_skills.changes_hint")}
                 </p>
               </div>
-              {selectedPath !== "SKILL.md" && (
+              {!readOnly && selectedPath !== "SKILL.md" && (
                 <button
                   type="button"
                   onClick={deleteSelected}
                   className="text-xs text-red-400 hover:text-red-300"
                 >
-                  删除文件
+                  {t("personal_skills.delete_file")}
                 </button>
               )}
             </div>
-            {loading ? (
+            {loadError ? (
+              <p role="alert" className="text-sm text-red-400">
+                {t("personal_skills.load_skill_error")}
+              </p>
+            ) : loading ? (
               <div className="flex-1 animate-pulse rounded-xl bg-white/5 light:bg-slate-100" />
             ) : selectedPath === "SKILL.md" || selectedFile?.text !== false ? (
               <FullscreenEditor title={selectedPath}>
                 <textarea
                   required={selectedPath === "SKILL.md"}
                   spellCheck={false}
+                  readOnly={readOnly}
+                  disabled={saving}
+                  aria-label={selectedPath}
                   value={
                     selectedPath === "SKILL.md"
                       ? skillMd
@@ -255,7 +357,9 @@ export default function SkillEditor({
               </FullscreenEditor>
             ) : (
               <div className="flex flex-1 items-center justify-center rounded-xl border border-dashed border-white/10 text-xs text-theme-text-secondary light:border-slate-300">
-                Binary asset · {selectedFile?.size || 0} bytes
+                {t("personal_skills.binary_hint", {
+                  size: selectedFile?.size || 0,
+                })}
               </div>
             )}
             {!!skill?.warnings?.length && (
@@ -267,13 +371,14 @@ export default function SkillEditor({
         </div>
         <footer className="flex items-center justify-between border-t border-white/10 px-5 py-4 light:border-slate-200">
           <div>
-            {skill && (
+            {skill && !readOnly && (
               <button
                 type="button"
                 onClick={remove}
+                disabled={saving || loading || loadError}
                 className="flex items-center gap-1.5 text-xs text-red-400 hover:text-red-300"
               >
-                <Trash size={14} /> 删除 Skill
+                <Trash size={14} /> {t("personal_skills.delete_skill")}
               </button>
             )}
           </div>
@@ -283,17 +388,46 @@ export default function SkillEditor({
               onClick={onClose}
               className={secondaryButtonClass}
             >
-              取消
+              {t(readOnly ? "personal_skills.close" : "personal_skills.cancel")}
             </button>
-            <button
-              disabled={
-                saving || loading || (scope === "workspace" && !workspaceSlug)
-              }
-              type="submit"
-              className={primaryButtonClass}
-            >
-              {saving ? "保存中…" : "保存 Skill"}
-            </button>
+            {readOnly ? (
+              onEnable && (
+                <button
+                  type="button"
+                  disabled={saving || loading || loadError}
+                  className={primaryButtonClass}
+                  onClick={async () => {
+                    setSaving(true);
+                    try {
+                      await onEnable();
+                    } finally {
+                      setSaving(false);
+                    }
+                  }}
+                >
+                  {t(
+                    saving
+                      ? "personal_skills.saving"
+                      : skill?.enabled
+                        ? "personal_skills.disable"
+                        : "personal_skills.enable"
+                  )}
+                </button>
+              )
+            ) : (
+              <button
+                disabled={
+                  saving ||
+                  loading ||
+                  loadError ||
+                  (scope === "workspace" && !workspaceSlug)
+                }
+                type="submit"
+                className={primaryButtonClass}
+              >
+                {t(saving ? "personal_skills.saving" : "personal_skills.save")}
+              </button>
+            )}
           </div>
         </footer>
       </form>

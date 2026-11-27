@@ -1797,7 +1797,8 @@ async function createGovernedGraph(context) {
         await restoreActivatedSkills(
           state.activatedSkills,
           workspace,
-          activatedSkillScope
+          activatedSkillScope,
+          user?.id ?? run?.user_id
         );
         const controllerToolDescriptors = descriptorsForActivatedSkills(
           allControllerToolDescriptors,
@@ -1810,7 +1811,9 @@ async function createGovernedGraph(context) {
         const knowledgeGuidance = knowledgeToolGuidance(
           controllerVisibleToolIds
         );
-        const skills = await availableSkills(agent, workspace);
+        const skills = await availableSkills(agent, workspace, {
+          userId: user?.id ?? run?.user_id,
+        });
         const activatedNames = new Set(
           state.activatedSkills.map((skill) => skill.name)
         );
@@ -2208,7 +2211,8 @@ async function createGovernedGraph(context) {
       await restoreActivatedSkills(
         state.activatedSkills,
         workspace,
-        activatedSkillScope
+        activatedSkillScope,
+        user?.id ?? run?.user_id
       );
     } catch (error) {
       const failed = {

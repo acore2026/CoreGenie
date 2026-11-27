@@ -27,6 +27,11 @@ export interface SkillFile {
   size?: number;
 }
 export interface Skill {
+  isShared?: boolean;
+  isOwner?: boolean;
+  enabled?: boolean;
+  revision?: string;
+  owner?: { id: number; username: string };
   id: number | null;
   name: string;
   description: string;

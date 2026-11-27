@@ -214,7 +214,7 @@ COPY --chown=anythingllm:anythingllm --from=frontend-build /app/frontend/dist /a
 # Setup the environment
 ENV NODE_ENV=production
 ENV ANYTHING_LLM_RUNTIME=docker
-ENV DEPLOYMENT_VERSION=1.15.4
+ENV DEPLOYMENT_VERSION=1.15.5
 
 # Setup the healthcheck
 HEALTHCHECK --interval=1m --timeout=10s --start-period=1m \

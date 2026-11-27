@@ -104,22 +104,24 @@ model system_settings {
 }
 
 model users {
-  id                           Int                           @id @default(autoincrement())
-  username                     String?                       @unique
+  personalAgentSkills          personal_agent_skills[]
+  personalSkillSubscriptions   personal_skill_subscriptions[]
+  id                           Int                            @id @default(autoincrement())
+  username                     String?                        @unique
   password                     String
   displayName                  String?
   employeeNumber               String?
-  oauthSubject                 String?                       @unique
+  oauthSubject                 String?                        @unique
   oauth_sessions               oauth_sessions[]
   pfpFilename                  String?
-  role                         String                        @default("default")
-  suspended                    Int                           @default(0)
-  seen_recovery_codes          Boolean?                      @default(false)
-  createdAt                    DateTime                      @default(now())
-  lastUpdatedAt                DateTime                      @default(now())
+  role                         String                         @default("default")
+  suspended                    Int                            @default(0)
+  seen_recovery_codes          Boolean?                       @default(false)
+  createdAt                    DateTime                       @default(now())
+  lastUpdatedAt                DateTime                       @default(now())
   dailyMessageLimit            Int?
-  bio                          String?                       @default("")
-  systemPrompt                 String                        @default("")
+  bio                          String?                        @default("")
+  systemPrompt                 String                         @default("")
   web_push_subscription_config String?
   workspace_chats              workspace_chats[]
   workspace_users              workspace_users[]
@@ -900,4 +902,31 @@ model model_router_rules {
   @@unique([router_id, title])
   @@index([router_id])
   @@index([router_id, enabled, priority])
+}
+
+model personal_agent_skills {
+  id             Int                            @id @default(autoincrement())
+  ownerId        Int
+  name           String
+  description    String
+  activeRevision String
+  isShared       Boolean                        @default(true)
+  createdAt      DateTime                       @default(now())
+  lastUpdatedAt  DateTime                       @default(now())
+  owner          users                          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  subscriptions  personal_skill_subscriptions[]
+
+  @@unique([ownerId, name])
+  @@index([isShared])
+}
+
+model personal_skill_subscriptions {
+  userId    Int
+  skillId   Int
+  createdAt DateTime              @default(now())
+  user      users                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skill     personal_agent_skills @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@id([userId, skillId])
+  @@index([skillId])
 }

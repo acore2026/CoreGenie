@@ -43,6 +43,15 @@ const router = createBrowserRouter([
         },
       },
       {
+        path: "/skills",
+        lazy: async () => {
+          const { default: PersonalSkills } = await import(
+            "@/pages/PersonalSkills"
+          );
+          return { element: <PrivateRoute Component={PersonalSkills} /> };
+        },
+      },
+      {
         path: "/tools",
         lazy: async () => {
           const { default: ToolCatalog } = await import(

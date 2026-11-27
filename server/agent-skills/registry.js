@@ -3,7 +3,7 @@ const { listWorkspacePackages, resolveWorkspacePackage } = require("./package");
 
 function descriptor(skill, scope) {
   return {
-    id: scope === "global" ? Number(skill.id) : null,
+    id: ["global", "personal"].includes(scope) ? Number(skill.id) : null,
     key: `${scope}:${skill.manifest.name}`,
     scope,
     name: skill.manifest.name,
@@ -23,10 +23,21 @@ function descriptor(skill, scope) {
   };
 }
 
+function personalDescriptor(skill, name = `personal-${skill.id}`) {
+  const value = descriptor(skill, "personal");
+  return {
+    ...value,
+    key: `personal:${skill.id}`,
+    ownerId: skill.ownerId,
+    name,
+    description: `${skill.manifest.name}（${skill.owner?.username || "个人"}）：${value.description}`,
+  };
+}
+
 async function availableSkills(
   agent,
   workspace,
-  { includeInvalid = false } = {}
+  { includeInvalid = false, userId = null } = {}
 ) {
   const globalSkills = await assignedSkills(agent);
   const globals = globalSkills.map((skill) => descriptor(skill, "global"));
@@ -46,11 +57,28 @@ async function availableSkills(
     return value;
   });
   const values = [...globals, ...workspaceSkills];
+  if (userId) {
+    const { PersonalAgentSkill } = require("../models/personalAgentSkill");
+    const used = new Set(values.map((skill) => skill.name));
+    for (const skill of await PersonalAgentSkill.available(userId)) {
+      const base = `personal-${skill.id}`;
+      let name = base;
+      for (let suffix = 1; used.has(name); suffix++) name = `${base}-${suffix}`;
+      used.add(name);
+      values.push(personalDescriptor(skill, name));
+    }
+  }
   return includeInvalid ? values : values.filter((skill) => skill.valid);
 }
 
-async function resolveAvailableSkill(agent, workspace, name) {
+async function resolveAvailableSkill(agent, workspace, name, userId = null) {
   const normalized = String(name || "").trim();
+  if (userId && normalized.startsWith("personal-")) {
+    const personal = (await availableSkills(agent, workspace, { userId })).find(
+      (skill) => skill.scope === "personal" && skill.name === normalized
+    );
+    if (personal) return personal;
+  }
   const assigned = await assignedSkills(agent);
   const global = assigned.find((skill) => skill.name === normalized);
   if (global) return descriptor(global, "global");
@@ -64,8 +92,21 @@ async function resolveAvailableSkill(agent, workspace, name) {
   return workspaceSkill?.valid ? descriptor(workspaceSkill, "workspace") : null;
 }
 
-async function resolveActivatedSkillSnapshot(snapshot, workspace) {
+async function resolveActivatedSkillSnapshot(
+  snapshot,
+  workspace,
+  userId = null
+) {
   if (!snapshot?.name || !snapshot?.scope) return null;
+  if (snapshot.scope === "personal") {
+    const { PersonalAgentSkill } = require("../models/personalAgentSkill");
+    const skill = await PersonalAgentSkill.resolve(
+      snapshot.id,
+      userId,
+      snapshot.revision
+    );
+    return skill ? personalDescriptor(skill, snapshot.name) : null;
+  }
   if (snapshot.scope === "global") {
     const skill = snapshot.id
       ? snapshot.revision
@@ -131,9 +172,10 @@ async function skillCatalogPrompt(
   agent,
   workspace,
   providedSkills = null,
-  { visibleToolIds = null, enforceAllowedTools = false } = {}
+  { visibleToolIds = null, enforceAllowedTools = false, userId = null } = {}
 ) {
-  const skills = providedSkills || (await availableSkills(agent, workspace));
+  const skills =
+    providedSkills || (await availableSkills(agent, workspace, { userId }));
   if (!skills.length) return "";
   const visible = visibleToolIds ? new Set(visibleToolIds) : null;
   const catalog = skills
