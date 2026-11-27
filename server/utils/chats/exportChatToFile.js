@@ -1,7 +1,5 @@
 const moment = require("moment");
-const {
-  applyBranding,
-} = require("../agents/aibitat/plugins/create-files/pdf/utils.js");
+const { applyBranding } = require("../../services/generatedFiles/pdfBranding");
 const { convertToChatHistory } = require("../helpers/chat/responses.js");
 
 const THOUGHT_TAGS = "thinking|think|thought|thought_chain";

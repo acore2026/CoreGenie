@@ -3,7 +3,8 @@ const fs = require("fs/promises");
 const path = require("path");
 const os = require("os");
 const crypto = require("crypto");
-const { PrismaClient } = require("@prisma/client");
+const { createPgliteTestDb } = require("../helpers/pgliteTestDb");
+let testDb;
 let mockPrisma;
 jest.mock(
   "../../utils/prisma",
@@ -20,41 +21,23 @@ const { hash } = require("../../config-sync/engine");
 
 describe("single-source repository seeds", () => {
   let root, previousStorage, previousSync;
+  beforeAll(async () => {
+    testDb = await createPgliteTestDb();
+    mockPrisma = testDb.prisma;
+  }, 30000);
+  afterAll(async () => {
+    await testDb?.close();
+  });
   beforeEach(async () => {
     root = await fs.mkdtemp(path.join(os.tmpdir(), "agent-seed-test-"));
     previousStorage = process.env.STORAGE_DIR;
     previousSync = process.env.AGENT_CONFIG_SYNC_ENABLED;
     process.env.STORAGE_DIR = path.join(root, "storage");
     delete process.env.AGENT_CONFIG_SYNC_ENABLED;
-    mockPrisma = new PrismaClient({
-      datasources: { db: { url: `file:${path.join(root, "test.db")}` } },
-    });
-    for (const sql of [
-      "CREATE TABLE system_settings (id INTEGER PRIMARY KEY AUTOINCREMENT, label TEXT NOT NULL UNIQUE, value TEXT, createdAt DATETIME DEFAULT CURRENT_TIMESTAMP, lastUpdatedAt DATETIME DEFAULT CURRENT_TIMESTAMP)",
-      'CREATE TABLE predefined_agents (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, iconFilename TEXT, description TEXT NOT NULL DEFAULT "", welcomeMessage TEXT, examplePrompts TEXT NOT NULL DEFAULT "[]", tools TEXT, skillIds TEXT NOT NULL DEFAULT "[]", systemPrompt TEXT NOT NULL, runtimeKey TEXT NOT NULL DEFAULT "governed-agent", runtimeConfig TEXT NOT NULL DEFAULT "{}", isBuiltinDefault BOOLEAN NOT NULL DEFAULT false, enabled BOOLEAN NOT NULL DEFAULT true, showInRoster BOOLEAN NOT NULL DEFAULT true, createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, lastUpdatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)',
-      'CREATE TABLE predefined_agent_skills (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, description TEXT NOT NULL DEFAULT "", instructions TEXT NOT NULL, activeRevision TEXT, archived BOOLEAN NOT NULL DEFAULT false, createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, lastUpdatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)',
-      'CREATE TABLE agent_skill_revisions (id TEXT PRIMARY KEY, skillId INTEGER NOT NULL, sha256 TEXT NOT NULL, manifest TEXT NOT NULL, fileManifest TEXT NOT NULL DEFAULT "[]", packagePath TEXT NOT NULL, createdBy INTEGER, createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE(skillId, sha256))',
-    ])
-      await mockPrisma.$executeRawUnsafe(sql);
-    await mockPrisma.$executeRawUnsafe(
-      "ALTER TABLE predefined_agents ADD COLUMN wizard TEXT"
-    );
-    for (const sql of (
-      await fs.readFile(
-        path.resolve(
-          __dirname,
-          "../../prisma/migrations/20260922100000_standalone_quick_tasks/migration.sql"
-        ),
-        "utf8"
-      )
-    )
-      .split(";")
-      .filter((sql) => sql.trim()))
-      await mockPrisma.$executeRawUnsafe(sql);
+    await testDb.truncateAll();
   });
   afterEach(async () => {
     jest.restoreAllMocks();
-    await mockPrisma.$disconnect();
     if (previousStorage === undefined) delete process.env.STORAGE_DIR;
     else process.env.STORAGE_DIR = previousStorage;
     if (previousSync === undefined)

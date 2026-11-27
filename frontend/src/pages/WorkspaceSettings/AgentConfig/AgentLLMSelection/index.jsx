@@ -6,53 +6,8 @@ import { CaretUpDown, Gauge, MagnifyingGlass, X } from "@phosphor-icons/react";
 import AgentModelSelection from "../AgentModelSelection";
 import { useTranslation } from "react-i18next";
 
-const ENABLED_PROVIDERS = [
-  "openai",
-  "anthropic",
-  "lmstudio",
-  "ollama",
-  "localai",
-  "groq",
-  "azure",
-  "koboldcpp",
-  "togetherai",
-  "openrouter",
-  "novita",
-  "mistral",
-  "perplexity",
-  "textgenwebui",
-  "generic-openai",
-  "bedrock",
-  "fireworksai",
-  "deepseek",
-  "ppio",
-  "litellm",
-  "apipie",
-  "xai",
-  "nvidia-nim",
-  "gemini",
-  "moonshotai",
-  "cometapi",
-  "foundry",
-  "zai",
-  "giteeai",
-  "cohere",
-  "docker-model-runner",
-  "privatemode",
-  "sambanova",
-  "lemonade",
-  "omlx",
-  "minimax",
-  "cerebras",
-];
-const WARN_PERFORMANCE = [
-  "lmstudio",
-  "koboldcpp",
-  "ollama",
-  "localai",
-  "textgenwebui",
-  "docker-model-runner",
-];
+const ENABLED_PROVIDERS = ["openai", "generic-openai"];
+const WARN_PERFORMANCE = [];
 
 const LLM_DEFAULT = {
   name: "System Default",

@@ -9,9 +9,7 @@ const { MetaGenerator } = require("../utils/boot/MetaGenerator");
 const { PGVector } = require("../utils/vectorDbProviders/pgvector");
 const { NativeEmbedder } = require("../utils/EmbeddingEngines/native");
 const { getBaseLLMProviderModel } = require("../utils/helpers");
-const {
-  ConnectionStringParser,
-} = require("../utils/agents/aibitat/plugins/sql-agent/SQLConnectors/utils");
+const { ConnectionStringParser } = require("../services/sqlConnectors/utils");
 const {
   DEFAULT_AGENT_CLARIFYING_QUESTIONS_ENABLED,
 } = require("../utils/agents/skillDefaults");

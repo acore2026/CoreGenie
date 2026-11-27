@@ -101,7 +101,7 @@ try {
   await card("my-review").waitFor();
   assert.equal(writes.length, 0, "opening the library must not change sharing or subscriptions");
   const transportResults = await page.evaluate(async () => {
-    const { default: api } = await import("/src/models/personalSkills.js");
+    const { default: api } = await import("/src/models/personalSkills.ts");
     return [await api.share(1, false), await api.share(1, true)];
   });
   for (const result of transportResults)

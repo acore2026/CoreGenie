@@ -51,9 +51,7 @@ async function searchWithConfiguredProvider(query) {
   // Keep the governed runtime on the same provider and credentials as the
   // existing web-browsing Agent plugin instead of maintaining two provider
   // implementations that can drift apart.
-  const {
-    webBrowsing,
-  } = require("../utils/agents/aibitat/plugins/web-browsing");
+  const { webBrowsing } = require("../services/webSearch");
   let definition = null;
   const host = {
     function(value) {

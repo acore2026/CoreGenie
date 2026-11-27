@@ -11,7 +11,7 @@ jest.mock("fs/promises", () => ({
   appendFile: jest.fn(),
   readdir: jest.fn(),
 }));
-jest.mock("../../utils/agents/aibitat/plugins/filesystem/lib", () => ({
+jest.mock("../../services/workspaceFiles", () => ({
   forWorkspace: jest.fn(() => mockManager),
 }));
 

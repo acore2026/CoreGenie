@@ -9,7 +9,7 @@ const {
 } = require("../utils/middleware/multiUserProtected");
 const { validWorkspaceSlug } = require("../utils/middleware/validWorkspace");
 const { validApiKey } = require("../utils/middleware/validApiKey");
-const filesystem = require("../utils/agents/aibitat/plugins/filesystem/lib");
+const filesystem = require("../services/workspaceFiles");
 const { handleWorkspaceFileUpload } = require("../utils/files/multer");
 const { Workspace } = require("../models/workspace");
 

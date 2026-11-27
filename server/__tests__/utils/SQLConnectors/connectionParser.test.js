@@ -1,5 +1,5 @@
 /* eslint-env jest */
-const { ConnectionStringParser } = require("../../../utils/agents/aibitat/plugins/sql-agent/SQLConnectors/utils");
+const { ConnectionStringParser } = require("../../../services/sqlConnectors/utils");
 
 describe("ConnectionStringParser", () => {
   describe("Basic Parsing", () => {

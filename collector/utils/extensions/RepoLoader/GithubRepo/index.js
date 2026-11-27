@@ -39,7 +39,7 @@ async function loadGithubRepo(args, response) {
   ).toLowerCase();
 
   const outFolderPath =
-    process.env.NODE_ENV === "development"
+    process.env.NODE_ENV === "development" || !process.env.STORAGE_DIR
       ? path.resolve(
           __dirname,
           `../../../../../server/storage/documents/${outFolder}`

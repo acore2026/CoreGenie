@@ -14,7 +14,7 @@ const fs = require("fs");
 const path = require("path");
 const { Document } = require("../../../models/documents");
 const { purgeFolder } = require("../../../utils/files/purgeDocument");
-const createFilesLib = require("../../../utils/agents/aibitat/plugins/create-files/lib");
+const createFilesLib = require("../../../services/generatedFiles");
 const documentsPath =
   process.env.NODE_ENV === "development"
     ? path.resolve(__dirname, "../../../storage/documents")

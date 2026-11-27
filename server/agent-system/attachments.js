@@ -1,6 +1,6 @@
 const fs = require("fs/promises");
 const path = require("path");
-const filesystem = require("../utils/agents/aibitat/plugins/filesystem/lib");
+const filesystem = require("../services/workspaceFiles");
 
 const WORKSPACE_FILE_MIME = "application/anythingllm-workspace-file";
 const MAX_WORKSPACE_FILE_BYTES = 50 * 1024 * 1024;

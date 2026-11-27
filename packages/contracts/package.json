@@ -1,0 +1,13 @@
+{
+  "name": "@coregenie/contracts",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.mts",
+    "./*": "./src/*.mts"
+  },
+  "dependencies": {
+    "zod": "4.4.3"
+  }
+}

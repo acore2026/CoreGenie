@@ -24,7 +24,7 @@ const mockCollector = {
 jest.mock("../../utils/collectorApi", () => ({
   CollectorApi: jest.fn(() => mockCollector),
 }));
-jest.mock("../../utils/agents/aibitat/plugins/filesystem/lib", () => ({
+jest.mock("../../services/workspaceFiles", () => ({
   forWorkspace: jest.fn(() => mockManager),
 }));
 jest.mock("../../models/documents", () => ({

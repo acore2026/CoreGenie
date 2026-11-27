@@ -1,12 +1,13 @@
 CREATE TABLE "global_documents" (
-    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "id" SERIAL NOT NULL,
     "docId" TEXT NOT NULL,
     "filename" TEXT NOT NULL,
     "docpath" TEXT NOT NULL,
     "metadata" TEXT,
     "createdBy" INTEGER,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "lastUpdatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "lastUpdatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "global_documents_pkey" PRIMARY KEY ("id")
 );
 
 CREATE UNIQUE INDEX "global_documents_docId_key" ON "global_documents"("docId");

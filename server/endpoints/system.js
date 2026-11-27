@@ -1528,9 +1528,7 @@ function systemEndpoints(app) {
           });
         }
 
-        const {
-          validateConnection,
-        } = require("../utils/agents/aibitat/plugins/sql-agent/SQLConnectors");
+        const { validateConnection } = require("../services/sqlConnectors");
         const result = await validateConnection(engine, { connectionString });
 
         if (!result.success) {

@@ -29,13 +29,17 @@ export default defineConfig(({ mode }) => ({
     fs: {
       allow: [
         searchForWorkspaceRoot(localPath(".")),
+        localPath("../packages/contracts"),
         localPath("../server/contracts")
       ]
     }
   },
   css: { postcss },
   resolve: {
-    alias: { "@": localPath("./src") },
+    alias: {
+      "@": localPath("./src"),
+      "@coregenie/contracts": localPath("../packages/contracts/src")
+    },
     dedupe: ["zod"]
   },
   build: {

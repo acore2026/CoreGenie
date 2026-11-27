@@ -1,7 +1,7 @@
 const { log, conclude } = require("./helpers/index.js");
 const { WorkspaceChats } = require("../models/workspaceChats.js");
 const { ScheduledJobRun } = require("../models/scheduledJobRun.js");
-const createFilesLib = require("../utils/agents/aibitat/plugins/create-files/lib.js");
+const createFilesLib = require("../services/generatedFiles");
 const { safeJsonParse } = require("../utils/http/index.js");
 
 (async () => {

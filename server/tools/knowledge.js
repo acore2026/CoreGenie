@@ -8,7 +8,7 @@ const { Document } = require("../models/documents");
 const { AgentReportPublication } = require("../models/agentReportPublication");
 const { CollectorApi } = require("../utils/collectorApi");
 const { directUploadsPath, documentsPath } = require("../utils/files");
-const filesystem = require("../utils/agents/aibitat/plugins/filesystem/lib");
+const filesystem = require("../services/workspaceFiles");
 const {
   LLMPerformanceMonitor,
 } = require("../utils/helpers/chat/LLMPerformanceMonitor");

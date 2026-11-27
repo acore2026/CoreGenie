@@ -22,6 +22,7 @@ RUN sed -i -E \
 RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -yq --no-install-recommends \
         unzip curl gnupg libgfortran5 tzdata netcat-openbsd poppler-utils \
+        libreoffice-writer fonts-crosextra-carlito \
         libc6 libcairo2 libexpat1 libfontconfig1 libgcc1 libglib2.0-0 libpango-1.0-0 \
         ca-certificates fonts-liberation git build-essential pkg-config libcairo2-dev libpango1.0-dev \
         libjpeg-dev libgif-dev librsvg2-dev && \
@@ -29,11 +30,9 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
     curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg && \
     echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_24.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list && \
     apt-get update && \
-    # Install node and yarn
+    # Install node and pnpm
     apt-get install -yq --no-install-recommends nodejs && \
-    curl -LO https://github.com/yarnpkg/yarn/releases/download/v1.22.19/yarn_1.22.19_all.deb \
-        && dpkg -i yarn_1.22.19_all.deb \
-        && rm yarn_1.22.19_all.deb && \
+    corepack enable && corepack prepare pnpm@12.4.2 --activate && \
     # Install uvx (pinned to 0.6.10) for MCP support
     curl -LsSf https://astral.sh/uv/0.6.10/install.sh | sh && \
         mv /root/.local/bin/uv /usr/local/bin/uv && \
@@ -79,6 +78,7 @@ RUN sed -i -E \
 RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -yq --no-install-recommends \
         unzip curl gnupg libgfortran5 tzdata netcat-openbsd poppler-utils \
+        libreoffice-writer fonts-crosextra-carlito \
         libc6 libcairo2 libexpat1 libfontconfig1 libgcc1 libglib2.0-0 libpango-1.0-0 \
         ca-certificates fonts-liberation git build-essential pkg-config libcairo2-dev libpango1.0-dev \
         libjpeg-dev libgif-dev librsvg2-dev && \
@@ -86,11 +86,9 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
     curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg && \
     echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_24.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list && \
     apt-get update && \
-    # Install node and yarn
+    # Install node and pnpm
     apt-get install -yq --no-install-recommends nodejs && \
-    curl -LO https://github.com/yarnpkg/yarn/releases/download/v1.22.19/yarn_1.22.19_all.deb \
-        && dpkg -i yarn_1.22.19_all.deb \
-        && rm yarn_1.22.19_all.deb && \
+    corepack enable && corepack prepare pnpm@12.4.2 --activate && \
     # Install uvx (pinned to 0.6.10) for MCP support
     curl -LsSf https://astral.sh/uv/0.6.10/install.sh | sh && \
         mv /root/.local/bin/uv /usr/local/bin/uv && \
@@ -132,32 +130,32 @@ WORKDIR /app
 # Run the native bundler on the build host when cross-compiling.
 # The output (static HTML/CSS/JS) is platform-independent.
 FROM --platform=$BUILDPLATFORM node:24-slim AS frontend-build
-WORKDIR /app/frontend
-ARG YARN_REGISTRY=https://registry.npmmirror.com
-COPY ./frontend/package.json ./frontend/yarn.lock ./
-RUN sed -i \
-      -e "s#https://registry.yarnpkg.com#${YARN_REGISTRY}#g" \
-      -e "s#https://registry.npmjs.org#${YARN_REGISTRY}#g" \
-      yarn.lock && \
-    yarn install --frozen-lockfile --network-timeout 100000 && yarn cache clean
+WORKDIR /app
+ARG NPM_REGISTRY=https://registry.npmmirror.com
+RUN corepack enable && corepack prepare pnpm@12.4.2 --activate
+COPY ./package.json ./pnpm-workspace.yaml ./pnpm-lock.yaml ./.npmrc ./
+COPY ./packages/contracts/package.json ./packages/contracts/
+COPY ./frontend/package.json ./frontend/
+RUN pnpm config set registry "${NPM_REGISTRY}" && \
+    pnpm --filter anything-llm-frontend... install --frozen-lockfile
 ENV VITE_API_BASE=/api
-COPY ./frontend/ ./
-COPY ./server/contracts/ /app/server/contracts/
-RUN yarn build
+COPY ./packages/contracts/ ./packages/contracts/
+COPY ./server/contracts/ ./server/contracts/
+COPY ./frontend/ ./frontend/
+RUN pnpm --filter anything-llm-frontend build
 WORKDIR /app
 
-# Install server dependencies before copying server source so ordinary code
-# changes do not invalidate the expensive dependency layer.
+# Install server + in-process collector dependencies before copying source.
 FROM build AS backend-build
-WORKDIR /app/server
-ARG YARN_REGISTRY=https://registry.npmmirror.com
+WORKDIR /app
+ARG NPM_REGISTRY=https://registry.npmmirror.com
 ARG TARGETARCH
 ARG VSCODE_RIPGREP_PACKAGE_VERSION=1.17.1
 ARG VSCODE_RIPGREP_RELEASE=v15.0.1
-COPY --chown=anythingllm:anythingllm ./server/package.json ./server/yarn.lock ./
-# @vscode/ripgrep normally discovers this asset through GitHub's anonymous
-# Releases API during postinstall. Seed its documented cache from the direct
-# release URL so cold builds do not fail when the shared API quota is exhausted.
+COPY --chown=anythingllm:anythingllm ./package.json ./pnpm-workspace.yaml ./pnpm-lock.yaml ./.npmrc ./
+COPY --chown=anythingllm:anythingllm ./packages/contracts/package.json ./packages/contracts/
+COPY --chown=anythingllm:anythingllm ./collector/package.json ./collector/
+COPY --chown=anythingllm:anythingllm ./server/package.json ./server/
 RUN case "$TARGETARCH" in \
       amd64) ripgrep_target=x86_64-unknown-linux-musl ;; \
       arm64) ripgrep_target=aarch64-unknown-linux-musl ;; \
@@ -170,35 +168,13 @@ RUN case "$TARGETARCH" in \
     curl -fsSL --retry 4 --retry-all-errors \
       "https://github.com/microsoft/ripgrep-prebuilt/releases/download/${ripgrep_release}/${ripgrep_asset}" \
       -o "$ripgrep_cache/$ripgrep_asset"
-# Yarn 1 installs both glibc and musl LanceDB optional packages on Linux.
-# Ubuntu uses glibc, so retain only the native package for the target CPU.
-RUN sed -i \
-      -e "s#https://registry.yarnpkg.com#${YARN_REGISTRY}#g" \
-      -e "s#https://registry.npmjs.org#${YARN_REGISTRY}#g" \
-      yarn.lock && \
-    yarn install --production --frozen-lockfile --network-timeout 100000 && \
-    case "$TARGETARCH" in \
-      amd64) lancedb_native_package=lancedb-linux-x64-gnu ;; \
-      arm64) lancedb_native_package=lancedb-linux-arm64-gnu ;; \
-      *) echo "Unsupported LanceDB build architecture: $TARGETARCH" >&2; exit 1 ;; \
-    esac && \
-    find node_modules/@lancedb -mindepth 1 -maxdepth 1 -type d \
-      -name 'lancedb-*' ! -name "$lancedb_native_package" -exec rm -rf {} + && \
-    test -d "node_modules/@lancedb/$lancedb_native_package" && \
-    node -e "require('@lancedb/lancedb')" && \
-    yarn cache clean
-
-# Install collector dependencies before copying either source tree so this
-# layer remains cached when only server source changes.
-WORKDIR /app/collector
-COPY --chown=anythingllm:anythingllm ./collector/package.json ./collector/yarn.lock ./
-RUN sed -i \
-      -e "s#https://registry.yarnpkg.com#${YARN_REGISTRY}#g" \
-      -e "s#https://registry.npmjs.org#${YARN_REGISTRY}#g" \
-      yarn.lock && \
-    yarn install --production --network-timeout 100000 && yarn cache clean
+RUN pnpm config set registry "${NPM_REGISTRY}" && \
+    pnpm --filter anything-llm-server... install --prod --frozen-lockfile && \
+    node -e "require('./server/node_modules/@lancedb/lancedb')" && \
+    pnpm store prune
 
 # Source-only layers come after all dependency layers.
+COPY --chown=anythingllm:anythingllm ./packages/contracts/ /app/packages/contracts/
 COPY --chown=anythingllm:anythingllm ./server/ /app/server/
 COPY --chown=anythingllm:anythingllm ./collector/ /app/collector/
 COPY --chown=anythingllm:anythingllm ./agent-config/ /app/agent-config/

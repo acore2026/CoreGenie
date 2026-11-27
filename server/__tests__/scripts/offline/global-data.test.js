@@ -39,6 +39,8 @@ describe("离线全局数据脚本", () => {
       "browser_extension_api_keys",
       "external_communication_connectors",
       "desktop_mobile_devices",
+      "model_routers",
+      "model_router_rules",
     ]) {
       expect(exported.has(banned)).toBe(false);
     }

@@ -1,16 +1,16 @@
 const fs = require("fs");
-const os = require("os");
 const path = require("path");
-const { execFileSync } = require("child_process");
-const { PrismaClient } = require("@prisma/client");
-const Database = require("better-sqlite3");
+const {
+  createPgliteTestDb,
+  loadPgliteModules,
+} = require("../helpers/pgliteTestDb");
 
-const directory = fs.mkdtempSync(path.join(os.tmpdir(), "thread-lifecycle-"));
-const databasePath = path.join(directory, "test.db");
-const mockPrisma = new PrismaClient({
-  datasources: { db: { url: `file:${databasePath}` } },
-});
-jest.mock("../../utils/prisma", () => mockPrisma);
+let testDb;
+let mockPrisma;
+jest.mock(
+  "../../utils/prisma",
+  () => new Proxy({}, { get: (_target, key) => mockPrisma[key] })
+);
 const {
   threadVisibility,
   canViewThread,
@@ -31,23 +31,9 @@ describe("private draft lifecycle", () => {
       ...extra,
     });
   beforeAll(async () => {
-    const sql = execFileSync(
-      process.execPath,
-      [
-        require.resolve("prisma/build/index.js"),
-        "migrate",
-        "diff",
-        "--from-empty",
-        "--to-schema-datamodel",
-        path.resolve(__dirname, "../../prisma/schema.prisma"),
-        "--script",
-      ],
-      { encoding: "utf8" }
-    );
-    schemaSql = sql;
-    const db = new Database(databasePath);
-    db.exec(sql);
-    db.close();
+    testDb = await createPgliteTestDb();
+    mockPrisma = testDb.prisma;
+    schemaSql = testDb.schemaSql;
     await Promise.all(
       [
         { id: 1, username: "owner", password: "test" },
@@ -61,7 +47,6 @@ describe("private draft lifecycle", () => {
   beforeEach(async () => {
     await mockPrisma.workspace_chats.deleteMany();
     await mockPrisma.agent_runs.deleteMany();
-    await mockPrisma.workspace_agent_invocations.deleteMany();
     await mockPrisma.workspace_threads.deleteMany();
     thread = await mockPrisma.workspace_threads.create({
       data: {
@@ -73,16 +58,17 @@ describe("private draft lifecycle", () => {
     });
   });
   afterAll(async () => {
-    await mockPrisma.$disconnect();
-    fs.rmSync(directory, { recursive: true, force: true });
+    await testDb?.close();
   });
 
-  it("migrates existing submitted and reset histories while leaving unused threads private", () => {
-    const db = new Database(":memory:");
+  it("migrates existing submitted and reset histories while leaving unused threads private", async () => {
+    const { PGlite } = loadPgliteModules();
+    const db = new PGlite();
+    await db.waitReady;
     try {
-      db.exec(
+      await db.exec(
         schemaSql
-          .replace(/^.*"(?:submittedAt|draftTouchedAt)" DATETIME.*\n/gm, "")
+          .replace(/^.*"(?:submittedAt|draftTouchedAt)" TIMESTAMP.*\n/gm, "")
           .replace(
             /CREATE TABLE "workspace_thread_sessions" \([\s\S]*?\);/g,
             ""
@@ -91,17 +77,25 @@ describe("private draft lifecycle", () => {
             /^CREATE INDEX "workspace_thread_sessions_threadId_expiresAt_idx".*$/gm,
             ""
           )
+          .replace(/^ALTER TABLE "workspace_thread_sessions"[\s\S]*?;/gm, "")
       );
-      db.exec(`
+      await db.exec(`
+        CREATE TABLE "workspace_agent_invocations" (
+          "id" SERIAL PRIMARY KEY,
+          "uuid" TEXT NOT NULL,
+          "prompt" TEXT NOT NULL,
+          "workspace_id" INTEGER NOT NULL,
+          "thread_id" INTEGER
+        );
         INSERT INTO workspaces (id, name, slug) VALUES (1, 'Test', 'test');
         INSERT INTO workspace_threads (id, name, slug, workspace_id) VALUES
           (1, 'Thread', 'empty', 1), (2, 'Thread', 'reset', 1),
           (3, 'Thread', 'task', 1), (4, 'Thread', 'invocation', 1);
-        INSERT INTO workspace_chats (workspaceId, thread_id, prompt, response, include) VALUES (1, 2, 'Hello', '{}', false);
-        INSERT INTO agent_runs (id, workspace_id, thread_id, prompt, checkpointThreadId) VALUES ('run', 1, 3, 'Task', 'run');
+        INSERT INTO workspace_chats ("workspaceId", thread_id, prompt, response, include) VALUES (1, 2, 'Hello', '{}', false);
+        INSERT INTO agent_runs (id, workspace_id, thread_id, prompt, "checkpointThreadId") VALUES ('run', 1, 3, 'Task', 'run');
         INSERT INTO workspace_agent_invocations (uuid, workspace_id, thread_id, prompt) VALUES ('invocation', 1, 4, 'Task');
       `);
-      db.exec(
+      await db.exec(
         fs.readFileSync(
           path.resolve(
             __dirname,
@@ -110,20 +104,16 @@ describe("private draft lifecycle", () => {
           "utf8"
         )
       );
-      expect(
-        db
-          .prepare(
-            "SELECT id FROM workspace_threads WHERE submittedAt IS NOT NULL ORDER BY id"
-          )
-          .all()
-      ).toEqual([{ id: 2 }, { id: 3 }, { id: 4 }]);
-      expect(
-        db
-          .prepare("SELECT draftTouchedAt FROM workspace_threads WHERE id = 1")
-          .get()
-      ).toEqual({ draftTouchedAt: null });
+      const submitted = await db.query(
+        'SELECT id FROM workspace_threads WHERE "submittedAt" IS NOT NULL ORDER BY id'
+      );
+      expect(submitted.rows).toEqual([{ id: 2 }, { id: 3 }, { id: 4 }]);
+      const untouched = await db.query(
+        'SELECT "draftTouchedAt" FROM workspace_threads WHERE id = 1'
+      );
+      expect(untouched.rows[0]).toEqual({ draftTouchedAt: null });
     } finally {
-      db.close();
+      await db.close();
     }
   });
 
@@ -187,7 +177,7 @@ describe("private draft lifecycle", () => {
     });
     expect(await session("leave")).toEqual({ deleted: false });
   });
-  it("retains tasks and agent invocations", async () => {
+  it("retains tasks", async () => {
     await mockPrisma.agent_runs.create({
       data: {
         id: "run",
@@ -195,16 +185,6 @@ describe("private draft lifecycle", () => {
         thread_id: thread.id,
         prompt: "Task",
         checkpointThreadId: "run",
-      },
-    });
-    expect(await session("leave")).toEqual({ deleted: false });
-    await mockPrisma.agent_runs.deleteMany();
-    await mockPrisma.workspace_agent_invocations.create({
-      data: {
-        uuid: "invocation",
-        prompt: "Task",
-        workspace_id: 10,
-        thread_id: thread.id,
       },
     });
     expect(await session("leave")).toEqual({ deleted: false });

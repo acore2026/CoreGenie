@@ -1,16 +1,18 @@
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
-const { PrismaClient } = require("@prisma/client");
+const { createPgliteTestDb } = require("../helpers/pgliteTestDb");
 const temporary = fs.mkdtempSync(
   path.join(os.tmpdir(), "personal-skills-test-")
 );
 const oldStorage = process.env.STORAGE_DIR;
 process.env.STORAGE_DIR = path.join(temporary, "storage");
-const mockPrisma = new PrismaClient({
-  datasources: { db: { url: "file:" + path.join(temporary, "test.db") } },
-});
-jest.mock("../../utils/prisma", () => mockPrisma);
+let testDb;
+let mockPrisma;
+jest.mock(
+  "../../utils/prisma",
+  () => new Proxy({}, { get: (_target, key) => mockPrisma[key] })
+);
 jest.mock("../../models/predefinedAgentSkill", () => ({
   PredefinedAgentSkill: {
     whereIds: jest.fn(async () => []),
@@ -75,25 +77,16 @@ async function api(
 }
 
 beforeAll(async () => {
-  await mockPrisma.$executeRawUnsafe("PRAGMA foreign_keys=ON");
-  await mockPrisma.$executeRawUnsafe(
-    'CREATE TABLE "users" ("id" INTEGER PRIMARY KEY, "username" TEXT NOT NULL)'
+  testDb = await createPgliteTestDb();
+  mockPrisma = testDb.prisma;
+  await Promise.all(
+    [
+      { id: 1, username: "作者", password: "pw" },
+      { id: 2, username: "读者", password: "pw" },
+      { id: 3, username: "其他用户", password: "pw" },
+    ].map((data) => mockPrisma.users.create({ data }))
   );
-  for (const sql of fs
-    .readFileSync(
-      path.resolve(
-        __dirname,
-        "../../prisma/migrations/20261127020000_personal_skills/migration.sql"
-      ),
-      "utf8"
-    )
-    .split(";")
-    .filter((s) => s.trim()))
-    await mockPrisma.$executeRawUnsafe(sql);
-  await mockPrisma.$executeRawUnsafe(
-    "INSERT INTO users (id,username) VALUES (1,'作者'),(2,'读者'),(3,'其他用户')"
-  );
-});
+}, 30000);
 beforeEach(async () => {
   await mockPrisma.personal_skill_subscriptions.deleteMany();
   await mockPrisma.personal_agent_skills.deleteMany();
@@ -101,7 +94,7 @@ beforeEach(async () => {
   PredefinedAgentSkill.all.mockResolvedValue([]);
 });
 afterAll(async () => {
-  await mockPrisma.$disconnect();
+  await testDb?.close();
   if (oldStorage === undefined) delete process.env.STORAGE_DIR;
   else process.env.STORAGE_DIR = oldStorage;
   fs.rmSync(temporary, { recursive: true, force: true });
@@ -307,7 +300,7 @@ test("sandbox execution carries the authorized author and denies revoked shared 
   const skill = await skills.save(1, null, input());
   await skills.enable(skill.id, 2, true);
   const [runtime] = await availableSkills({}, null, { userId: 2 });
-  const library = require("../../utils/agents/aibitat/plugins/sandbox/lib");
+  const library = require("../../services/sandbox");
   const run = jest.spyOn(library, "run").mockResolvedValue({
     exitCode: 0,
     stdout: "ok",

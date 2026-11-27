@@ -10,9 +10,11 @@ on:
     paths:
       - ".nvmrc"
       - "package.json"
-      - "yarn.lock"
+      - "pnpm-workspace.yaml"
+      - "pnpm-lock.yaml"
       - ".github/workflows/run-tests.yaml"
       - "jest.config.cjs"
+      - "packages/**"
       - "server/**"
       - "collector/**"
 
@@ -24,57 +26,25 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
+          cache: pnpm
 
-      - name: Cache root dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            node_modules
-            ~/.cache/yarn
-          key: ${{ runner.os }}-node24-yarn-root-${{ hashFiles('yarn.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-node24-yarn-root-
-
-      - name: Cache server dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            server/node_modules
-            ~/.cache/yarn
-          key: ${{ runner.os }}-node24-yarn-server-${{ hashFiles('server/yarn.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-node24-yarn-server-
-
-      - name: Cache collector dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            collector/node_modules
-            ~/.cache/yarn
-          key: ${{ runner.os }}-node24-yarn-collector-${{ hashFiles('collector/yarn.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-node24-yarn-collector-
-
-      - name: Install root dependencies
-        run: yarn install --frozen-lockfile
-
-      - name: Install server dependencies
-        run: cd server && yarn install --frozen-lockfile
-
-      - name: Install collector dependencies
-        run: cd collector && yarn install --frozen-lockfile
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
         env:
           SHARP_IGNORE_GLOBAL_LIBVIPS: "true"
 
-      - name: Setup environment and Prisma
-        run: yarn setup:envs && yarn prisma:setup
+      - name: Generate Prisma Client
+        run: pnpm setup:envs && pnpm prisma:generate
 
       - name: Run test suites
-        run: yarn test
+        run: pnpm test
 
       - name: Fail job on error
         if: failure()

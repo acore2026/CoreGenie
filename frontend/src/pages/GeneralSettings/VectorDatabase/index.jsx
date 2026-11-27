@@ -13,24 +13,9 @@ import ModalWrapper from "@/components/ModalWrapper";
 import VectorDBItem from "@/components/VectorDBSelection/VectorDBItem";
 
 import LanceDbLogo from "@/media/vectordbs/lancedb.png";
-import ChromaLogo from "@/media/vectordbs/chroma.png";
-import PineconeLogo from "@/media/vectordbs/pinecone.png";
-import WeaviateLogo from "@/media/vectordbs/weaviate.png";
-import QDrantLogo from "@/media/vectordbs/qdrant.png";
-import MilvusLogo from "@/media/vectordbs/milvus.png";
-import ZillizLogo from "@/media/vectordbs/zilliz.png";
-import AstraDBLogo from "@/media/vectordbs/astraDB.png";
 import PGVectorLogo from "@/media/vectordbs/pgvector.png";
 
 import LanceDBOptions from "@/components/VectorDBSelection/LanceDBOptions";
-import ChromaDBOptions from "@/components/VectorDBSelection/ChromaDBOptions";
-import ChromaCloudOptions from "@/components/VectorDBSelection/ChromaCloudOptions";
-import PineconeDBOptions from "@/components/VectorDBSelection/PineconeDBOptions";
-import WeaviateDBOptions from "@/components/VectorDBSelection/WeaviateDBOptions";
-import QDrantDBOptions from "@/components/VectorDBSelection/QDrantDBOptions";
-import MilvusDBOptions from "@/components/VectorDBSelection/MilvusDBOptions";
-import ZillizCloudOptions from "@/components/VectorDBSelection/ZillizCloudOptions";
-import AstraDBOptions from "@/components/VectorDBSelection/AstraDBOptions";
 import PGVectorOptions from "@/components/VectorDBSelection/PGVectorOptions";
 
 const VECTOR_DBS = [
@@ -48,66 +33,6 @@ const VECTOR_DBS = [
     logo: PGVectorLogo,
     options: (settings) => <PGVectorOptions settings={settings} />,
     description: "Vector search powered by PostgreSQL.",
-  },
-  {
-    name: "Chroma",
-    value: "chroma",
-    logo: ChromaLogo,
-    options: (settings) => <ChromaDBOptions settings={settings} />,
-    description:
-      "Open source vector database you can host yourself or on the cloud.",
-  },
-  {
-    name: "Chroma Cloud",
-    value: "chromacloud",
-    logo: ChromaLogo,
-    options: (settings) => <ChromaCloudOptions settings={settings} />,
-    description:
-      "Fully managed Chroma cloud service with enterprise features and support.",
-  },
-  {
-    name: "Pinecone",
-    value: "pinecone",
-    logo: PineconeLogo,
-    options: (settings) => <PineconeDBOptions settings={settings} />,
-    description: "100% cloud-based vector database for enterprise use cases.",
-  },
-  {
-    name: "Zilliz Cloud",
-    value: "zilliz",
-    logo: ZillizLogo,
-    options: (settings) => <ZillizCloudOptions settings={settings} />,
-    description:
-      "Cloud hosted vector database built for enterprise with SOC 2 compliance.",
-  },
-  {
-    name: "QDrant",
-    value: "qdrant",
-    logo: QDrantLogo,
-    options: (settings) => <QDrantDBOptions settings={settings} />,
-    description: "Open source local and distributed cloud vector database.",
-  },
-  {
-    name: "Weaviate",
-    value: "weaviate",
-    logo: WeaviateLogo,
-    options: (settings) => <WeaviateDBOptions settings={settings} />,
-    description:
-      "Open source local and cloud hosted multi-modal vector database.",
-  },
-  {
-    name: "Milvus",
-    value: "milvus",
-    logo: MilvusLogo,
-    options: (settings) => <MilvusDBOptions settings={settings} />,
-    description: "Open-source, highly scalable, and blazing fast.",
-  },
-  {
-    name: "AstraDB",
-    value: "astra",
-    logo: AstraDBLogo,
-    options: (settings) => <AstraDBOptions settings={settings} />,
-    description: "Vector Search for Real-world GenAI.",
   },
 ];
 

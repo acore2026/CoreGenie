@@ -80,14 +80,6 @@ function utilEndpoints(app) {
       }
     }
   );
-
-  const {
-    dockerModelRunnerUtilsEndpoints,
-  } = require("./utils/dockerModelRunnerUtils");
-  dockerModelRunnerUtilsEndpoints(app);
-
-  const { lemonadeUtilsEndpoints } = require("./utils/lemonadeUtilsEndpoints");
-  lemonadeUtilsEndpoints(app);
 }
 
 function getGitVersion() {

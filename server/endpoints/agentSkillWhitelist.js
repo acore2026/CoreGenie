@@ -14,7 +14,7 @@ function agentSkillWhitelistEndpoints(app) {
     [validatedRequest],
     async (_request, response) => {
       try {
-        const filesystemTool = require("../utils/agents/aibitat/plugins/filesystem/lib");
+        const filesystemTool = require("../services/workspaceFiles");
         return response
           .status(200)
           .json({ available: filesystemTool.isToolAvailable() });
@@ -32,7 +32,7 @@ function agentSkillWhitelistEndpoints(app) {
     [validatedRequest],
     async (_request, response) => {
       try {
-        const sandbox = require("../utils/agents/aibitat/plugins/sandbox/lib");
+        const sandbox = require("../services/sandbox");
         return response
           .status(200)
           .json({ available: sandbox.isToolAvailable() });
@@ -50,7 +50,7 @@ function agentSkillWhitelistEndpoints(app) {
     [validatedRequest],
     async (_request, response) => {
       try {
-        const createFilesTool = require("../utils/agents/aibitat/plugins/create-files/lib");
+        const createFilesTool = require("../services/generatedFiles");
         return response
           .status(200)
           .json({ available: createFilesTool.isToolAvailable() });

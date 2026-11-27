@@ -17,8 +17,18 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "baseUrl": ".",
-    "paths": { "@/*": ["src/*"], "zod": ["./node_modules/zod"] },
+    "paths": {
+      "@/*": ["src/*"],
+      "@coregenie/contracts": ["../packages/contracts/src/index.mts"],
+      "@coregenie/contracts/*": ["../packages/contracts/src/*"],
+      "zod": ["./node_modules/zod"]
+    },
     "types": ["vite/client"]
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "../server/contracts/**/*.mts"]
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "../packages/contracts/src/**/*.mts",
+    "../server/contracts/**/*.mts"
+  ]
 }

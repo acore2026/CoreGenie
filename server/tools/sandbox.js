@@ -1,6 +1,6 @@
 const { z } = require("zod");
 const { defineTool } = require("./descriptor");
-const sandbox = require("../utils/agents/aibitat/plugins/sandbox/lib");
+const sandbox = require("../services/sandbox");
 const {
   sandboxBrokerErrorResult,
   sandboxToolResult,

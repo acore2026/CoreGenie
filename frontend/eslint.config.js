@@ -51,6 +51,7 @@ const config = [
       "react-hooks/exhaustive-deps": "off",
       "react/prop-types": "off",
       "react-hooks/set-state-in-effect": "off",
+      "react-hooks/refs": "off",
       "react/jsx-no-target-blank": "error",
       "react/no-unescaped-entities": "off",
       "react/display-name": "off",
@@ -90,8 +91,9 @@ export default [
     languageOptions: { ...config[2].languageOptions, parser: tsParser },
     rules: {
       ...config[2].rules,
-      // The TypeScript compiler checks names and unused declarations.
+      // The TypeScript compiler checks names, overloads, and unused declarations.
       "no-undef": "off",
+      "no-redeclare": "off",
       "unused-imports/no-unused-vars": "off",
     },
   },

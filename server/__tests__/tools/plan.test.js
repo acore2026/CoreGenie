@@ -1,7 +1,5 @@
-const fs = require("fs/promises");
-const os = require("os");
-const path = require("path");
-const { PrismaClient } = require("@prisma/client");
+const { createPgliteTestDb } = require("../helpers/pgliteTestDb");
+let testDb;
 let mockPrisma;
 jest.mock(
   "../../utils/prisma",
@@ -27,32 +25,31 @@ const context = (id = "run-one", extra = {}) => ({
 });
 
 describe("ReAct progress plans", () => {
-  let root;
+  beforeAll(async () => {
+    testDb = await createPgliteTestDb();
+    mockPrisma = testDb.prisma;
+  }, 30000);
   beforeEach(async () => {
-    root = await fs.mkdtemp(path.join(os.tmpdir(), "react-plan-"));
-    mockPrisma = new PrismaClient({
-      datasources: { db: { url: `file:${path.join(root, "test.db")}` } },
+    await testDb.truncateAll();
+    await mockPrisma.agent_runs.createMany({
+      data: [
+        {
+          id: "run-one",
+          workspace_id: 1,
+          prompt: "test",
+          checkpointThreadId: "run-one",
+        },
+        {
+          id: "run-two",
+          workspace_id: 1,
+          prompt: "test",
+          checkpointThreadId: "run-two",
+        },
+      ],
     });
-    await mockPrisma.$executeRawUnsafe(
-      "CREATE TABLE agent_runs (id TEXT PRIMARY KEY)"
-    );
-    await mockPrisma.$executeRawUnsafe(
-      "INSERT INTO agent_runs (id) VALUES ('run-one'), ('run-two')"
-    );
-    const migration = await fs.readFile(
-      path.resolve(
-        __dirname,
-        "../../prisma/migrations/20260827150000_governed_agent_runtime/migration.sql"
-      ),
-      "utf8"
-    );
-    await mockPrisma.$executeRawUnsafe(
-      migration.match(/CREATE TABLE "agent_run_tasks" \([\s\S]*?\);/)[0]
-    );
   });
-  afterEach(async () => {
-    await mockPrisma.$disconnect();
-    await fs.rm(root, { recursive: true, force: true });
+  afterAll(async () => {
+    await testDb?.close();
   });
 
   it("persists progress, preserves order and emits updates for the card", async () => {

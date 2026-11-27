@@ -54,10 +54,10 @@ try {
     window.$RefreshReg$ = () => {};
     window.$RefreshSig$ = () => type => type;
     window.__vite_plugin_react_preamble_installed__ = true;
-    const { default: personal } = await import("/src/models/personalSkills.js");
-    const { default: config } = await import("/src/models/configSync.js");
+    const { default: personal } = await import("/src/models/personalSkills.ts");
+    const { default: config } = await import("/src/models/configSync.ts");
     const { default: workspace } = await import("/src/models/workspace.js");
-    const { default: predefined } = await import("/src/models/predefinedAgent.js");
+    const { default: predefined } = await import("/src/models/predefinedAgent.ts");
     const results = [];
     const check = async (name, action) => {
       try {

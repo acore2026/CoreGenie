@@ -1,7 +1,7 @@
 /* eslint-env jest, node */
 const fs = require("fs/promises");
 const path = require("path");
-const filesystem = require("../../utils/agents/aibitat/plugins/filesystem/lib");
+const filesystem = require("../../services/workspaceFiles");
 const {
   apiWorkspaceFileEndpoints,
   loadApiWorkspace,

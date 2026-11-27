@@ -75,17 +75,15 @@ async function updateDraftSession({
     if (action === "release") return { deleted: false };
     if (thread.submittedAt || thread.draftTouchedAt || thread.name !== "Thread")
       return { deleted: false };
-    const [sessions, chats, runs, invocations, files] = await Promise.all([
+    const [sessions, chats, runs, files] = await Promise.all([
       tx.workspace_thread_sessions.count({
         where: { threadId, expiresAt: { gt: new Date() } },
       }),
       tx.workspace_chats.count({ where: { thread_id: threadId } }),
       tx.agent_runs.count({ where: { thread_id: threadId } }),
-      tx.workspace_agent_invocations.count({ where: { thread_id: threadId } }),
       tx.workspace_parsed_files.count({ where: { threadId } }),
     ]);
-    if (sessions || chats || runs || invocations || files)
-      return { deleted: false };
+    if (sessions || chats || runs || files) return { deleted: false };
     await tx.workspace_threads.delete({ where: { id: threadId } });
     return { deleted: true };
   });

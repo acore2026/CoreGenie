@@ -1,9 +1,9 @@
 /* eslint-env jest, node */
-jest.mock("../../utils/agents/aibitat/plugins/sandbox/lib", () => ({
+jest.mock("../../services/sandbox", () => ({
   run: jest.fn(),
 }));
 
-const sandboxClient = require("../../utils/agents/aibitat/plugins/sandbox/lib");
+const sandboxClient = require("../../services/sandbox");
 const { bash } = require("../../tools/sandbox");
 
 describe("sandbox descriptor broker failures", () => {

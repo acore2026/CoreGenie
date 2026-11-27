@@ -2,19 +2,17 @@
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
-const { execFileSync } = require("child_process");
-const { PrismaClient } = require("@prisma/client");
-const Database = require("better-sqlite3");
+const { createPgliteTestDb } = require("../helpers/pgliteTestDb");
 
-// Exercise real transactions in a disposable database, never the development DB.
 const directory = fs.mkdtempSync(
   path.join(os.tmpdir(), "agent-run-persistence-")
 );
-const databasePath = path.join(directory, "test.db");
-const mockPrisma = new PrismaClient({
-  datasources: { db: { url: `file:${databasePath}` } },
-});
-jest.mock("../../utils/prisma", () => mockPrisma);
+let testDb;
+let mockPrisma;
+jest.mock(
+  "../../utils/prisma",
+  () => new Proxy({}, { get: (_target, key) => mockPrisma[key] })
+);
 jest.mock("../../agent-system/runtimes/registry", () => ({
   requireRuntime: jest.fn(),
 }));
@@ -38,22 +36,8 @@ describe("atomic Agent response persistence", () => {
     terminationReason: "cancelled_by_user",
   };
   beforeAll(async () => {
-    const sql = execFileSync(
-      process.execPath,
-      [
-        require.resolve("prisma/build/index.js"),
-        "migrate",
-        "diff",
-        "--from-empty",
-        "--to-schema-datamodel",
-        path.resolve(__dirname, "../../prisma/schema.prisma"),
-        "--script",
-      ],
-      { encoding: "utf8" }
-    );
-    const db = new Database(databasePath);
-    db.exec(sql);
-    db.close();
+    testDb = await createPgliteTestDb();
+    mockPrisma = testDb.prisma;
     await mockPrisma.workspaces.create({
       data: { id: 7, name: "Test", slug: "test-cancellation" },
     });
@@ -74,7 +58,7 @@ describe("atomic Agent response persistence", () => {
     });
   });
   afterAll(async () => {
-    await mockPrisma.$disconnect();
+    await testDb?.close();
     fs.rmSync(directory, { recursive: true, force: true });
   });
 
@@ -255,7 +239,7 @@ describe("atomic Agent response persistence", () => {
 
   it("preserves downloadable files on failure and registers repeated outputs only once", async () => {
     const { AgentRunArtifact } = require("../../models/agentRunArtifact");
-    const filesystem = require("../../utils/agents/aibitat/plugins/filesystem/lib");
+    const filesystem = require("../../services/workspaceFiles");
     const filePath = path.join(directory, "report.md");
     fs.writeFileSync(filePath, "# 已完成的部分结果");
     const manager = jest.spyOn(filesystem, "forWorkspace").mockReturnValue({
@@ -307,7 +291,7 @@ describe("atomic Agent response persistence", () => {
     const {
       attachResultFiles,
     } = require("../../scripts/agent-runs/attach-result-files");
-    const filesystem = require("../../utils/agents/aibitat/plugins/filesystem/lib");
+    const filesystem = require("../../services/workspaceFiles");
     const filePath = path.join(directory, "final.md");
     const backupPath = path.join(directory, "outputs-backup.jsonl");
     fs.writeFileSync(filePath, "# 报告");

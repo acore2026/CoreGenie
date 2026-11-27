@@ -7,7 +7,7 @@ const { MimeDetector } = require("./mime");
  * processed by the collector.
  */
 const documentsFolder =
-  process.env.NODE_ENV === "development"
+  process.env.NODE_ENV === "development" || !process.env.STORAGE_DIR
     ? path.resolve(__dirname, `../../../server/storage/documents`)
     : path.resolve(process.env.STORAGE_DIR, `documents`);
 
@@ -17,7 +17,7 @@ const documentsFolder =
  * and are not to be embedded or selectable from the file picker.
  */
 const directUploadsFolder =
-  process.env.NODE_ENV === "development"
+  process.env.NODE_ENV === "development" || !process.env.STORAGE_DIR
     ? path.resolve(__dirname, `../../../server/storage/direct-uploads`)
     : path.resolve(process.env.STORAGE_DIR, `direct-uploads`);
 

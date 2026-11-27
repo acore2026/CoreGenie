@@ -4,7 +4,7 @@ const prisma = require("../../utils/prisma");
 const { AgentRun } = require("../../models/agentRun");
 const { AgentRunTask } = require("../../models/agentRunTask");
 const { AgentRunArtifact } = require("../../models/agentRunArtifact");
-const filesystem = require("../../utils/agents/aibitat/plugins/filesystem/lib");
+const filesystem = require("../../services/workspaceFiles");
 const {
   registerRunArtifacts,
   collectRunOutputs,

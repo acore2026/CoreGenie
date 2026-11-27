@@ -9,7 +9,7 @@ const { canDeleteGlobalDocument } = require("../utils/globalKnowledgeAccess");
 const { SystemSettings } = require("../models/systemSettings");
 const { CollectorApi } = require("../utils/collectorApi");
 const { directUploadsPath, documentsPath } = require("../utils/files");
-const filesystem = require("../utils/agents/aibitat/plugins/filesystem/lib");
+const filesystem = require("../services/workspaceFiles");
 
 const MAX_GLOBAL_INGEST_FILES = 20;
 const MAX_GLOBAL_SOURCE_BYTES = 100 * 1024 * 1024;

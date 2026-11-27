@@ -1,4 +1,17 @@
 /* eslint-env jest, node */
+jest.mock("../../agent-system/checkpointer", () => ({
+  getCheckpointer: jest.fn(async () => {
+    const { MemorySaver } = require("@langchain/langgraph");
+    return new MemorySaver();
+  }),
+  getCustomCheckpointer: jest.fn(async () => {
+    const { MemorySaver } = require("@langchain/langgraph");
+    return new MemorySaver();
+  }),
+  deleteCheckpointThread: jest.fn(async () => {}),
+  checkpointBackend: () => "postgresql",
+  postgresSchema: () => "langgraph",
+}));
 const {
   DEFAULTS,
   activateSkillControlTool,

@@ -1,0 +1,41 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "allowJs": true,
+    "checkJs": false,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "forceConsistentCasingInFileNames": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "baseUrl": ".",
+    "paths": {
+      "@coregenie/contracts": ["../packages/contracts/src/index.mts"],
+      "@coregenie/contracts/*": ["../packages/contracts/src/*"],
+      "zod": ["./node_modules/zod"]
+    }
+  },
+  "include": [
+    "contracts/**/*.mts",
+    "contracts/**/*.ts",
+    "services/**/*.ts",
+    "services/**/*.mts",
+    "agent-system/**/*.ts",
+    "agent-system/**/*.mts",
+    "tools/**/*.ts",
+    "tools/**/*.mts",
+    "models/**/*.ts",
+    "models/**/*.mts",
+    "endpoints/**/*.ts",
+    "endpoints/**/*.mts",
+    "../packages/contracts/src/**/*.mts"
+  ],
+  "exclude": ["node_modules", "storage", "public"]
+}

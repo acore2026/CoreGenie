@@ -1,14 +1,8 @@
-const fs = require("fs");
-const path = require("path");
-const { SqliteSaver } = require("@langchain/langgraph-checkpoint-sqlite");
-
 let checkpointerPromise = null;
 let customCheckpointerPromise = null;
 
 function checkpointBackend() {
-  return String(process.env.LANGGRAPH_CHECKPOINT_BACKEND || "sqlite")
-    .trim()
-    .toLowerCase();
+  return "postgresql";
 }
 
 function postgresConnectionString() {
@@ -16,7 +10,7 @@ function postgresConnectionString() {
     process.env.LANGGRAPH_CHECKPOINT_DATABASE_URL || process.env.DATABASE_URL;
   if (!connectionString) {
     throw new Error(
-      "LANGGRAPH_CHECKPOINT_BACKEND=postgresql 时必须设置 DATABASE_URL 或 LANGGRAPH_CHECKPOINT_DATABASE_URL。"
+      "使用 PostgreSQL checkpointer 时必须设置 DATABASE_URL 或 LANGGRAPH_CHECKPOINT_DATABASE_URL。"
     );
   }
   return connectionString;
@@ -32,31 +26,7 @@ function postgresSchema(custom = false) {
   return schema;
 }
 
-function checkpointPath() {
-  const storage =
-    process.env.STORAGE_DIR || path.resolve(__dirname, "../storage");
-  return path.join(storage, "langgraph-checkpoints.db");
-}
-
-function customCheckpointPath() {
-  const storage =
-    process.env.STORAGE_DIR || path.resolve(__dirname, "../storage");
-  return path.join(storage, "langgraph-custom-checkpoints.db");
-}
-
 async function createCheckpointer(custom = false) {
-  const backend = checkpointBackend();
-  if (backend === "sqlite") {
-    const filepath = custom ? customCheckpointPath() : checkpointPath();
-    fs.mkdirSync(path.dirname(filepath), { recursive: true });
-    return SqliteSaver.fromConnString(filepath);
-  }
-  if (!["postgres", "postgresql"].includes(backend)) {
-    throw new Error(
-      `不支持的 LANGGRAPH_CHECKPOINT_BACKEND：${backend}。可用值为 sqlite 或 postgresql。`
-    );
-  }
-
   const { PostgresSaver } = require("@langchain/langgraph-checkpoint-postgres");
   const saver = PostgresSaver.fromConnString(postgresConnectionString(), {
     schema: postgresSchema(custom),
@@ -97,9 +67,7 @@ async function deleteCheckpointThread(threadId) {
 }
 
 module.exports = {
-  checkpointPath,
   checkpointBackend,
-  customCheckpointPath,
   getCheckpointer,
   getCustomCheckpointer,
   deleteCheckpointThread,

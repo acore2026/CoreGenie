@@ -1,0 +1,19 @@
+packages:
+  - "packages/*"
+  - "frontend"
+  - "server"
+  - "collector"
+
+blockExoticSubdeps: false
+
+allowBuilds:
+  "@prisma/client": true
+  "@prisma/engines": true
+  "@scarf/scarf": false
+  "@vscode/ripgrep": true
+  canvas: true
+  esbuild: true
+  prisma: true
+  protobufjs: true
+  sharp: true
+  tesseract.js: true

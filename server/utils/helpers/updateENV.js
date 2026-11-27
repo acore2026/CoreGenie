@@ -614,23 +614,10 @@ const KEY_MAPPING = {
   NvidiaNimLLMBasePath: {
     envKey: "NVIDIA_NIM_LLM_BASE_PATH",
     checks: [isValidURL],
-    postUpdate: [
-      (_, __, nextValue) => {
-        const { parseNvidiaNimBasePath } = require("../AiProviders/nvidiaNim");
-        process.env.NVIDIA_NIM_LLM_BASE_PATH =
-          parseNvidiaNimBasePath(nextValue);
-      },
-    ],
   },
   NvidiaNimLLMModelPref: {
     envKey: "NVIDIA_NIM_LLM_MODEL_PREF",
     checks: [],
-    postUpdate: [
-      async (_, __, nextValue) => {
-        const { NvidiaNimLLM } = require("../AiProviders/nvidiaNim");
-        await NvidiaNimLLM.setModelTokenLimit(nextValue);
-      },
-    ],
   },
 
   // PPIO Options
@@ -661,14 +648,6 @@ const KEY_MAPPING = {
   FoundryModelPref: {
     envKey: "FOUNDRY_MODEL_PREF",
     checks: [isNotEmpty],
-    postUpdate: [
-      // On new model selection, re-cache the context windows
-      async (_, prevValue, __) => {
-        const { FoundryLLM } = require("../AiProviders/foundry");
-        await FoundryLLM.unloadModelFromEngine(prevValue);
-        await FoundryLLM.cacheContextWindows(true);
-      },
-    ],
   },
   FoundryModelTokenLimit: {
     envKey: "FOUNDRY_MODEL_TOKEN_LIMIT",

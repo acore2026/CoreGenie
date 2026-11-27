@@ -1,6 +1,4 @@
-const {
-  formatResult,
-} = require("../utils/agents/aibitat/plugins/sandbox/tool");
+const { formatResult } = require("../services/sandbox/formatResult");
 
 function sandboxToolResult(result, timeoutSeconds) {
   const output = formatResult(result, timeoutSeconds);

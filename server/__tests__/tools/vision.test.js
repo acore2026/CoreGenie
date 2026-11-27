@@ -12,7 +12,7 @@ jest.mock("../../models/agentToolExecution", () => ({
 
 jest.mock("fs/promises", () => ({ stat: jest.fn(), readFile: jest.fn() }));
 jest.mock("image-size", () => ({ imageSize: mockImageSize }));
-jest.mock("../../utils/agents/aibitat/plugins/filesystem/lib", () => ({
+jest.mock("../../services/workspaceFiles", () => ({
   forWorkspace: jest.fn(() => mockManager),
 }));
 jest.mock("../../models/modelCapability", () => ({

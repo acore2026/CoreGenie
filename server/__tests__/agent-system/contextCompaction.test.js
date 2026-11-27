@@ -345,16 +345,16 @@ describe("opt-in ReAct context compaction", () => {
 });
 
 describe("real checkpoint and streaming integration", () => {
-  it("persists pruning through SQLite and never replays historical tools", async () => {
-    const fs = require("fs");
-    const os = require("os");
-    const path = require("path");
-    const { SqliteSaver } = require("@langchain/langgraph-checkpoint-sqlite");
-    const directory = fs.mkdtempSync(
-      path.join(os.tmpdir(), "coregenie-compact-")
-    );
-    const file = path.join(directory, "checkpoints.db");
-    let saver = SqliteSaver.fromConnString(file);
+  it("persists pruning through PostgreSQL and never replays historical tools", async () => {
+    const { Pool } = require("pg");
+    const { PostgresSaver } = require("@langchain/langgraph-checkpoint-postgres");
+    const { createPgliteTestDb } = require("../helpers/pgliteTestDb");
+    const testDb = await createPgliteTestDb({ applySchema: false });
+    const pgUrl = testDb.url.replace(/\?.*$/, "");
+    const openSaver = () =>
+      new PostgresSaver(new Pool({ connectionString: pgUrl, max: 1 }));
+    let saver = openSaver();
+    await saver.setup();
     const config = { configurable: { thread_id: "durable-context" } };
     const summaryCalls = [];
     const factory = () => {
@@ -396,8 +396,9 @@ describe("real checkpoint and streaming integration", () => {
         visible += token;
       });
       expect(visible).toBe("实际答复");
-      saver.db.close();
-      saver = SqliteSaver.fromConnString(file);
+      await saver.end();
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      saver = openSaver();
       const restored = makeGraph();
       const state = await restored.getState(config);
       expect(
@@ -417,10 +418,10 @@ describe("real checkpoint and streaming integration", () => {
       // would fail this graph; only the next model node may execute.
       expect(summaryCalls).toHaveLength(1);
     } finally {
-      saver.db.close();
-      fs.rmSync(directory, { recursive: true, force: true });
+      await saver.end().catch(() => {});
+      await testDb.close();
     }
-  });
+  }, 30000);
 
   it("skips an oversized summary request and falls back without calling the model", async () => {
     const invoke = jest.fn();

@@ -8,7 +8,7 @@ const mockManager = {
 };
 
 jest.mock("fs/promises", () => ({ stat: jest.fn(() => mockFileStats) }));
-jest.mock("../../utils/agents/aibitat/plugins/filesystem/lib", () => ({
+jest.mock("../../services/workspaceFiles", () => ({
   forWorkspace: jest.fn(() => mockManager),
 }));
 

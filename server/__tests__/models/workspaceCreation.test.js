@@ -1,8 +1,6 @@
 /* eslint-env jest, node */
-const fs = require("fs/promises");
-const os = require("os");
-const path = require("path");
-const { PrismaClient } = require("@prisma/client");
+const { createPgliteTestDb } = require("../helpers/pgliteTestDb");
+let testDb;
 let mockPrisma;
 jest.mock(
   "../../utils/prisma",
@@ -26,7 +24,6 @@ const {
   empty,
 } = require("../../models/sidebarPreferences");
 const { GlobalWorkspaceGroups } = require("../../models/globalWorkspaceGroups");
-let root;
 const data = (accessMode = "private") => ({
   name: "提案分析",
   slug: "proposals",
@@ -35,19 +32,45 @@ const data = (accessMode = "private") => ({
 });
 
 beforeAll(async () => {
-  root = await fs.mkdtemp(path.join(os.tmpdir(), "workspace-creation-test-"));
-  mockPrisma = new PrismaClient({
-    datasources: { db: { url: `file:${path.join(root, "test.db")}` } },
+  testDb = await createPgliteTestDb();
+  mockPrisma = testDb.prisma;
+  await mockPrisma.users.createMany({
+    data: [
+      {
+        id: 1,
+        username: "owner",
+        password: "secret",
+        displayName: "创建者",
+        employeeNumber: "001",
+        suspended: 0,
+      },
+      {
+        id: 2,
+        username: "member",
+        password: "secret",
+        displayName: "同事",
+        employeeNumber: "002",
+        suspended: 0,
+      },
+      {
+        id: 3,
+        username: "disabled",
+        password: "secret",
+        displayName: "停用用户",
+        employeeNumber: "003",
+        suspended: 1,
+      },
+      {
+        id: 4,
+        username: "other",
+        password: "secret",
+        displayName: "另一同事",
+        employeeNumber: "004",
+        suspended: 0,
+      },
+    ],
   });
-  for (const sql of [
-    "CREATE TABLE system_settings (id INTEGER PRIMARY KEY AUTOINCREMENT, label TEXT NOT NULL UNIQUE, value TEXT, createdAt DATETIME DEFAULT CURRENT_TIMESTAMP, lastUpdatedAt DATETIME DEFAULT CURRENT_TIMESTAMP)",
-    "CREATE TABLE users (id INTEGER PRIMARY KEY, username TEXT, password TEXT, displayName TEXT, employeeNumber TEXT, suspended INTEGER DEFAULT 0, role TEXT DEFAULT 'default')",
-    `CREATE TABLE workspaces (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, slug TEXT NOT NULL UNIQUE, vectorTag TEXT, createdAt DATETIME DEFAULT CURRENT_TIMESTAMP, openAiTemp REAL, openAiHistory INTEGER DEFAULT 20, lastUpdatedAt DATETIME DEFAULT CURRENT_TIMESTAMP, openAiPrompt TEXT, similarityThreshold REAL DEFAULT 0.25, chatProvider TEXT, chatModel TEXT, topN INTEGER DEFAULT 4, chatMode TEXT DEFAULT 'chat', pfpFilename TEXT, agentProvider TEXT, agentModel TEXT, queryRefusalResponse TEXT, vectorSearchMode TEXT DEFAULT 'default', router_id INTEGER, accessMode TEXT DEFAULT 'private')`,
-    "CREATE TABLE workspace_users (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, workspace_id INTEGER NOT NULL, createdAt DATETIME DEFAULT CURRENT_TIMESTAMP, lastUpdatedAt DATETIME DEFAULT CURRENT_TIMESTAMP)",
-    "INSERT INTO users (id,username,password,displayName,employeeNumber,suspended) VALUES (1,'owner','secret','创建者','001',0),(2,'member','secret','同事','002',0),(3,'disabled','secret','停用用户','003',1),(4,'other','secret','另一同事','004',0)",
-  ])
-    await mockPrisma.$executeRawUnsafe(sql);
-});
+}, 30000);
 beforeEach(async () => {
   await mockPrisma.workspace_users.deleteMany();
   await mockPrisma.workspaces.deleteMany();
@@ -55,8 +78,7 @@ beforeEach(async () => {
   await mockPrisma.users.updateMany({ data: { role: "default" } });
 });
 afterAll(async () => {
-  await mockPrisma.$disconnect();
-  await fs.rm(root, { recursive: true, force: true });
+  await testDb?.close();
 });
 
 it.each(["private", "public_readonly", "public_collaborative"])(

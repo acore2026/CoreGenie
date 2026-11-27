@@ -1,5 +1,5 @@
 const { v4 } = require("uuid");
-const { DocxLoader } = require("langchain/document_loaders/fs/docx");
+const mammoth = require("mammoth");
 const {
   createdDate,
   trashFile,
@@ -14,18 +14,11 @@ async function asDocX({
   options = {},
   metadata = {},
 }) {
-  const loader = new DocxLoader(fullFilePath);
-
   console.log(`-- Working ${filename} --`);
-  let pageContent = [];
-  const docs = await loader.load();
-  for (const doc of docs) {
-    console.log(`-- Parsing content from docx page --`);
-    if (!doc.pageContent.length) continue;
-    pageContent.push(doc.pageContent);
-  }
+  const extracted = await mammoth.extractRawText({ path: fullFilePath });
+  const content = (extracted?.value || "").trim();
 
-  if (!pageContent.length) {
+  if (!content.length) {
     console.error(`Resulting text content was empty for ${filename}.`);
     if (!options.absolutePath) trashFile(fullFilePath);
     return {
@@ -35,7 +28,6 @@ async function asDocX({
     };
   }
 
-  const content = pageContent.join("");
   const data = {
     id: v4(),
     url: "file://" + fullFilePath,

@@ -2,11 +2,9 @@ generator client {
   provider = "prisma-client-js"
 }
 
-// PostgreSQL uses the generated schema and migration history in prisma-postgresql/.
-// See docs/postgresql-migration.md before switching an existing installation.
 datasource db {
-  provider = "sqlite"
-  url      = "file:../storage/anythingllm.db"
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model announcements {
@@ -125,18 +123,13 @@ model users {
   web_push_subscription_config String?
   workspace_chats              workspace_chats[]
   workspace_users              workspace_users[]
-  embed_configs                embed_configs[]
-  embed_chats                  embed_chats[]
   threads                      workspace_threads[]
   recovery_codes               recovery_codes[]
   password_reset_tokens        password_reset_tokens[]
-  workspace_agent_invocations  workspace_agent_invocations[]
   slash_command_presets        slash_command_presets[]
-  browser_extension_api_keys   browser_extension_api_keys[]
   temporary_auth_tokens        temporary_auth_tokens[]
   system_prompt_variables      system_prompt_variables[]
   prompt_history               prompt_history[]
-  desktop_mobile_devices       desktop_mobile_devices[]
   workspace_parsed_files       workspace_parsed_files[]
   memories                     memories[]
 }
@@ -206,9 +199,7 @@ model workspaces {
   workspace_users              workspace_users[]
   documents                    workspace_documents[]
   workspace_suggested_messages workspace_suggested_messages[]
-  embed_configs                embed_configs[]
   threads                      workspace_threads[]
-  workspace_agent_invocations  workspace_agent_invocations[]
   prompt_history               prompt_history[]
   workspace_parsed_files       workspace_parsed_files[]
   memories                     memories[]
@@ -319,23 +310,6 @@ model public_chat_shares {
   lastUpdatedAt DateTime @default(now())
 
   @@index([workspace_id, thread_id, user_id])
-}
-
-model workspace_agent_invocations {
-  id            Int        @id @default(autoincrement())
-  uuid          String     @unique
-  prompt        String // Contains agent invocation to parse + option additional text for seed.
-  closed        Boolean    @default(false)
-  user_id       Int?
-  thread_id     Int? // No relation to prevent whole table migration
-  agent_id      Int? // Predefined agent snapshot source. No relation to keep invocation migrations lightweight.
-  workspace_id  Int
-  createdAt     DateTime   @default(now())
-  lastUpdatedAt DateTime   @default(now())
-  user          users?     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  workspace     workspaces @relation(fields: [workspace_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
-
-  @@index([uuid])
 }
 
 /// Durable execution record for every LangGraph Agent run. The graph state is
@@ -640,41 +614,6 @@ model cache_data {
   lastUpdatedAt DateTime  @default(now())
 }
 
-model embed_configs {
-  id                         Int           @id @default(autoincrement())
-  uuid                       String        @unique
-  enabled                    Boolean       @default(false)
-  chat_mode                  String        @default("query")
-  allowlist_domains          String?
-  allow_model_override       Boolean       @default(false)
-  allow_temperature_override Boolean       @default(false)
-  allow_prompt_override      Boolean       @default(false)
-  max_chats_per_day          Int?
-  max_chats_per_session      Int?
-  message_limit              Int?          @default(20)
-  workspace_id               Int
-  createdBy                  Int?
-  usersId                    Int?
-  createdAt                  DateTime      @default(now())
-  workspace                  workspaces    @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
-  embed_chats                embed_chats[]
-  users                      users?        @relation(fields: [usersId], references: [id])
-}
-
-model embed_chats {
-  id                     Int           @id @default(autoincrement())
-  prompt                 String
-  response               String
-  session_id             String
-  include                Boolean       @default(true)
-  connection_information String?
-  embed_id               Int
-  usersId                Int?
-  createdAt              DateTime      @default(now())
-  embed_config           embed_configs @relation(fields: [embed_id], references: [id], onDelete: Cascade)
-  users                  users?        @relation(fields: [usersId], references: [id])
-}
-
 model event_logs {
   id         Int      @id @default(autoincrement())
   event      String
@@ -719,17 +658,6 @@ model document_sync_executions {
   queue     document_sync_queues @relation(fields: [queueId], references: [id], onDelete: Cascade)
 }
 
-model browser_extension_api_keys {
-  id            Int      @id @default(autoincrement())
-  key           String   @unique
-  user_id       Int?
-  createdAt     DateTime @default(now())
-  lastUpdatedAt DateTime @updatedAt
-  user          users?   @relation(fields: [user_id], references: [id], onDelete: Cascade)
-
-  @@index([user_id])
-}
-
 model temporary_auth_tokens {
   id        Int      @id @default(autoincrement())
   token     String   @unique
@@ -768,20 +696,6 @@ model prompt_history {
   @@index([workspaceId])
 }
 
-// Schema specific to mobile app <> Desktop app connection
-model desktop_mobile_devices {
-  id         Int      @id @default(autoincrement())
-  deviceOs   String
-  deviceName String
-  token      String   @unique
-  approved   Boolean  @default(false)
-  userId     Int?
-  createdAt  DateTime @default(now())
-  user       users?   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-}
-
 model workspace_parsed_files {
   id                 Int                @id @default(autoincrement())
   filename           String             @unique
@@ -797,15 +711,6 @@ model workspace_parsed_files {
 
   @@index([workspaceId])
   @@index([userId])
-}
-
-model external_communication_connectors {
-  id            Int      @id @default(autoincrement())
-  type          String   @unique
-  config        String   @default("{}")
-  active        Boolean  @default(false)
-  createdAt     DateTime @default(now())
-  lastUpdatedAt DateTime @default(now())
 }
 
 model scheduled_jobs {
@@ -860,48 +765,6 @@ model memories {
 
   @@index([userId, workspaceId])
   @@index([userId, scope])
-}
-
-model model_routers {
-  id                Int                  @id @default(autoincrement())
-  name              String               @unique
-  description       String?
-  fallback_provider String
-  fallback_model    String
-  cooldown_seconds  Int                  @default(30)
-  created_by        Int?
-  createdAt         DateTime             @default(now())
-  lastUpdatedAt     DateTime             @default(now())
-  rules             model_router_rules[]
-}
-
-model model_router_rules {
-  id              Int           @id @default(autoincrement())
-  router_id       Int
-  enabled         Boolean       @default(true)
-  priority        Int
-  type            String        @default("calculated")
-  title           String
-  description     String?
-  // For `calculated` rules: the boolean operator joining `conditions` — "AND"
-  // (all must match) or "OR" (any must match). Null for `llm` rules.
-  condition_logic String?
-  // For `calculated` rules: JSON-stringified array of condition objects, each
-  // shaped as { property: string, comparator: string, value: string } where
-  // `property` ∈ VALID_PROPERTIES and `comparator` ∈ VALID_COMPARATORS (see
-  // server/models/modelRouterRule.js). `value` is always stored as a string;
-  // numeric comparators parse it at evaluation time. Null for `llm` rules.
-  conditions      String?
-  route_provider  String
-  route_model     String
-  created_by      Int?
-  createdAt       DateTime      @default(now())
-  lastUpdatedAt   DateTime      @default(now())
-  router          model_routers @relation(fields: [router_id], references: [id], onDelete: Cascade)
-
-  @@unique([router_id, title])
-  @@index([router_id])
-  @@index([router_id, enabled, priority])
 }
 
 model personal_agent_skills {

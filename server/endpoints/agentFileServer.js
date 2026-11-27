@@ -11,7 +11,7 @@ const {
 const { WorkspaceChats } = require("../models/workspaceChats");
 const { Workspace } = require("../models/workspace");
 const { ScheduledJobRun } = require("../models/scheduledJobRun");
-const createFilesLib = require("../utils/agents/aibitat/plugins/create-files/lib");
+const createFilesLib = require("../services/generatedFiles");
 
 /**
  * Endpoints for serving agent-generated files (PPTX, etc.) with authentication

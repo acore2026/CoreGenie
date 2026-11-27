@@ -5,8 +5,6 @@ import prettier from "./server/node_modules/eslint-plugin-prettier/eslint-plugin
 import react from "./server/node_modules/eslint-plugin-react/index.js"
 import reactRefresh from "./server/node_modules/eslint-plugin-react-refresh/index.js"
 import reactHooks from "./server/node_modules/eslint-plugin-react-hooks/index.js"
-import ftFlow from "./server/node_modules/eslint-plugin-ft-flow/dist/index.js"
-import hermesParser from "./server/node_modules/hermes-eslint/dist/index.js"
 
 const reactRecommended = react.configs.recommended
 const jsxRuntime = react.configs["jsx-runtime"]
@@ -20,22 +18,20 @@ export default [
   {
     ignores: ["**/*.test.js"],
     languageOptions: {
-      parser: hermesParser,
       parserOptions: {
         ecmaFeatures: { jsx: true }
       },
-      ecmaVersion: 2020,
+      ecmaVersion: 2022,
       sourceType: "module",
       globals: {
         ...globals.browser,
-        ...globals.es2020,
+        ...globals.es2022,
         ...globals.node
       }
     },
     linterOptions: { reportUnusedDisableDirectives: true },
     settings: { react: { version: "18.2" } },
     plugins: {
-      ftFlow,
       react,
       "jsx-runtime": jsxRuntime,
       "react-hooks": reactHooks,
@@ -44,7 +40,6 @@ export default [
     rules: {
       ...reactRecommended.rules,
       ...reactHooks.configs.recommended.rules,
-      ...ftFlow.recommended,
       "no-unused-vars": "warn",
       "no-undef": "warn",
       "no-empty": "warn",
@@ -56,7 +51,6 @@ export default [
   {
     files: ["frontend/src/**/*.js"],
     plugins: {
-      ftFlow,
       prettier
     },
     rules: {
@@ -78,7 +72,6 @@ export default [
   {
     files: ["frontend/src/**/*.jsx"],
     plugins: {
-      ftFlow,
       react,
       "jsx-runtime": jsxRuntime,
       "react-hooks": reactHooks,

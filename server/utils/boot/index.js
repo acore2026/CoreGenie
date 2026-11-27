@@ -1,11 +1,19 @@
 const { BackgroundService } = require("../BackgroundWorkers");
 const { EncryptionManager } = require("../EncryptionManager");
 const { CommunicationKey } = require("../comKey");
-const eagerLoadContextWindows = require("./eagerLoadContextWindows");
 const markOnboarded = require("./markOnboarded");
 const { PushNotifications } = require("../PushNotifications");
 const { configureHTTPServer } = require("./httpServer");
 const http = require("http");
+
+async function initCollectorStorage() {
+  try {
+    const { wipeCollectorStorage } = require("@coregenie/collector");
+    await wipeCollectorStorage();
+  } catch (e) {
+    console.warn(`[Collector] Failed to wipe hotdir on boot: ${e.message}`);
+  }
+}
 
 // Testing SSL? You can make a self signed certificate and point the ENVs to that location
 // make a directory in server called 'sslcert' - cd into it
@@ -33,7 +41,7 @@ function bootSSL(app, port = 3001) {
       new CommunicationKey(true);
       new EncryptionManager();
       new BackgroundService().boot();
-      await eagerLoadContextWindows();
+      await initCollectorStorage();
       await PushNotifications.setupPushNotificationService();
       console.log(`Primary server in HTTPS mode listening on port ${port}`);
     });
@@ -62,7 +70,7 @@ function bootHTTP(app, port = 3001) {
     new CommunicationKey(true);
     new EncryptionManager();
     new BackgroundService().boot();
-    await eagerLoadContextWindows();
+    await initCollectorStorage();
     await PushNotifications.setupPushNotificationService();
     console.log(`Primary server in HTTP mode listening on port ${port}`);
   });

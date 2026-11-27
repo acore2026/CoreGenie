@@ -145,10 +145,9 @@ async function registerToolArtifacts({ descriptor, args, result, context }) {
   const paths = toolOutputReferences(descriptor.id, args, result);
   if (!context.workspace?.id || (!paths.length && !result.artifactIds?.length))
     return [];
-  const workspaceManager =
-    require("../utils/agents/aibitat/plugins/filesystem/lib").forWorkspace(
-      context.workspace.id
-    );
+  const workspaceManager = require("../services/workspaceFiles").forWorkspace(
+    context.workspace.id
+  );
   await workspaceManager.ensureInitialized();
   const registered = await registerWorkspaceOutputs({
     runId: context.run.id,

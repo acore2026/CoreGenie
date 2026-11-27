@@ -1,32 +1,24 @@
 {
-  "name": "anything-llm-document-collector",
+  "name": "@coregenie/collector",
   "version": "1.15.5",
-  "description": "Document collector server endpoints",
-  "main": "index.js",
-  "author": "Timothy Carambat (Mintplex Labs)",
-  "license": "MIT",
-  "private": false,
+  "description": "In-process document parsing and collection module for CoreGenie",
+  "main": "service.js",
   "engines": {
     "node": ">=24 <25"
   },
+  "license": "MIT",
+  "private": true,
   "scripts": {
-    "dev": "cross-env NODE_ENV=development nodemon --ignore hotdir --ignore storage --trace-warnings index.js",
-    "start": "cross-env NODE_ENV=production node index.js",
     "lint": "eslint --fix .",
     "lint:check": "eslint ."
   },
   "dependencies": {
     "@langchain/community": "^0.2.23",
-    "body-parser": "^1.20.3",
-    "cors": "^2.8.5",
-    "dotenv": "^16.0.3",
-    "epub2": "git+https://github.com/Mintplex-Labs/epub2-static.git#main",
-    "express": "^4.21.2",
+    "epub2": "^3.0.2",
     "fix-path": "^4.0.0",
     "html-to-text": "^9.0.5",
     "ignore": "^5.3.0",
     "js-tiktoken": "^1.0.8",
-    "langchain": "0.1.36",
     "mammoth": "^1.6.0",
     "mbox-parser": "^1.0.1",
     "mime": "^3.0.0",
@@ -46,17 +38,11 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",
-    "cross-env": "^7.0.3",
     "eslint": "^9.0.0",
     "eslint-config-prettier": "^9.0.0",
     "eslint-plugin-prettier": "^5.0.0",
     "eslint-plugin-unused-imports": "^4.0.0",
     "globals": "^17.4.0",
-    "nodemon": "^2.0.22",
     "prettier": "^2.4.1"
-  },
-  "resolutions": {
-    "string-width": "^4.2.3",
-    "wrap-ansi": "^7.0.0"
   }
 }

@@ -1,9 +1,9 @@
-ALTER TABLE "workspace_threads" ADD COLUMN "submittedAt" DATETIME;
-ALTER TABLE "workspace_threads" ADD COLUMN "draftTouchedAt" DATETIME;
+ALTER TABLE "workspace_threads" ADD COLUMN "submittedAt" TIMESTAMP(3);
+ALTER TABLE "workspace_threads" ADD COLUMN "draftTouchedAt" TIMESTAMP(3);
 CREATE TABLE "workspace_thread_sessions" (
   "id" TEXT NOT NULL PRIMARY KEY,
   "threadId" INTEGER NOT NULL,
-  "expiresAt" DATETIME NOT NULL,
+  "expiresAt" TIMESTAMP(3) NOT NULL,
   CONSTRAINT "workspace_thread_sessions_threadId_fkey" FOREIGN KEY ("threadId") REFERENCES "workspace_threads" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 CREATE INDEX "workspace_thread_sessions_threadId_expiresAt_idx" ON "workspace_thread_sessions"("threadId", "expiresAt");

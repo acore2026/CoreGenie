@@ -59,8 +59,6 @@ const TABLE_SPECS = [
   { name: "predefined_quick_tasks", delegate: "predefined_quick_tasks" },
   { name: "agent_skill_revisions", delegate: "agent_skill_revisions" },
   { name: "predefined_agents", delegate: "predefined_agents" },
-  { name: "model_routers", delegate: "model_routers" },
-  { name: "model_router_rules", delegate: "model_router_rules" },
   { name: "system_prompt_variables", delegate: "system_prompt_variables" },
   {
     name: "slash_command_presets",
@@ -120,9 +118,7 @@ function storageRoot() {
 function defaultDatabaseProvider() {
   if (process.env.DATABASE_PROVIDER)
     return String(process.env.DATABASE_PROVIDER).toLowerCase();
-  if (/^postgres(?:ql)?:/i.test(String(process.env.DATABASE_URL || "")))
-    return "postgresql";
-  return "sqlite";
+  return "postgresql";
 }
 
 function quoteIdentifier(value) {
@@ -599,8 +595,6 @@ async function importGlobalData(
     "predefined_quick_tasks",
     "agent_skill_revisions",
     "predefined_agents",
-    "model_routers",
-    "model_router_rules",
     "system_prompt_variables",
     "slash_command_presets",
     "scheduled_jobs",

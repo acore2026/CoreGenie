@@ -6,8 +6,8 @@ jest.mock("../../agent-skills/registry", () => ({
   resolveAvailableSkill: jest.fn(),
 }));
 const { resolveAvailableSkill } = require("../../agent-skills/registry");
-const filesystem = require("../../utils/agents/aibitat/plugins/filesystem/lib");
-const sandbox = require("../../utils/agents/aibitat/plugins/sandbox/lib");
+const filesystem = require("../../services/workspaceFiles");
+const sandbox = require("../../services/sandbox");
 const catalog = require("../../utils/threeGppCatalog");
 const documentCatalog = require("../../utils/threeGppDocuments");
 const {

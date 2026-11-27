@@ -29,7 +29,7 @@ import {
 import { Colors, getTremorColor } from "./chart-utils.js";
 import CustomCell from "./CustomCell.jsx";
 import Tooltip from "./CustomTooltip.jsx";
-import { safeJsonParse } from "@/utils/request.js";
+import { safeJsonParse } from "@/utils/request";
 import renderMarkdown from "@/utils/chat/markdown.js";
 import DOMPurify from "dompurify";
 import { memo, useCallback, useState } from "react";

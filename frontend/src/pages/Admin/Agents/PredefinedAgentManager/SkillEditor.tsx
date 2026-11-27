@@ -51,11 +51,17 @@ export default function SkillEditor({
   useEffect(() => {
     if (!skill) return;
     const loader =
-      scope === "personal"
-        ? PersonalSkills.get(skill.id)
-        : scope === "workspace"
-          ? PredefinedAgent.getWorkspaceSkill(workspaceSlug, skill.name)
-          : PredefinedAgent.getSkill(skill.id);
+      scope === "workspace"
+        ? PredefinedAgent.getWorkspaceSkill(workspaceSlug, skill.name)
+        : skill.id == null
+          ? null
+          : scope === "personal"
+            ? PersonalSkills.get(skill.id)
+            : PredefinedAgent.getSkill(skill.id);
+    if (!loader) {
+      setLoading(false);
+      return;
+    }
     loader.then((result) => {
       if (!result.skill) {
         setLoadError(true);
@@ -163,12 +169,12 @@ export default function SkillEditor({
     };
     const result: SaveResult =
       scope === "personal"
-        ? skill
+        ? skill?.id != null
           ? await PersonalSkills.update(skill.id, payload)
           : await PersonalSkills.create(payload)
         : scope === "workspace"
           ? await PredefinedAgent.saveWorkspaceSkill(workspaceSlug, payload)
-          : skill
+          : skill?.id != null
             ? await PredefinedAgent.updateSkill(skill.id, payload)
             : await PredefinedAgent.createSkill(payload);
     if (!result.success) {
@@ -192,14 +198,13 @@ export default function SkillEditor({
       return;
     setSaving(true);
     const result: SaveResult =
-      scope === "personal"
-        ? await PersonalSkills.remove(skill.id)
-        : scope === "workspace"
-          ? await PredefinedAgent.deleteWorkspaceSkill(
-              workspaceSlug,
-              skill.name
-            )
-          : await PredefinedAgent.deleteSkill(skill.id);
+      scope === "workspace"
+        ? await PredefinedAgent.deleteWorkspaceSkill(workspaceSlug, skill.name)
+        : skill.id == null
+          ? { success: false, error: t("personal_skills.action_error") }
+          : scope === "personal"
+            ? await PersonalSkills.remove(skill.id)
+            : await PredefinedAgent.deleteSkill(skill.id);
     if (!result.success) {
       setSaving(false);
       return showToast(

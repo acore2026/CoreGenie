@@ -2,7 +2,7 @@ const path = require("path");
 const fs = require("fs/promises");
 const { z } = require("zod");
 const { defineTool } = require("./descriptor");
-const filesystem = require("../utils/agents/aibitat/plugins/filesystem/lib");
+const filesystem = require("../services/workspaceFiles");
 
 function manager(context) {
   return filesystem.forWorkspace(context.workspace.id);

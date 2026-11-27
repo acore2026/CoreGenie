@@ -4,5 +4,9 @@ module.exports = {
     "^.+\\.mts$": "<rootDir>/server/scripts/jest-native-types.cjs",
     "^.+\\.[jt]sx?$": "babel-jest",
   },
-  testPathIgnorePatterns: ["/node_modules/"],
+  testPathIgnorePatterns: [
+    "/node_modules/",
+    "/.codex-tmp/",
+    "/__tests__/helpers/",
+  ],
 };
