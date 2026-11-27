@@ -11,7 +11,6 @@ import {
   FileText,
   FolderOpen,
   GithubLogo,
-  Info,
   Question,
   Robot,
   ShieldCheck,
@@ -21,7 +20,7 @@ import { useTranslation } from "react-i18next";
 import Sidebar, { SidebarMobileHeader } from "@/components/Sidebar";
 import AgentAvatar from "@/components/PredefinedAgents/AgentAvatar";
 import usePredefinedAgent from "@/hooks/usePredefinedAgent";
-import useUser from "@/hooks/useUser";
+import CreateWorkspaceGuide from "@/components/CreateWorkspaceGuide";
 import Workspace from "@/models/workspace";
 import paths from "@/utils/paths";
 import showToast from "@/utils/toast";
@@ -56,7 +55,6 @@ export default function Help() {
 function HelpCenter() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { user } = useUser();
   const {
     agents,
     loading: agentsLoading,
@@ -97,7 +95,7 @@ function HelpCenter() {
     return (configured.length ? configured : fallbackExamples).slice(0, 3);
   }, [activeAgent, fallbackExamples]);
   const noWorkspace = !workspacesLoading && workspaces.length === 0;
-  const launchBlocked = noWorkspace && user?.role === "default";
+  const launchBlocked = workspacesLoading || noWorkspace;
   const capabilities = arrayValue(
     t("help.capabilities.items", { returnObjects: true })
   );
@@ -365,10 +363,9 @@ function HelpCenter() {
                 </div>
               </div>
 
-              {launchBlocked && (
-                <div className="mt-3 flex items-start gap-2 rounded-lg border border-amber-300/15 bg-amber-300/[0.05] px-3 py-2.5 text-xs leading-5 text-amber-100/75 light:border-amber-500/20 light:bg-amber-50 light:text-amber-800">
-                  <Info size={15} className="mt-0.5 shrink-0" />
-                  {t("help.states.no_workspace")}
+              {noWorkspace && (
+                <div className="mt-3">
+                  <CreateWorkspaceGuide />
                 </div>
               )}
             </section>

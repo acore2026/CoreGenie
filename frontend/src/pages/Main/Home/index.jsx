@@ -20,7 +20,7 @@ import paths from "@/utils/paths";
 import showToast from "@/utils/toast";
 import { safeJsonParse } from "@/utils/request";
 import SuggestedMessages from "@/components/lib/SuggestedMessages";
-import useUser from "@/hooks/useUser";
+import CreateWorkspaceGuide from "@/components/CreateWorkspaceGuide";
 import ChatSettingsMenu from "@/components/WorkspaceChat/ChatContainer/ChatSettingsMenu";
 import { ChatTooltips } from "@/components/WorkspaceChat/ChatContainer/ChatTooltips";
 import { ChatSidebarProvider } from "@/components/WorkspaceChat/ChatContainer/ChatSidebar";
@@ -56,7 +56,6 @@ async function createDefaultWorkspace(workspaceName = "My Workspace") {
 
 export default function Home() {
   const { t } = useTranslation();
-  const { user } = useUser();
   const [workspace, setWorkspace] = useState(null);
   const [threadSlug, setThreadSlug] = useState(null);
   const [workspaceLoading, setWorkspaceLoading] = useState(true);
@@ -169,8 +168,8 @@ export default function Home() {
     );
   }
 
-  if (!workspace && user?.role === "default") {
-    return <NoWorkspacesAssigned />;
+  if (!workspace) {
+    return <NoWorkspaces />;
   }
 
   if (workspace && threadSlug) {
@@ -364,14 +363,13 @@ function HomeContent({ workspace, setWorkspace, threadSlug, setThreadSlug }) {
   );
 }
 
-function NoWorkspacesAssigned() {
-  const { t } = useTranslation();
+function NoWorkspaces() {
   return (
-    <div className="relative min-w-0 flex-1 bg-theme-bg-chat h-full overflow-hidden">
-      <div className="flex flex-col h-full w-full items-center justify-center">
-        <p className="text-white/60 text-sm text-center whitespace-pre-line">
-          {t("home.notAssigned")}
-        </p>
+    <div className="relative min-w-0 flex-1 bg-theme-bg-chat h-full overflow-y-auto">
+      <div className="flex min-h-full w-full items-center justify-center px-5 py-10">
+        <div className="w-full max-w-lg">
+          <CreateWorkspaceGuide />
+        </div>
       </div>
     </div>
   );

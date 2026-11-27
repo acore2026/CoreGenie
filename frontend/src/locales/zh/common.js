@@ -1768,8 +1768,7 @@ const TRANSLATIONS = {
       items: ["本项目在外网部署。注意信息安全，不要上传非公开信息。"],
     },
     states: {
-      no_workspace:
-        "你当前还没有获分配工作区。请联系管理员开通访问权限后再启动示例。",
+      no_workspace: "先创建一个工作区，再启动示例。",
     },
   },
   "new-workspace": {
@@ -3004,8 +3003,9 @@ const TRANSLATIONS = {
   home: {
     welcome: "欢迎",
     chooseWorkspace: "选择一个工作区开始聊天！",
-    notAssigned:
-      "你目前还没有分配到任何工作区。\n请联系你的管理员请求访问一个工作区。",
+    notAssigned: "创建工作区后，就可以开始对话、上传资料和运行任务。",
+    createWorkspaceTitle: "创建你的第一个工作区",
+    createWorkspace: "创建工作区",
     goToWorkspace: '前往 "{{workspace}}"',
   },
   scheduledJobs: {
