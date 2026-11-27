@@ -71,6 +71,9 @@ RUN sed -i \
 
 # Keep the expensive Python dependency layer independent from application code.
 COPY requirements.txt /opt/anythingllm-sandbox/requirements.txt
+# pip reads these build arguments from its environment during this layer.
+ARG PIP_INDEX_URL=https://pypi.org/simple
+ARG PIP_TRUSTED_HOST=
 RUN python3 -m pip install --no-cache-dir \
       --requirement /opt/anythingllm-sandbox/requirements.txt && \
     rm /opt/anythingllm-sandbox/requirements.txt

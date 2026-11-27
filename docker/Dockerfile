@@ -163,11 +163,12 @@ RUN case "$TARGETARCH" in \
       arm64) ripgrep_target=aarch64-unknown-linux-musl ;; \
       *) echo "Unsupported ripgrep build architecture: $TARGETARCH" >&2; exit 1 ;; \
     esac && \
-    ripgrep_asset="ripgrep-${VSCODE_RIPGREP_RELEASE}-${ripgrep_target}.tar.gz" && \
+    ripgrep_release="v${VSCODE_RIPGREP_RELEASE#v}" && \
+    ripgrep_asset="ripgrep-${ripgrep_release}-${ripgrep_target}.tar.gz" && \
     ripgrep_cache="/tmp/vscode-ripgrep-cache-${VSCODE_RIPGREP_PACKAGE_VERSION}" && \
     mkdir -p "$ripgrep_cache" && \
     curl -fsSL --retry 4 --retry-all-errors \
-      "https://github.com/microsoft/ripgrep-prebuilt/releases/download/${VSCODE_RIPGREP_RELEASE}/${ripgrep_asset}" \
+      "https://github.com/microsoft/ripgrep-prebuilt/releases/download/${ripgrep_release}/${ripgrep_asset}" \
       -o "$ripgrep_cache/$ripgrep_asset"
 # Yarn 1 installs both glibc and musl LanceDB optional packages on Linux.
 # Ubuntu uses glibc, so retain only the native package for the target CPU.

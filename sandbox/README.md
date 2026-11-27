@@ -29,6 +29,11 @@ exact pinned package set. Plain `pip install` stores additional packages under
 `/workspace/.python`, so they persist and remain importable in later
 invocations for the same AnythingLLM workspace.
 
+To build the runner with a package mirror, run
+`docker build --build-arg PIP_INDEX_URL=https://mirror.example.org/simple -t anythingllm-sandbox:local sandbox/`
+from the repository root. If the mirror requires an explicit trusted host, add
+`--build-arg PIP_TRUSTED_HOST=mirror.example.org`. These settings apply during the build.
+
 Proposal PPT Skills use pinned python-pptx and Pillow. LibreOffice Impress/Draw,
 poppler-utils, and Noto CJK fonts support local slide rendering and image
 previews. Rebuild the runner image after dependency changes; an existing runner

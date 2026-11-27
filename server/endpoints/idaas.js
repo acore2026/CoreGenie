@@ -7,7 +7,8 @@ const prisma = require("../utils/prisma");
 const { SystemSettings } = require("../models/systemSettings");
 
 const COOKIE = "coregenie_oauth";
-const HANDOFF_TTL_MS = 5 * 60_000;
+const LOGIN_TTL_MS = 30 * 60_000;
+const HANDOFF_TTL_MS = 10 * 60_000;
 const digest = (value) =>
   createHash("sha256")
     .update(String(value || ""))
@@ -134,7 +135,7 @@ function idaasEndpoints(app, dependencies = {}) {
       const flow = {
         state,
         returnTo: safeReturnTo(req.query.returnTo),
-        expiresAt: now() + 600_000,
+        expiresAt: now() + LOGIN_TTL_MS,
         used: false,
       };
       // Enable only when this IDaaS client has confirmed S256 support.
@@ -143,7 +144,7 @@ function idaasEndpoints(app, dependencies = {}) {
       flows.set(digest(browser).toString("hex"), flow);
       res.cookie(COOKIE, browser, {
         ...cookieOptions(config),
-        maxAge: 600_000,
+        maxAge: LOGIN_TTL_MS,
       });
       const url = new URL(config.baseUrl + "/saaslogin1/oauth2/authorize");
       url.search = new URLSearchParams({
@@ -185,17 +186,18 @@ function idaasEndpoints(app, dependencies = {}) {
       throw Error("IDAAS_REQUEST_FAILED");
     return data;
   }
+  function rejectCallback(res, reason) {
+    console.warn("IDaaS callback rejected: " + reason);
+    return res.redirect(303, "/login?oauthError=expired");
+  }
   app.get("/auth/idaas/callback", async (req, res) => {
     const config = guard(req, res);
     if (!config) return;
     const flow = flowFor(req);
-    if (
-      !flow ||
-      flow.used ||
-      typeof req.query.state !== "string" ||
-      !same(flow.state, req.query.state)
-    )
-      return res.redirect(303, "/login?oauthError=expired");
+    if (!flow) return rejectCallback(res, "flow missing or expired");
+    if (flow.used) return rejectCallback(res, "callback already used");
+    if (typeof req.query.state !== "string" || !same(flow.state, req.query.state))
+      return rejectCallback(res, "state mismatch");
     flow.used = true;
     try {
       if (
@@ -242,17 +244,29 @@ function idaasEndpoints(app, dependencies = {}) {
   app.post("/auth/idaas/session", async (req, res) => {
     const config = guard(req, res);
     if (!config) return;
-    if (!localRequest(req, config)) return res.sendStatus(403);
+    if (!localRequest(req, config)) {
+      console.warn("IDaaS session rejected: invalid request origin or header");
+      return res.sendStatus(403);
+    }
     const flow = flowFor(req);
-    if (!flow?.userId)
+    if (!flow?.userId) {
+      console.warn(
+        flow
+          ? "IDaaS session rejected: callback incomplete"
+          : "IDaaS session rejected: handoff missing, expired or consumed"
+      );
       return res.status(401).json({ error: "登录已过期，请重新登录。" });
+    }
     flows.delete(digest(browserKey(req)).toString("hex"));
     res.clearCookie(COOKIE, cookieOptions(config));
     try {
       const user = await database.users.findUnique({
         where: { id: flow.userId },
       });
-      if (!user || user.suspended) return res.sendStatus(403);
+      if (!user || user.suspended) {
+        console.warn("IDaaS session rejected: account missing or suspended");
+        return res.sendStatus(403);
+      }
       const sid = randomBytes(32).toString("hex");
       const expiresAt = new Date(now() + 8 * 60 * 60 * 1000);
       await database.oauth_sessions.deleteMany({
@@ -272,6 +286,7 @@ function idaasEndpoints(app, dependencies = {}) {
         returnTo: flow.returnTo,
       });
     } catch {
+      console.warn("IDaaS session failed: unable to issue session");
       res.status(503).json({ error: "登录暂时不可用，请重试。" });
     }
   });
