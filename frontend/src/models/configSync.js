@@ -4,7 +4,10 @@ import { baseHeaders } from "@/utils/request";
 async function request(suffix = "", payload) {
   const response = await fetch(`${API_BASE}/admin/config-sync${suffix}`, {
     method: payload === undefined ? "GET" : "POST",
-    headers: baseHeaders(),
+    headers: {
+      ...baseHeaders(),
+      ...(payload === undefined ? {} : { "Content-Type": "application/json" }),
+    },
     ...(payload === undefined ? {} : { body: JSON.stringify(payload) }),
   });
   const result = await response.json();

@@ -397,7 +397,7 @@ const Workspace = {
     const response = await fetch(`${API_BASE}/workspace/${slug}/files`, {
       method: "PATCH",
       body: JSON.stringify({ path, name }),
-      headers: baseHeaders(),
+      headers: { ...baseHeaders(), "Content-Type": "application/json" },
     });
     const data = await response.json();
     return { response, data };

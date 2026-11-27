@@ -5,7 +5,13 @@ async function jsonRequest(url, options = {}) {
   try {
     const response = await fetch(url, {
       ...options,
-      headers: { ...baseHeaders(), ...(options.headers || {}) },
+      headers: {
+        ...baseHeaders(),
+        ...(typeof options.body === "string"
+          ? { "Content-Type": "application/json" }
+          : {}),
+        ...(options.headers || {}),
+      },
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Request failed.");
