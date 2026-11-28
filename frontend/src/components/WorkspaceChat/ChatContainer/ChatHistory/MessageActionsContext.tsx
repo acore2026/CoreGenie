@@ -9,19 +9,32 @@ import {
 const EDIT_EVENT = "toggle-message-edit";
 const DELETE_EVENT = "delete-message";
 
-const MessageActionsContext = createContext(null);
+type MessageKey = { chatId?: number | null; role?: string };
+interface ActionsState {
+  editingMessage: MessageKey | null;
+  isEditing: (chatId?: number | null, role?: string) => boolean;
+  isDeleted: (chatId?: number | null) => boolean;
+  clearEditing: () => void;
+}
+declare global {
+  interface WindowEventMap {
+    [EDIT_EVENT]: CustomEvent<MessageKey>;
+    [DELETE_EVENT]: CustomEvent<Pick<MessageKey, "chatId">>;
+  }
+}
+const MessageActionsContext = createContext<ActionsState | null>(null);
 
 /**
  * Provider that centralizes edit/delete event listeners for all messages.
  * Instead of each message registering its own window listener (O(n) listeners),
  * this provider registers just 2 listeners total and dispatches to messages via context.
  */
-export function MessageActionsProvider({ children }) {
-  const [editingMessage, setEditingMessage] = useState(null);
-  const [deletedMessages, setDeletedMessages] = useState(new Set());
+export function MessageActionsProvider({ children }: React.PropsWithChildren) {
+  const [editingMessage, setEditingMessage] = useState<MessageKey | null>(null);
+  const [deletedMessages, setDeletedMessages] = useState(new Set<number>());
 
   useEffect(() => {
-    function handleEditEvent(e) {
+    function handleEditEvent(e: WindowEventMap[typeof EDIT_EVENT]) {
       const { chatId, role } = e.detail;
       if (!chatId || !role) return;
 
@@ -33,7 +46,7 @@ export function MessageActionsProvider({ children }) {
       });
     }
 
-    function handleDeleteEvent(e) {
+    function handleDeleteEvent(e: WindowEventMap[typeof DELETE_EVENT]) {
       const { chatId } = e.detail;
       if (!chatId) return;
 
@@ -54,15 +67,15 @@ export function MessageActionsProvider({ children }) {
   }, []);
 
   const isEditing = useCallback(
-    (chatId, role) => {
+    (chatId?: number | null, role?: string) => {
       return editingMessage?.chatId === chatId && editingMessage?.role === role;
     },
     [editingMessage]
   );
 
   const isDeleted = useCallback(
-    (chatId) => {
-      return deletedMessages.has(chatId);
+    (chatId?: number | null) => {
+      return chatId != null && deletedMessages.has(chatId);
     },
     [deletedMessages]
   );

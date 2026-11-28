@@ -1,16 +1,22 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { CaretDown } from "@phosphor-icons/react";
 
 import AgentAnimation from "@/media/animations/agent-animation.webm";
 import AgentStatic from "@/media/animations/agent-static.png";
 
-export default function StatusResponse({ messages = [], isThinking = false }) {
+export default function StatusResponse({
+  messages = [],
+  isThinking = false,
+}: {
+  messages?: { uuid?: string; content?: string }[];
+  isThinking?: boolean;
+}) {
   const [isExpanded, setIsExpanded] = useState(false);
   const currentThought = messages[messages.length - 1];
   const previousThoughts = messages.slice(0, -1);
 
   function handleExpandClick() {
-    if (!previousThoughts.length > 0) return;
+    if (previousThoughts.length === 0) return;
     setIsExpanded(!isExpanded);
   }
 

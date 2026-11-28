@@ -10,7 +10,6 @@ import showToast from "@/utils/toast";
 const Actions = ({
   message,
   chatId,
-  slug,
   isLastMessage,
   regenerateMessage,
   forkThread,
@@ -18,6 +17,17 @@ const Actions = ({
   role,
   metrics = {},
   readOnly = false,
+}: {
+  message: string;
+  chatId?: number | null;
+  slug?: string;
+  isLastMessage?: boolean;
+  regenerateMessage: (id: number) => void;
+  forkThread: (id: number) => void;
+  isEditing: boolean;
+  role?: string;
+  metrics?: React.ComponentProps<typeof RenderMetrics>["metrics"];
+  readOnly?: boolean;
 }) => {
   return (
     <div
@@ -40,7 +50,6 @@ const Actions = ({
           {!readOnly && isLastMessage && !isEditing && (
             <RegenerateMessage
               regenerateMessage={regenerateMessage}
-              slug={slug}
               chatId={chatId}
             />
           )}
@@ -58,7 +67,7 @@ const Actions = ({
   );
 };
 
-function CopyMessage({ message }) {
+function CopyMessage({ message }: { message: string }) {
   const { copied, copyText } = useCopyText();
   const { t } = useTranslation();
 
@@ -83,7 +92,13 @@ function CopyMessage({ message }) {
   );
 }
 
-function RegenerateMessage({ regenerateMessage, chatId }) {
+function RegenerateMessage({
+  regenerateMessage,
+  chatId,
+}: {
+  regenerateMessage: (id: number) => void;
+  chatId?: number | null;
+}) {
   const { t } = useTranslation();
   if (!chatId) return null;
   return (

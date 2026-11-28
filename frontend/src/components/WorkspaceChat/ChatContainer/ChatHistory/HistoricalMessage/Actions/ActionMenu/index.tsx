@@ -1,16 +1,28 @@
-import React, { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Trash, DotsThreeVertical, TreeView } from "@phosphor-icons/react";
 import { useTranslation } from "react-i18next";
 
-function ActionMenu({ chatId, forkThread, isEditing, role, readOnly = false }) {
+function ActionMenu({
+  chatId,
+  forkThread,
+  isEditing,
+  role,
+  readOnly = false,
+}: {
+  chatId?: number | null;
+  forkThread: (id: number) => void;
+  isEditing: boolean;
+  role?: string;
+  readOnly?: boolean;
+}) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
-  const menuRef = useRef(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   const toggleMenu = () => setOpen(!open);
 
   const handleFork = () => {
-    forkThread(chatId);
+    if (chatId != null) forkThread(chatId);
     setOpen(false);
   };
 
@@ -23,7 +35,8 @@ function ActionMenu({ chatId, forkThread, isEditing, role, readOnly = false }) {
 
   useEffect(() => {
     if (!open) return;
-    const handleClickOutside = (event) => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!(event.target instanceof Node)) return;
       if (menuRef.current && !menuRef.current.contains(event.target)) {
         setOpen(false);
       }

@@ -1,3 +1,8 @@
+import type {
+  ChatFeedback,
+  FeedbackRating,
+  FeedbackReason,
+} from "@coregenie/contracts";
 import { useEffect, useState } from "react";
 import {
   Check,
@@ -10,7 +15,8 @@ import { useTranslation } from "react-i18next";
 import Workspace from "@/models/workspace";
 
 const MAX_COMMENT_LENGTH = 500;
-let reasonRequest = null;
+let reasonRequest: ReturnType<typeof Workspace.agentFeedbackReasons> | null =
+  null;
 let reasonsLoadedAt = 0;
 
 function loadReasons() {
@@ -27,7 +33,7 @@ const ratings = [
   { value: "good", icon: Smiley, tone: "good" },
   { value: "neutral", icon: SmileyMeh, tone: "neutral" },
   { value: "bad", icon: SmileySad, tone: "bad" },
-];
+] as const;
 
 const toneClasses = {
   good: "border-emerald-400/30 bg-emerald-400/10 text-emerald-200 light:text-emerald-700",
@@ -36,7 +42,15 @@ const toneClasses = {
   bad: "border-rose-400/30 bg-rose-400/10 text-rose-200 light:text-rose-700",
 };
 
-export default function ResponseEvaluation({ chatId, slug, initialFeedback }) {
+export default function ResponseEvaluation({
+  chatId,
+  slug,
+  initialFeedback = null,
+}: {
+  chatId?: number | null;
+  slug?: string;
+  initialFeedback?: ChatFeedback | null;
+}) {
   const { t } = useTranslation();
   const [feedback, setFeedback] = useState(initialFeedback);
   const [draftRating, setDraftRating] = useState(
@@ -46,7 +60,7 @@ export default function ResponseEvaluation({ chatId, slug, initialFeedback }) {
     initialFeedback?.reasonCodes || []
   );
   const [comment, setComment] = useState(initialFeedback?.comment || "");
-  const [reasons, setReasons] = useState([]);
+  const [reasons, setReasons] = useState<FeedbackReason[]>([]);
   const [expanded, setExpanded] = useState(false);
   const [loadingReasons, setLoadingReasons] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -75,7 +89,7 @@ export default function ResponseEvaluation({ chatId, slug, initialFeedback }) {
   }, [expanded, reasons.length, t]);
 
   async function save(
-    nextRating,
+    nextRating: FeedbackRating | null,
     nextReasons = reasonCodes,
     nextComment = comment
   ) {
@@ -92,14 +106,14 @@ export default function ResponseEvaluation({ chatId, slug, initialFeedback }) {
       setError(result?.error || t("agent_feedback.save_error"));
       return;
     }
-    setFeedback(result.feedback);
+    setFeedback(result.feedback ?? null);
     setDraftRating(result.feedback?.rating || null);
     setReasonCodes(result.feedback?.reasonCodes || []);
     setComment(result.feedback?.comment || "");
     setExpanded(false);
   }
 
-  function selectRating(rating) {
+  function selectRating(rating: FeedbackRating) {
     setError("");
     setDraftRating(rating);
     if (rating === "good") {
@@ -109,7 +123,7 @@ export default function ResponseEvaluation({ chatId, slug, initialFeedback }) {
     setExpanded(true);
   }
 
-  function toggleReason(code) {
+  function toggleReason(code: string) {
     setReasonCodes((current) =>
       current.includes(code)
         ? current.filter((item) => item !== code)
@@ -119,7 +133,7 @@ export default function ResponseEvaluation({ chatId, slug, initialFeedback }) {
   }
 
   function submitDetails() {
-    if (["neutral", "bad"].includes(draftRating) && !reasonCodes.length) {
+    if (["neutral", "bad"].includes(draftRating ?? "") && !reasonCodes.length) {
       setError(t("agent_feedback.reason_required"));
       return;
     }

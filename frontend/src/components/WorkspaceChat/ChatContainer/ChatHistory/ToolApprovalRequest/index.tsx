@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { CaretDown, Check, X, Hammer } from "@phosphor-icons/react";
 import AgentSkillWhitelist from "@/models/agentSkillWhitelist";
 import { useTranslation } from "react-i18next";
@@ -13,12 +13,21 @@ export default function ToolApprovalRequest({
   allowRemember = true,
   websocket,
   onResponse,
+}: {
+  requestId?: string;
+  onResponse?: (approved: boolean) => void;
+  skillName: string;
+  payload?: object | string | null;
+  description?: string | null;
+  timeoutMs?: number | null;
+  allowRemember?: boolean;
+  websocket?: Pick<WebSocket, "readyState" | "send"> | null;
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [responded, setResponded] = useState(false);
-  const [approved, setApproved] = useState(null);
+  const [approved, setApproved] = useState<boolean | null>(null);
   const [alwaysAllow, setAlwaysAllow] = useState(false);
-  const hasPayload = payload && Object.keys(payload).length > 0;
+  const hasPayload = Boolean(payload) && Object.keys(payload ?? {}).length > 0;
 
   const progressPercent = useTimeoutProgress(timeoutMs, {
     active: !responded,
@@ -33,7 +42,7 @@ export default function ToolApprovalRequest({
     onResponse?.(false);
   }
 
-  async function handleResponse(isApproved) {
+  async function handleResponse(isApproved: boolean) {
     if (responded) return;
 
     setResponded(true);
@@ -112,6 +121,11 @@ function ToolApprovalHeader({
   hasPayload,
   isExpanded,
   setIsExpanded,
+}: {
+  skillName: string;
+  hasPayload: boolean;
+  isExpanded: boolean;
+  setIsExpanded: (value: boolean) => void;
 }) {
   const { t } = useTranslation();
   return (
@@ -140,11 +154,17 @@ function ToolApprovalHeader({
   );
 }
 
-function ToolApprovalPayload({ payload, isExpanded }) {
-  const hasPayload = payload && Object.keys(payload).length > 0;
+function ToolApprovalPayload({
+  payload,
+  isExpanded,
+}: {
+  payload: object | string | null;
+  isExpanded: boolean;
+}) {
+  const hasPayload = Boolean(payload) && Object.keys(payload ?? {}).length > 0;
   if (!hasPayload || !isExpanded) return null;
 
-  function formatPayload(data) {
+  function formatPayload(data: unknown) {
     if (typeof data === "string") return data;
     try {
       return JSON.stringify(data, null, 2);
@@ -170,6 +190,14 @@ function ToolApprovalResponseOption({
   allowRemember,
   onApprove,
   onReject,
+}: {
+  approved: boolean | null;
+  skillName: string;
+  alwaysAllow: boolean;
+  setAlwaysAllow: (value: boolean) => void;
+  allowRemember: boolean;
+  onApprove: () => void;
+  onReject: () => void;
 }) {
   const { t } = useTranslation();
   if (approved !== null) return null;
@@ -209,7 +237,11 @@ function ToolApprovalResponseOption({
   );
 }
 
-function ToolApprovalResponseMessage({ approved }) {
+function ToolApprovalResponseMessage({
+  approved,
+}: {
+  approved: boolean | null;
+}) {
   const { t } = useTranslation();
 
   if (approved === null) return null;

@@ -58,3 +58,15 @@ export interface AttachmentDocument {
   location?: string;
   size?: number;
 }
+
+export type FeedbackRating = "good" | "neutral" | "bad";
+export interface ChatFeedback {
+  rating: FeedbackRating;
+  reasonCodes: string[];
+  comment?: string | null;
+}
+export interface FeedbackReason {
+  code: string;
+  label: string;
+  enabled: boolean;
+}

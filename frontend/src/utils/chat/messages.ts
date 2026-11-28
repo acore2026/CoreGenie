@@ -1,5 +1,12 @@
 import type { AgentRunEvent, AgentRunState, RunPayload } from "./agentRunTypes";
 
+export interface EditChatMessage {
+  chatId: number;
+  role: string;
+  editedMessage: string;
+  attachments?: unknown[];
+  saveOnly?: boolean;
+}
 export interface ChatCommand {
   text?: string;
   autoSubmit?: boolean;

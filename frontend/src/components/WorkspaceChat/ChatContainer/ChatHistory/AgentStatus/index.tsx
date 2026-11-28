@@ -10,6 +10,11 @@ export default function AgentStatus({
   phase = "working",
   active = true,
   details = [],
+}: {
+  summary?: string;
+  phase?: string;
+  active?: boolean;
+  details?: (string | { content?: string; summary?: string })[];
 }) {
   const { t } = useTranslation();
   summary =
@@ -18,10 +23,10 @@ export default function AgentStatus({
   const [expanded, setExpanded] = useState(false);
   const normalizedDetails = useMemo(() => {
     const seen = new Set();
-    return details.reduce((lines, entry) => {
+    return details.reduce<string[]>((lines, entry) => {
       const line =
         typeof entry === "string" ? entry : entry?.content || entry?.summary;
-      if (!activityText(line) || seen.has(line)) return lines;
+      if (!line || !activityText(line) || seen.has(line)) return lines;
       seen.add(line);
       lines.push(line);
       return lines;

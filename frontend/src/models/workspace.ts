@@ -2,6 +2,8 @@ import type { ChatResult } from "@/utils/chat/messages";
 import type {
   WorkspaceRecord,
   ParsedWorkspaceContext,
+  ChatFeedback,
+  FeedbackReason,
   AttachmentDocument,
 } from "@coregenie/contracts";
 import { api, cleanHeaders } from "@/utils/api";
@@ -166,13 +168,14 @@ const Workspace = {
   },
 
   agentFeedbackReasons: async function (): Promise<{
-    reasons: AnyRecord[];
+    reasons: FeedbackReason[];
     error?: string | null;
   }> {
     try {
-      return await api.get<{ reasons: AnyRecord[]; error?: string | null }>(
-        "/agent-feedback/reasons"
-      );
+      return await api.get<{
+        reasons: FeedbackReason[];
+        error?: string | null;
+      }>("/agent-feedback/reasons");
     } catch (error) {
       return { reasons: [], error: (error as Error).message };
     }
@@ -185,13 +188,14 @@ const Workspace = {
   ): Promise<{
     success: boolean;
     error?: string | null;
-    [key: string]: unknown;
+    feedback?: ChatFeedback | null;
   }> {
     try {
-      return await api.put<{ success: boolean; error?: string | null }>(
-        `/workspace/${slug}/agent-feedback/${chatId}`,
-        feedback
-      );
+      return await api.put<{
+        success: boolean;
+        feedback?: ChatFeedback | null;
+        error?: string | null;
+      }>(`/workspace/${slug}/agent-feedback/${chatId}`, feedback);
     } catch (error) {
       return { success: false, error: (error as Error).message };
     }

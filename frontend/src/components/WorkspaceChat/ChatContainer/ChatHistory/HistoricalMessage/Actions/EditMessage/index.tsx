@@ -7,13 +7,27 @@ import {
   EDIT_EVENT,
 } from "@/components/WorkspaceChat/ChatContainer/ChatHistory/MessageActionsContext";
 
-export function useEditMessage({ chatId, role }) {
+export function useEditMessage({
+  chatId,
+  role,
+}: {
+  chatId?: number | null;
+  role?: string;
+}) {
   const context = useMessageActionsContext();
   const isEditing = context?.isEditing(chatId, role) ?? false;
   return { isEditing };
 }
 
-export function EditMessageAction({ chatId = null, role, isEditing }) {
+export function EditMessageAction({
+  chatId = null,
+  role,
+  isEditing,
+}: {
+  chatId?: number | null;
+  role?: string;
+  isEditing: boolean;
+}) {
   const { t } = useTranslation();
   function handleEditClick() {
     window.dispatchEvent(
@@ -52,11 +66,19 @@ export function EditMessageForm({
   attachments = [],
   adjustTextArea,
   saveChanges,
+}: {
+  role: string;
+  chatId?: number | null;
+  message: string;
+  attachments?: unknown[];
+  adjustTextArea: (event: { target: HTMLTextAreaElement }) => void;
+  saveChanges: (edit: import("@/utils/chat/messages").EditChatMessage) => void;
 }) {
-  const formRef = useRef(null);
+  const formRef = useRef<HTMLTextAreaElement>(null);
 
-  function handleSubmit(e) {
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!formRef.current || chatId == null) return;
     const editedMessage = formRef.current.value;
     saveChanges({ editedMessage, chatId, role, attachments });
     window.dispatchEvent(
@@ -65,6 +87,7 @@ export function EditMessageForm({
   }
 
   function handleSave() {
+    if (!formRef.current || chatId == null) return;
     const editedMessage = formRef.current.value;
     saveChanges({
       editedMessage,
@@ -132,7 +155,15 @@ export function EditMessageForm({
   );
 }
 
-function EditActionBar({ onCancel, onSave, isUserMessage = false }) {
+function EditActionBar({
+  onCancel,
+  onSave,
+  isUserMessage = false,
+}: {
+  onCancel: () => void;
+  onSave?: () => void;
+  isUserMessage?: boolean;
+}) {
   const { t } = useTranslation();
   return (
     <div className="mt-2 flex flex-col md:flex-row md:items-center justify-between gap-2 bg-zinc-800 light:bg-slate-200 rounded-lg p-2">

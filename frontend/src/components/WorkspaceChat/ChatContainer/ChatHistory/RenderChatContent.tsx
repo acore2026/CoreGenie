@@ -9,7 +9,15 @@ import {
 } from "./ThoughtContainer";
 
 const RenderChatContent = memo(
-  ({ role, message, messageId }) => {
+  ({
+    role,
+    message,
+    messageId,
+  }: {
+    role?: string;
+    message: string;
+    messageId?: string;
+  }) => {
     if (role !== "assistant")
       return (
         <span
