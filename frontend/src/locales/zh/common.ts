@@ -2601,6 +2601,9 @@ const TRANSLATIONS = {
   },
   connectors: {
     github: {
+      collection_failed: "无法读取仓库，请检查地址和访问权限。",
+      collected:
+        "已从 {{author}}/{{repo}} 的 {{branch}} 分支收集 {{files}} 个文件，保存在 {{destination}}。",
       name: "GitHub 仓库",
       description: "一键导入整个公共或私有的 GitHub 仓库。",
       URL: "GitHub 仓库链接",
@@ -2690,6 +2693,7 @@ const TRANSLATIONS = {
     },
   },
   chat_window: {
+    document_list_failed: "无法加载工作区文档，请稍后重试。",
     workspace_unavailable: "无法打开工作区",
     workspace_unavailable_hint: "工作区可能已删除，或你的账号没有访问权限。",
     back_to_home: "返回首页",

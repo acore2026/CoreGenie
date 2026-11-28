@@ -1,3 +1,11 @@
+import i18n from "@/i18n";
+import type {
+  DocumentLibrary,
+  MovedFile,
+  SelectedFiles,
+  WorkspaceRecord,
+  FetchDocuments,
+} from "./types";
 import { ArrowsDownUp } from "@phosphor-icons/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Workspace from "../../../../models/workspace";
@@ -7,22 +15,30 @@ import Directory from "./Directory";
 import WorkspaceDirectory from "./WorkspaceDirectory";
 import { useWorkspaceEmbeddingProgress } from "@/EmbeddingProgressContext";
 
-export default function DocumentSettings({ workspace }) {
+export default function DocumentSettings({
+  workspace,
+}: {
+  workspace: WorkspaceRecord;
+}) {
   const [highlightWorkspace, setHighlightWorkspace] = useState(false);
-  const [availableDocs, setAvailableDocs] = useState([]);
+  const [availableDocs, setAvailableDocs] = useState<DocumentLibrary>({
+    items: [],
+  });
   const [loading, setLoading] = useState(true);
-  const [workspaceDocs, setWorkspaceDocs] = useState([]);
-  const [selectedItems, setSelectedItems] = useState({});
+  const [workspaceDocs, setWorkspaceDocs] = useState<DocumentLibrary>({
+    items: [],
+  });
+  const [selectedItems, setSelectedItems] = useState<SelectedFiles>({});
   const [hasChanges, setHasChanges] = useState(false);
-  const [movedItems, setMovedItems] = useState([]);
+  const [movedItems, setMovedItems] = useState<MovedFile[]>([]);
   const [loadingMessage, setLoadingMessage] = useState("");
-  const availableDocsRef = useRef([]);
+  const availableDocsRef = useRef<DocumentLibrary>(availableDocs);
 
   useEffect(() => {
     availableDocsRef.current = availableDocs;
   }, [availableDocs]);
 
-  const fetchKeysRef = useRef(null);
+  const fetchKeysRef = useRef<FetchDocuments | null>(null);
   const { embeddingProgress, startEmbedding } = useWorkspaceEmbeddingProgress(
     workspace.slug,
     {
@@ -30,7 +46,10 @@ export default function DocumentSettings({ workspace }) {
     }
   );
 
-  async function fetchKeys(refetchWorkspace = false, options = {}) {
+  async function fetchKeys(
+    refetchWorkspace = false,
+    options: { autoSelectNew?: boolean } = {}
+  ) {
     const { autoSelectNew = false } = options;
     const previousIds = new Set();
     if (autoSelectNew && availableDocsRef.current?.items) {
@@ -46,8 +65,13 @@ export default function DocumentSettings({ workspace }) {
       ? await Workspace.bySlug(workspace.slug)
       : workspace;
 
+    if (!localFiles || !currentWorkspace) {
+      setLoading(false);
+      showToast(i18n.t("chat_window.document_list_failed"), "error");
+      return;
+    }
     const documentsInWorkspace =
-      currentWorkspace.documents.map((doc) => doc.docpath) || [];
+      currentWorkspace.documents?.map((doc) => doc.docpath) || [];
 
     // Documents that are not in the workspace
     const filteredAvailableDocs = {
@@ -91,7 +115,7 @@ export default function DocumentSettings({ workspace }) {
     setWorkspaceDocs(filteredWorkspaceDocs);
 
     if (autoSelectNew) {
-      const newSelected = {};
+      const newSelected: SelectedFiles = {};
       for (const folder of filteredAvailableDocs.items ?? []) {
         for (const file of folder.items ?? []) {
           if (file?.id && !previousIds.has(file.id)) {
@@ -115,7 +139,7 @@ export default function DocumentSettings({ workspace }) {
     fetchKeys(true);
   }, []);
 
-  const updateWorkspace = async (e) => {
+  const updateWorkspace = async (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
     setLoading(true);
     setLoadingMessage("This may take a while for large documents");
@@ -153,52 +177,30 @@ export default function DocumentSettings({ workspace }) {
     setHighlightWorkspace(false);
     setHasChanges(true);
 
-    const newMovedItems = [];
-
-    for (const itemId of Object.keys(selectedItems)) {
-      for (const folder of availableDocs.items) {
-        const foundItem = folder.items.find((file) => file.id === itemId);
-        if (foundItem) {
-          newMovedItems.push({ ...foundItem, folderName: folder.name });
-          break;
-        }
-      }
-    }
-
-    setMovedItems([...movedItems, ...newMovedItems]);
-
-    let newAvailableDocs = JSON.parse(JSON.stringify(availableDocs));
-    let newWorkspaceDocs = JSON.parse(JSON.stringify(workspaceDocs));
-
-    for (const itemId of Object.keys(selectedItems)) {
-      let foundItem = null;
-      let foundFolderIndex = null;
-
-      newAvailableDocs.items = newAvailableDocs.items.map(
-        (folder, folderIndex) => {
-          const remainingItems = folder.items.filter((file) => {
-            const match = file.id === itemId;
-            if (match) {
-              foundItem = { ...file };
-              foundFolderIndex = folderIndex;
-            }
-            return !match;
-          });
-
-          return {
-            ...folder,
-            items: remainingItems,
-          };
-        }
-      );
-
-      if (foundItem) {
-        newWorkspaceDocs.items[foundFolderIndex].items.push(foundItem);
-      }
-    }
-
-    setAvailableDocs(newAvailableDocs);
-    setWorkspaceDocs(newWorkspaceDocs);
+    const movedByFolder = new Map(
+      availableDocs.items.map((folder) => [
+        folder.name,
+        folder.items.filter((file) => selectedItems[file.id]),
+      ])
+    );
+    const moved = [...movedByFolder].flatMap(([folderName, files]) =>
+      files.map((file) => ({ ...file, folderName }))
+    );
+    setMovedItems((previous) => [...previous, ...moved]);
+    setAvailableDocs({
+      ...availableDocs,
+      items: availableDocs.items.map((folder) => ({
+        ...folder,
+        items: folder.items.filter((file) => !selectedItems[file.id]),
+      })),
+    });
+    setWorkspaceDocs({
+      ...workspaceDocs,
+      items: workspaceDocs.items.map((folder) => ({
+        ...folder,
+        items: [...folder.items, ...(movedByFolder.get(folder.name) ?? [])],
+      })),
+    });
     setSelectedItems({});
   };
 
@@ -233,8 +235,6 @@ export default function DocumentSettings({ workspace }) {
         fetchKeys={fetchKeys}
         selectedItems={selectedItems}
         setSelectedItems={setSelectedItems}
-        updateWorkspace={updateWorkspace}
-        highlightWorkspace={highlightWorkspace}
         setHighlightWorkspace={setHighlightWorkspace}
         moveToWorkspace={moveSelectedItemsToWorkspace}
         setLoadingMessage={setLoadingMessage}

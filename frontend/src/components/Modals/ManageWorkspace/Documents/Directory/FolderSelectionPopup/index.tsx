@@ -1,7 +1,16 @@
+import type { LibraryFolder } from "../../types";
 import { middleTruncate } from "@/utils/directories";
 
-export default function FolderSelectionPopup({ folders, onSelect, onClose }) {
-  const handleFolderSelect = (folder) => {
+export default function FolderSelectionPopup({
+  folders,
+  onSelect,
+  onClose,
+}: {
+  folders: LibraryFolder[];
+  onSelect: (folder: LibraryFolder) => void;
+  onClose: () => void;
+}) {
+  const handleFolderSelect = (folder: LibraryFolder) => {
     onSelect(folder);
     onClose();
   };

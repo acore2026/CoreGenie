@@ -1,3 +1,11 @@
+import type {
+  DocumentLibrary,
+  DocumentPanelProps,
+  LibraryFile,
+  LibraryFolder,
+  StateSetter,
+  SelectedFiles,
+} from "../types";
 import UploadFile from "../UploadFile";
 import PreLoader from "@/components/Preloader";
 import { memo, useEffect, useState } from "react";
@@ -30,6 +38,15 @@ function Directory({
   moveToWorkspace,
   setLoadingMessage,
   loadingMessage,
+}: DocumentPanelProps & {
+  files: DocumentLibrary;
+  setFiles: StateSetter<DocumentLibrary>;
+  loading: boolean;
+  loadingMessage: string;
+  selectedItems: SelectedFiles;
+  setSelectedItems: StateSetter<SelectedFiles>;
+  setHighlightWorkspace: (value: boolean) => void;
+  moveToWorkspace: () => void;
 }) {
   const { t } = useTranslation();
   const [amountSelected, setAmountSelected] = useState(0);
@@ -50,7 +67,7 @@ function Directory({
     setAmountSelected(Object.keys(selectedItems).length);
   }, [selectedItems]);
 
-  const deleteFiles = async (event) => {
+  const deleteFiles = async (event: React.MouseEvent) => {
     event.stopPropagation();
     if (!window.confirm(t("connectors.directory.delete-confirmation"))) {
       return false;
@@ -74,7 +91,7 @@ function Directory({
           continue;
         }
 
-        if (isSelected(folder.id, folder)) {
+        if (isSelected(folder.name, folder)) {
           foldersToRemove.push(folder.name);
         }
       }
@@ -101,7 +118,7 @@ function Directory({
     }
   };
 
-  const toggleSelection = (item) => {
+  const toggleSelection = (item: LibraryFile | LibraryFolder) => {
     setSelectedItems((prevSelectedItems) => {
       const newSelectedItems = { ...prevSelectedItems };
       if (item.type === "folder") {
@@ -127,7 +144,7 @@ function Directory({
   };
 
   // check if item is selected based on selectedItems state
-  const isSelected = (id, item) => {
+  const isSelected = (id: string, item?: LibraryFolder | null) => {
     if (item && item.type === "folder") {
       if (!selectedItems[item.name]) {
         return false;
@@ -138,7 +155,7 @@ function Directory({
     return !!selectedItems[id];
   };
 
-  const moveToFolder = async (folder) => {
+  const moveToFolder = async (folder: LibraryFolder) => {
     const toMove = [];
     for (const itemId of Object.keys(selectedItems)) {
       for (const currentFolder of files.items) {
@@ -177,14 +194,14 @@ function Directory({
     setLoading(false);
   };
 
-  const handleSearch = debounce((e) => {
+  const handleSearch = debounce((e: React.ChangeEvent<HTMLInputElement>) => {
     const searchValue = e.target.value;
     setSearchTerm(searchValue);
   }, 500);
 
   const filteredFiles = filterFileSearchResults(files, searchTerm);
 
-  const handleContextMenu = (event) => {
+  const handleContextMenu = (event: React.MouseEvent) => {
     event.preventDefault();
     setContextMenu({ visible: true, x: event.clientX, y: event.clientY });
   };
@@ -263,7 +280,7 @@ function Directory({
                         item={item}
                         totalItems={item.items?.length ?? 0}
                         selected={isSelected(
-                          item.id,
+                          item.name,
                           item.type === "folder" ? item : null
                         )}
                         onRowClick={() => toggleSelection(item)}
@@ -364,7 +381,11 @@ function DirectoryTooltips() {
       delayShow={800}
       className="tooltip invert light:invert-0 z-99 max-w-[300px]"
       render={({ content }) => {
-        const data = safeJsonParse(content, null);
+        const data = safeJsonParse<{
+          title: string;
+          date: string;
+          extension: string;
+        } | null>(content, null);
         if (!data) return null;
         return (
           <div className="text-xs">

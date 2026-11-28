@@ -1,3 +1,13 @@
+import type { FileProgress } from "@/EmbeddingProgressContext";
+import type {
+  DocumentPanelProps,
+  DocumentLibrary,
+  LibraryFile,
+  LibraryFolder,
+  WorkspaceRecord,
+  SelectedFiles,
+  MovedFile,
+} from "../types";
 import PreLoader from "@/components/Preloader";
 import WorkspaceFileRow from "./WorkspaceFileRow";
 import { memo, useEffect, useState } from "react";
@@ -33,17 +43,25 @@ function WorkspaceDirectory({
   hasChanges,
   saveChanges,
   movedItems,
+}: DocumentPanelProps & {
+  files: DocumentLibrary;
+  highlightWorkspace: boolean;
+  loading: boolean;
+  loadingMessage: string;
+  hasChanges: boolean;
+  saveChanges: (event: React.MouseEvent<HTMLButtonElement>) => void;
+  movedItems: MovedFile[];
 }) {
   const { t } = useTranslation();
   const { embeddingProgressMap, removeQueuedFile } = useEmbeddingProgress();
   const embeddingProgress = embeddingProgressMap[workspace.slug] || null;
-  const [selectedItems, setSelectedItems] = useState({});
+  const [selectedItems, setSelectedItems] = useState<SelectedFiles>({});
   const embeddedDocCount = (files?.items ?? []).reduce(
     (sum, folder) => sum + (folder.items?.length ?? 0),
     0
   );
 
-  const toggleSelection = (item) => {
+  const toggleSelection = (item: LibraryFile) => {
     setSelectedItems((prevSelectedItems) => {
       const newSelectedItems = { ...prevSelectedItems };
       if (newSelectedItems[item.id]) {
@@ -61,7 +79,7 @@ function WorkspaceDirectory({
     if (allSelected) {
       setSelectedItems({});
     } else {
-      const newSelectedItems = {};
+      const newSelectedItems: SelectedFiles = {};
       allItems.forEach((item) => {
         newSelectedItems[item.id] = true;
       });
@@ -73,14 +91,11 @@ function WorkspaceDirectory({
     setLoading(true);
     setLoadingMessage("Removing selected files from workspace");
 
-    const itemsToRemove = Object.keys(selectedItems).map((itemId) => {
-      const folder = files.items.find((f) =>
-        f.items.some((i) => i.id === itemId)
-      );
-      const item = folder.items.find((i) => i.id === itemId);
-      return `${folder.name}/${item.name}`;
-    });
-
+    const itemsToRemove = files.items.flatMap((folder) =>
+      folder.items
+        .filter((file) => selectedItems[file.id])
+        .map((file) => `${folder.name}/${file.name}`)
+    );
     try {
       await Workspace.modifyEmbeddings(workspace.slug, {
         adds: [],
@@ -96,7 +111,7 @@ function WorkspaceDirectory({
     setLoading(false);
   };
 
-  const handleSaveChanges = (e) => {
+  const handleSaveChanges = (e: React.MouseEvent<HTMLButtonElement>) => {
     setSelectedItems({});
     saveChanges(e);
   };
@@ -148,7 +163,7 @@ function WorkspaceDirectory({
                 onRemove={
                   fileStatus.status === "pending"
                     ? () => removeQueuedFile(workspace.slug, filename)
-                    : null
+                    : undefined
                 }
               />
             ))}
@@ -309,7 +324,6 @@ const PinAlert = memo(() => {
   function dismissAlert() {
     setShowAlert(false);
     window.localStorage.setItem(SEEN_DOC_PIN_ALERT, "1");
-    window.removeEventListener(handlePinEvent);
   }
 
   function handlePinEvent() {
@@ -319,7 +333,8 @@ const PinAlert = memo(() => {
 
   useEffect(() => {
     if (!window || !!window?.localStorage?.getItem(SEEN_DOC_PIN_ALERT)) return;
-    window?.addEventListener("pinned_document", handlePinEvent);
+    window.addEventListener("pinned_document", handlePinEvent);
+    return () => window.removeEventListener("pinned_document", handlePinEvent);
   }, []);
 
   return (
@@ -374,7 +389,6 @@ const DocumentWatchAlert = memo(() => {
   function dismissAlert() {
     setShowAlert(false);
     window.localStorage.setItem(SEEN_WATCH_ALERT, "1");
-    window.removeEventListener(handlePinEvent);
   }
 
   function handlePinEvent() {
@@ -384,7 +398,9 @@ const DocumentWatchAlert = memo(() => {
 
   useEffect(() => {
     if (!window || !!window?.localStorage?.getItem(SEEN_WATCH_ALERT)) return;
-    window?.addEventListener("watch_document_for_changes", handlePinEvent);
+    window.addEventListener("watch_document_for_changes", handlePinEvent);
+    return () =>
+      window.removeEventListener("watch_document_for_changes", handlePinEvent);
   }, []);
 
   return (
@@ -436,8 +452,21 @@ const DocumentWatchAlert = memo(() => {
   );
 });
 
-function RenderFileRows({ files, movedItems, children, workspace }) {
-  function sortMovedItemsAndFiles(a, b) {
+function RenderFileRows({
+  files,
+  movedItems,
+  children,
+  workspace,
+}: {
+  files: DocumentLibrary;
+  movedItems: MovedFile[];
+  workspace: WorkspaceRecord;
+  children: (row: {
+    item: LibraryFile;
+    folder: LibraryFolder;
+  }) => React.ReactNode;
+}) {
+  function sortMovedItemsAndFiles(a: LibraryFile, b: LibraryFile) {
     const aIsMovedItem = movedItems.some((movedItem) => movedItem.id === a.id);
     const bIsMovedItem = movedItems.some((movedItem) => movedItem.id === b.id);
     if (aIsMovedItem && !bIsMovedItem) return -1;
@@ -453,12 +482,9 @@ function RenderFileRows({ files, movedItems, children, workspace }) {
   }
 
   return files.items
-    .flatMap((folder) => folder.items)
-    .sort(sortMovedItemsAndFiles)
-    .map((item) => {
-      const folder = files.items.find((f) => f.items.includes(item));
-      return children({ item, folder });
-    });
+    .flatMap((folder) => folder.items.map((item) => ({ item, folder })))
+    .sort((a, b) => sortMovedItemsAndFiles(a.item, b.item))
+    .map(children);
 }
 
 /**
@@ -474,7 +500,11 @@ function WorkspaceDocumentTooltips() {
         delayShow={800}
         className="tooltip invert light:invert-0 z-99 max-w-[200px]"
         render={({ content }) => {
-          const data = safeJsonParse(content, null);
+          const data = safeJsonParse<{
+            title: string;
+            date: string;
+            extension: string;
+          } | null>(content, null);
           if (!data) return null;
           return (
             <div className="text-xs">
@@ -518,7 +548,7 @@ function WorkspaceDocumentTooltips() {
 /**
  * @param {string} filename
  */
-const getDisplayName = (filename) => {
+const getDisplayName = (filename: string) => {
   const base = filename.split("/").pop() || filename;
   return base.replace(
     /-[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.json$/,
@@ -573,7 +603,15 @@ const STATUS_STYLES = {
   },
 };
 
-function EmbeddingFileRow({ filename, status: fileStatus, onRemove }) {
+function EmbeddingFileRow({
+  filename,
+  status: fileStatus,
+  onRemove,
+}: {
+  filename: string;
+  status: FileProgress;
+  onRemove?: () => void;
+}) {
   const { status, chunksProcessed = 0, totalChunks = 0 } = fileStatus;
   const displayName = getDisplayName(filename);
   const isEmbedding = status === "embedding";

@@ -1,3 +1,4 @@
+import type { DocumentLibrary, SelectedFiles, StateSetter } from "../../types";
 import { useRef, useEffect } from "react";
 
 export default function ContextMenu({
@@ -6,11 +7,18 @@ export default function ContextMenu({
   files,
   selectedItems,
   setSelectedItems,
+}: {
+  contextMenu: { x: number; y: number; visible: boolean };
+  closeContextMenu: () => void;
+  files: DocumentLibrary;
+  selectedItems: SelectedFiles;
+  setSelectedItems: StateSetter<SelectedFiles>;
 }) {
-  const contextMenuRef = useRef(null);
+  const contextMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const handleClickOutside = (event) => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!(event.target instanceof Node)) return;
       if (
         contextMenuRef.current &&
         !contextMenuRef.current.contains(event.target)
@@ -37,7 +45,7 @@ export default function ContextMenu({
     if (isAllSelected()) {
       setSelectedItems({});
     } else {
-      const newSelectedItems = {};
+      const newSelectedItems: SelectedFiles = {};
       files.items.forEach((folder) => {
         newSelectedItems[folder.name] = true;
         folder.items.forEach((file) => {

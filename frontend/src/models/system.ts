@@ -1,3 +1,4 @@
+import type { DocumentLibrary } from "@coregenie/contracts";
 import { api, cleanHeaders } from "@/utils/api";
 import { API_BASE, AUTH_TIMESTAMP, fullApiUrl } from "@/utils/constants";
 import { baseHeaders, safeJsonParse } from "@/utils/request";
@@ -115,9 +116,9 @@ const System = {
     return pendingSystemKeys;
   },
 
-  localFiles: async function (): Promise<AnyRecord | null> {
+  localFiles: async function (): Promise<DocumentLibrary | null> {
     try {
-      const res = await api.get<{ localFiles?: AnyRecord }>(
+      const res = await api.get<{ localFiles?: DocumentLibrary }>(
         "/system/local-files",
         { defaultError: "Could not find setup information." }
       );

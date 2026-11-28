@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import System from "@/models/system";
 import { useTranslation } from "react-i18next";
 import showToast from "@/utils/toast";
-import pluralize from "pluralize";
+import { errorMessage } from "@/utils/api";
 import { TagsInput } from "react-tag-input-component";
 import { Info, Warning } from "@phosphor-icons/react";
 import { Tooltip } from "react-tooltip";
@@ -11,18 +11,19 @@ const DEFAULT_BRANCHES = ["main", "master"];
 export default function GithubOptions() {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
-  const [repo, setRepo] = useState(null);
-  const [accessToken, setAccessToken] = useState(null);
-  const [ignores, setIgnores] = useState([]);
+  const [repo, setRepo] = useState("");
+  const [accessToken, setAccessToken] = useState("");
+  const [ignores, setIgnores] = useState<string[]>([]);
 
   const [settings, setSettings] = useState({
-    repo: null,
-    accessToken: null,
+    repo: "",
+    accessToken: "",
   });
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const form = new FormData(e.target);
+    const formElement = e.currentTarget;
+    const form = new FormData(formElement);
 
     try {
       setLoading(true);
@@ -32,31 +33,29 @@ export default function GithubOptions() {
         { clear: true, autoClose: false }
       );
       const { data, error } = await System.dataConnectors.github.collect({
-        repo: form.get("repo"),
-        accessToken: form.get("accessToken"),
-        branch: form.get("branch"),
+        repo: String(form.get("repo") ?? ""),
+        accessToken: String(form.get("accessToken") ?? ""),
+        branch: String(form.get("branch") ?? ""),
         ignorePaths: ignores,
       });
 
-      if (!!error) {
-        showToast(error, "error", { clear: true });
+      if (error || !data) {
+        showToast(error || t("connectors.github.collection_failed"), "error", {
+          clear: true,
+        });
         setLoading(false);
         return;
       }
 
-      showToast(
-        `${data.files} ${pluralize("file", data.files)} collected from ${
-          data.author
-        }/${data.repo}:${data.branch}. Output folder is ${data.destination}.`,
-        "success",
-        { clear: true }
-      );
-      e.target.reset();
+      showToast(t("connectors.github.collected", { ...data }), "success", {
+        clear: true,
+      });
+      formElement.reset();
       setLoading(false);
       return;
     } catch (e) {
       console.error(e);
-      showToast(e.message, "error", { clear: true });
+      showToast(errorMessage(e), "error", { clear: true });
       setLoading(false);
     }
   };
@@ -138,7 +137,7 @@ export default function GithubOptions() {
                 value={ignores}
                 onChange={setIgnores}
                 name="ignores"
-                placeholder="!*.js, images/*, .DS_Store, bin/*"
+                placeHolder="!*.js, images/*, .DS_Store, bin/*"
                 classNames={{
                   tag: "bg-theme-settings-input-bg light:bg-black/10 bg-blue-300/10 text-zinc-800",
                   input:
@@ -169,7 +168,13 @@ export default function GithubOptions() {
   );
 }
 
-function GitHubBranchSelection({ repo, accessToken }) {
+function GitHubBranchSelection({
+  repo,
+  accessToken,
+}: {
+  repo: string;
+  accessToken: string;
+}) {
   const { t } = useTranslation();
   const [allBranches, setAllBranches] = useState(DEFAULT_BRANCHES);
   const [loading, setLoading] = useState(true);
@@ -240,7 +245,7 @@ function GitHubBranchSelection({ repo, accessToken }) {
   );
 }
 
-function PATAlert({ accessToken }) {
+function PATAlert({ accessToken }: { accessToken: string }) {
   const { t } = useTranslation();
   if (!!accessToken) return null;
   return (
@@ -271,7 +276,7 @@ function PATAlert({ accessToken }) {
   );
 }
 
-function PATTooltip({ accessToken }) {
+function PATTooltip({ accessToken }: { accessToken: string }) {
   const { t } = useTranslation();
   if (!!accessToken) return null;
   return (

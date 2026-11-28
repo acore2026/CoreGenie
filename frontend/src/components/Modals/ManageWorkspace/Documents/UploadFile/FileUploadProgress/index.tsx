@@ -1,4 +1,6 @@
-import React, { useState, useEffect, memo } from "react";
+import i18n from "@/i18n";
+import type { Upload, StateSetter } from "../../types";
+import { useState, useEffect, memo } from "react";
 import truncate from "truncate";
 import { CheckCircle, XCircle } from "@phosphor-icons/react";
 import Workspace from "../../../../../../models/workspace";
@@ -16,13 +18,24 @@ function FileUploadProgressComponent({
   onUploadError,
   setLoading,
   setLoadingMessage,
+}: {
+  slug: string;
+  uuid: string;
+  file: File;
+  setFiles: StateSetter<Upload[]>;
+  rejected?: boolean;
+  reason?: string | null;
+  onUploadSuccess: () => void;
+  onUploadError: () => void;
+  setLoading: (value: boolean) => void;
+  setLoadingMessage: (value: string) => void;
 }) {
   const [timerMs, setTimerMs] = useState(10);
   const [status, setStatus] = useState("pending");
   const [error, setError] = useState("");
   const [isFadingOut, setIsFadingOut] = useState(false);
 
-  const fadeOut = (cb) => {
+  const fadeOut = (cb: () => void) => {
     setIsFadingOut(true);
     cb?.();
   };
@@ -50,8 +63,14 @@ function FileUploadProgressComponent({
       if (!response.ok) {
         setStatus("failed");
         clearInterval(timer);
-        onUploadError(data.error);
-        setError(data.error);
+        onUploadError();
+        setLoading(false);
+        setLoadingMessage("");
+        setError(
+          typeof data.error === "string"
+            ? data.error
+            : i18n.t("chat_window.workspace_upload_failed")
+        );
       } else {
         setLoading(false);
         setLoadingMessage("");

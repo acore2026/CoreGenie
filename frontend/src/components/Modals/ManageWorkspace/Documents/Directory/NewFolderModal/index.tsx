@@ -1,18 +1,27 @@
-import React, { useState } from "react";
+import type { DocumentLibrary, StateSetter } from "../../types";
+import { useState } from "react";
 import { X } from "@phosphor-icons/react";
 import Document from "@/models/document";
 
-export default function NewFolderModal({ closeModal, files, setFiles }) {
-  const [error, setError] = useState(null);
+export default function NewFolderModal({
+  closeModal,
+  files,
+  setFiles,
+}: {
+  closeModal: () => void;
+  files: DocumentLibrary;
+  setFiles: StateSetter<DocumentLibrary>;
+}) {
+  const [error, setError] = useState<string | null>(null);
   const [folderName, setFolderName] = useState("");
 
-  const handleCreate = async (e) => {
+  const handleCreate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
     if (folderName.trim() !== "") {
       const newFolder = {
         name: folderName,
-        type: "folder",
+        type: "folder" as const,
         items: [],
       };
       const { success } = await Document.createFolder(folderName);

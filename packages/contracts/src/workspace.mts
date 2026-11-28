@@ -34,6 +34,7 @@ export interface WorkspaceRecord {
   slug: string;
   createdAt?: string;
   lastUpdatedAt?: string;
+  documents?: { docpath: string }[];
   openAiTemp?: number | null;
   openAiHistory?: number;
   chatMode?: string;
@@ -73,4 +74,27 @@ export interface FeedbackReason {
   code: string;
   label: string;
   enabled: boolean;
+}
+
+export interface LibraryFile {
+  type: "file";
+  id: string;
+  name: string;
+  title: string;
+  url?: string;
+  published?: string;
+  pinnedWorkspaces?: number[];
+  watched?: boolean;
+  canWatch?: boolean;
+  cached?: boolean;
+}
+export interface LibraryFolder {
+  type: "folder";
+  name: string;
+  items: LibraryFile[];
+}
+export interface DocumentLibrary {
+  name?: string;
+  type?: "folder";
+  items: LibraryFolder[];
 }

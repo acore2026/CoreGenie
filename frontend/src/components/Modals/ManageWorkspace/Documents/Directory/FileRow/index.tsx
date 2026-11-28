@@ -1,4 +1,5 @@
-import React from "react";
+import type { LibraryFile } from "../../types";
+
 import {
   formatDateTimeAsMoment,
   getFileExtension,
@@ -6,7 +7,15 @@ import {
 } from "@/utils/directories";
 import { File } from "@phosphor-icons/react";
 
-export default function FileRow({ item, selected, toggleSelection }) {
+export default function FileRow({
+  item,
+  selected,
+  toggleSelection,
+}: {
+  item: LibraryFile;
+  selected: boolean;
+  toggleSelection: (item: LibraryFile) => void;
+}) {
   return (
     <tr
       onClick={() => toggleSelection(item)}

@@ -1,3 +1,4 @@
+import type { DocumentPanelProps, Upload, FetchDocuments } from "../types";
 import { CloudArrowUp } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -14,22 +15,22 @@ export default function UploadFile({
   fetchKeys,
   setLoading,
   setLoadingMessage,
-}) {
+}: DocumentPanelProps) {
   const { t } = useTranslation();
   const [ready, setReady] = useState(false);
-  const [files, setFiles] = useState([]);
+  const [files, setFiles] = useState<Upload[]>([]);
   const [fetchingUrl, setFetchingUrl] = useState(false);
 
-  const handleSendLink = async (e) => {
+  const handleSendLink = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
     setLoadingMessage("Scraping link...");
     setFetchingUrl(true);
-    const formEl = e.target;
+    const formEl = e.currentTarget;
     const form = new FormData(formEl);
     const { response, data } = await Workspace.uploadLink(
       workspace.slug,
-      form.get("link")
+      String(form.get("link") ?? "")
     );
     if (!response.ok) {
       showToast(`Error uploading link: ${data.error}`, "error");
@@ -43,13 +44,19 @@ export default function UploadFile({
   };
 
   const debouncedFetchKeysRef = useRef(
-    debounce((fn, opts) => fn(true, opts), 1000)
+    debounce(
+      (fn: FetchDocuments, opts: { autoSelectNew?: boolean }) => fn(true, opts),
+      1000
+    )
   );
   const handleUploadSuccess = () =>
     debouncedFetchKeysRef.current(fetchKeys, { autoSelectNew: true });
   const handleUploadError = () => debouncedFetchKeysRef.current(fetchKeys, {});
 
-  const onDrop = async (acceptedFiles, rejections) => {
+  const onDrop = async (
+    acceptedFiles: File[],
+    rejections: import("react-dropzone").FileRejection[]
+  ) => {
     const newAccepted = acceptedFiles.map((file) => {
       return {
         uid: v4(),

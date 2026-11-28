@@ -12,3 +12,7 @@ declare module "lodash.debounce" {
     wait?: number
   ): T & { cancel: () => void; flush: () => void };
 }
+
+declare module "js-levenshtein" {
+  export default function distance(left: string, right: string): number;
+}

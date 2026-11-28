@@ -7,6 +7,13 @@ interface ConnectorResponse<T = Record<string, unknown>> {
   data?: T;
 }
 
+interface CollectedRepository {
+  files: number;
+  author: string;
+  repo: string;
+  branch: string;
+  destination: string;
+}
 const DataConnector = {
   github: {
     branches: async ({
@@ -43,11 +50,11 @@ const DataConnector = {
       branch?: string;
       ignorePaths?: string[];
     }): Promise<{
-      data: Record<string, unknown> | null;
+      data: CollectedRepository | null;
       error: string | null;
     }> => {
       try {
-        const res = await api.post<ConnectorResponse<Record<string, unknown>>>(
+        const res = await api.post<ConnectorResponse<CollectedRepository>>(
           "/ext/github/repo",
           { repo, accessToken, branch, ignorePaths }
         );

@@ -16,7 +16,7 @@ import { API_BASE } from "@/utils/constants";
 import { baseHeaders, safeJsonParse } from "@/utils/request";
 import Workspace from "@/models/workspace";
 
-interface FileProgress {
+export interface FileProgress {
   status: "pending" | "embedding" | "failed" | "complete";
   error?: string;
   chunksProcessed?: number;

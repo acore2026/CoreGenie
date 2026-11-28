@@ -1,3 +1,4 @@
+import type { DocumentLibrary } from "../types";
 import strDistance from "js-levenshtein";
 
 const LEVENSHTEIN_MIN = 2;
@@ -15,7 +16,10 @@ export const stripUuidAndJsonFromString = (input = "") => {
     ?.replace("-", " "); // turn slugged names into spaces
 };
 
-export function filterFileSearchResults(files = [], searchTerm = "") {
+export function filterFileSearchResults(
+  files: DocumentLibrary = { items: [] },
+  searchTerm = ""
+) {
   if (!searchTerm) return files?.items || [];
 
   const normalizedSearchTerm = searchTerm.toLowerCase().trim();

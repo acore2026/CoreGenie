@@ -1,3 +1,4 @@
+import type { LibraryFile, LibraryFolder } from "../../types";
 import { useState } from "react";
 import FileRow from "../FileRow";
 import {
@@ -14,10 +15,18 @@ export default function FolderRow({
   toggleSelection,
   isSelected,
   autoExpanded = false,
+}: {
+  item: LibraryFolder;
+  totalItems?: number;
+  selected: boolean;
+  onRowClick: () => void;
+  toggleSelection: (item: LibraryFolder | LibraryFile) => void;
+  isSelected: (id: string) => boolean;
+  autoExpanded?: boolean;
 }) {
   const [expanded, setExpanded] = useState(autoExpanded);
 
-  const handleExpandClick = (event) => {
+  const handleExpandClick = (event: React.MouseEvent) => {
     event.stopPropagation();
     setExpanded(!expanded);
   };

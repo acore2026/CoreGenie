@@ -1,9 +1,9 @@
-import React, { useState, useEffect, memo } from "react";
+import { useState, useEffect, memo } from "react";
 import { X } from "@phosphor-icons/react";
 import { useTranslation } from "react-i18next";
 import { useParams } from "react-router-dom";
 import Workspace from "../../../models/workspace";
-import System from "../../../models/system";
+import type { WorkspaceRecord } from "@coregenie/contracts";
 import { isMobileOnly } from "react-device-detect";
 import useUser from "../../../hooks/useUser";
 import DocumentSettings from "./Documents";
@@ -13,26 +13,20 @@ import { EmbeddingProgressProvider } from "@/EmbeddingProgressContext";
 import { WorkspaceFilesPanel } from "@/components/WorkspaceChat/ChatContainer/WorkspaceFilesSidebar";
 
 const noop = () => {};
-/** @param {{hideModal?: () => void, providedSlug?: string | null, initialTab?: string}} props */
 const ManageWorkspace = ({
   hideModal = noop,
   providedSlug = null,
   initialTab = "documents",
+}: {
+  hideModal?: () => void;
+  providedSlug?: string | null;
+  initialTab?: string;
 }) => {
   const { t } = useTranslation();
   const { slug } = useParams();
   const { user } = useUser();
-  const [workspace, setWorkspace] = useState(null);
-  const [settings, setSettings] = useState({});
+  const [workspace, setWorkspace] = useState<WorkspaceRecord | null>(null);
   const [selectedTab, setSelectedTab] = useState(initialTab);
-
-  useEffect(() => {
-    async function getSettings() {
-      const _settings = await System.keys();
-      setSettings(_settings ?? {});
-    }
-    getSettings();
-  }, []);
 
   useEffect(() => {
     async function fetchWorkspace() {
@@ -117,7 +111,7 @@ const ManageWorkspace = ({
               <WorkspaceFilesPanel workspace={workspace} />
             </div>
           ) : (
-            <DataConnectors workspace={workspace} systemSettings={settings} />
+            <DataConnectors />
           )}
         </div>
       </div>
@@ -127,7 +121,13 @@ const ManageWorkspace = ({
 
 export default memo(ManageWorkspace);
 
-const ModalTabSwitcher = ({ selectedTab, setSelectedTab }) => {
+const ModalTabSwitcher = ({
+  selectedTab,
+  setSelectedTab,
+}: {
+  selectedTab: string;
+  setSelectedTab: (tab: string) => void;
+}) => {
   const { t } = useTranslation();
   return (
     <div className="w-full flex justify-center z-10 relative">
@@ -185,7 +185,7 @@ export function useManageWorkspaceModal() {
   }
 
   useEffect(() => {
-    function onEscape(event) {
+    function onEscape(event: KeyboardEvent) {
       if (!showing || event.key !== "Escape") return;
       setShowing(false);
     }

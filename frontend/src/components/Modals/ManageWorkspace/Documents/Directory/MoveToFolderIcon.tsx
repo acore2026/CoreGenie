@@ -2,6 +2,10 @@ export default function MoveToFolderIcon({
   className,
   width = 18,
   height = 18,
+}: {
+  className?: string;
+  width?: number;
+  height?: number;
 }) {
   return (
     <svg
