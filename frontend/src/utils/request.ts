@@ -3,6 +3,11 @@ import { AUTH_TOKEN, AUTH_USER } from "./constants";
 export interface StoredUser {
   id?: number;
   username?: string;
+  displayName?: string;
+  authProvider?: string;
+  employeeNumber?: string;
+  bio?: string | null;
+  systemPrompt?: string | null;
   role?: string;
   [key: string]: unknown;
 }

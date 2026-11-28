@@ -1,4 +1,6 @@
-import React, {
+import type { StoredUser } from "@/utils/request";
+import type { TFunction } from "i18next";
+import {
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -41,10 +43,11 @@ export default function SettingsSidebar() {
   const { logo } = useLogo();
   const { user } = useUser();
   const navigate = useNavigate();
-  const sidebarRef = useRef(null);
-  const [closeTarget, setCloseTarget] = useState(null);
+  const sidebarRef = useRef<HTMLDivElement>(null);
+  const [closeTarget, setCloseTarget] = useState<Element | null>(null);
   useLayoutEffect(() => {
-    if (!isMobile) setCloseTarget(sidebarRef.current?.nextElementSibling);
+    if (!isMobile)
+      setCloseTarget(sidebarRef.current?.nextElementSibling ?? null);
   }, []);
   const [showSidebar, setShowSidebar] = useState(false);
   const [showBgOverlay, setShowBgOverlay] = useState(false);
@@ -61,16 +64,12 @@ export default function SettingsSidebar() {
   });
 
   useEffect(() => {
-    function handleBg() {
-      if (showSidebar) {
-        setTimeout(() => {
-          setShowBgOverlay(true);
-        }, 300);
-      } else {
-        setShowBgOverlay(false);
-      }
+    if (!showSidebar) {
+      setShowBgOverlay(false);
+      return;
     }
-    handleBg();
+    const timer = window.setTimeout(() => setShowBgOverlay(true), 300);
+    return () => window.clearTimeout(timer);
   }, [showSidebar]);
 
   if (isMobile) {
@@ -164,7 +163,9 @@ export default function SettingsSidebar() {
                     </Link>
                     <Link
                       hidden={
-                        user?.hasOwnProperty("role") && user.role !== "admin"
+                        !!user &&
+                        Object.hasOwn(user, "role") &&
+                        user.role !== "admin"
                       }
                       to={paths.settings.privacy()}
                       className="text-theme-text-secondary hover:text-white text-xs leading-[18px] mx-3"
@@ -229,7 +230,9 @@ export default function SettingsSidebar() {
               {t("help.navigation")}
             </Link>
             <Link
-              hidden={user?.hasOwnProperty("role") && user.role !== "admin"}
+              hidden={
+                !!user && Object.hasOwn(user, "role") && user.role !== "admin"
+              }
               to={paths.settings.privacy()}
               className="transition-colors hover:text-theme-text-primary"
             >
@@ -271,7 +274,13 @@ function SupportEmail() {
   );
 }
 
-const SidebarOptions = ({ user = null, t }) => (
+const SidebarOptions = ({
+  user = null,
+  t,
+}: {
+  user?: StoredUser | null;
+  t: TFunction;
+}) => (
   <CanViewChatHistoryProvider>
     {({ viewable: canViewChatHistory }) => (
       <>
@@ -470,53 +479,45 @@ const SidebarOptions = ({ user = null, t }) => (
   </CanViewChatHistoryProvider>
 );
 
-function HoldToReveal({ children, holdForMs = 3_000 }) {
-  let timeout = null;
-  const [showing, setShowing] = useState(
-    window.localStorage.getItem(
-      "anythingllm_experimental_feature_preview_unlocked"
-    )
+function HoldToReveal({
+  children,
+  holdForMs = 3_000,
+}: React.PropsWithChildren<{ holdForMs?: number }>) {
+  const { t } = useTranslation();
+  const storageKey = "anythingllm_experimental_feature_preview_unlocked";
+  const [showing, setShowing] = useState(() =>
+    Boolean(localStorage.getItem(storageKey))
   );
-
   useEffect(() => {
-    const onPress = (e) => {
-      if (!["Control", "Meta"].includes(e.key) || timeout !== null) return;
-      timeout = setTimeout(() => {
-        setShowing(true);
-        // Setting toastId prevents hook spam from holding control too many times or the event not detaching
-        showToast("Experimental feature previews unlocked!");
-        window.localStorage.setItem(
-          "anythingllm_experimental_feature_preview_unlocked",
-          "enabled"
-        );
-        window.removeEventListener("keypress", onPress);
-        window.removeEventListener("keyup", onRelease);
-        clearTimeout(timeout);
-      }, holdForMs);
-    };
-    const onRelease = (e) => {
-      if (!["Control", "Meta"].includes(e.key)) return;
-      if (showing) {
-        window.removeEventListener("keypress", onPress);
-        window.removeEventListener("keyup", onRelease);
-        clearTimeout(timeout);
-        return;
-      }
-      clearTimeout(timeout);
-    };
-
-    if (!showing) {
-      window.addEventListener("keydown", onPress);
-      window.addEventListener("keyup", onRelease);
+    if (showing) return;
+    let timer: number | undefined;
+    function cancel() {
+      window.clearTimeout(timer);
+      timer = undefined;
     }
+    function onPress(event: KeyboardEvent) {
+      if (!["Control", "Meta"].includes(event.key) || timer !== undefined)
+        return;
+      timer = window.setTimeout(() => {
+        localStorage.setItem(storageKey, "enabled");
+        setShowing(true);
+        showToast(t("settings.experimental-unlocked"), "success");
+      }, holdForMs);
+    }
+    function onRelease(event: KeyboardEvent) {
+      if (["Control", "Meta"].includes(event.key)) cancel();
+    }
+    window.addEventListener("keydown", onPress);
+    window.addEventListener("keyup", onRelease);
+    window.addEventListener("blur", cancel);
     return () => {
+      cancel();
       window.removeEventListener("keydown", onPress);
       window.removeEventListener("keyup", onRelease);
+      window.removeEventListener("blur", cancel);
     };
-  }, []);
-
-  if (!showing) return null;
-  return children;
+  }, [holdForMs, showing, t]);
+  return showing ? children : null;
 }
 
 function AppVersion() {

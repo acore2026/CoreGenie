@@ -1110,6 +1110,7 @@ const TRANSLATIONS = {
     admin: "管理员",
     tools: "工具",
     "experimental-features": "实验功能",
+    "experimental-unlocked": "已开启实验功能预览",
     contact: "联系支持",
     "system-prompt-variables": "系统提示变量",
     "community-hub": {

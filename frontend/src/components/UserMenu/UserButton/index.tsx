@@ -37,17 +37,18 @@ export default function UserButton({
   const mode = useLoginMode();
   const { user } = useUser();
   const { adminView, setAdminView, canUseAdminView } = useAdminView(user);
-  const menuRef = useRef();
-  const buttonRef = useRef();
+  const menuRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const [showMenu, setShowMenu] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [showAccountSettings, setShowAccountSettings] = useState(false);
 
-  const handleClose = (event) => {
+  const handleClose = (event: MouseEvent) => {
     if (
+      event.target instanceof Node &&
       menuRef.current &&
       !menuRef.current.contains(event.target) &&
-      !buttonRef.current.contains(event.target)
+      !buttonRef.current?.contains(event.target)
     ) {
       setShowMenu(false);
     }
@@ -61,9 +62,11 @@ export default function UserButton({
   useEffect(() => {
     if (!showMenu) return;
     menuRef.current
-      ?.querySelector('[role="menuitem"], [role="menuitemcheckbox"]')
+      ?.querySelector<HTMLElement>(
+        '[role="menuitem"], [role="menuitemcheckbox"]'
+      )
       ?.focus();
-    const handleEscape = (event) => {
+    const handleEscape = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       setShowMenu(false);
       buttonRef.current?.focus();
@@ -125,11 +128,13 @@ export default function UserButton({
               return;
             event.preventDefault();
             const items = [
-              ...event.currentTarget.querySelectorAll(
+              ...event.currentTarget.querySelectorAll<HTMLElement>(
                 '[role="menuitem"], [role="menuitemcheckbox"]'
               ),
             ];
-            const index = items.indexOf(document.activeElement);
+            const index = items.findIndex(
+              (item) => item === document.activeElement
+            );
             const next =
               event.key === "Home"
                 ? 0

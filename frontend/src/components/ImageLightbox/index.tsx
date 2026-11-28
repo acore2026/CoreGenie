@@ -4,23 +4,30 @@ import { X, CaretLeft, CaretRight } from "@phosphor-icons/react";
 
 const OPEN_EVENT = "open-image-lightbox";
 
-/**
- * Opens the image lightbox from anywhere in the app.
- * @param {{contentString: string, name: string}[]} images
- * @param {number} initialIndex
- */
-export function openImageLightbox(images, initialIndex = 0) {
+type LightboxImage = { contentString?: string; name?: string };
+interface OpenDetail {
+  images: LightboxImage[];
+  initialIndex: number;
+}
+declare global {
+  interface WindowEventMap {
+    [OPEN_EVENT]: CustomEvent<OpenDetail>;
+  }
+}
+export function openImageLightbox(images: LightboxImage[], initialIndex = 0) {
   window.dispatchEvent(
-    new CustomEvent(OPEN_EVENT, { detail: { images, initialIndex } })
+    new CustomEvent<OpenDetail>(OPEN_EVENT, {
+      detail: { images, initialIndex },
+    })
   );
 }
 
 export default function ImageLightbox() {
-  const [images, setImages] = useState(null);
+  const [images, setImages] = useState<LightboxImage[] | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
 
   useEffect(() => {
-    function handleOpen(e) {
+    function handleOpen(e: CustomEvent<OpenDetail>) {
       setImages(e.detail.images);
       setCurrentIndex(e.detail.initialIndex);
     }
@@ -33,16 +40,18 @@ export default function ImageLightbox() {
   }
 
   function handlePrevious() {
+    if (!images?.length) return;
     setCurrentIndex((prev) => (prev > 0 ? prev - 1 : images.length - 1));
   }
 
   function handleNext() {
+    if (!images?.length) return;
     setCurrentIndex((prev) => (prev < images.length - 1 ? prev + 1 : 0));
   }
 
   useEffect(() => {
     if (!images) return;
-    function handleKeyDown(e) {
+    function handleKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") close();
       else if (e.key === "ArrowLeft") handlePrevious();
       else if (e.key === "ArrowRight") handleNext();
@@ -56,6 +65,8 @@ export default function ImageLightbox() {
   const currentImage = images[safeIndex];
   if (!currentImage) return null;
 
+  const root = document.getElementById("root");
+  if (!root) return null;
   return createPortal(
     <div
       className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/90"
@@ -110,6 +121,6 @@ export default function ImageLightbox() {
         </div>
       )}
     </div>,
-    document.getElementById("root")
+    root
   );
 }

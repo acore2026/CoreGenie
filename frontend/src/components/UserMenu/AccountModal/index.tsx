@@ -6,20 +6,28 @@ import { Plus, X } from "@phosphor-icons/react";
 import ModalWrapper from "@/components/ModalWrapper";
 import { useTheme } from "@/hooks/useTheme";
 import { useTranslation } from "react-i18next";
-import { safeJsonParse } from "@/utils/request";
+import { userFromStorage, type StoredUser } from "@/utils/request";
 import {
   USERNAME_MIN_LENGTH,
   USERNAME_MAX_LENGTH,
   USERNAME_PATTERN,
 } from "@/utils/username";
 
-export default function AccountModal({ user, hideModal }) {
+export default function AccountModal({
+  user,
+  hideModal,
+}: {
+  user: StoredUser;
+  hideModal: () => void;
+}) {
   const { pfp, setPfp } = usePfp();
   const { t } = useTranslation();
 
-  const handleFileUpload = async (event) => {
-    const file = event.target.files[0];
-    if (!file) return false;
+  const handleFileUpload = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.currentTarget.files?.[0];
+    if (!file || user.id === undefined) return;
 
     const formData = new FormData();
     formData.append("file", file);
@@ -44,19 +52,19 @@ export default function AccountModal({ user, hideModal }) {
     setPfp(null);
   };
 
-  const handleUpdate = async (e) => {
+  const handleUpdate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    const data = {};
-    const form = new FormData(e.target);
-    for (var [key, value] of form.entries()) {
-      if (value === null || (key === "password" && !value)) continue;
+    const data: Record<string, string> = {};
+    const form = new FormData(e.currentTarget);
+    for (const [key, value] of form.entries()) {
+      if (typeof value !== "string" || (key === "password" && !value)) continue;
       data[key] = value;
     }
 
     const { success, error } = await System.updateUser(data);
     if (success) {
-      let storedUser = safeJsonParse(localStorage.getItem(AUTH_USER), null);
+      const storedUser = userFromStorage();
       if (storedUser) {
         if (data.username !== undefined) storedUser.username = data.username;
         storedUser.bio = data.bio;
@@ -227,7 +235,7 @@ export default function AccountModal({ user, hideModal }) {
                     name="bio"
                     className="dsh-control block min-h-20 w-full resize-y px-3 py-2.5 text-sm"
                     placeholder={t("profile_settings.bio_placeholder")}
-                    defaultValue={user.bio}
+                    defaultValue={user.bio ?? ""}
                   />
                 </div>
                 <div className="mt-5">
@@ -297,7 +305,11 @@ function ThemePreference() {
       <select
         name="theme"
         value={theme}
-        onChange={(e) => setTheme(e.target.value)}
+        onChange={(e) => {
+          const value = e.currentTarget.value;
+          if (value === "dark" || value === "light" || value === "system")
+            setTheme(value);
+        }}
         className="dsh-control h-9 w-fit px-3 text-sm"
       >
         {Object.entries(availableThemes).map(([key, value]) => (

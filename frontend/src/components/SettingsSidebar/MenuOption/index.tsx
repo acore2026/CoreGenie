@@ -1,10 +1,28 @@
 import React, { useEffect, useState } from "react";
 import { CaretRight } from "@phosphor-icons/react";
 import { Link, useLocation } from "react-router-dom";
-import { safeJsonParse } from "@/utils/request";
+import { type StoredUser, safeJsonParse } from "@/utils/request";
 import { isPathMatch } from "@/utils/paths";
 import useScrollActiveItemIntoView from "@/hooks/useScrollActiveItemIntoView";
 
+interface OptionProps {
+  btnText: string;
+  icon?: React.ReactNode;
+  href?: string;
+  childOptions?: OptionProps[];
+  flex?: boolean;
+  user?: StoredUser | null;
+  roles?: string[];
+  hidden?: boolean;
+  isChild?: boolean;
+  exact?: boolean;
+}
+function visible(
+  { roles = [], flex = false, hidden = false }: OptionProps,
+  user: StoredUser | null
+) {
+  return !hidden && (user ? roles.includes(user.role ?? "") : flex);
+}
 export default function MenuOption({
   btnText,
   icon,
@@ -16,11 +34,11 @@ export default function MenuOption({
   hidden = false,
   isChild = false,
   exact = false,
-}) {
+}: OptionProps) {
   const storageKey = generateStorageKey({ key: btnText });
   const location = useLocation();
   const hasChildren = childOptions.length > 0;
-  const hasVisibleChildren = hasVisibleOptions(user, childOptions);
+  const hasVisibleChildren = childOptions.some((child) => visible(child, user));
   const { isExpanded, setIsExpanded } = useIsExpanded({
     storageKey,
     hasVisibleChildren,
@@ -36,7 +54,7 @@ export default function MenuOption({
       location.pathname === href
     : matchesPath(href, location.pathname, exact);
 
-  const { ref } = useScrollActiveItemIntoView({
+  const { ref } = useScrollActiveItemIntoView<HTMLAnchorElement>({
     isActive,
     behavior: "instant",
     block: "center",
@@ -44,23 +62,11 @@ export default function MenuOption({
 
   if (hidden) return null;
 
-  // If this option is a parent level option
-  if (!isChild) {
-    // and has no children then use its flex props and roles prop directly
-    if (!hasChildren) {
-      if (!flex && !roles.includes(user?.role)) return null;
-      if (flex && !!user && !roles.includes(user?.role)) return null;
-    }
+  if ((isChild || !hasChildren) && !visible({ btnText, flex, roles }, user))
+    return null;
+  if (hasChildren && !isChild && !hasVisibleChildren) return null;
 
-    // if has children and no visible children - remove it.
-    if (hasChildren && !hasVisibleChildren) return null;
-  } else {
-    // is a child so we use it's permissions
-    if (!flex && !roles.includes(user?.role)) return null;
-    if (flex && !!user && !roles.includes(user?.role)) return null;
-  }
-
-  const handleClick = (e) => {
+  const handleClick = (e: React.MouseEvent) => {
     if (hasChildren) {
       e.preventDefault();
       const newExpandedState = !isExpanded;
@@ -85,7 +91,7 @@ export default function MenuOption({
       >
         <Link
           ref={ref}
-          to={href}
+          to={href ?? location.pathname}
           replace
           className={`flex min-w-0 flex-grow items-center px-3 h-10 font-medium text-theme-text-secondary transition-colors hover:text-theme-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-theme-button-primary ${
             isChild ? "pl-8" : ""
@@ -143,13 +149,18 @@ function useIsExpanded({
   storageKey = "",
   hasVisibleChildren = false,
   childOptions = [],
-  location = null,
+  location,
+}: {
+  storageKey: string;
+  hasVisibleChildren: boolean;
+  childOptions: OptionProps[];
+  location: string;
 }) {
   const [isExpanded, setIsExpanded] = useState(() => {
     if (hasVisibleChildren) {
       const storedValue = localStorage.getItem(storageKey);
       if (storedValue !== null) {
-        return safeJsonParse(storedValue, false);
+        return safeJsonParse<unknown>(storedValue, false) === true;
       }
       return childOptions.some((child) =>
         matchesPath(child.href, location, child.exact)
@@ -173,38 +184,13 @@ function useIsExpanded({
   return { isExpanded, setIsExpanded };
 }
 
-function matchesPath(href, pathname, exact = false) {
+function matchesPath(
+  href: string | undefined,
+  pathname: string,
+  exact = false
+) {
   if (!href || !pathname) return false;
   return exact ? pathname === href : isPathMatch(href, pathname);
-}
-
-/**
- * Checks if the child options are visible to the user.
- * This hides the top level options if the child options are not visible
- * for either the users permissions or the child options hidden prop is set to true by other means.
- * If all child options return false for `isVisible` then the parent option will not be visible as well.
- * @param {object} user - The user object.
- * @param {array} childOptions - The child options.
- * @returns {boolean} - True if the child options are visible, false otherwise.
- */
-function hasVisibleOptions(user = null, childOptions = []) {
-  if (!Array.isArray(childOptions) || childOptions?.length === 0) return false;
-
-  function isVisible({
-    roles = [],
-    user = null,
-    flex = false,
-    hidden = false,
-  }) {
-    if (hidden) return false;
-    if (!flex && !roles.includes(user?.role)) return false;
-    if (flex && !!user && !roles.includes(user?.role)) return false;
-    return true;
-  }
-
-  return childOptions.some((opt) =>
-    isVisible({ roles: opt.roles, user, flex: opt.flex, hidden: opt.hidden })
-  );
 }
 
 function generateStorageKey({ key = "" }) {

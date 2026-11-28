@@ -8,6 +8,30 @@ import LiveDocumentSync from "./experimental/liveSync";
 import AgentPlugins from "./experimental/agentPlugins";
 import SystemPromptVariable from "./systemPromptVariable";
 
+export interface GlobalKnowledgeDocument {
+  id: number;
+  title: string;
+  downloadName: string;
+  uploadedBy: string | null;
+  createdAt: string;
+  canDelete: boolean;
+}
+export interface FooterIcon {
+  url: string;
+  icon: string;
+}
+function footerIcons(data: unknown): FooterIcon[] {
+  if (!Array.isArray(data)) return [];
+  return data.filter(
+    (item: unknown): item is FooterIcon =>
+      typeof item === "object" &&
+      item !== null &&
+      "url" in item &&
+      typeof item.url === "string" &&
+      "icon" in item &&
+      typeof item.icon === "string"
+  );
+}
 type AnyRecord = Record<string, unknown>;
 
 export type SlashPresetInput = {
@@ -451,7 +475,7 @@ const System = {
   },
 
   fetchCustomFooterIcons: async function (): Promise<{
-    footerData: unknown[];
+    footerData: FooterIcon[];
     error: string | null;
   }> {
     const cache = window.localStorage.getItem(this.cacheKeys.footerIcons);
@@ -463,7 +487,7 @@ const System = {
       : { data: [], lastFetched: 0 };
 
     if (data && Date.now() - lastFetched < 3_600_000)
-      return { footerData: data, error: null };
+      return { footerData: footerIcons(data), error: null };
 
     try {
       const { footerData, error } = await api.get<{
@@ -479,7 +503,7 @@ const System = {
         this.cacheKeys.footerIcons,
         JSON.stringify({ data: newData, lastFetched: Date.now() })
       );
-      return { footerData: newData, error: null };
+      return { footerData: footerIcons(newData), error: null };
     } catch (e) {
       console.log(e);
       return { footerData: [], error: null };
@@ -997,8 +1021,8 @@ const System = {
     }
   },
 
-  globalKnowledge: async function (): Promise<AnyRecord[]> {
-    const data = await api.get<{ documents?: AnyRecord[] }>(
+  globalKnowledge: async function (): Promise<GlobalKnowledgeDocument[]> {
+    const data = await api.get<{ documents?: GlobalKnowledgeDocument[] }>(
       "/system/global-knowledge",
       { defaultError: "无法读取公共知识库。" }
     );

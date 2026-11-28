@@ -2,7 +2,7 @@ import UserButton from "./UserButton";
 import { useMatch } from "react-router-dom";
 import { AnnouncementSession } from "@/components/Announcements";
 
-export default function UserMenu({ children }) {
+export default function UserMenu({ children }: React.PropsWithChildren) {
   const isHome = !!useMatch("/");
   const isWorkspaceRoot = !!useMatch("/workspace/:slug");
   const isWorkspaceThread = !!useMatch("/workspace/:slug/t/:threadSlug");

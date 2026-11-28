@@ -10,23 +10,28 @@ import {
 } from "@phosphor-icons/react";
 import { useTranslation } from "react-i18next";
 import { saveAs } from "file-saver";
-import System from "@/models/system";
+import System, { type GlobalKnowledgeDocument } from "@/models/system";
 import showToast from "@/utils/toast";
 
 const control =
   "flex h-10 min-w-10 shrink-0 items-center justify-center gap-2 rounded-md px-2 text-sm text-theme-text-secondary hover:bg-theme-sidebar-subitem-hover hover:text-theme-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-button disabled:cursor-wait disabled:opacity-50";
 
-export default function GlobalKnowledgeWindow({ onClose }) {
+export default function GlobalKnowledgeWindow({
+  onClose,
+}: {
+  onClose: () => void;
+}) {
   const { t } = useTranslation();
-  const ref = useRef(null);
+  const ref = useRef<HTMLDialogElement>(null);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     const dialog = ref.current;
     const previous = document.activeElement;
+    if (!dialog) return;
     dialog.showModal();
     return () => {
       dialog.close();
-      previous?.focus?.();
+      if (previous instanceof HTMLElement) previous.focus();
     };
   }, []);
   return (
@@ -47,19 +52,29 @@ export default function GlobalKnowledgeWindow({ onClose }) {
   );
 }
 
-export function GlobalKnowledgeContent({ onClose, onBusyChange }) {
+export function GlobalKnowledgeContent({
+  onClose,
+  onBusyChange,
+}: {
+  onClose?: () => void;
+  onBusyChange?: (busy: boolean) => void;
+}) {
   const { t } = useTranslation();
-  const input = useRef(null);
+  const input = useRef<HTMLInputElement>(null);
   const operation = useRef(false);
-  const [documents, setDocuments] = useState([]);
+  const [documents, setDocuments] = useState<GlobalKnowledgeDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [query, setQuery] = useState("");
   const [mine, setMine] = useState(false);
-  const [uploading, setUploading] = useState(null);
-  const [downloading, setDownloading] = useState(null);
-  const [deleting, setDeleting] = useState(null);
-  const [confirm, setConfirm] = useState(null);
+  const [uploading, setUploading] = useState<{
+    name: string;
+    index: number;
+    total: number;
+  } | null>(null);
+  const [downloading, setDownloading] = useState<number | null>(null);
+  const [deleting, setDeleting] = useState<number | null>(null);
+  const [confirm, setConfirm] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -76,7 +91,7 @@ export function GlobalKnowledgeContent({ onClose, onBusyChange }) {
     load();
   }, [load]);
 
-  async function upload(files) {
+  async function upload(files: File[]) {
     if (!files.length || operation.current) return;
     operation.current = true;
     onBusyChange?.(true);
@@ -109,7 +124,7 @@ export function GlobalKnowledgeContent({ onClose, onBusyChange }) {
     }
   }
 
-  async function download(document) {
+  async function download(document: GlobalKnowledgeDocument) {
     if (downloading !== null) return;
     setDownloading(document.id);
     try {
@@ -124,7 +139,7 @@ export function GlobalKnowledgeContent({ onClose, onBusyChange }) {
     }
   }
 
-  async function remove(document) {
+  async function remove(document: GlobalKnowledgeDocument) {
     if (!document.canDelete || deleting !== null) return;
     setDeleting(document.id);
     try {
@@ -209,7 +224,9 @@ export function GlobalKnowledgeContent({ onClose, onBusyChange }) {
             multiple
             disabled={!!uploading}
             hidden
-            onChange={(event) => upload([...event.target.files])}
+            onChange={(event) =>
+              upload(Array.from(event.currentTarget.files ?? []))
+            }
           />
         </div>
         <div

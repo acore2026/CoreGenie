@@ -11,8 +11,9 @@ export function isSettingsModalPath(pathname = "") {
 export function getSettingsReturnPath() {
   const returnPath = sessionStorage.getItem(SETTINGS_RETURN_PATH);
   if (
-    returnPath === "/" ||
-    /^\/workspace\/[^/]+(?:\/t\/[^/]+)?(?:[?#].*)?$/.test(returnPath || "")
+    returnPath &&
+    (returnPath === "/" ||
+      /^\/workspace\/[^/]+(?:\/t\/[^/]+)?(?:[?#].*)?$/.test(returnPath))
   )
     return returnPath;
 

@@ -1,4 +1,4 @@
-import System from "@/models/system";
+import System, { type FooterIcon } from "@/models/system";
 import {
   BookOpen,
   DiscordLogo,
@@ -14,7 +14,7 @@ import React, { useEffect, useState } from "react";
 import { Tooltip } from "react-tooltip";
 
 export const MAX_ICONS = 3;
-export const ICON_COMPONENTS = {
+export const ICON_COMPONENTS: Record<string, typeof Info> = {
   BookOpen: BookOpen,
   DiscordLogo: DiscordLogo,
   GithubLogo: GithubLogo,
@@ -27,7 +27,7 @@ export const ICON_COMPONENTS = {
 };
 
 export default function Footer() {
-  const [footerData, setFooterData] = useState(false);
+  const [footerData, setFooterData] = useState<FooterIcon[]>([]);
 
   useEffect(() => {
     async function fetchFooterData() {
@@ -37,11 +37,7 @@ export default function Footer() {
     fetchFooterData();
   }, []);
 
-  // wait for some kind of non-false response from footer data first
-  // to prevent pop-in.
-  if (footerData === false) return null;
-
-  if (!Array.isArray(footerData) || footerData.length === 0) {
+  if (!footerData.length) {
     return null;
   }
 
