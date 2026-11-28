@@ -24,7 +24,7 @@ CR 更新 TDoc、CR、rev、Current version；普通提案只更新 TDoc，保�
 
 ```bash
 yarn typecheck
-node --test src/utils/meetingSelection.test.mjs
+node --test src/utils/meetingSelection.test.ts
 yarn test:proposal-fill
 yarn build
 ```

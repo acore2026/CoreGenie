@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { CaretDown, Star } from "@phosphor-icons/react";
 import paths from "@/utils/paths";
-import { workspaceScope } from "@/utils/workspaceGroups.mjs";
+import { workspaceScope } from "@/utils/workspaceGroups.ts";
 import type { SidebarWorkspace } from "./WorkspaceMenu";
 
 interface WorkspaceGroupItem {

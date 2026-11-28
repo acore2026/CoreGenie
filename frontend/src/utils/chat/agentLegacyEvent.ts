@@ -1,15 +1,20 @@
-import type { RunPayload } from "./agentRunTypes.ts";
+import type { RunPayload } from "./agentRunTypes";
+import type { SocketFrame, LifecycleEvent } from "./messages";
+
+export interface RunEnvelope {
+  runId: string;
+  type: string;
+  payload: RunPayload;
+  id?: number | string;
+  createdAt?: string;
+}
 
 export function legacyEventFromAgentRun(
-  event: {
-    runId?: string;
-    type?: string;
-    payload?: RunPayload;
-    id?: number | string;
-    createdAt?: string;
-  } | null
-) {
-  if (!event?.runId || !event?.type || !event?.payload) return event;
+  event: RunEnvelope | SocketFrame | null
+): SocketFrame | null {
+  if (!event) return null;
+  if (!("runId" in event) || !event.runId || !event.payload)
+    return event as SocketFrame;
   const { runId, type, payload } = event;
   if (
     type === "activity.updated" ||
@@ -27,13 +32,7 @@ export function legacyEventFromAgentRun(
       type: "agentRunEvent",
       content: {
         runId,
-        event: {
-          id: event.id,
-          runId,
-          type,
-          payload,
-          createdAt: event.createdAt,
-        },
+        event: event as LifecycleEvent,
       },
     };
   if (type === "message.delta")
@@ -44,13 +43,7 @@ export function legacyEventFromAgentRun(
         uuid: payload.messageId,
         content: payload.delta,
         agentRunId: runId,
-        agentRunEvent: {
-          id: event.id,
-          runId,
-          type,
-          payload,
-          createdAt: event.createdAt,
-        },
+        agentRunEvent: event as LifecycleEvent,
       },
     };
   if (type === "message.completed")
@@ -63,13 +56,7 @@ export function legacyEventFromAgentRun(
         agentRunId: runId,
         parts: payload.parts,
         outputs: payload.outputs,
-        agentRunEvent: {
-          id: event.id,
-          runId,
-          type,
-          payload,
-          createdAt: event.createdAt,
-        },
+        agentRunEvent: event as LifecycleEvent,
       },
     };
   if (type === "approval.requested") {

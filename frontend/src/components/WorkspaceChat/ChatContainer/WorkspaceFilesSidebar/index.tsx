@@ -10,7 +10,7 @@ import {
 import { useDropzone } from "react-dropzone";
 import { saveAs } from "file-saver";
 import { Dialog } from "@headlessui/react";
-import { userFacingErrorKey } from "@/utils/userFacingError.mjs";
+import { userFacingErrorKey } from "@/utils/userFacingError.ts";
 import Workspace from "@/models/workspace";
 import { WORKSPACE_FILES_CHANGED } from "@/utils/workspaceUpload";
 import { AGENT_SESSION_END } from "@/utils/chat/agent";

@@ -13,13 +13,14 @@ import {
   type Icon,
 } from "@phosphor-icons/react";
 import paths from "@/utils/paths";
-import { workspaceScope } from "@/utils/workspaceGroups.mjs";
+import { workspaceScope } from "@/utils/workspaceGroups.ts";
 import ContextMenu from "@/components/lib/ContextMenu";
 
 export interface SidebarWorkspace {
   id: number;
   slug: string;
   name: string;
+  accessMode?: string;
   viewerAccess?: string;
   [key: string]: unknown;
 }

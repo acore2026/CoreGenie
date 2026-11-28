@@ -18,7 +18,7 @@ import { useNavigate } from "react-router-dom";
 import useUser from "@/hooks/useUser";
 import useSidebarPreferences from "@/hooks/useSidebarPreferences";
 import { WORKSPACE_CREATED_EVENT } from "@/components/Sidebar/events";
-import { effectiveWorkspaceGroups } from "@/utils/workspaceGroups.mjs";
+import { effectiveWorkspaceGroups } from "@/utils/workspaceGroups.ts";
 
 const noop = () => false;
 const accessOptions = [

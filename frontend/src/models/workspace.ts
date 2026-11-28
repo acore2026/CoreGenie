@@ -8,7 +8,7 @@ import WorkspaceThread, {
 } from "@/models/workspaceThread";
 import { v4 } from "uuid";
 import { ABORT_STREAM_EVENT } from "@/utils/chat";
-import { orderWorkspaces } from "@/utils/workspaceOrder.mjs";
+import { orderWorkspaces } from "@/utils/workspaceOrder.ts";
 
 export type { WorkspaceRecord };
 

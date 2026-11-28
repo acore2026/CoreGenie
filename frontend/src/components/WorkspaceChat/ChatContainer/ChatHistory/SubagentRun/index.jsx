@@ -8,7 +8,7 @@ import {
 } from "@phosphor-icons/react";
 import AgentAvatar from "@/components/PredefinedAgents/AgentAvatar";
 import { useTranslation } from "react-i18next";
-import { activityText } from "@/utils/userFacingError.mjs";
+import { activityText } from "@/utils/userFacingError.ts";
 
 export default function SubagentRun({ run, live = false }) {
   const { t } = useTranslation();

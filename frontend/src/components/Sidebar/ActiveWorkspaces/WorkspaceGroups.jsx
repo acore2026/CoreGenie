@@ -18,7 +18,7 @@ import {
   workspaceGroupId,
   workspaceScope,
   groupDropTargetId,
-} from "@/utils/workspaceGroups.mjs";
+} from "@/utils/workspaceGroups.ts";
 
 const iconButton =
   "flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-theme-text-secondary hover:bg-theme-sidebar-subitem-hover hover:text-theme-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-button disabled:opacity-50";

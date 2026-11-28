@@ -65,7 +65,10 @@ export function inferAgentMeetings(
 // For official downloads, use the UTC day. A month-only meeting in the
 // current month still needs an explicit choice because it may be in the future.
 export function defaultDownloadMeetingId(
-  meetings: readonly OfficialMeeting[],
+  meetings: readonly Pick<
+    OfficialMeeting,
+    "id" | "number" | "suffix" | "date"
+  >[],
   today = new Date().toISOString().slice(0, 10)
 ): string {
   const eligible = meetings.flatMap((meeting) => {

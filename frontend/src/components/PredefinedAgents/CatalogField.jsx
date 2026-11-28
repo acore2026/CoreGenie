@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { API_BASE } from "@/utils/constants";
 import { baseHeaders } from "@/utils/request";
 import MeetingSelect from "./MeetingSelect";
-import { maxSelections } from "@/utils/agentWizard.mjs";
+import { maxSelections } from "@/utils/agentWizard.ts";
 
 const input =
   "w-full min-h-[40px] rounded-lg border border-theme-chat-input-border bg-theme-bg-chat-input px-3 py-2 text-sm text-theme-text-primary focus:outline-none focus:ring-2 focus:ring-primary-button disabled:opacity-50";

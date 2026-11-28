@@ -1,5 +1,5 @@
 import { CheckCircle, CircleNotch, MinusCircle } from "@phosphor-icons/react";
-import { toolActivityText } from "@/utils/userFacingError.mjs";
+import { toolActivityText } from "@/utils/userFacingError.ts";
 import {
   ACTIVE_TOOL_STATUSES,
   toolName,

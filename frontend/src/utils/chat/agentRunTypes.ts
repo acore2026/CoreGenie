@@ -38,7 +38,9 @@ export interface Activity {
   summaryKey?: string | null;
   summaryArgs?: Record<string, unknown> | null;
 }
-interface ResourceTrace {
+export interface ResourceTrace {
+  titleArgs?: { name?: string; count?: number };
+  detail?: string;
   id: string;
   kind: string;
   titleKey: string;
@@ -82,6 +84,7 @@ interface ToolFields {
   reason?: string;
 }
 interface ContextFields {
+  slug?: string;
   name?: string;
   scope?: string;
   path?: string;

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { CaretDown, StopCircle } from "@phosphor-icons/react";
 import AgentAvatar from "@/components/PredefinedAgents/AgentAvatar";
-import { activityText, userFacingErrorKey } from "@/utils/userFacingError.mjs";
+import { activityText, userFacingErrorKey } from "@/utils/userFacingError.ts";
 import {
   metaFor,
   type AgentEvidenceItem,

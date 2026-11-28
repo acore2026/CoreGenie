@@ -1,0 +1,112 @@
+import { Suspense, useDeferredValue, useEffect, useState } from "react";
+import { useLocation, useOutlet } from "react-router-dom";
+import { I18nextProvider } from "react-i18next";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { queryClient } from "@/lib/queryClient";
+import { AuthProvider } from "@/AuthContext";
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
+import i18n from "./i18n";
+
+import { PfpProvider } from "./PfpContext";
+import { LogoProvider } from "./LogoContext";
+import { FullScreenLoader } from "./components/Preloader";
+import { ThemeProvider } from "./ThemeContext";
+import { PWAModeProvider } from "./PWAContext";
+import KeyboardShortcutsHelp from "@/components/KeyboardShortcutsHelp";
+import ImageLightbox from "@/components/ImageLightbox";
+import { ErrorBoundary } from "react-error-boundary";
+import ErrorBoundaryFallback from "./components/ErrorBoundaryFallback";
+import { SETTINGS_RETURN_PATH } from "@/utils/constants";
+import NetworkAuthGuard from "@/components/NetworkAuthGuard";
+import { isSettingsModalPath } from "@/utils/settingsModal";
+import { AnnouncementProvider } from "@/components/Announcements";
+
+export default function App() {
+  const location = useLocation();
+
+  useEffect(() => {
+    const isChatSurface =
+      location.pathname === "/" ||
+      /^\/workspace\/[^/]+(?:\/t\/[^/]+)?$/.test(location.pathname);
+    if (!isChatSurface) return;
+
+    sessionStorage.setItem(
+      SETTINGS_RETURN_PATH,
+      `${location.pathname}${location.search}${location.hash}`
+    );
+  }, [location]);
+
+  return (
+    <ErrorBoundary
+      FallbackComponent={ErrorBoundaryFallback}
+      onError={console.error}
+      resetKeys={[location.pathname]}
+    >
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider>
+          <PWAModeProvider>
+            <AuthProvider>
+              <LogoProvider>
+                <PfpProvider>
+                  <I18nextProvider i18n={i18n}>
+                    <AnnouncementProvider>
+                      <NetworkAuthGuard />
+                      <Suspense fallback={<FullScreenLoader />}>
+                        <StableOutlet />
+                      </Suspense>
+                      <ToastContainer />
+                      <KeyboardShortcutsHelp />
+                      <ImageLightbox />
+                    </AnnouncementProvider>
+                  </I18nextProvider>
+                </PfpProvider>
+              </LogoProvider>
+            </AuthProvider>
+          </PWAModeProvider>
+        </ThemeProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
+  );
+}
+
+function StableOutlet() {
+  const location = useLocation();
+  const outlet = useOutlet();
+  const deferredOutlet = useDeferredValue(outlet);
+  const transitioning = outlet !== deferredOutlet;
+  const settingsOpen = isSettingsModalPath(location.pathname);
+  const [backgroundOutlet, setBackgroundOutlet] = useState(() =>
+    settingsOpen ? null : outlet
+  );
+
+  useEffect(() => {
+    if (!settingsOpen) setBackgroundOutlet(outlet);
+    // The outlet element gets a new identity when providers render. Cache it
+    // only when navigation changes, otherwise this effect loops indefinitely.
+  }, [location.key, location.pathname, settingsOpen]);
+
+  const visibleOutlet = settingsOpen ? backgroundOutlet : outlet;
+
+  return (
+    <>
+      <div
+        className="contents"
+        aria-hidden={settingsOpen ? "true" : undefined}
+        {...(settingsOpen ? { inert: "" } : {})}
+      >
+        {visibleOutlet}
+      </div>
+      {settingsOpen && outlet}
+      {transitioning && (
+        <div
+          className="pointer-events-none fixed inset-x-0 top-0 z-[999999] h-[2px] overflow-hidden bg-cyan-950/30"
+          role="progressbar"
+          aria-label="Loading page"
+        >
+          <div className="h-full w-1/3 animate-pulse bg-cyan-400" />
+        </div>
+      )}
+    </>
+  );
+}

@@ -13,7 +13,7 @@
     "preview:local-tools": "node scripts/preview-local-tools.mjs",
     "test:proposal-fill": "node --test scripts/tests/proposalFill.test.mjs",
     "test:api-workflow": "node --test scripts/tests/apiWorkflow.test.mjs",
-    "test:network-auth": "vitest run src/utils/networkAuth.test.mjs",
+    "test:network-auth": "vitest run src/utils/networkAuth.test.ts",
     "lint:check": "eslint src",
     "lint": "eslint --fix src",
     "preview": "vite preview",
@@ -64,6 +64,10 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.2",
+    "@types/he": "^1.2.3",
+    "@types/katex": "0.16.8",
+    "@types/markdown-it": "^13.0.9",
+    "@types/node": "22.20.7",
     "@types/react": "^18.2.23",
     "@types/react-dom": "^18.2.8",
     "@types/react-router-dom": "^5.3.3",
@@ -85,7 +89,7 @@
     "rollup-plugin-visualizer": "^5.9.0",
     "tailwindcss": "^3.3.1",
     "typescript": "5.9.3",
-    "vite": "8.4.0",
-    "typescript-eslint": "8.46.4"
+    "typescript-eslint": "8.46.4",
+    "vite": "8.4.0"
   }
 }

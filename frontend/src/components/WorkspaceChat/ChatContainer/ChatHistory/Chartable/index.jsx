@@ -24,7 +24,7 @@ import { SeriesChart, DonutChart, SeriesLegend } from "./SeriesChart";
 import CustomCell from "./CustomCell.jsx";
 import Tooltip from "./CustomTooltip.jsx";
 import { safeJsonParse } from "@/utils/request";
-import renderMarkdown from "@/utils/chat/markdown.js";
+import renderMarkdown from "@/utils/chat/markdown.ts";
 import DOMPurify from "dompurify";
 import { memo, useCallback, useState } from "react";
 import { saveAs } from "file-saver";

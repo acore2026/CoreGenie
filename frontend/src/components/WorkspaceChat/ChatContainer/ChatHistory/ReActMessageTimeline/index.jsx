@@ -1,8 +1,8 @@
 import { useEffect, useId, useMemo, useState } from "react";
 import { CaretRight, CheckCircle } from "@phosphor-icons/react";
 import { useTranslation } from "react-i18next";
-import { completedTimeline } from "@/utils/reactTimeline.mjs";
-import { userFacingErrorKey } from "@/utils/userFacingError.mjs";
+import { completedTimeline } from "@/utils/reactTimeline.ts";
+import { userFacingErrorKey } from "@/utils/userFacingError.ts";
 import ToolCallGroup from "../ToolCallGroup";
 import { API_BASE } from "@/utils/constants";
 import { baseHeaders } from "@/utils/request";

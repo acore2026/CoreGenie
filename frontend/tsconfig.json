@@ -19,7 +19,7 @@
       "@help-docs/*": ["../docs/help/*"],
       "zod": ["./node_modules/zod"]
     },
-    "types": ["vite/client"]
+    "types": ["vite/client", "node"]
   },
   "include": [
     "src/**/*.ts",

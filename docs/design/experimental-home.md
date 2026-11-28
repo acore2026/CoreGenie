@@ -23,7 +23,7 @@
 
 ## 接入方案
 
-建议增加独立 `/experimental/home` 路由，保留 `/`。新路由沿用 PrivateRoute；设置或账户菜单提供实验入口与返回入口，不改变默认首页。生产页面的所有文案放到 `frontend/src/locales/zh/common.js`。
+建议增加独立 `/experimental/home` 路由，保留 `/`。新路由沿用 PrivateRoute；设置或账户菜单提供实验入口与返回入口，不改变默认首页。生产页面的所有文案放到 `frontend/src/locales/zh/common.ts`。
 
 使用 React + 现有 Tailwind/主题变量实施这一小范围实验。抽取轻量 HomeComposer 和通用 WorkspacePicker；首页不直接导入现有整个 PromptInput 依赖树。复用经过适配的附件上传、中文输入法和草稿逻辑，避免复制第二套会话运行逻辑。DSH 复杂 slots、Cordis、Dockkit 暂不进入首页。
 

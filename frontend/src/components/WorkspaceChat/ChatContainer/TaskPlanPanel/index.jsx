@@ -3,7 +3,7 @@ import { ListChecks, X } from "@phosphor-icons/react";
 import { useTranslation } from "react-i18next";
 import { API_BASE } from "@/utils/constants";
 import { baseHeaders } from "@/utils/request";
-import { conversationPlanRuns, planTasks } from "@/utils/taskPlan.mjs";
+import { conversationPlanRuns, planTasks } from "@/utils/taskPlan.ts";
 import TaskPlanCard from "../ChatHistory/TaskPlanCard";
 
 const TERMINAL = new Set(["completed", "partial", "failed", "cancelled"]);

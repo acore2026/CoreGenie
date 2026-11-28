@@ -10,7 +10,7 @@ import {
   Wrench,
 } from "@phosphor-icons/react";
 import { useTranslation } from "react-i18next";
-import { toolActivityText } from "@/utils/userFacingError.mjs";
+import { toolActivityText } from "@/utils/userFacingError.ts";
 
 const ACTIVE = new Set(["requested", "running", "started", "retrying"]);
 const FINISHED = new Set(["completed", "failed", "cancelled", "skipped"]);

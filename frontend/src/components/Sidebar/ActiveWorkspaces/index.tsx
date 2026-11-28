@@ -26,7 +26,7 @@ import paths from "@/utils/paths";
 import useUser from "@/hooks/useUser";
 import ThreadContainer, { CreateThreadButton } from "./ThreadContainer";
 import { WorkspaceGroupDialog, WorkspaceGroupSection } from "./WorkspaceGroups";
-import { GROUP_SCOPES, workspaceScope } from "@/utils/workspaceGroups.mjs";
+import { GROUP_SCOPES, workspaceScope } from "@/utils/workspaceGroups.ts";
 import showToast from "@/utils/toast";
 import { LAST_VISITED_WORKSPACE } from "@/utils/constants";
 import { safeJsonParse } from "@/utils/request";
@@ -135,7 +135,7 @@ function WorkspaceList({
     queryKey: listQueryKey,
     queryFn: async () => {
       const visibleWorkspaces =
-        canUseAdminView && !adminView
+        canUseAdminView && !adminView && user
           ? await assignedAdminWorkspaces(user.id, { refresh: true })
           : await Workspace.all();
       return Workspace.orderWorkspaces(visibleWorkspaces) as SidebarWorkspace[];

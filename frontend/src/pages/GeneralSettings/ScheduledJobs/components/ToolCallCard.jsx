@@ -7,7 +7,7 @@ import { useTheme } from "@/hooks/useTheme";
 import DOMPurify from "@/utils/chat/purify";
 import truncate from "truncate";
 import { formatDateTime } from "@/utils/dateTime";
-import { activityText } from "@/utils/userFacingError.mjs";
+import { activityText } from "@/utils/userFacingError.ts";
 
 const MAX_RESULT_LENGTH = 5000;
 

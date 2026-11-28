@@ -8,7 +8,7 @@ async (page) => {
     const React=ReactModule.default;
     const ReactDOMModule=await import('/node_modules/.vite/deps/react-dom.js');
     const ReactDOM=ReactDOMModule.default;
-    await import('/src/i18n.js');await import('/src/index.css');
+    await import('/src/i18n.ts');await import('/src/index.css');
     const {default:Timeline}=await import('/src/components/WorkspaceChat/ChatContainer/ChatHistory/ReActMessageTimeline/index.jsx');
     const root=ReactDOM.createRoot(document.getElementById('root'));
     window.renderPlan=(state)=>root.render(React.createElement('div',{style:{maxWidth:920,margin:'48px auto',padding:20}},React.createElement(Timeline,{runId:'preview',runState:state,messageId:'preview',fallbackText:'正在整理提案中的技术差异。'})));

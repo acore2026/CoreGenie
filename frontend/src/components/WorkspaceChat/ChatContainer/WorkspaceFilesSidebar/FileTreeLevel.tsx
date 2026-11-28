@@ -8,7 +8,7 @@ import {
   Folder,
   Image as ImageIcon,
 } from "@phosphor-icons/react";
-import { userFacingErrorKey } from "@/utils/userFacingError.mjs";
+import { userFacingErrorKey } from "@/utils/userFacingError.ts";
 import {
   formatSize,
   type FileLevelState,

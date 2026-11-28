@@ -13,7 +13,7 @@ async (page) => {
     RefreshRuntime.injectIntoGlobalHook(window);window.$RefreshReg$=()=>{};window.$RefreshSig$=()=>type=>type;window.__vite_plugin_react_preamble_installed__=true;
     const React=(await import('/node_modules/.vite/deps/react.js')).default;
     const ReactDOM=(await import('/node_modules/.vite/deps/react-dom.js')).default;
-    await import('/src/i18n.js');await import('/src/index.css');
+    await import('/src/i18n.ts');await import('/src/index.css');
     const Component=(await import('/src/pages/GeneralSettings/LLMPreference/LightweightModel/index.jsx')).default;
     window.submissions=0;
     ReactDOM.createRoot(document.getElementById('root')).render(React.createElement('form',{onSubmit:e=>{e.preventDefault();window.submissions++},style:{maxWidth:720,margin:'32px auto',padding:20}},React.createElement(Component)));

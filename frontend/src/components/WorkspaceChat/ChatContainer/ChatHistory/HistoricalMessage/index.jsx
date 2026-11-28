@@ -20,7 +20,7 @@ import ResponseEvaluation from "./ResponseEvaluation";
 import RenderChatContent from "../RenderChatContent";
 import ReActMessageTimeline from "../ReActMessageTimeline";
 import WorkingIndicator from "../TaskPlanCard/WorkingIndicator";
-import { userFacingErrorKey } from "@/utils/userFacingError.mjs";
+import { userFacingErrorKey } from "@/utils/userFacingError.ts";
 
 const HistoricalMessage = ({
   uuid: uuidProp,

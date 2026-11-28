@@ -13,7 +13,7 @@ import {
 import { REMOVE_ATTACHMENT_EVENT } from "../../DnDWrapper";
 import { openImageLightbox } from "@/components/ImageLightbox";
 import { useTranslation } from "react-i18next";
-import { userFacingErrorKey } from "@/utils/userFacingError.mjs";
+import { userFacingErrorKey } from "@/utils/userFacingError.ts";
 
 /**
  * @param {{attachments: import("../../DnDWrapper").Attachment[]}}

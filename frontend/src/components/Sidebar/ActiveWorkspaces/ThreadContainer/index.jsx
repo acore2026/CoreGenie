@@ -13,7 +13,7 @@ import useWorkspaceFavorites from "@/hooks/useWorkspaceFavorites";
 import {
   favoritesFirst,
   threadFavoriteId,
-} from "@/utils/workspaceFavorites.mjs";
+} from "@/utils/workspaceFavorites.ts";
 
 export { THREAD_CREATED_EVENT, THREAD_RENAME_EVENT } from "../../events";
 

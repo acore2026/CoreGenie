@@ -1,4 +1,4 @@
-import { appendResourceTrace } from "./agentResourceTraces.js";
+import { appendResourceTrace } from "./agentResourceTraces.ts";
 import type {
   Activity,
   AgentRunEvent,

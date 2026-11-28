@@ -9,7 +9,7 @@ import {
   type Icon,
 } from "@phosphor-icons/react";
 import { reduceAgentRunState } from "@/utils/chat/agent";
-import { activityText, userFacingErrorKey } from "@/utils/userFacingError.mjs";
+import { activityText, userFacingErrorKey } from "@/utils/userFacingError.ts";
 
 export const TERMINAL = new Set([
   "completed",

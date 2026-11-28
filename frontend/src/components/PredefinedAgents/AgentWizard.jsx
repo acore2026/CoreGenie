@@ -10,7 +10,7 @@ import {
   updateAnswer,
   wizardTasks,
   visibleFields,
-} from "@/utils/agentWizard.mjs";
+} from "@/utils/agentWizard.ts";
 import CatalogField from "./CatalogField";
 
 const control =

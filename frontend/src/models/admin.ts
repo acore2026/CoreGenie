@@ -1,7 +1,14 @@
+import type { WorkspaceRecord } from "@coregenie/contracts";
 import { api } from "@/utils/api";
 import { clearSystemKeysCache } from "./system";
 
 type AnyRecord = Record<string, unknown>;
+
+type AdminWorkspace = WorkspaceRecord & {
+  userIds?: (number | string)[];
+  accessMode?: string;
+  viewerRelation?: string;
+};
 
 const Admin = {
   users: async (): Promise<AnyRecord[]> => {
@@ -97,9 +104,9 @@ const Admin = {
     }
   },
 
-  workspaces: async (): Promise<AnyRecord[]> => {
+  workspaces: async (): Promise<AdminWorkspace[]> => {
     try {
-      const res = await api.get<{ workspaces?: AnyRecord[] }>(
+      const res = await api.get<{ workspaces?: AdminWorkspace[] }>(
         "/admin/workspaces"
       );
       return res?.workspaces || [];

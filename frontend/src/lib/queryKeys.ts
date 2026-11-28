@@ -4,12 +4,18 @@ export const queryKeys = {
   },
   workspaces: {
     all: ["workspaces"] as const,
+    sidebar: (id: number | undefined, token: string | null) =>
+      ["sidebarPreferences", id ?? null, token] as const,
     list: (ownerKey: string) => ["workspaces", "list", ownerKey] as const,
   },
   agentRuns: {
     snapshot: (runId: string) => ["agentRuns", "snapshot", runId] as const,
   },
   system: {
+    logo: ["system", "logo"] as const,
+    profilePicture: (id: number | undefined) =>
+      ["system", "profilePicture", id] as const,
+    simpleSSO: ["system", "simpleSSO"] as const,
     appVersion: ["system", "appVersion"] as const,
     onboardingComplete: ["system", "onboardingComplete"] as const,
     providerModels: (provider: string) =>

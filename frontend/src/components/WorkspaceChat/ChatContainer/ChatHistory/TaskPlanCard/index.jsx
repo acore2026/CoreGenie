@@ -7,7 +7,7 @@ import {
   WarningCircle,
 } from "@phosphor-icons/react";
 import { useTranslation } from "react-i18next";
-import { activityText, userFacingErrorKey } from "@/utils/userFacingError.mjs";
+import { activityText, userFacingErrorKey } from "@/utils/userFacingError.ts";
 
 export default function TaskPlanCard({ tasks = [], status }) {
   const { t } = useTranslation();

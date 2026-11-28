@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { userFacingErrorKey } from "@/utils/userFacingError.mjs";
+import { userFacingErrorKey } from "@/utils/userFacingError.ts";
 import SettingsSidebar from "@/components/SettingsSidebar";
 import WorkspaceSidebar from "@/components/Sidebar";
 import { isMobile } from "react-device-detect";

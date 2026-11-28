@@ -162,6 +162,7 @@ export function SingleUserRoute({ Component }) {
   );
 }
 
+/** @param {{Component: import("react").ComponentType, GuestComponent?: import("react").ComponentType | null}} props */
 export default function PrivateRoute({ Component, GuestComponent = null }) {
   const { isAuthd, shouldRedirectToOnboarding } = useIsAuthenticated();
   if (isAuthd === null) return <FullScreenLoader />;

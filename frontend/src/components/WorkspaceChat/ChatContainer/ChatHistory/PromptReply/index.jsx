@@ -6,7 +6,7 @@ import DOMPurify from "@/utils/chat/purify";
 import Citations from "../Citation";
 import WorkingIndicator from "../TaskPlanCard/WorkingIndicator";
 import { useTranslation } from "react-i18next";
-import { userFacingErrorKey } from "@/utils/userFacingError.mjs";
+import { userFacingErrorKey } from "@/utils/userFacingError.ts";
 import {
   THOUGHT_REGEX_CLOSE,
   THOUGHT_REGEX_COMPLETE,

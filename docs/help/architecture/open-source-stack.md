@@ -29,7 +29,7 @@ CoreGenie 基于开源项目 **AnythingLLM（MIT，上游 `v1.15.0`）** 深度�
 | **markdown-it** + **DOMPurify** + **highlight.js** + **KaTeX** | MIT / Apache-2.0 / BSD | 对话消息渲染、帮助页架构文档渲染 | 安全地将 Markdown、代码块和数学公式渲染为 HTML（防 XSS） |
 | **@microsoft/fetch-event-source** | MIT | [agentSSETransport.ts](../../../frontend/src/utils/chat/agentSSETransport.ts) | 带鉴权请求头订阅 Agent SSE 事件流与断线重连 |
 | **fflate** | MIT | [frontend/src/utils/localTools/](../../../frontend/src/utils/localTools/README.md) | 在浏览器内存里直接解压和重打包 `.docx` / `.xlsx`（OOXML），实现提案编号回填而不上传文档正文 |
-| **i18next** + **react-i18next** | MIT | [frontend/src/locales/zh/common.js](../../../frontend/src/locales/zh/common.js) | 集中管理全站简体中文文案 |
+| **i18next** + **react-i18next** | MIT | [frontend/src/locales/zh/common.ts](../../../frontend/src/locales/zh/common.ts) | 集中管理全站简体中文文案 |
 
 ## 3. 服务端与 Agent 运行时（`server/`）
 

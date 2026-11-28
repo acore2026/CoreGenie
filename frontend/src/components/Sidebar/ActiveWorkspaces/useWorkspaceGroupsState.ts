@@ -10,16 +10,12 @@ import {
   personalWorkspaceGroups,
   removeWorkspaceGroup,
   workspaceGroupId,
-} from "@/utils/workspaceGroups.mjs";
+} from "@/utils/workspaceGroups.ts";
 import useSidebarPreferences from "@/hooks/useSidebarPreferences";
 import type { SidebarWorkspace } from "./WorkspaceMenu";
 
-export interface WorkspaceGroup {
-  id: string;
-  scope: string;
-  name: string;
-  global?: boolean;
-}
+import type { WorkspaceGroup } from "@/utils/workspaceGroups";
+export type { WorkspaceGroup } from "@/utils/workspaceGroups";
 
 export interface GroupDialogState {
   mode: "assign" | "create" | "edit";
@@ -174,7 +170,7 @@ export function useWorkspaceGroupsState({
     } else {
       const group = {
         id: `group-${uuidv4()}`,
-        scope: groupDialog.scope,
+        scope: groupDialog.scope ?? "private",
         name: value,
       };
       next = {

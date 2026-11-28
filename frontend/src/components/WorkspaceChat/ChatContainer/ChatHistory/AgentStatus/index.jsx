@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { CaretDown, CheckCircle } from "@phosphor-icons/react";
 import AgentAnimation from "@/media/animations/agent-animation.webm";
 import AgentStatic from "@/media/animations/agent-static.png";
-import { activityText } from "@/utils/userFacingError.mjs";
+import { activityText } from "@/utils/userFacingError.ts";
 import { useTranslation } from "react-i18next";
 
 export default function AgentStatus({

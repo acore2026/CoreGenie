@@ -8,7 +8,7 @@ import StatusBadge from "./StatusBadge";
 import ScheduledJobs from "@/models/scheduledJobs";
 import showToast from "@/utils/toast";
 import { formatDuration } from "@/utils/numbers";
-import { userFacingErrorKey } from "@/utils/userFacingError.mjs";
+import { userFacingErrorKey } from "@/utils/userFacingError.ts";
 
 /**
  * Format a run's elapsed time as ms / s / m.
