@@ -13,7 +13,10 @@ import {
 import Sidebar, { SidebarMobileHeader } from "@/components/Sidebar";
 import paths from "@/utils/paths";
 import { LIMITS, LocalToolError } from "@/utils/localTools/proposalFill";
-import { triggerBrowserDownload } from "@/utils/localTools/ooxml";
+import {
+  readFileBytes,
+  triggerBrowserDownload,
+} from "@/utils/localTools/ooxml";
 import {
   applyBaselinesToDrafts,
   buildReasonForChangeParagraphs,
@@ -68,6 +71,10 @@ export default function ApiCrGenerator({
   );
   const [drafts, setDrafts] = useState<ApiUpdateCrDraft[]>([]);
   const [baselines, setBaselines] = useState<BaselineSpecData[]>([]);
+  const [customTemplate, setCustomTemplate] = useState<{
+    name: string;
+    bytes: Uint8Array;
+  } | null>(null);
   const [config, setConfig] = useState<ApiCrGenerationConfig>(defaultConfig);
   const [specFilter, setSpecFilter] = useState("");
   const [releaseFilter, setReleaseFilter] = useState("all");
@@ -79,6 +86,7 @@ export default function ApiCrGenerator({
 
   const excelRef = useRef<HTMLInputElement>(null);
   const baselineRef = useRef<HTMLInputElement>(null);
+  const templateRef = useRef<HTMLInputElement>(null);
   const locked = Boolean(busy);
 
   const errorText = (err: unknown): string => {
@@ -266,10 +274,30 @@ export default function ApiCrGenerator({
     );
   }
 
+  async function handleSelectCustomTemplate(
+    event: ChangeEvent<HTMLInputElement>
+  ) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || operation.current) return;
+    setError("");
+    setNotice("");
+    try {
+      const bytes = await readFileBytes(file, ".docx");
+      setCustomTemplate({ name: file.name, bytes });
+    } catch (err) {
+      setError(errorText(err));
+    }
+  }
+
   function exportSingle(draft: ApiUpdateCrDraft) {
     setError("");
     try {
-      const bytes = generateApiUpdateCrDocx(draft, config);
+      const bytes = generateApiUpdateCrDocx(
+        draft,
+        config,
+        customTemplate?.bytes ?? null
+      );
       const name = crOutputFilename(draft, config.tdocPlaceholder);
       triggerBrowserDownload(
         bytes,
@@ -301,7 +329,11 @@ export default function ApiCrGenerator({
         );
         await pause();
         const name = crOutputFilename(draft, config.tdocPlaceholder);
-        const bytes = generateApiUpdateCrDocx(draft, config);
+        const bytes = generateApiUpdateCrDocx(
+          draft,
+          config,
+          customTemplate?.bytes ?? null
+        );
         files.push({ name, bytes });
         report.push({
           规范: draft.spec,
@@ -617,6 +649,45 @@ export default function ApiCrGenerator({
                   }
                 />
               </label>
+              <div className="block text-sm">
+                <span>{tr("cr_template")}</span>
+                <input
+                  ref={templateRef}
+                  type="file"
+                  accept=".docx"
+                  className="hidden"
+                  aria-label={tr("choose_cr_template")}
+                  onChange={handleSelectCustomTemplate}
+                  disabled={locked}
+                />
+                <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    className={control}
+                    disabled={locked}
+                    onClick={() => templateRef.current?.click()}
+                  >
+                    {tr("choose_cr_template")}
+                  </button>
+                  {customTemplate && (
+                    <button
+                      type="button"
+                      className={control}
+                      disabled={locked}
+                      onClick={() => setCustomTemplate(null)}
+                    >
+                      {tr("reset_cr_template")}
+                    </button>
+                  )}
+                </div>
+                <p className="mt-1 break-all text-xs text-theme-text-secondary">
+                  {customTemplate
+                    ? tr("custom_cr_template_loaded", {
+                        name: customTemplate.name,
+                      })
+                    : tr("default_cr_template_hint")}
+                </p>
+              </div>
             </div>
           </section>
 

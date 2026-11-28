@@ -1,16 +1,19 @@
 import { zipSync, strFromU8, strToU8 } from "fflate";
 import { LocalToolError } from "./proposalFill";
+import { getDefaultCrTemplateBytes } from "./crTemplateData";
 import {
   W_NS,
+  XML_NS,
   cleanInline,
   elementsNS,
-  escapeXml,
   normalizeText,
   parseXml,
   readFileBytes,
   readXlsxSheets,
   unpackZip,
   visibleParagraphText,
+  visibleWordText,
+  wordChildren,
 } from "./ooxml";
 import type { ExportFile, FileBytes } from "./types";
 
@@ -929,14 +932,27 @@ export function buildSummaryOfChange(
     : `Update the API version and the "externalDocs" object description field.`;
 }
 
-function buildDiffRunsXml(
+function appendDiffRuns(
+  doc: Document,
+  paragraph: Element,
   before: string,
   after: string,
   revState: { id: number; author: string; date: string }
-): string {
+): void {
+  const makeRun = (text: string, isDel = false): Element => {
+    const r = doc.createElementNS(W_NS, "w:r");
+    const t = doc.createElementNS(W_NS, isDel ? "w:delText" : "w:t");
+    t.setAttributeNS(XML_NS, "xml:space", "preserve");
+    t.textContent = text;
+    r.append(t);
+    return r;
+  };
+
   if (before === after) {
-    return `<w:r><w:t xml:space="preserve">${escapeXml(before)}</w:t></w:r>`;
+    if (before) paragraph.append(makeRun(before));
+    return;
   }
+
   let prefix = 0;
   while (
     prefix < before.length &&
@@ -958,48 +974,91 @@ function buildDiffRunsXml(
   const insText = after.slice(prefix, after.length - suffix);
   const right = suffix ? before.slice(before.length - suffix) : "";
 
-  const parts: string[] = [];
-  if (left) {
-    parts.push(`<w:r><w:t xml:space="preserve">${escapeXml(left)}</w:t></w:r>`);
-  }
+  if (left) paragraph.append(makeRun(left));
   if (delText) {
-    const id = ++revState.id;
-    parts.push(
-      `<w:del w:id="${id}" w:author="${escapeXml(revState.author)}" w:date="${revState.date}"><w:r><w:delText xml:space="preserve">${escapeXml(delText)}</w:delText></w:r></w:del>`
-    );
+    const del = doc.createElementNS(W_NS, "w:del");
+    del.setAttributeNS(W_NS, "w:id", String(++revState.id));
+    del.setAttributeNS(W_NS, "w:author", revState.author);
+    del.setAttributeNS(W_NS, "w:date", revState.date);
+    del.append(makeRun(delText, true));
+    paragraph.append(del);
   }
   if (insText) {
-    const id = ++revState.id;
-    parts.push(
-      `<w:ins w:id="${id}" w:author="${escapeXml(revState.author)}" w:date="${revState.date}"><w:r><w:t xml:space="preserve">${escapeXml(insText)}</w:t></w:r></w:ins>`
-    );
+    const ins = doc.createElementNS(W_NS, "w:ins");
+    ins.setAttributeNS(W_NS, "w:id", String(++revState.id));
+    ins.setAttributeNS(W_NS, "w:author", revState.author);
+    ins.setAttributeNS(W_NS, "w:date", revState.date);
+    ins.append(makeRun(insText, false));
+    paragraph.append(ins);
   }
-  if (right) {
-    parts.push(
-      `<w:r><w:t xml:space="preserve">${escapeXml(right)}</w:t></w:r>`
-    );
-  }
-  return parts.join("");
+  if (right) paragraph.append(makeRun(right));
 }
 
-function buildApiYamlChangeParagraphs(
+function makeStyledParagraph(
+  doc: Document,
+  styleId: string,
+  text?: string
+): Element {
+  const p = doc.createElementNS(W_NS, "w:p");
+  if (styleId) {
+    const pPr = doc.createElementNS(W_NS, "w:pPr");
+    const pStyle = doc.createElementNS(W_NS, "w:pStyle");
+    pStyle.setAttributeNS(W_NS, "w:val", styleId);
+    pPr.append(pStyle);
+    p.append(pPr);
+  }
+  if (text) {
+    const r = doc.createElementNS(W_NS, "w:r");
+    const t = doc.createElementNS(W_NS, "w:t");
+    t.setAttributeNS(XML_NS, "xml:space", "preserve");
+    t.textContent = text;
+    r.append(t);
+    p.append(r);
+  }
+  return p;
+}
+
+function buildApiYamlChangeNodes(
+  doc: Document,
   api: ImpactedApiDraft,
   draft: ApiUpdateCrDraft,
   config: ApiCrGenerationConfig,
+  styles: { headingStyleId: string; plStyleId: string },
   revState: { id: number; author: string; date: string }
-): string[] {
-  const out: string[] = [];
-  const heading = api.clause
-    ? `${api.clause}\t${api.clauseHeading || `${api.apiName} API`}`
-    : `${api.clauseHeading || `${api.apiName} API`}`;
-  out.push(
-    `<w:p><w:pPr><w:pStyle w:val="Heading2"/></w:pPr><w:r><w:t xml:space="preserve">${escapeXml(heading)}</w:t></w:r></w:p>`
-  );
+): Element[] {
+  const nodes: Element[] = [];
+
+  // Annex heading paragraph (e.g. "A.2\tNdccf_DataManagement API")
+  const headingP = makeStyledParagraph(doc, styles.headingStyleId);
+  const headingTitle = api.clauseHeading || `${api.apiName} API`;
+  if (api.clause) {
+    const r1 = doc.createElementNS(W_NS, "w:r");
+    const t1 = doc.createElementNS(W_NS, "w:t");
+    t1.textContent = api.clause;
+    r1.append(t1);
+    const rTab = doc.createElementNS(W_NS, "w:r");
+    rTab.append(doc.createElementNS(W_NS, "w:tab"));
+    const r2 = doc.createElementNS(W_NS, "w:r");
+    const t2 = doc.createElementNS(W_NS, "w:t");
+    t2.setAttributeNS(XML_NS, "xml:space", "preserve");
+    t2.textContent = headingTitle;
+    r2.append(t2);
+    headingP.append(r1, rTab, r2);
+  } else {
+    const r = doc.createElementNS(W_NS, "w:r");
+    const t = doc.createElementNS(W_NS, "w:t");
+    t.setAttributeNS(XML_NS, "xml:space", "preserve");
+    t.textContent = headingTitle;
+    r.append(t);
+    headingP.append(r);
+  }
+  nodes.push(headingP);
 
   const rawLines = api.yamlLines.length
     ? api.yamlLines
     : [
         "openapi: 3.0.0",
+        "",
         "info:",
         `  version: ${api.currentApiVersion || "x.y.z"}`,
         `  title: ${api.apiName}`,
@@ -1007,6 +1066,7 @@ function buildApiYamlChangeParagraphs(
         `    ${api.apiName} Service.`,
         `    © ${api.copyrightYear || config.copyrightYear}, 3GPP Organizational Partners (ARIB, ATIS, CCSA, ETSI, TSDSI, TTA, TTC).`,
         "    All rights reserved.",
+        "",
         "externalDocs:",
         `  description: 3GPP TS ${draft.spec} V${draft.currentTsVersion || "x.y.z"}; 5G System; Stage 3.`,
         `  url: 'https://www.3gpp.org/ftp/Specs/archive/${draft.spec.slice(0, 2)}_series/${draft.spec}/'`,
@@ -1085,73 +1145,99 @@ function buildApiYamlChangeParagraphs(
       extVersionUpdated = true;
     }
 
-    const runsXml = buildDiffRunsXml(line, updatedLine, revState);
-    out.push(`<w:p><w:pPr><w:pStyle w:val="PL"/></w:pPr>${runsXml}</w:p>`);
+    const p = makeStyledParagraph(doc, styles.plStyleId);
+    appendDiffRuns(doc, p, line, updatedLine, revState);
+    nodes.push(p);
   }
 
   if (skippedTrailer) {
-    out.push(
-      `<w:p><w:pPr><w:pStyle w:val="PL"/></w:pPr><w:r><w:t>*********** skipped for clarity ***********</w:t></w:r></w:p>`
+    nodes.push(
+      makeStyledParagraph(
+        doc,
+        styles.plStyleId,
+        "*********** skipped for clarity ***********"
+      )
     );
   }
-  return out;
+  return nodes;
 }
 
-function cellXml(
-  paragraphs: string[],
-  options?: {
-    width?: number;
-    gridSpan?: number;
-    bold?: boolean;
-    align?: "left" | "center" | "right";
-    size?: number;
-    shading?: string;
-  }
-): string {
-  const tcPrParts: string[] = [];
-  if (options?.width) {
-    tcPrParts.push(`<w:tcW w:w="${options.width}" w:type="dxa"/>`);
-  }
-  if (options?.gridSpan && options.gridSpan > 1) {
-    tcPrParts.push(`<w:gridSpan w:val="${options.gridSpan}"/>`);
-  }
-  if (options?.shading) {
-    tcPrParts.push(
-      `<w:shd w:val="clear" w:color="auto" w:fill="${options.shading}"/>`
-    );
-  }
-  const tcPr = tcPrParts.length ? `<w:tcPr>${tcPrParts.join("")}</w:tcPr>` : "";
+function setCellLinesPreservingStyle(
+  doc: Document,
+  cell: Element,
+  lines: string[]
+): void {
+  const existingParagraphs = wordChildren(cell, "p");
+  const sampleP = existingParagraphs[0];
+  const samplePPr = sampleP ? wordChildren(sampleP, "pPr")[0] : undefined;
+  const sampleR = sampleP ? wordChildren(sampleP, "r")[0] : undefined;
+  const sampleRPr =
+    (sampleR ? wordChildren(sampleR, "rPr")[0] : undefined) ||
+    (samplePPr ? wordChildren(samplePPr, "rPr")[0] : undefined);
 
-  const pPrParts: string[] = [];
-  if (options?.align) pPrParts.push(`<w:jc w:val="${options.align}"/>`);
-  const pPr = pPrParts.length ? `<w:pPr>${pPrParts.join("")}</w:pPr>` : "";
-
-  const rPrParts: string[] = [];
-  if (options?.bold) rPrParts.push("<w:b/>");
-  if (options?.size) {
-    rPrParts.push(
-      `<w:sz w:val="${options.size}"/><w:szCs w:val="${options.size}"/>`
-    );
+  for (const p of existingParagraphs) {
+    p.remove();
   }
-  const rPr = rPrParts.length ? `<w:rPr>${rPrParts.join("")}</w:rPr>` : "";
 
-  const pList = (paragraphs.length ? paragraphs : [""])
-    .map(
-      (text) =>
-        `<w:p>${pPr}${text ? `<w:r>${rPr}<w:t xml:space="preserve">${escapeXml(text)}</w:t></w:r>` : ""}</w:p>`
-    )
-    .join("");
-  return `<w:tc>${tcPr}${pList}</w:tc>`;
+  const values = lines.length ? lines : [""];
+  for (const text of values) {
+    const p = doc.createElementNS(W_NS, "w:p");
+    if (samplePPr) p.append(samplePPr.cloneNode(true));
+    if (text) {
+      const r = doc.createElementNS(W_NS, "w:r");
+      if (sampleRPr) r.append(sampleRPr.cloneNode(true));
+      const t = doc.createElementNS(W_NS, "w:t");
+      t.setAttributeNS(XML_NS, "xml:space", "preserve");
+      t.textContent = text;
+      r.append(t);
+      p.append(r);
+    }
+    cell.append(p);
+  }
+}
+
+function resolveTemplateStyleIds(entries: Record<string, FileBytes>): {
+  headingStyleId: string;
+  plStyleId: string;
+  separatorStyleId: string;
+} {
+  let headingStyleId = "Heading1";
+  let plStyleId = "PL";
+  let separatorStyleId = "CRSeparator";
+  if (!entries["word/styles.xml"]) {
+    return { headingStyleId, plStyleId, separatorStyleId };
+  }
+  const stylesDoc = parseXml(entries["word/styles.xml"], W_NS);
+  for (const style of elementsNS(stylesDoc, W_NS, "style")) {
+    const id = style.getAttributeNS(W_NS, "styleId") || "";
+    const nameEl = wordChildren(style, "name")[0];
+    const name = (nameEl?.getAttributeNS(W_NS, "val") || "").toLowerCase();
+    if (name === "heading 1" && id) headingStyleId = id;
+    if (name === "pl" && id) plStyleId = id;
+    if ((name === "cr_separator" || name === "crseparator") && id) {
+      separatorStyleId = id;
+    }
+  }
+  return { headingStyleId, plStyleId, separatorStyleId };
 }
 
 /**
- * Generate a 3GPP CR-Form-v13.0.1 .docx document matching C3-265629.docx structure.
- * Fully compatible with both the Bulk TDoc Allocation exporter and proposalFill.ts!
+ * Generate a 3GPP CR-Form-v13.0.1 .docx directly on top of the official 3GPP
+ * CR_template_CT3.docx (or a user-provided CR template .docx), preserving all
+ * official 3GPP table borders, yellow cover shading, headers, fonts, and styles.
+ * Fully compatible with both the Bulk TDoc Allocation exporter and proposalFill.ts.
  */
 export function generateApiUpdateCrDocx(
   draft: ApiUpdateCrDraft,
-  config: ApiCrGenerationConfig
+  config: ApiCrGenerationConfig,
+  customTemplateBytes?: Uint8Array | null
 ): FileBytes {
+  const entries = unpackZip(customTemplateBytes ?? getDefaultCrTemplateBytes());
+  const doc = parseXml(entries["word/document.xml"], W_NS);
+  const body = elementsNS(doc, W_NS, "body")[0];
+  if (!body) throw new LocalToolError("template");
+
+  const styles = resolveTemplateStyleIds(entries);
   const isoDate = `${config.date || new Date().toISOString().slice(0, 10)}T00:00:00Z`;
   const revState = {
     id: 0,
@@ -1159,229 +1245,257 @@ export function generateApiUpdateCrDocx(
     date: isoDate,
   };
 
-  const tdocRun = config.tdocPlaceholder
-    ? `<w:r><w:t>${escapeXml(config.tdocPlaceholder)}</w:t></w:r>`
-    : "";
+  // 1. Update cover meeting header and location/date paragraphs before Table 1
+  const topParagraphs: Element[] = [];
+  for (const child of [...body.children]) {
+    if (child.localName === "tbl") break;
+    if (child.localName === "p") topParagraphs.push(child);
+  }
+  if (topParagraphs[0]) {
+    const p = topParagraphs[0];
+    const pPr = wordChildren(p, "pPr")[0];
+    const firstR = wordChildren(p, "r")[0];
+    const sampleRPr =
+      (firstR ? wordChildren(firstR, "rPr")[0] : undefined) ||
+      (pPr ? wordChildren(pPr, "rPr")[0] : undefined);
+    for (const child of [...p.children]) {
+      if (child !== pPr) child.remove();
+    }
+    const rTitle = doc.createElementNS(W_NS, "w:r");
+    if (sampleRPr) rTitle.append(sampleRPr.cloneNode(true));
+    const tTitle = doc.createElementNS(W_NS, "w:t");
+    tTitle.setAttributeNS(XML_NS, "xml:space", "preserve");
+    tTitle.textContent = config.meetingHeader || "3GPP TSG-CT WG3 Meeting";
+    rTitle.append(tTitle);
+    p.append(rTitle);
 
-  const meetingParagraphs = [
-    `<w:p><w:pPr><w:pStyle w:val="CRCoverPage"/><w:tabs><w:tab w:val="right" w:pos="9360"/></w:tabs></w:pPr><w:r><w:t xml:space="preserve">${escapeXml(config.meetingHeader || "3GPP TSG-CT WG3 Meeting")}</w:t></w:r><w:r><w:tab/></w:r>${tdocRun}</w:p>`,
-    config.meetingLocationDate
-      ? `<w:p><w:pPr><w:pStyle w:val="CRCoverPage"/></w:pPr><w:r><w:t xml:space="preserve">${escapeXml(config.meetingLocationDate)}</w:t></w:r></w:p>`
-      : "",
-  ]
-    .filter(Boolean)
-    .join("");
+    const rTab = doc.createElementNS(W_NS, "w:r");
+    if (sampleRPr) rTab.append(sampleRPr.cloneNode(true));
+    rTab.append(doc.createElementNS(W_NS, "w:tab"));
+    p.append(rTab);
 
-  const bordersAll = `<w:tblBorders>
-    <w:top w:val="single" w:sz="4" w:space="0" w:color="auto"/>
-    <w:left w:val="single" w:sz="4" w:space="0" w:color="auto"/>
-    <w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/>
-    <w:right w:val="single" w:sz="4" w:space="0" w:color="auto"/>
-    <w:insideH w:val="single" w:sz="4" w:space="0" w:color="auto"/>
-    <w:insideV w:val="single" w:sz="4" w:space="0" w:color="auto"/>
-  </w:tblBorders>`;
+    if (config.tdocPlaceholder) {
+      const rTdoc = doc.createElementNS(W_NS, "w:r");
+      if (sampleRPr) rTdoc.append(sampleRPr.cloneNode(true));
+      const tTdoc = doc.createElementNS(W_NS, "w:t");
+      tTdoc.textContent = config.tdocPlaceholder;
+      rTdoc.append(tTdoc);
+      p.append(rTdoc);
+    }
+  }
+  if (topParagraphs[1]) {
+    const p = topParagraphs[1];
+    const pPr = wordChildren(p, "pPr")[0];
+    const firstR = wordChildren(p, "r")[0];
+    const sampleRPr =
+      (firstR ? wordChildren(firstR, "rPr")[0] : undefined) ||
+      (pPr ? wordChildren(pPr, "rPr")[0] : undefined);
+    for (const child of [...p.children]) {
+      if (child !== pPr) child.remove();
+    }
+    if (config.meetingLocationDate) {
+      const r = doc.createElementNS(W_NS, "w:r");
+      if (sampleRPr) r.append(sampleRPr.cloneNode(true));
+      const t = doc.createElementNS(W_NS, "w:t");
+      t.setAttributeNS(XML_NS, "xml:space", "preserve");
+      t.textContent = config.meetingLocationDate;
+      r.append(t);
+      p.append(r);
+    }
+  }
 
-  // Table 1: CR-Form-v13.0.1 Header (matched by proposalFill.ts)
-  const table1 = `<w:tbl>
-    <w:tblPr><w:tblW w:w="9360" w:type="dxa"/>${bordersAll}</w:tblPr>
-    <w:tr>${cellXml(["CR-Form-v13.0.1"], { gridSpan: 8, align: "right", size: 16 })}</w:tr>
-    <w:tr>${cellXml(["CHANGE REQUEST"], { gridSpan: 8, align: "center", bold: true, size: 28 })}</w:tr>
-    <w:tr>
-      ${cellXml([""], { width: 400 })}
-      ${cellXml([draft.spec], { width: 1400, bold: true, align: "center" })}
-      ${cellXml(["CR"], { width: 700, bold: true, align: "center" })}
-      ${cellXml(["xxxx"], { width: 1100, align: "center" })}
-      ${cellXml(["rev"], { width: 700, bold: true, align: "center" })}
-      ${cellXml(["-"], { width: 700, align: "center" })}
-      ${cellXml(["Current version:"], { width: 2400, bold: true, align: "right" })}
-      ${cellXml([draft.currentTsVersion], { width: 1960, align: "center" })}
-    </w:tr>
-    <w:tr>${cellXml(["For HELP on using this form: comprehensive instructions can be found at https://www.3gpp.org/Change-Requests."], { gridSpan: 8, size: 16 })}</w:tr>
-  </w:tbl>`;
-
-  // Table 2: Proposed change affects
-  const table2 = `<w:tbl>
-    <w:tblPr><w:tblW w:w="9360" w:type="dxa"/>${bordersAll}</w:tblPr>
-    <w:tr>
-      ${cellXml(["Proposed change affects:"], { width: 2200, bold: true })}
-      ${cellXml(["UICC apps"], { width: 1100 })}
-      ${cellXml([""], { width: 450, align: "center" })}
-      ${cellXml(["ME"], { width: 750 })}
-      ${cellXml([""], { width: 450, align: "center" })}
-      ${cellXml(["Radio Access Network"], { width: 2050 })}
-      ${cellXml([""], { width: 450, align: "center" })}
-      ${cellXml(["Core Network"], { width: 1460 })}
-      ${cellXml(["X"], { width: 450, bold: true, align: "center" })}
-    </w:tr>
-  </w:tbl>`;
-
-  // Table 3: Cover Metadata (matched by proposalFill.ts and tdocAllocation.ts)
+  // 2. Update Table 1 (Spec, CR, rev, Current version) and Table 3 (Cover metadata)
+  const tables = wordChildren(body, "tbl");
+  let formUpdated = false;
+  let coverUpdated = false;
   const reasonParagraphs = buildReasonForChangeParagraphs(draft);
   const summaryText = buildSummaryOfChange(draft, config.copyrightYear);
   const consequencesText =
     'Incorrect API version number and incorrect TS version number in the "description" field of the "externalDocs" object.';
 
-  const table3 = `<w:tbl>
-    <w:tblPr><w:tblW w:w="9360" w:type="dxa"/>${bordersAll}</w:tblPr>
-    <w:tr>
-      ${cellXml(["Title:"], { width: 2200, bold: true })}
-      ${cellXml(["Update of info and externalDocs fields"], { gridSpan: 3, width: 7160, bold: true })}
-    </w:tr>
-    <w:tr>
-      ${cellXml(["Source to WG:"], { width: 2200, bold: true })}
-      ${cellXml([config.sourceToWg || ""], { gridSpan: 3, width: 7160 })}
-    </w:tr>
-    <w:tr>
-      ${cellXml(["Source to TSG:"], { width: 2200, bold: true })}
-      ${cellXml([config.sourceToTsg || "C3"], { gridSpan: 3, width: 7160 })}
-    </w:tr>
-    <w:tr>
-      ${cellXml(["Work item code:"], { width: 2200, bold: true })}
-      ${cellXml([draft.workItem], { width: 2600 })}
-      ${cellXml(["Date:"], { width: 1600, bold: true })}
-      ${cellXml([config.date || new Date().toISOString().slice(0, 10)], { width: 2960 })}
-    </w:tr>
-    <w:tr>
-      ${cellXml(["Category:"], { width: 2200, bold: true })}
-      ${cellXml(["F"], { width: 2600, bold: true })}
-      ${cellXml(["Release:"], { width: 1600, bold: true })}
-      ${cellXml([draft.release], { width: 2960, bold: true })}
-    </w:tr>
-    <w:tr>
-      ${cellXml(["Reason for change:"], { width: 2200, bold: true })}
-      ${cellXml(reasonParagraphs, { gridSpan: 3, width: 7160 })}
-    </w:tr>
-    <w:tr>
-      ${cellXml(["Summary of change:"], { width: 2200, bold: true })}
-      ${cellXml([summaryText], { gridSpan: 3, width: 7160 })}
-    </w:tr>
-    <w:tr>
-      ${cellXml(["Consequences if not approved:"], { width: 2200, bold: true })}
-      ${cellXml([consequencesText], { gridSpan: 3, width: 7160 })}
-    </w:tr>
-    <w:tr>
-      ${cellXml(["Clauses affected:"], { width: 2200, bold: true })}
-      ${cellXml([draft.clausesAffected], { gridSpan: 3, width: 7160 })}
-    </w:tr>
-    <w:tr>
-      ${cellXml(["Other specs affected:"], { width: 2200, bold: true })}
-      ${cellXml(["Other core specifications: N (X); Test specifications: N (X); O&M Specifications: N (X)"], { gridSpan: 3, width: 7160, size: 18 })}
-    </w:tr>
-    <w:tr>
-      ${cellXml(["Other comments:"], { width: 2200, bold: true })}
-      ${cellXml([""], { gridSpan: 3, width: 7160 })}
-    </w:tr>
-    <w:tr>
-      ${cellXml(["Forge related attachments:"], { width: 2200, bold: true })}
-      ${cellXml([""], { gridSpan: 3, width: 7160 })}
-    </w:tr>
-  </w:tbl>`;
+  for (const table of tables) {
+    if (!formUpdated) {
+      for (const row of wordChildren(table, "tr")) {
+        const cells = wordChildren(row, "tc");
+        const labels = cells.map((cell) =>
+          normalizeText(visibleWordText(cell))
+        );
+        const cr = labels.indexOf("cr");
+        const rev = labels.indexOf("rev");
+        const version = labels.findIndex((v) =>
+          /^current version\s*:?$/.test(v)
+        );
+        if (cr > 0 && rev > cr && version > rev && cells[version + 1]) {
+          setCellLinesPreservingStyle(doc, cells[cr - 1], [draft.spec]);
+          setCellLinesPreservingStyle(doc, cells[cr + 1], ["xxxx"]);
+          setCellLinesPreservingStyle(doc, cells[rev + 1], ["-"]);
+          setCellLinesPreservingStyle(doc, cells[version + 1], [
+            draft.currentTsVersion,
+          ]);
+          formUpdated = true;
+          break;
+        }
+      }
+      if (formUpdated) continue;
+    }
 
-  const bodyChanges: string[] = [];
-  draft.apis.forEach((api, idx) => {
-    const marker =
-      idx === 0
-        ? "==============First change=============="
-        : "==============Next change==============";
-    bodyChanges.push(
-      `<w:p><w:pPr><w:pStyle w:val="CRSeparator"/>${idx === 0 ? "<w:pageBreakBefore/>" : ""}</w:pPr><w:r><w:t>${marker}</w:t></w:r></w:p>`
-    );
-    bodyChanges.push(
-      ...buildApiYamlChangeParagraphs(api, draft, config, revState)
-    );
-  });
-  bodyChanges.push(
-    `<w:p><w:pPr><w:pStyle w:val="CRSeparator"/></w:pPr><w:r><w:t>==============End of change==============</w:t></w:r></w:p>`
+    if (!coverUpdated) {
+      const allLabels = wordChildren(table, "tr").flatMap((row) =>
+        wordChildren(row, "tc")
+          .slice(0, -1)
+          .map((cell) =>
+            normalizeText(visibleWordText(cell)).replace(/\s*:\s*$/, "")
+          )
+      );
+      if (allLabels.includes("title") && allLabels.includes("source to wg")) {
+        for (const row of wordChildren(table, "tr")) {
+          const cells = wordChildren(row, "tc");
+          for (let i = 0; i < cells.length - 1; i++) {
+            const label = normalizeText(visibleWordText(cells[i])).replace(
+              /\s*:\s*$/,
+              ""
+            );
+            if (label === "title") {
+              setCellLinesPreservingStyle(doc, cells[i + 1], [
+                "Update of info and externalDocs fields",
+              ]);
+            } else if (label === "source to wg") {
+              setCellLinesPreservingStyle(doc, cells[i + 1], [
+                config.sourceToWg || "",
+              ]);
+            } else if (label === "source to tsg") {
+              setCellLinesPreservingStyle(doc, cells[i + 1], [
+                config.sourceToTsg || "C3",
+              ]);
+            } else if (label === "work item code" || label === "work item") {
+              setCellLinesPreservingStyle(doc, cells[i + 1], [draft.workItem]);
+            } else if (label === "date") {
+              setCellLinesPreservingStyle(doc, cells[i + 1], [
+                config.date || new Date().toISOString().slice(0, 10),
+              ]);
+            } else if (label === "category") {
+              setCellLinesPreservingStyle(doc, cells[i + 1], ["F"]);
+            } else if (label === "release") {
+              setCellLinesPreservingStyle(doc, cells[i + 1], [draft.release]);
+            } else if (label === "reason for change") {
+              setCellLinesPreservingStyle(doc, cells[i + 1], reasonParagraphs);
+            } else if (label === "summary of change") {
+              setCellLinesPreservingStyle(doc, cells[i + 1], [summaryText]);
+            } else if (label === "consequences if not approved") {
+              setCellLinesPreservingStyle(doc, cells[i + 1], [
+                consequencesText,
+              ]);
+            } else if (label === "clauses affected") {
+              setCellLinesPreservingStyle(doc, cells[i + 1], [
+                draft.clausesAffected,
+              ]);
+            }
+          }
+        }
+        coverUpdated = true;
+      }
+    }
+  }
+
+  if (!formUpdated || !coverUpdated) {
+    throw new LocalToolError("template");
+  }
+
+  // 3. Replace placeholder body paragraphs after the cover page section break
+  const bodyChildren = [...body.children];
+  const finalSectPr =
+    bodyChildren.at(-1)?.localName === "sectPr" ? bodyChildren.at(-1) : null;
+
+  let bodyStartIdx = bodyChildren.findIndex(
+    (node) =>
+      node.localName === "p" && /first\s+change/i.test(visibleWordText(node))
   );
+  if (bodyStartIdx < 0) {
+    const coverBreakIdx = bodyChildren.findIndex(
+      (node) =>
+        node.localName === "p" && elementsNS(node, W_NS, "sectPr").length > 0
+    );
+    bodyStartIdx =
+      coverBreakIdx >= 0
+        ? coverBreakIdx + 1
+        : bodyChildren.length - (finalSectPr ? 1 : 0);
+  }
 
-  const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:document xmlns:w="${W_NS}">
-  <w:body>
-    ${meetingParagraphs}
-    ${table1}
-    <w:p/>
-    ${table2}
-    <w:p/>
-    ${table3}
-    ${bodyChanges.join("\n")}
-    <w:sectPr>
-      <w:pgSz w:w="11906" w:h="16838"/>
-      <w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" w:header="708" w:footer="708" w:gutter="0"/>
-    </w:sectPr>
-  </w:body>
-</w:document>`;
+  const templateSeparatorP = bodyChildren[bodyStartIdx];
+  const templateSeparatorPPr =
+    templateSeparatorP?.localName === "p"
+      ? wordChildren(templateSeparatorP, "pPr")[0]
+      : undefined;
 
-  const stylesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:styles xmlns:w="${W_NS}">
-  <w:docDefaults>
-    <w:rPrDefault>
-      <w:rPr>
-        <w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:cs="Times New Roman"/>
-        <w:sz w:val="20"/><w:szCs w:val="20"/>
-      </w:rPr>
-    </w:rPrDefault>
-  </w:docDefaults>
-  <w:style w:type="paragraph" w:default="1" w:styleId="Normal">
-    <w:name w:val="Normal"/>
-    <w:pPr><w:spacing w:after="60" w:line="240" w:lineRule="auto"/></w:pPr>
-  </w:style>
-  <w:style w:type="paragraph" w:styleId="CRCoverPage">
-    <w:name w:val="CRCoverPage"/>
-    <w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial"/><w:b/><w:sz w:val="22"/></w:rPr>
-  </w:style>
-  <w:style w:type="paragraph" w:styleId="CRSeparator">
-    <w:name w:val="CRSeparator"/>
-    <w:pPr><w:jc w:val="center"/><w:spacing w:before="160" w:after="160"/></w:pPr>
-    <w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial"/><w:b/><w:sz w:val="20"/></w:rPr>
-  </w:style>
-  <w:style w:type="paragraph" w:styleId="Heading2">
-    <w:name w:val="heading 2"/>
-    <w:pPr><w:spacing w:before="180" w:after="100"/></w:pPr>
-    <w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial"/><w:b/><w:sz w:val="24"/></w:rPr>
-  </w:style>
-  <w:style w:type="paragraph" w:styleId="PL">
-    <w:name w:val="PL"/>
-    <w:pPr><w:spacing w:before="0" w:after="0" w:line="220" w:lineRule="auto"/></w:pPr>
-    <w:rPr><w:rFonts w:ascii="Courier New" w:hAnsi="Courier New" w:cs="Courier New"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr>
-  </w:style>
-</w:styles>`;
+  for (let i = bodyStartIdx; i < bodyChildren.length; i++) {
+    if (bodyChildren[i] !== finalSectPr) {
+      bodyChildren[i].remove();
+    }
+  }
 
-  const settingsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:settings xmlns:w="${W_NS}">
-  <w:trackRevisions/>
-</w:settings>`;
+  const makeSeparatorP = (label: string): Element => {
+    const p = doc.createElementNS(W_NS, "w:p");
+    if (templateSeparatorPPr) {
+      p.append(templateSeparatorPPr.cloneNode(true));
+    } else {
+      const pPr = doc.createElementNS(W_NS, "w:pPr");
+      const pStyle = doc.createElementNS(W_NS, "w:pStyle");
+      pStyle.setAttributeNS(W_NS, "w:val", styles.separatorStyleId);
+      pPr.append(pStyle);
+      p.append(pPr);
+    }
+    const r = doc.createElementNS(W_NS, "w:r");
+    const t = doc.createElementNS(W_NS, "w:t");
+    t.textContent = label;
+    r.append(t);
+    p.append(r);
+    return p;
+  };
 
-  const contentTypesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
-  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
-  <Default Extension="xml" ContentType="application/xml"/>
-  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
-  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
-  <Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>
-</Types>`;
+  const insertNode = (node: Element) => {
+    if (finalSectPr) body.insertBefore(node, finalSectPr);
+    else body.append(node);
+  };
 
-  const rootRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
-</Relationships>`;
+  draft.apis.forEach((api, idx) => {
+    insertNode(
+      makeSeparatorP(
+        idx === 0
+          ? "==============First change=============="
+          : "==============Next change=============="
+      )
+    );
+    const changeNodes = buildApiYamlChangeNodes(
+      doc,
+      api,
+      draft,
+      config,
+      styles,
+      revState
+    );
+    for (const node of changeNodes) {
+      insertNode(node);
+    }
+  });
+  insertNode(makeSeparatorP("==============End of change=============="));
 
-  const docRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
-  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/>
-</Relationships>`;
+  // 4. Enable trackRevisions in word/settings.xml so Word renders change marks cleanly
+  if (entries["word/settings.xml"]) {
+    const settingsDoc = parseXml(entries["word/settings.xml"], W_NS);
+    if (!elementsNS(settingsDoc, W_NS, "trackRevisions").length) {
+      settingsDoc.documentElement.append(
+        settingsDoc.createElementNS(W_NS, "w:trackRevisions")
+      );
+      entries["word/settings.xml"] = strToU8(
+        new XMLSerializer().serializeToString(settingsDoc)
+      ) as FileBytes;
+    }
+  }
 
-  return zipSync(
-    {
-      "[Content_Types].xml": strToU8(contentTypesXml),
-      "_rels/.rels": strToU8(rootRels),
-      "word/document.xml": strToU8(documentXml),
-      "word/styles.xml": strToU8(stylesXml),
-      "word/settings.xml": strToU8(settingsXml),
-      "word/_rels/document.xml.rels": strToU8(docRels),
-    },
-    { level: 6 }
+  entries["word/document.xml"] = strToU8(
+    new XMLSerializer().serializeToString(doc)
   ) as FileBytes;
+  return zipSync(entries, { level: 6 }) as FileBytes;
 }
 
 export function crOutputFilename(

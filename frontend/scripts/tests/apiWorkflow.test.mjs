@@ -167,7 +167,17 @@ test("Full 3-step workflow engine: API_impacts -> CR docx -> Bulk TDoc Allocatio
       bodyMode: "full_yaml",
       author: "Huawei",
     });
-    const crDocXml = z.strFromU8(z.unzipSync(crBytes)["word/document.xml"]);
+    const crZip = z.unzipSync(crBytes);
+    const crDocXml = z.strFromU8(crZip["word/document.xml"]);
+    const crDocText = ooxml.visibleWordText(
+      ooxml.parseXml(crZip["word/document.xml"], ooxml.W_NS).documentElement
+    );
+    const crHasOfficialTemplateParts =
+      Boolean(crZip["word/header1.xml"]) &&
+      crDocXml.includes("FFFF00") &&
+      crDocXml.includes("CRCoverPage") &&
+      crDocText.includes("CR-Form-v13.0.1") &&
+      crDocText.includes("Use one of the following categories");
 
     // 4. Feed generated CR docx into Step 2 (Bulk TDoc Allocation Excel exporter)
     const crFile = new File(
@@ -262,6 +272,7 @@ test("Full 3-step workflow engine: API_impacts -> CR docx -> Bulk TDoc Allocatio
         firstAlpha: apiMod.computeNextApiVersion("1.4.1", "patch", true),
         nextAlpha: apiMod.computeNextApiVersion("1.3.0-alpha.2", "minor", true),
       },
+      crHasOfficialTemplateParts,
       crHasTrackChanges:
         crDocXml.includes("<w:del ") && crDocXml.includes("<w:ins "),
       crHasReasonLine: crDocXml.includes(
@@ -304,6 +315,7 @@ test("Full 3-step workflow engine: API_impacts -> CR docx -> Bulk TDoc Allocatio
     firstAlpha: "1.5.0-alpha.1",
     nextAlpha: "1.3.0-alpha.3",
   });
+  assert.equal(result.crHasOfficialTemplateParts, true);
   assert.equal(result.crHasTrackChanges, true);
   assert.equal(result.crHasReasonLine, true);
 

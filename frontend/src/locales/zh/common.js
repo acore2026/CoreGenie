@@ -165,6 +165,12 @@ const TRANSLATIONS = {
       body_header_only: "仅头部 info / externalDocs（省略其余行）",
       cr_date: "CR 日期",
       copyright_year: "版权年份",
+      cr_template: "CR 模板母版（默认内置官方模板）",
+      choose_cr_template: "替换自定义模板",
+      reset_cr_template: "恢复默认",
+      default_cr_template_hint:
+        "默认使用 3GPP 官方 CR_template_CT3.docx（CR-Form-v13.0.1）样式。",
+      custom_cr_template_loaded: "当前模板：{{name}}",
       rules_title: "查看解析与版本号计算规则",
       rules: [
         "每行源 CR 的 API impacts 列可能影响多本规范；工具会根据 YAML 文件名前缀（如 TS29574_... 归入 29.574）自动归类到对应的目标规范与 Release。",
