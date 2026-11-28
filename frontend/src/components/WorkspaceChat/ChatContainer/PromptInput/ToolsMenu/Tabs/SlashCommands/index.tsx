@@ -1,7 +1,10 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { Plus } from "@phosphor-icons/react";
 import { useTranslation } from "react-i18next";
-import System from "@/models/system";
+import System, {
+  type SlashPreset,
+  type SlashPresetInput,
+} from "@/models/system";
 import { useModal } from "@/hooks/useModal";
 import AddPresetModal from "./SlashPresets/AddPresetModal";
 import EditPresetModal from "./SlashPresets/EditPresetModal";
@@ -11,12 +14,25 @@ import useToolsMenuItems from "../../useToolsMenuItems";
 import SlashCommandRow from "./SlashCommandRow";
 import DisplayOrder from "@/components/DisplayOrder";
 
+interface CommandItem {
+  command: string;
+  description: string;
+  autoSubmit: boolean;
+  preset?: SlashPreset;
+}
+
 export default function SlashCommandsTab({
   sendCommand,
   setShowing,
   promptRef,
   highlightedIndex = -1,
   registerItemCount,
+}: {
+  sendCommand: (command: { text: string; autoSubmit?: boolean }) => void;
+  setShowing: (show: boolean) => void;
+  promptRef: React.RefObject<HTMLTextAreaElement>;
+  highlightedIndex?: number;
+  registerItemCount?: (count: number) => void;
 }) {
   const { t } = useTranslation();
   const {
@@ -29,8 +45,10 @@ export default function SlashCommandsTab({
     openModal: openEditModal,
     closeModal: closeEditModal,
   } = useModal();
-  const [presets, setPresets] = useState([]);
-  const [selectedPreset, setSelectedPreset] = useState(null);
+  const [presets, setPresets] = useState<SlashPreset[]>([]);
+  const [selectedPreset, setSelectedPreset] = useState<SlashPreset | null>(
+    null
+  );
 
   useEffect(() => {
     fetchPresets();
@@ -44,7 +62,7 @@ export default function SlashCommandsTab({
   // Build the list of selectable items for keyboard navigation and rendering.
   // /reset is a static English string since the backend matches it exactly.
   // During an agent session it ends the session AND clears the chat.
-  const items = useMemo(
+  const items = useMemo<CommandItem[]>(
     () => [
       {
         command: "/reset",
@@ -62,7 +80,7 @@ export default function SlashCommandsTab({
   );
 
   const handleUseCommand = useCallback(
-    (command, autoSubmit = false) => {
+    (command: string, autoSubmit = false) => {
       setShowing(false);
 
       // Auto-submit commands (/reset) fire immediately
@@ -104,7 +122,7 @@ export default function SlashCommandsTab({
     registerItemCount,
   });
 
-  const handleSavePreset = async (preset) => {
+  const handleSavePreset = async (preset: SlashPresetInput) => {
     const { error } = await System.createSlashCommandPreset(preset);
     if (error) {
       showToast(error, "error");
@@ -115,12 +133,12 @@ export default function SlashCommandsTab({
     return true;
   };
 
-  const handleEditPreset = (preset) => {
+  const handleEditPreset = (preset: SlashPreset) => {
     setSelectedPreset(preset);
     openEditModal();
   };
 
-  const handleUpdatePreset = async (updatedPreset) => {
+  const handleUpdatePreset = async (updatedPreset: SlashPreset) => {
     const { error } = await System.updateSlashCommandPreset(
       updatedPreset.id,
       updatedPreset
@@ -134,7 +152,7 @@ export default function SlashCommandsTab({
     setSelectedPreset(null);
   };
 
-  const handleDeletePreset = async (presetId) => {
+  const handleDeletePreset = async (presetId: number) => {
     await System.deleteSlashCommandPreset(presetId);
     fetchPresets();
     closeEditModal();
@@ -154,7 +172,9 @@ export default function SlashCommandsTab({
               item.autoSubmit
             )
           }
-          onEdit={item.preset ? () => handleEditPreset(item.preset) : undefined}
+          onEdit={() => {
+            if (item.preset) handleEditPreset(item.preset);
+          }}
           showMenu={!!item.preset}
           highlighted={highlightedIndex === index}
         />

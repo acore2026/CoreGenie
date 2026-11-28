@@ -5,7 +5,13 @@ import { useIsAgentSessionActive } from "@/utils/chat/agent";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
 
-export default function AvailableAgentsButton({ showing, setShowAgents }) {
+export default function AvailableAgentsButton({
+  showing,
+  setShowAgents,
+}: {
+  showing: boolean;
+  setShowAgents: (value: boolean) => void;
+}) {
   const { t } = useTranslation();
   const agentSessionActive = useIsAgentSessionActive();
   if (agentSessionActive) return null;
@@ -40,8 +46,14 @@ export function AvailableAgents({
   sendCommand,
   promptRef,
   centered = false,
+}: {
+  showing: boolean;
+  setShowing: (show: boolean) => void;
+  sendCommand: (command: { text: string; writeMode?: string }) => void;
+  promptRef: React.RefObject<HTMLTextAreaElement>;
+  centered?: boolean;
 }) {
-  const formRef = useRef(null);
+  const formRef = useRef<HTMLDivElement>(null);
   const agentSessionActive = useIsAgentSessionActive();
   const [searchParams] = useSearchParams();
   const { t } = useTranslation();
@@ -57,19 +69,17 @@ export function AvailableAgents({
   }, [promptRef.current]);
 
   useEffect(() => {
-    function listenForOutsideClick() {
-      if (!showing || !formRef.current) return false;
-      document.addEventListener("click", closeIfOutside);
+    if (!showing) return;
+    function closeIfOutside({ target }: MouseEvent) {
+      if (!(target instanceof Node) || formRef.current?.contains(target))
+        return;
+      if (target instanceof Element && target.closest("#agent-list-btn"))
+        return;
+      setShowing(false);
     }
-    listenForOutsideClick();
-  }, [showing, formRef.current]);
-
-  const closeIfOutside = ({ target }) => {
-    if (target.id === "agent-list-btn") return;
-    const isOutside = !formRef?.current?.contains(target);
-    if (!isOutside) return;
-    setShowing(false);
-  };
+    document.addEventListener("click", closeIfOutside);
+    return () => document.removeEventListener("click", closeIfOutside);
+  }, [showing, setShowing]);
 
   const handleAgentClick = () => {
     setShowing(false);

@@ -2,7 +2,7 @@ import { ALL_LLM_PROVIDERS } from "@/pages/GeneralSettings/LLMPreference";
 import { DISABLED_PROVIDERS } from "@/hooks/useGetProvidersModels";
 
 export function autoScrollToSelectedLLMProvider(
-  selectedLLMProvider,
+  selectedLLMProvider: string | null,
   timeout = 500
 ) {
   setTimeout(() => {
@@ -23,18 +23,18 @@ export function autoScrollToSelectedLLMProvider(
  * @param {string} model - The model to validate
  * @returns {string} - The validated model
  */
-export function validatedModelSelection(model) {
+export function validatedModelSelection(model: string) {
   try {
     // If the entire select element is not found, return the model as is and cross our fingers
     const selectOption = document.getElementById(`workspace-llm-model-select`);
-    if (!selectOption) return model;
+    if (!(selectOption instanceof HTMLSelectElement)) return model;
 
     // If the model is not in the dropdown, return the first model in the dropdown
     // to prevent invalid provider<>model selection issues
-    const selectedOption = selectOption.querySelector(
-      `option[value="${model}"]`
+    const selectedOption = Array.from(selectOption.options).some(
+      (option) => option.value === model
     );
-    if (!selectedOption) return selectOption.querySelector(`option`).value;
+    if (!selectedOption) return selectOption.options[0]?.value ?? null;
 
     // If the model is in the dropdown, return the model as is
     return model;
@@ -43,13 +43,16 @@ export function validatedModelSelection(model) {
   }
 }
 
-export function hasMissingCredentials(settings, provider) {
+export function hasMissingCredentials(
+  settings: Record<string, unknown> | null,
+  provider: string
+) {
   if (!settings) return false;
   const providerEntry = ALL_LLM_PROVIDERS.find((p) => p.value === provider);
   if (!providerEntry) return false;
 
   for (const requiredKey of providerEntry.requiredConfig) {
-    if (!settings.hasOwnProperty(requiredKey)) return true;
+    if (!Object.hasOwn(settings, requiredKey)) return true;
     if (!settings[requiredKey]) return true;
   }
   return false;
@@ -58,3 +61,5 @@ export function hasMissingCredentials(settings, provider) {
 export const WORKSPACE_LLM_PROVIDERS = ALL_LLM_PROVIDERS.filter(
   (provider) => !DISABLED_PROVIDERS.includes(provider.value)
 );
+
+export type WorkspaceLLMProvider = (typeof WORKSPACE_LLM_PROVIDERS)[number];

@@ -11,16 +11,25 @@ export default function SlashCommandRow({
   onPublish,
   showMenu = false,
   highlighted = false,
+}: {
+  command: string;
+  description: string;
+  onClick: () => void;
+  onEdit?: () => void;
+  onPublish?: () => void;
+  showMenu?: boolean;
+  highlighted?: boolean;
 }) {
   const { t } = useTranslation();
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
-  const menuRef = useRef(null);
-  const menuBtnRef = useRef(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const menuBtnRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!menuOpen) return;
-    function handleClickOutside(e) {
+    function handleClickOutside(e: MouseEvent) {
+      if (!(e.target instanceof Node)) return;
       if (
         menuRef.current &&
         !menuRef.current.contains(e.target) &&

@@ -2,6 +2,10 @@ import { api, errorMessage } from "@/utils/api";
 
 export type ApprovalMode = "ask" | "always_allow";
 
+type ApprovalModeUpdate =
+  | { success: true; mode: ApprovalMode; error?: null }
+  | { success: false; error: string };
+
 const AgentSkillWhitelist = {
   APPROVAL_MODES: {
     ASK: "ask" as ApprovalMode,
@@ -28,14 +32,11 @@ const AgentSkillWhitelist = {
     }
   },
 
-  setApprovalMode: async (
-    mode: ApprovalMode
-  ): Promise<{ success: boolean; error?: string }> => {
+  setApprovalMode: async (mode: ApprovalMode): Promise<ApprovalModeUpdate> => {
     try {
-      return await api.post<{ success: boolean; error?: string }>(
-        "/agent-skills/approval-mode",
-        { mode }
-      );
+      return await api.post<ApprovalModeUpdate>("/agent-skills/approval-mode", {
+        mode,
+      });
     } catch (e) {
       return { success: false, error: errorMessage(e) };
     }

@@ -14,18 +14,24 @@ import LLMSelectorSidePanel from "./LLMSelector";
 import { NoSetupWarning } from "./SetupProvider";
 import showToast from "@/utils/toast";
 import Workspace from "@/models/workspace";
-import System from "@/models/system";
+import { errorMessage } from "@/utils/api";
+import System, { type SystemKeys } from "@/models/system";
 
 export default function LLMSelectorModal({
   workspaceSlug = null,
   initialProvider = null,
+}: {
+  workspaceSlug?: string | null;
+  initialProvider?: string | null;
 }) {
   const { slug: urlSlug } = useParams();
   const slug = urlSlug ?? workspaceSlug;
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
-  const [settings, setSettings] = useState(null);
-  const [selectedLLMProvider, setSelectedLLMProvider] = useState(null);
+  const [settings, setSettings] = useState<SystemKeys | null>(null);
+  const [selectedLLMProvider, setSelectedLLMProvider] = useState<string | null>(
+    null
+  );
   const [selectedLLMModel, setSelectedLLMModel] = useState("");
   const [availableProviders, setAvailableProviders] = useState(
     WORKSPACE_LLM_PROVIDERS
@@ -40,8 +46,9 @@ export default function LLMSelectorModal({
     Promise.all([Workspace.bySlug(slug), System.keys()])
       .then(([workspace, systemSettings]) => {
         const savedProvider =
-          workspace.chatProvider ?? systemSettings.LLMProvider;
-        const savedModel = workspace.chatModel ?? systemSettings.LLMModel;
+          workspace?.chatProvider ?? systemSettings?.LLMProvider ?? null;
+        const savedModel =
+          workspace?.chatModel ?? systemSettings?.LLMModel ?? "";
         const providerToSelect = initialProvider ?? savedProvider;
 
         setSettings(systemSettings);
@@ -56,9 +63,9 @@ export default function LLMSelectorModal({
         }
       })
       .finally(() => setLoading(false));
-  }, [slug]);
+  }, [slug, initialProvider]);
 
-  function handleSearch(e) {
+  function handleSearch(e: React.ChangeEvent<HTMLInputElement>) {
     const searchTerm = e.target.value.toLowerCase();
     const filteredProviders = WORKSPACE_LLM_PROVIDERS.filter((provider) =>
       provider.name.toLowerCase().includes(searchTerm)
@@ -66,16 +73,18 @@ export default function LLMSelectorModal({
     setAvailableProviders(filteredProviders);
   }
 
-  function handleProviderSelection(provider) {
+  function handleProviderSelection(provider: string) {
     setSelectedLLMProvider(provider);
     setAvailableProviders(WORKSPACE_LLM_PROVIDERS);
     autoScrollToSelectedLLMProvider(provider, 50);
-    document.getElementById("llm-search-input").value = "";
+    const searchInput = document.getElementById("llm-search-input");
+    if (searchInput instanceof HTMLInputElement) searchInput.value = "";
     setHasChanges(true);
     setMissingCredentials(hasMissingCredentials(settings, provider));
   }
 
   async function handleSave() {
+    if (!slug || !selectedLLMProvider) return;
     setSaving(true);
     try {
       setHasChanges(false);
@@ -94,7 +103,7 @@ export default function LLMSelectorModal({
       window.dispatchEvent(new Event(SAVE_LLM_SELECTOR_EVENT));
     } catch (error) {
       console.error(error);
-      showToast(error.message, "error", { clear: true });
+      showToast(errorMessage(error), "error", { clear: true });
     } finally {
       setSaving(false);
     }
@@ -110,7 +119,7 @@ export default function LLMSelectorModal({
         id="llm-selector-modal"
         className="w-full h-[388px] flex flex-col items-center justify-center gap-2"
       >
-        <PreLoader size={12} />
+        <PreLoader size="12" />
         <p className="text-zinc-400 light:text-slate-500 text-sm">
           {t("chat_window.workspace_llm_manager.loading_workspace_settings")}
         </p>

@@ -1,26 +1,35 @@
 import { useState } from "react";
 import { X } from "@phosphor-icons/react";
 import ModalWrapper from "@/components/ModalWrapper";
+import type { SlashPresetInput } from "@/models/system";
 import { CMD_REGEX } from "./constants";
 import { useTranslation } from "react-i18next";
 
-export default function AddPresetModal({ isOpen, onClose, onSave }) {
+export default function AddPresetModal({
+  isOpen,
+  onClose,
+  onSave,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (preset: SlashPresetInput) => Promise<boolean>;
+}) {
   const [command, setCommand] = useState("");
   const { t } = useTranslation();
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const form = new FormData(e.target);
+    const form = new FormData(e.currentTarget);
     const sanitizedCommand = command.replace(CMD_REGEX, "");
     const saved = await onSave({
       command: `/${sanitizedCommand}`,
-      prompt: form.get("prompt"),
-      description: form.get("description"),
+      prompt: String(form.get("prompt") ?? ""),
+      description: String(form.get("description") ?? ""),
     });
     if (saved) setCommand("");
   };
 
-  const handleCommandChange = (e) => {
+  const handleCommandChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value.replace(CMD_REGEX, "");
     setCommand(value);
   };

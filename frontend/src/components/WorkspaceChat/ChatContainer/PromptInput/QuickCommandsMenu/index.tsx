@@ -10,6 +10,12 @@ import { useTranslation } from "react-i18next";
 import SlashCommandsTab from "../ToolsMenu/Tabs/SlashCommands";
 import { TOOLS_MENU_KEYBOARD_EVENT } from "../ToolsMenu";
 
+declare global {
+  interface WindowEventMap {
+    "tools-menu-keyboard": CustomEvent<{ key: string }>;
+  }
+}
+
 export default function QuickCommandsMenu({
   showing,
   setShowing,
@@ -17,12 +23,19 @@ export default function QuickCommandsMenu({
   promptRef,
   centered = false,
   highlightedIndexRef,
+}: {
+  showing: boolean;
+  setShowing: (show: boolean) => void;
+  sendCommand: (command: { text: string; writeMode?: string }) => void;
+  promptRef: React.RefObject<HTMLTextAreaElement>;
+  centered?: boolean;
+  highlightedIndexRef?: React.MutableRefObject<number>;
 }) {
   const { t } = useTranslation();
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const [maxHeight, setMaxHeight] = useState(360);
   const itemCountRef = useRef(0);
-  const popoverRef = useRef(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => setHighlightedIndex(-1), [showing]);
 
@@ -46,13 +59,13 @@ export default function QuickCommandsMenu({
     if (highlightedIndexRef) highlightedIndexRef.current = highlightedIndex;
   }, [highlightedIndex, highlightedIndexRef]);
 
-  const registerItemCount = useCallback((count) => {
+  const registerItemCount = useCallback((count: number) => {
     itemCountRef.current = count;
   }, []);
 
   useEffect(() => {
     if (!showing) return;
-    function handleKeyboard(event) {
+    function handleKeyboard(event: WindowEventMap["tools-menu-keyboard"]) {
       const { key } = event.detail;
       if (key !== "ArrowUp" && key !== "ArrowDown") return;
       const count = itemCountRef.current;
@@ -79,7 +92,10 @@ export default function QuickCommandsMenu({
       <div
         ref={popoverRef}
         onMouseDown={(event) => {
-          if (event.currentTarget.contains(event.target))
+          if (
+            event.target instanceof Node &&
+            event.currentTarget.contains(event.target)
+          )
             event.preventDefault();
         }}
         style={{ maxHeight }}

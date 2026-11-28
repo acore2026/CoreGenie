@@ -1,36 +1,36 @@
 import { createPortal } from "react-dom";
 import ModalWrapper from "@/components/ModalWrapper";
 import { X, WarningCircle } from "@phosphor-icons/react";
-import System from "@/models/system";
+import type { WorkspaceLLMProvider } from "../utils";
+import System, { type SystemKeys } from "@/models/system";
 import showToast from "@/utils/toast";
 import { useTranslation } from "react-i18next";
 
 export default function SetupProvider({
   isOpen,
   closeModal,
-  postSubmit,
   settings,
   llmProvider,
+}: {
+  isOpen: boolean;
+  closeModal: () => void;
+  settings: SystemKeys | null;
+  llmProvider: WorkspaceLLMProvider | null;
 }) {
-  if (!isOpen) return null;
+  if (!isOpen || !llmProvider) return null;
 
-  async function handleUpdate(e) {
+  const provider = llmProvider;
+  async function handleUpdate(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     e.stopPropagation();
-    const data = {};
-    const form = new FormData(e.target);
-    for (var [key, value] of form.entries()) data[key] = value;
+    const data = Object.fromEntries(new FormData(e.currentTarget));
     const { error } = await System.updateSystem(data);
     if (error) {
-      showToast(
-        `Failed to save ${llmProvider.name} settings: ${error}`,
-        "error"
-      );
+      showToast(`Failed to save ${provider.name} settings: ${error}`, "error");
       return;
     }
 
     closeModal();
-    postSubmit();
     return false;
   }
 
@@ -59,9 +59,7 @@ export default function SetupProvider({
                   To use {llmProvider.name} as this workspace's LLM you need to
                   set it up first.
                 </p>
-                <div>
-                  {llmProvider.options(settings, { credentialsOnly: true })}
-                </div>
+                <div>{llmProvider.options(settings)}</div>
               </div>
             </div>
             <div className="flex justify-between items-center mt-6 pt-6 border-t border-theme-modal-border px-7 pb-6">
@@ -88,7 +86,13 @@ export default function SetupProvider({
   );
 }
 
-export function NoSetupWarning({ showing, onSetupClick }) {
+export function NoSetupWarning({
+  showing,
+  onSetupClick,
+}: {
+  showing: boolean;
+  onSetupClick: () => void;
+}) {
   const { t } = useTranslation();
   if (!showing) return null;
 

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { X } from "@phosphor-icons/react";
 import ModalWrapper from "@/components/ModalWrapper";
+import type { SlashPreset } from "@/models/system";
 import { CMD_REGEX } from "./constants";
 
 export default function EditPresetModal({
@@ -9,6 +10,12 @@ export default function EditPresetModal({
   onSave,
   onDelete,
   preset,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (preset: SlashPreset) => Promise<void>;
+  onDelete: (id: number) => Promise<void>;
+  preset: SlashPreset;
 }) {
   const [command, setCommand] = useState("");
   const [deleting, setDeleting] = useState(false);
@@ -19,19 +26,19 @@ export default function EditPresetModal({
     }
   }, [preset, isOpen]);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const form = new FormData(e.target);
+    const form = new FormData(e.currentTarget);
     const sanitizedCommand = command.replace(CMD_REGEX, "");
     onSave({
       id: preset.id,
       command: `/${sanitizedCommand}`,
-      prompt: form.get("prompt"),
-      description: form.get("description"),
+      prompt: String(form.get("prompt") ?? ""),
+      description: String(form.get("description") ?? ""),
     });
   };
 
-  const handleCommandChange = (e) => {
+  const handleCommandChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value.replace(CMD_REGEX, "");
     setCommand(value);
   };

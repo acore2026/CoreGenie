@@ -1,11 +1,18 @@
 import { MagnifyingGlass } from "@phosphor-icons/react";
 import { useTranslation } from "react-i18next";
 
+import type { WorkspaceLLMProvider } from "../utils";
+
 export default function LLMSelectorSidePanel({
   availableProviders,
   selectedLLMProvider,
   onSearchChange,
   onProviderClick,
+}: {
+  availableProviders: WorkspaceLLMProvider[];
+  selectedLLMProvider: string | null;
+  onSearchChange: React.ChangeEventHandler<HTMLInputElement>;
+  onProviderClick: (provider: string) => void;
 }) {
   const { t } = useTranslation();
 

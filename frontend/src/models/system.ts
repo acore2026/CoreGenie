@@ -8,6 +8,13 @@ import SystemPromptVariable from "./systemPromptVariable";
 
 type AnyRecord = Record<string, unknown>;
 
+export type SlashPresetInput = {
+  command: string;
+  prompt: string;
+  description: string;
+};
+export type SlashPreset = SlashPresetInput & { id: number };
+
 export interface SystemKeys extends Record<string, unknown> {
   LLMProvider?: string | null;
   LLMModel?: string | null;
@@ -756,9 +763,9 @@ const System = {
 
   dataConnectors: DataConnector,
 
-  getSlashCommandPresets: async function (): Promise<AnyRecord[]> {
+  getSlashCommandPresets: async function (): Promise<SlashPreset[]> {
     try {
-      const res = await api.get<{ presets?: AnyRecord[] }>(
+      const res = await api.get<{ presets?: SlashPreset[] }>(
         "/system/slash-command-presets",
         { defaultError: "Could not fetch slash command presets." }
       );
@@ -770,10 +777,10 @@ const System = {
   },
 
   createSlashCommandPreset: async function (
-    presetData: AnyRecord
-  ): Promise<{ preset: AnyRecord | null; error: string | null }> {
+    presetData: SlashPresetInput
+  ): Promise<{ preset: SlashPreset | null; error: string | null }> {
     try {
-      const res = await api.post<{ preset?: AnyRecord | null }>(
+      const res = await api.post<{ preset?: SlashPreset | null }>(
         "/system/slash-command-presets",
         presetData,
         { defaultError: "Error creating slash command preset." }
@@ -787,10 +794,10 @@ const System = {
 
   updateSlashCommandPreset: async function (
     presetId: number | string,
-    presetData: AnyRecord
-  ): Promise<{ preset: AnyRecord | null; error: string | null }> {
+    presetData: SlashPresetInput
+  ): Promise<{ preset: SlashPreset | null; error: string | null }> {
     try {
-      const res = await api.post<{ preset?: AnyRecord | null }>(
+      const res = await api.post<{ preset?: SlashPreset | null }>(
         `/system/slash-command-presets/${presetId}`,
         presetData,
         { defaultError: "Could not update slash command preset." }

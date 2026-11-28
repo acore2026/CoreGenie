@@ -9,11 +9,16 @@ import { TOOLS_MENU_KEYBOARD_EVENT } from "./";
  * @param {function} onSelect - called with the highlighted item on Enter
  * @param {function} registerItemCount - callback to register total item count with parent
  */
-export default function useToolsMenuItems({
+export default function useToolsMenuItems<T>({
   items,
   highlightedIndex,
   onSelect,
   registerItemCount,
+}: {
+  items: T[];
+  highlightedIndex: number;
+  onSelect: (item: T) => void;
+  registerItemCount?: (count: number) => void;
 }) {
   useEffect(() => {
     registerItemCount?.(items.length);
@@ -21,7 +26,7 @@ export default function useToolsMenuItems({
 
   useEffect(() => {
     if (highlightedIndex < 0 || highlightedIndex >= items.length) return;
-    function handleEnter(e) {
+    function handleEnter(e: WindowEventMap["tools-menu-keyboard"]) {
       if (e.detail.key !== "Enter") return;
       onSelect(items[highlightedIndex]);
     }

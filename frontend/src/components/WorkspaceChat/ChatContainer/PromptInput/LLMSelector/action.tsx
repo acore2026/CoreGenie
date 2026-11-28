@@ -1,4 +1,6 @@
-import { Tooltip } from "react-tooltip";
+import type { WorkspaceLLMProvider } from "./utils";
+import type { SystemKeys } from "@/models/system";
+import { Tooltip, type TooltipRefProps } from "react-tooltip";
 import { Brain, CheckCircle } from "@phosphor-icons/react";
 import LLMSelectorModal from "./index";
 import { useTheme } from "@/hooks/useTheme";
@@ -12,10 +14,24 @@ export const TOGGLE_LLM_SELECTOR_EVENT = "toggle_llm_selector";
 export const SAVE_LLM_SELECTOR_EVENT = "save_llm_selector";
 export const PROVIDER_SETUP_EVENT = "provider_setup_requested";
 
-export default function LLMSelectorAction({ workspaceSlug = null }) {
+interface ProviderSetup {
+  provider: WorkspaceLLMProvider | null;
+  settings: SystemKeys | null;
+}
+declare global {
+  interface WindowEventMap {
+    provider_setup_requested: CustomEvent<ProviderSetup>;
+  }
+}
+
+export default function LLMSelectorAction({
+  workspaceSlug = null,
+}: {
+  workspaceSlug?: string | null;
+}) {
   const { slug: urlSlug } = useParams();
   const slug = urlSlug ?? workspaceSlug;
-  const tooltipRef = useRef(null);
+  const tooltipRef = useRef<TooltipRefProps>(null);
   const { theme } = useTheme();
   const { user } = useUser();
   const [saved, setSaved] = useState(false);
@@ -24,7 +40,7 @@ export default function LLMSelectorAction({ workspaceSlug = null }) {
     openModal: openSetupProviderModal,
     closeModal: closeSetupProviderModal,
   } = useModal();
-  const [config, setConfig] = useState({
+  const [config, setConfig] = useState<ProviderSetup>({
     settings: {},
     provider: null,
   });
@@ -68,7 +84,9 @@ export default function LLMSelectorAction({ workspaceSlug = null }) {
   }, [saved]);
 
   useEffect(() => {
-    function handleProviderSetupEvent(e) {
+    function handleProviderSetupEvent(
+      e: WindowEventMap["provider_setup_requested"]
+    ) {
       const { provider, settings } = e.detail;
       setConfig({
         settings,
@@ -121,12 +139,11 @@ export default function LLMSelectorAction({ workspaceSlug = null }) {
         }
         className="z-99 !w-[500px] !bg-theme-bg-primary !px-[5px] !rounded-lg !pointer-events-auto light:border-2 light:border-theme-modal-border"
       >
-        <LLMSelectorModal tooltipRef={tooltipRef} workspaceSlug={slug} />
+        <LLMSelectorModal workspaceSlug={slug} />
       </Tooltip>
       <SetupProvider
         isOpen={isSetupProviderOpen}
         closeModal={closeSetupProviderModal}
-        postSubmit={() => closeSetupProviderModal()}
         settings={config.settings}
         llmProvider={config.provider}
       />
