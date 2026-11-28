@@ -1,52 +1,49 @@
-import React, { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import AnythingLLMIcon from "@/media/logo/coregenie-mark.svg";
-import WorkspaceLLMItem from "./WorkspaceLLMItem";
-import { ALL_LLM_PROVIDERS } from "@/pages/GeneralSettings/LLMPreference";
+import WorkspaceProviderItem from "./WorkspaceProviderItem";
+import type { WorkspaceRecord } from "@/models/workspace";
+import type { SystemKeys } from "@/models/system";
+import {
+  LLM_PROVIDERS,
+  type LLMProvider,
+} from "@/components/LLMSelection/providers";
 import { CaretUpDown, MagnifyingGlass, X } from "@phosphor-icons/react";
-import ChatModelSelection from "./ChatModelSelection";
+import WorkspaceModelSelection from "./WorkspaceModelSelection";
 import { useTranslation } from "react-i18next";
-import { Link } from "react-router-dom";
-import paths from "@/utils/paths";
 
-// Some providers do not support model selection via /models.
-// In that case we allow the user to enter the model name manually and hope they
-// type it correctly.
-const FREE_FORM_LLM_SELECTION = [];
-
-// Some providers do not support model selection via /models
-// and only have a fixed single-model they can use.
-const NO_MODEL_SELECTION = ["default"];
-
-// Some providers we just fully disable for ease of use.
-const DISABLED_PROVIDERS = [];
-
-const LLM_DEFAULT = {
-  name: "System default",
-  value: "default",
-  logo: AnythingLLMIcon,
-  options: () => <React.Fragment />,
-  description: "Use the system LLM preference for this workspace.",
-  requiredConfig: [],
-};
-
-const LLMS = [LLM_DEFAULT, ...ALL_LLM_PROVIDERS].filter(
-  (llm) => !DISABLED_PROVIDERS.includes(llm.value)
-);
-
-export default function WorkspaceLLMSelection({
-  settings,
+interface Props {
+  workspace: WorkspaceRecord;
+  settings: SystemKeys;
+  setHasChanges: (value: boolean) => void;
+  agent?: boolean;
+}
+export default function WorkspaceProviderSelection({
   workspace,
+  settings,
   setHasChanges,
-}) {
-  const [filteredLLMs, setFilteredLLMs] = useState([]);
+  agent = false,
+}: Props) {
+  const { t } = useTranslation();
+  const fallback = agent ? "none" : "default";
+  const inherited: LLMProvider = {
+    name: t("workspace_model.inherit"),
+    value: fallback,
+    logo: AnythingLLMIcon,
+    options: () => null,
+    requiredConfig: [],
+    description: t(
+      agent ? "workspace_model.inherit_agent" : "workspace_model.inherit_chat"
+    ),
+  };
+  const choices = [inherited, ...LLM_PROVIDERS];
   const [selectedLLM, setSelectedLLM] = useState(
-    workspace?.chatProvider ?? "default"
+    (agent ? workspace.agentProvider : workspace.chatProvider) ?? fallback
   );
   const [searchQuery, setSearchQuery] = useState("");
   const [searchMenuOpen, setSearchMenuOpen] = useState(false);
-  const searchInputRef = useRef(null);
-  const { t } = useTranslation();
-  function updateLLMChoice(selection) {
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  function updateLLMChoice(selection: string) {
     setSearchQuery("");
     setSelectedLLM(selection);
     setSearchMenuOpen(false);
@@ -62,27 +59,28 @@ export default function WorkspaceLLMSelection({
     }
   }
 
-  useEffect(() => {
-    const filtered = LLMS.filter((llm) =>
-      llm.name.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-    setFilteredLLMs(filtered);
-  }, [LLMS, searchQuery, selectedLLM]);
-  const selectedLLMObject = LLMS.find((llm) => llm.value === selectedLLM);
+  const filteredLLMs = choices.filter((llm) =>
+    llm.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+  const selectedLLMObject = choices.find((llm) => llm.value === selectedLLM);
 
   return (
     <div className="flex flex-col gap-y-[8px]">
       <div className="flex flex-col gap-y-[8px]">
         <label htmlFor="name" className="block input-label">
-          {t("chat.llm.title")}
+          {t(agent ? "agent.provider.title" : "chat.llm.title")}
         </label>
         <p className="text-white text-opacity-60 text-xs font-medium">
-          {t("chat.llm.description")}
+          {t(agent ? "agent.provider.description" : "chat.llm.description")}
         </p>
       </div>
 
       <div className="relative">
-        <input type="hidden" name="chatProvider" value={selectedLLM} />
+        <input
+          type="hidden"
+          name={agent ? "agentProvider" : "chatProvider"}
+          value={selectedLLM}
+        />
         {searchMenuOpen && (
           <div
             className="fixed top-0 left-0 w-full h-full bg-black bg-opacity-70 backdrop-blur-sm z-10"
@@ -120,10 +118,14 @@ export default function WorkspaceLLMSelection({
               <div className="flex-1 pl-4 pr-2 flex flex-col gap-y-1 overflow-y-auto white-scrollbar pb-4 max-h-[245px]">
                 {filteredLLMs.map((llm) => {
                   return (
-                    <WorkspaceLLMItem
+                    <WorkspaceProviderItem
                       llm={llm}
                       key={llm.name}
-                      availableLLMs={LLMS}
+                      portalId={
+                        agent
+                          ? "workspace-agent-settings-container"
+                          : "workspace-chat-settings-container"
+                      }
                       settings={settings}
                       checked={selectedLLM === llm.value}
                       onClick={() => updateLLMChoice(llm.value)}
@@ -141,16 +143,16 @@ export default function WorkspaceLLMSelection({
           >
             <div className="flex gap-x-4 items-center">
               <img
-                src={selectedLLMObject.logo}
-                alt={`${selectedLLMObject.name} logo`}
+                src={selectedLLMObject?.logo ?? AnythingLLMIcon}
+                alt={`${selectedLLMObject?.name ?? selectedLLM} logo`}
                 className="w-10 h-10 rounded-md"
               />
               <div className="flex flex-col text-left">
                 <div className="text-sm font-semibold text-white">
-                  {selectedLLMObject.name}
+                  {selectedLLMObject?.name ?? selectedLLM}
                 </div>
                 <div className="text-xs text-description">
-                  {selectedLLMObject.description}
+                  {selectedLLMObject?.description}
                 </div>
               </div>
             </div>
@@ -158,66 +160,15 @@ export default function WorkspaceLLMSelection({
           </button>
         )}
       </div>
-      <ModelSelector
-        selectedLLM={selectedLLM}
-        workspace={workspace}
-        setHasChanges={setHasChanges}
-      />
-    </div>
-  );
-}
-
-// TODO: Add this to agent selector as well as make generic component.
-function ModelSelector({ selectedLLM, workspace, setHasChanges }) {
-  if (NO_MODEL_SELECTION.includes(selectedLLM)) {
-    if (selectedLLM !== "default") {
-      return (
-        <div className="w-full h-10 justify-center items-center flex">
-          <p className="text-sm font-base text-white text-opacity-60 text-center">
-            Multi-model support is not supported for this provider yet.
-            <br />
-            This workspace will use{" "}
-            <Link to={paths.settings.llmPreference()} className="underline">
-              the model set for the system.
-            </Link>
-          </p>
-        </div>
-      );
-    }
-    return null;
-  }
-
-  if (FREE_FORM_LLM_SELECTION.includes(selectedLLM)) {
-    return (
-      <FreeFormLLMInput workspace={workspace} setHasChanges={setHasChanges} />
-    );
-  }
-
-  return (
-    <ChatModelSelection
-      provider={selectedLLM}
-      workspace={workspace}
-      setHasChanges={setHasChanges}
-    />
-  );
-}
-
-function FreeFormLLMInput({ workspace, setHasChanges }) {
-  const { t } = useTranslation();
-  return (
-    <div className="flex flex-col gap-y-[8px]">
-      <label className="block input-label">{t("chat.model.title")}</label>
-      <p className="text-white text-opacity-60 text-xs font-medium">
-        {t("chat.model.description")}
-      </p>
-      <input
-        type="text"
-        name="chatModel"
-        defaultValue={workspace?.chatModel || ""}
-        onChange={() => setHasChanges(true)}
-        className="border-none bg-theme-settings-input-bg text-white placeholder:text-theme-settings-input-placeholder text-sm rounded-lg focus:outline-primary-button active:outline-primary-button outline-none block w-full p-2.5"
-        placeholder="Enter model name exactly as referenced in the API (e.g., gpt-4.1-nano)"
-      />
+      {selectedLLM !== fallback && (
+        <WorkspaceModelSelection
+          key={selectedLLM}
+          provider={selectedLLM}
+          workspace={workspace}
+          agent={agent}
+          setHasChanges={setHasChanges}
+        />
+      )}
     </div>
   );
 }

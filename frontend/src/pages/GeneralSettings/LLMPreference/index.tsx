@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { isMobile } from "react-device-detect";
 import { CaretUpDown, MagnifyingGlass, X } from "@phosphor-icons/react";
@@ -6,57 +6,33 @@ import Sidebar from "@/components/SettingsSidebar";
 import PreLoader from "@/components/Preloader";
 import LLMItem from "@/components/lib/ProviderItem";
 import CTAButton from "@/components/lib/CTAButton";
-import OpenAiOptions from "@/components/LLMSelection/OpenAiOptions";
-import GenericOpenAiOptions from "@/components/LLMSelection/GenericOpenAiOptions";
-import OpenAiLogo from "@/media/llmprovider/openai.png";
-import GenericOpenAiLogo from "@/media/llmprovider/generic-openai.png";
 import AnythingLLMIcon from "@/media/logo/coregenie-mark.svg";
-import System from "@/models/system";
+import System, { type SystemKeys } from "@/models/system";
 import showToast from "@/utils/toast";
 import LightweightModel from "./LightweightModel";
 
-export const AVAILABLE_LLM_PROVIDERS = [
-  {
-    name: "OpenAI",
-    value: "openai",
-    logo: OpenAiLogo,
-    options: (settings) => <OpenAiOptions settings={settings} />,
-    description: "Connect directly to the OpenAI API.",
-    requiredConfig: ["OpenAiKey"],
-  },
-  {
-    name: "Generic OpenAI",
-    value: "generic-openai",
-    logo: GenericOpenAiLogo,
-    options: (settings) => <GenericOpenAiOptions settings={settings} />,
-    description: "Connect to an OpenAI-compatible chat completion API.",
-    requiredConfig: ["GenericOpenAiBasePath", "GenericOpenAiModelPref"],
-    connectionConfig: ["GenericOpenAiBasePath"],
-  },
-];
-
-export const ALL_LLM_PROVIDERS = AVAILABLE_LLM_PROVIDERS;
+import { LLM_PROVIDERS } from "@/components/LLMSelection/providers";
 export const LLM_PREFERENCE_CHANGED_EVENT = "llm-preference-changed";
 
 export default function GeneralLLMPreference() {
   const [saving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
-  const [settings, setSettings] = useState(null);
+  const [settings, setSettings] = useState<SystemKeys | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedLLM, setSelectedLLM] = useState(null);
+  const [selectedLLM, setSelectedLLM] = useState("openai");
   const [searchMenuOpen, setSearchMenuOpen] = useState(false);
-  const searchInputRef = useRef(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const { t } = useTranslation();
 
   useEffect(() => {
     System.keys().then((_settings) => {
       setSettings(_settings);
       setSelectedLLM(
-        AVAILABLE_LLM_PROVIDERS.some(
+        LLM_PROVIDERS.some(
           (provider) => provider.value === _settings?.LLMProvider
         )
-          ? _settings.LLMProvider
+          ? (_settings?.LLMProvider ?? "openai")
           : "openai"
       );
       setLoading(false);
@@ -70,13 +46,12 @@ export default function GeneralLLMPreference() {
       window.removeEventListener(LLM_PREFERENCE_CHANGED_EVENT, update);
   }, []);
 
-  const handleSubmit = async (event) => {
-    event?.preventDefault?.();
-    const form = event?.currentTarget || document.querySelector("#llm-form");
-    const data = { LLMProvider: selectedLLM };
-    if (form)
-      for (const [key, value] of new FormData(form).entries())
-        data[key] = value;
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const data = {
+      ...Object.fromEntries(new FormData(event.currentTarget)),
+      LLMProvider: selectedLLM,
+    };
     setSaving(true);
     const { error } = await System.updateSystem(data);
     showToast(
@@ -89,10 +64,10 @@ export default function GeneralLLMPreference() {
     setHasChanges(Boolean(error));
   };
 
-  const filtered = AVAILABLE_LLM_PROVIDERS.filter((provider) =>
+  const filtered = LLM_PROVIDERS.filter((provider) =>
     provider.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
-  const selected = AVAILABLE_LLM_PROVIDERS.find(
+  const selected = LLM_PROVIDERS.find(
     (provider) => provider.value === selectedLLM
   );
 

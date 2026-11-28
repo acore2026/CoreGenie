@@ -1,20 +1,25 @@
-import System from "@/models/system";
-import Workspace from "@/models/workspace";
+import System, { type SystemKeys } from "@/models/system";
+import Workspace, { type WorkspaceRecord } from "@/models/workspace";
 import showToast from "@/utils/toast";
-import { castToType } from "@/utils/types";
-import { useEffect, useRef, useState } from "react";
+import { workspaceSettingsFromForm } from "@/utils/types";
+import { useEffect, useState } from "react";
 import ChatHistorySettings from "./ChatHistorySettings";
 import ChatTemperatureSettings from "./ChatTemperatureSettings";
 import ChatModeSelection from "./ChatModeSelection";
-import WorkspaceLLMSelection from "./WorkspaceLLMSelection";
+import WorkspaceProviderSelection from "../WorkspaceProviderSelection";
 import CTAButton from "@/components/lib/CTAButton";
 
-export default function ChatSettings({ workspace }) {
-  const [settings, setSettings] = useState({});
+export default function ChatSettings({
+  workspace,
+  onSaved,
+}: {
+  workspace: WorkspaceRecord;
+  onSaved: (updated: WorkspaceRecord) => void;
+}) {
+  const [settings, setSettings] = useState<SystemKeys>({});
   const [hasChanges, setHasChanges] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const formEl = useRef(null);
   useEffect(() => {
     async function fetchSettings() {
       const _settings = await System.keys();
@@ -23,18 +28,16 @@ export default function ChatSettings({ workspace }) {
     fetchSettings();
   }, []);
 
-  const handleUpdate = async (e) => {
+  const handleUpdate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSaving(true);
-    const data = {};
-    const form = new FormData(formEl.current);
-    for (var [key, value] of form.entries()) data[key] = castToType(key, value);
-
+    const data = workspaceSettingsFromForm(e.currentTarget);
     const { workspace: updatedWorkspace, message } = await Workspace.update(
       workspace.slug,
       data
     );
     if (updatedWorkspace) {
+      onSaved(updatedWorkspace);
       showToast("Workspace updated!", "success", { clear: true });
       setHasChanges(false);
     } else {
@@ -48,7 +51,6 @@ export default function ChatSettings({ workspace }) {
   return (
     <div id="workspace-chat-settings-container" className="relative">
       <form
-        ref={formEl}
         onSubmit={handleUpdate}
         id="chat-settings-form"
         className="flex w-full max-w-2xl flex-col gap-y-8"
@@ -60,7 +62,7 @@ export default function ChatSettings({ workspace }) {
             </CTAButton>
           </div>
         )}
-        <WorkspaceLLMSelection
+        <WorkspaceProviderSelection
           settings={settings}
           workspace={workspace}
           setHasChanges={setHasChanges}

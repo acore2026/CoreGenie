@@ -1,4 +1,4 @@
-import { ALL_LLM_PROVIDERS } from "@/pages/GeneralSettings/LLMPreference";
+import { LLM_PROVIDERS } from "@/components/LLMSelection/providers";
 import { DISABLED_PROVIDERS } from "@/hooks/useGetProvidersModels";
 
 export function autoScrollToSelectedLLMProvider(
@@ -48,7 +48,7 @@ export function hasMissingCredentials(
   provider: string
 ) {
   if (!settings) return false;
-  const providerEntry = ALL_LLM_PROVIDERS.find((p) => p.value === provider);
+  const providerEntry = LLM_PROVIDERS.find((p) => p.value === provider);
   if (!providerEntry) return false;
 
   for (const requiredKey of providerEntry.requiredConfig) {
@@ -58,7 +58,7 @@ export function hasMissingCredentials(
   return false;
 }
 
-export const WORKSPACE_LLM_PROVIDERS = ALL_LLM_PROVIDERS.filter(
+export const WORKSPACE_LLM_PROVIDERS = LLM_PROVIDERS.filter(
   (provider) => !DISABLED_PROVIDERS.includes(provider.value)
 );
 

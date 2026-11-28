@@ -1,22 +1,27 @@
-import System from "@/models/system";
-import Workspace from "@/models/workspace";
+import System, { type SystemKeys } from "@/models/system";
+import Workspace, { type WorkspaceRecord } from "@/models/workspace";
 import showToast from "@/utils/toast";
 import { castToType } from "@/utils/types";
-import { useEffect, useRef, useState } from "react";
-import AgentLLMSelection from "./AgentLLMSelection";
+import { useEffect, useState } from "react";
+import WorkspaceProviderSelection from "../WorkspaceProviderSelection";
 import Admin from "@/models/admin";
 import * as Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
 import paths from "@/utils/paths";
 import useUser from "@/hooks/useUser";
 
-export default function WorkspaceAgentConfiguration({ workspace }) {
+export default function WorkspaceAgentConfiguration({
+  workspace,
+  onSaved,
+}: {
+  workspace: WorkspaceRecord;
+  onSaved: (updated: WorkspaceRecord) => void;
+}) {
   const { user } = useUser();
-  const [settings, setSettings] = useState({});
+  const [settings, setSettings] = useState<SystemKeys>({});
   const [hasChanges, setHasChanges] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
-  const formEl = useRef(null);
 
   useEffect(() => {
     async function fetchSettings() {
@@ -27,25 +32,28 @@ export default function WorkspaceAgentConfiguration({ workspace }) {
     fetchSettings();
   }, []);
 
-  const handleUpdate = async (e) => {
+  const handleUpdate = async (e: React.FormEvent<HTMLFormElement>) => {
     setSaving(true);
     e.preventDefault();
-    const data = {
+    const data: Record<
+      "system" | "env" | "workspace",
+      Record<string, unknown>
+    > = {
       workspace: {},
       system: {},
       env: {},
     };
 
-    const form = new FormData(formEl.current);
-    for (var [key, value] of form.entries()) {
+    const form = new FormData(e.currentTarget);
+    for (const [key, value] of form.entries()) {
       if (key.startsWith("system::")) {
-        const [_, label] = key.split("system::");
+        const [, label] = key.split("system::");
         data.system[label] = String(value);
         continue;
       }
 
       if (key.startsWith("env::")) {
-        const [_, label] = key.split("env::");
+        const [, label] = key.split("env::");
         data.env[label] = String(value);
         continue;
       }
@@ -57,30 +65,32 @@ export default function WorkspaceAgentConfiguration({ workspace }) {
       workspace.slug,
       data.workspace
     );
-    await Admin.updateSystemPreferences(data.system);
-    await System.updateSystem(data.env);
+    if (Object.keys(data.system).length)
+      await Admin.updateSystemPreferences(data.system);
+    if (Object.keys(data.env).length) await System.updateSystem(data.env);
 
-    if (!!updatedWorkspace) {
+    if (updatedWorkspace) {
+      onSaved(updatedWorkspace);
       showToast("Workspace updated!", "success", { clear: true });
     } else {
       showToast(`Error: ${message}`, "error", { clear: true });
     }
 
     setSaving(false);
-    setHasChanges(false);
+    setHasChanges(!updatedWorkspace);
   };
 
   if (!workspace || loading) return <LoadingSkeleton />;
   return (
     <div id="workspace-agent-settings-container">
       <form
-        ref={formEl}
         onSubmit={handleUpdate}
         onChange={() => setHasChanges(true)}
         id="agent-settings-form"
         className="flex w-full max-w-2xl flex-col gap-y-6"
       >
-        <AgentLLMSelection
+        <WorkspaceProviderSelection
+          agent
           settings={settings}
           workspace={workspace}
           setHasChanges={setHasChanges}

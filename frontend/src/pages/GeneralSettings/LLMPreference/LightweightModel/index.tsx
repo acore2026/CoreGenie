@@ -7,7 +7,10 @@ export default function LightweightModel() {
   const { t } = useTranslation();
   const [provider, setProvider] = useState("");
   const [model, setModel] = useState("");
-  const [saved, setSaved] = useState(null);
+  const [saved, setSaved] = useState<{
+    provider: string;
+    model: string;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(false);
@@ -20,8 +23,14 @@ export default function LightweightModel() {
     setError(!result?.settings);
     if (result?.settings) {
       const next = {
-        provider: result.settings.lightweight_model_provider || "",
-        model: result.settings.lightweight_model_name || "",
+        provider:
+          typeof result.settings.lightweight_model_provider === "string"
+            ? result.settings.lightweight_model_provider
+            : "",
+        model:
+          typeof result.settings.lightweight_model_name === "string"
+            ? result.settings.lightweight_model_name
+            : "",
       };
       setProvider(next.provider);
       setModel(next.model);

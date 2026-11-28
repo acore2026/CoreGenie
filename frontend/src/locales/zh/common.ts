@@ -1,5 +1,15 @@
 import docAssistant from "./docAssistant.ts";
 const TRANSLATIONS = {
+  workspace_model: {
+    inherit: "使用默认模型",
+    inherit_chat: "沿用系统的聊天模型。",
+    inherit_agent: "沿用工作区或系统的聊天模型。",
+    setup_hint: "先配置 {{name}}，再在工作区使用它。",
+    setup_title: "配置 {{name}}",
+    general: "通用模型",
+    downloaded: "已下载的模型",
+    discovered: "服务商提供的模型",
+  },
   personal_skills: {
     new_skill: "新建 Skill",
     global_subtitle: "全局 Skill · 指令、脚本和参考资料",
