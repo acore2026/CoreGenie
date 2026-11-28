@@ -1114,7 +1114,16 @@ const TRANSLATIONS = {
     tabs: {
       guide: "使用指南",
       updates: "更新记录",
+      architecture: "系统架构",
       new_badge: "11 月更新",
+    },
+    architecture: {
+      nav_label: "架构文档目录",
+      overview_group: "L1 总览",
+      topics_group: "L2 专题视角",
+      toc_label: "本页目录",
+      diagram_preview: "架构图放大查看",
+      close_preview: "关闭大图",
     },
     november_release: {
       title: "绿区工作台上线，新增两项 3GPP 工具",

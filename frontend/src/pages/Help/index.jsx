@@ -15,6 +15,7 @@ import {
   Robot,
   ShieldCheck,
   Sparkle,
+  TreeStructure,
 } from "@phosphor-icons/react";
 import { useTranslation } from "react-i18next";
 import Sidebar, { SidebarMobileHeader } from "@/components/Sidebar";
@@ -26,6 +27,8 @@ import paths from "@/utils/paths";
 import showToast from "@/utils/toast";
 import { PENDING_HELP_DRAFT, SEEN_HELP_INTRO } from "@/utils/constants";
 import ReleaseNotes from "./ReleaseNotes";
+import ArchitectureDocs from "./architecture/ArchitectureDocs";
+import { DEFAULT_ARCHITECTURE_DOC_ID } from "./architecture/docsRegistry";
 
 const CAPABILITY_ICONS = [FolderOpen, Sparkle, ShieldCheck, FileText];
 const GITHUB_REPOSITORY_URL = "https://github.com/acore2026/anything-llm";
@@ -111,16 +114,34 @@ function HelpCenter() {
   const faqItems = arrayValue(t("help.faq.items", { returnObjects: true }));
 
   const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = searchParams.get("tab") === "updates" ? "updates" : "guide";
+  const rawTab = searchParams.get("tab");
+  const activeTab =
+    rawTab === "updates" || rawTab === "architecture" ? rawTab : "guide";
+  const activeArchDocId = searchParams.get("doc");
 
   function handleTabChange(tab) {
     const next = new URLSearchParams(searchParams);
     if (tab === "guide") {
       next.delete("tab");
+      next.delete("doc");
+    } else if (tab === "architecture") {
+      next.set("tab", "architecture");
     } else {
       next.set("tab", tab);
+      next.delete("doc");
     }
     setSearchParams(next, { replace: true });
+  }
+
+  function handleSelectArchDoc(docId) {
+    const next = new URLSearchParams(searchParams);
+    next.set("tab", "architecture");
+    if (docId === DEFAULT_ARCHITECTURE_DOC_ID) {
+      next.delete("doc");
+    } else {
+      next.set("doc", docId);
+    }
+    setSearchParams(next);
   }
 
   function launch(agent, prompt) {
@@ -152,14 +173,14 @@ function HelpCenter() {
         <nav
           role="tablist"
           aria-label={t("help.tabs.guide")}
-          className="mb-8 flex items-center gap-2 border-b border-white/[0.07] pb-3 light:border-slate-200"
+          className="mb-8 flex items-center gap-2 overflow-x-auto border-b border-white/[0.07] pb-3 light:border-slate-200"
         >
           <button
             role="tab"
             type="button"
             aria-selected={activeTab === "guide"}
             onClick={() => handleTabChange("guide")}
-            className={`inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70 ${
+            className={`inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg px-3.5 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70 ${
               activeTab === "guide"
                 ? "bg-white/[0.08] text-white light:bg-slate-100 light:text-slate-950"
                 : "text-zinc-400 hover:bg-white/[0.04] hover:text-zinc-200 light:text-slate-500 light:hover:bg-slate-50 light:hover:text-slate-900"
@@ -173,7 +194,7 @@ function HelpCenter() {
             type="button"
             aria-selected={activeTab === "updates"}
             onClick={() => handleTabChange("updates")}
-            className={`inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70 ${
+            className={`inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg px-3.5 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70 ${
               activeTab === "updates"
                 ? "bg-white/[0.08] text-white light:bg-slate-100 light:text-slate-950"
                 : "text-zinc-400 hover:bg-white/[0.04] hover:text-zinc-200 light:text-slate-500 light:hover:bg-slate-50 light:hover:text-slate-900"
@@ -185,10 +206,29 @@ function HelpCenter() {
               {t("help.tabs.new_badge")}
             </span>
           </button>
+          <button
+            role="tab"
+            type="button"
+            aria-selected={activeTab === "architecture"}
+            onClick={() => handleTabChange("architecture")}
+            className={`inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg px-3.5 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70 ${
+              activeTab === "architecture"
+                ? "bg-white/[0.08] text-white light:bg-slate-100 light:text-slate-950"
+                : "text-zinc-400 hover:bg-white/[0.04] hover:text-zinc-200 light:text-slate-500 light:hover:bg-slate-50 light:hover:text-slate-900"
+            }`}
+          >
+            <TreeStructure size={16} weight="duotone" />
+            <span>{t("help.tabs.architecture")}</span>
+          </button>
         </nav>
 
         {activeTab === "updates" ? (
           <ReleaseNotes />
+        ) : activeTab === "architecture" ? (
+          <ArchitectureDocs
+            activeDocId={activeArchDocId}
+            onSelectDoc={handleSelectArchDoc}
+          />
         ) : (
           <>
             <PainPoints items={painPoints} t={t} />

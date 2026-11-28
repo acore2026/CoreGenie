@@ -12,8 +12,8 @@ CoreGenie 的 Web 工作台对话**几乎全部运行在异步 Agent 模式下**
 
 | 接口 | 作用 | 关键行为 |
 | --- | --- | --- |
-| `POST /api/workspace/:slug/stream-chat`<br>`POST /api/workspace/:slug/thread/:threadSlug/stream-chat` | Web 工作台统一发送入口 | 先展开斜杠命令 / 处理 `/reset`，随后由 `grepAgents()` 升级为 `AgentRun` 并返回 `run.id` 供前端切换 SSE |
-| `POST /api/workspace/:slug/agent-runs`<br>`POST /api/workspace/:slug/thread/:threadSlug/agent-runs` | 直接创建运行记录并入队（API / 评测直连） | 返回 **HTTP 202** 与 `runId`；若同一会话已有活动任务（`queued` / `running` / `waiting_for_input` / `waiting_for_approval`），返回 **HTTP 409** 及已有运行记录 |
+| `POST /api/workspace/:slug[/thread/:threadSlug]/stream-chat` | Web 工作台统一发送入口 | 先展开斜杠命令 / 处理 `/reset`，随后由 `grepAgents()` 升级为 `AgentRun` 并返回 `run.id` 供前端切换 SSE |
+| `POST /api/workspace/:slug[/thread/:threadSlug]/agent-runs` | 直接创建运行记录并入队（API / 评测直连） | 返回 **HTTP 202** 与 `runId`；若同一会话已有活动任务（`queued` / `running` / `waiting_for_input` / `waiting_for_approval`），返回 **HTTP 409** 及已有运行记录 |
 | `GET /api/agent-runs/:runId/events` | 订阅实时事件流（SSE） | 支持 `Last-Event-ID` 或 `?after=<id>` 断点补发，每 15 秒发送心跳，终态自动关闭 |
 | `GET /api/agent-runs/:runId/snapshot` | 拉取当前完整状态快照 | 返回 `run`、任务列表、证据、工具执行记录、事件摘要、产物及最新事件游标 `cursor`；支持 `?view=rail` 精简视图 |
 | `POST /api/agent-runs/:runId/commands` | 向运行中的任务发控制指令 | 经 `AgentRunCommand` 持久化去重（幂等），支持 `run.cancel`、`input.respond`、`approval.respond`、`task.cancel`、`task.skip` |

@@ -21,6 +21,7 @@
       "@/*": ["src/*"],
       "@coregenie/contracts": ["../packages/contracts/src/index.mts"],
       "@coregenie/contracts/*": ["../packages/contracts/src/*"],
+      "@help-docs/*": ["../docs/help/*"],
       "zod": ["./node_modules/zod"]
     },
     "types": ["vite/client"]

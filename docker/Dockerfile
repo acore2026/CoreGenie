@@ -146,6 +146,7 @@ RUN --mount=type=cache,id=pnpm-store-frontend,target=/pnpm/store \
 ENV VITE_API_BASE=/api
 COPY ./packages/contracts/ ./packages/contracts/
 COPY ./server/contracts/ ./server/contracts/
+COPY ./docs/help/ ./docs/help/
 COPY ./frontend/ ./frontend/
 RUN pnpm --filter anything-llm-frontend build
 WORKDIR /app

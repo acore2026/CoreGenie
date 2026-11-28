@@ -30,7 +30,8 @@ export default defineConfig(({ mode }) => ({
       allow: [
         searchForWorkspaceRoot(localPath(".")),
         localPath("../packages/contracts"),
-        localPath("../server/contracts")
+        localPath("../server/contracts"),
+        localPath("../docs/help")
       ]
     }
   },
@@ -38,7 +39,8 @@ export default defineConfig(({ mode }) => ({
   resolve: {
     alias: {
       "@": localPath("./src"),
-      "@coregenie/contracts": localPath("../packages/contracts/src")
+      "@coregenie/contracts": localPath("../packages/contracts/src"),
+      "@help-docs": localPath("../docs/help")
     },
     dedupe: ["zod"]
   },

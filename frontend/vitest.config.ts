@@ -9,6 +9,7 @@ export default defineConfig({
     alias: {
       "@": localPath("./src"),
       "@coregenie/contracts": localPath("../packages/contracts/src"),
+      "@help-docs": localPath("../docs/help"),
     },
   },
   test: {
