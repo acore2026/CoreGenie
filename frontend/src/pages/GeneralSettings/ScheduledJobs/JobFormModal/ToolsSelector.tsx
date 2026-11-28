@@ -1,3 +1,7 @@
+import type {
+  JobTool,
+  ToolCategory,
+} from "@coregenie/contracts/scheduledJobs.mts";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   CaretDown,
@@ -16,8 +20,8 @@ import paths from "@/utils/paths";
  * @param {Array} categories - Categorized tools from backend
  * @returns {Map<string, { name: string, active: boolean, description?: string }>}
  */
-function buildToolLookup(categories) {
-  const lookup = new Map();
+function buildToolLookup(categories: ToolCategory[]) {
+  const lookup = new Map<string, JobTool>();
   for (const cat of categories) {
     for (const item of cat.items || []) {
       lookup.set(item.id, item);
@@ -26,7 +30,13 @@ function buildToolLookup(categories) {
   return lookup;
 }
 
-function Checkbox({ state, disabled = false }) {
+function Checkbox({
+  state,
+  disabled = false,
+}: {
+  state: "checked" | "indeterminate" | "unchecked";
+  disabled?: boolean;
+}) {
   const filled = state === "checked" || state === "indeterminate";
   return (
     <span
@@ -61,20 +71,27 @@ export default function ToolsSelector({
   availableTools,
   selectedTools,
   onChange,
+}: {
+  availableTools: ToolCategory[];
+  selectedTools: string[];
+  onChange: (tools: string[]) => void;
 }) {
   const { t } = useTranslation();
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
   const [placement, setPlacement] = useState("bottom");
-  const [expandedCategories, setExpandedCategories] = useState({});
-  const containerRef = useRef(null);
+  const [expandedCategories, setExpandedCategories] = useState<
+    Record<string, boolean>
+  >({});
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) return;
-    const onClick = (e) => {
-      if (!containerRef.current?.contains(e.target)) setOpen(false);
+    const onClick = (e: MouseEvent) => {
+      if (e.target instanceof Node && !containerRef.current?.contains(e.target))
+        setOpen(false);
     };
-    const onKey = (e) => {
+    const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setOpen(false);
     };
     document.addEventListener("mousedown", onClick);
@@ -126,17 +143,17 @@ export default function ToolsSelector({
         );
         return items.length ? { ...cat, items } : null;
       })
-      .filter(Boolean);
+      .filter((cat) => cat !== null);
   }, [availableTools, search]);
 
-  const isCategoryExpanded = (catId) =>
-    search.trim() || expandedCategories[catId];
+  const isCategoryExpanded = (catId: string) =>
+    !!search.trim() || expandedCategories[catId];
 
-  const toggleCategory = (catId) => {
+  const toggleCategory = (catId: string) => {
     setExpandedCategories((prev) => ({ ...prev, [catId]: !prev[catId] }));
   };
 
-  const categoryState = (cat) => {
+  const categoryState = (cat: ToolCategory) => {
     const ids = (cat.items || []).map((i) => i.id);
     const count = ids.filter((id) => selectedTools.includes(id)).length;
     if (count === 0) return "unchecked";
@@ -144,7 +161,7 @@ export default function ToolsSelector({
     return "indeterminate";
   };
 
-  const toggleCategorySelection = (cat, e) => {
+  const toggleCategorySelection = (cat: ToolCategory, e: React.MouseEvent) => {
     e.stopPropagation();
     const ids = (cat.items || []).map((i) => i.id);
     if (categoryState(cat) === "checked") {
@@ -154,7 +171,7 @@ export default function ToolsSelector({
     }
   };
 
-  const toggleTool = (id) => {
+  const toggleTool = (id: string) => {
     onChange(
       selectedTools.includes(id)
         ? selectedTools.filter((x) => x !== id)
@@ -162,8 +179,9 @@ export default function ToolsSelector({
     );
   };
 
-  const removeTool = (id) => onChange(selectedTools.filter((x) => x !== id));
-  const labelFor = (id) => toolLookup.get(id)?.name || id;
+  const removeTool = (id: string) =>
+    onChange(selectedTools.filter((x) => x !== id));
+  const labelFor = (id: string) => toolLookup.get(id)?.name || id;
 
   return (
     <div>

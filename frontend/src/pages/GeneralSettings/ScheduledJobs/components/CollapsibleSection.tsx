@@ -15,7 +15,12 @@ export default function CollapsibleSection({
   children,
   defaultOpen = false,
   copyableContent = null,
-}) {
+}: React.PropsWithChildren<{
+  title: string;
+  icon: typeof CaretDown;
+  defaultOpen?: boolean;
+  copyableContent?: string | null;
+}>) {
   const [open, setOpen] = useState(defaultOpen);
   return (
     <div className="border border-zinc-700 light:border-slate-400 rounded-lg overflow-hidden">
@@ -46,7 +51,7 @@ export default function CollapsibleSection({
   );
 }
 
-function CopyButton({ content }) {
+function CopyButton({ content }: { content: string }) {
   const [copied, setCopied] = useState(false);
   const copyToClipboard = async () => {
     await copyMarkdownAsRichText(content);

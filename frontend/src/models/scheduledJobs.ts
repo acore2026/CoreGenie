@@ -1,8 +1,12 @@
 import { api } from "@/utils/api";
 import { API_BASE } from "@/utils/constants";
 
-type JobRecord = Record<string, unknown>;
-type RunRecord = Record<string, unknown>;
+import type {
+  JobRecord,
+  RunRecord,
+  JobAgent,
+  ToolCategory,
+} from "@coregenie/contracts/scheduledJobs.mts";
 
 const ScheduledJobs = {
   workspaceBase: (workspaceSlug: string): string =>
@@ -22,12 +26,12 @@ const ScheduledJobs = {
     },
 
     options: async function (workspaceSlug: string): Promise<{
-      agents: unknown[];
-      tools: unknown[];
+      agents: JobAgent[];
+      tools: ToolCategory[];
       [key: string]: unknown;
     }> {
       try {
-        return await api.get<{ agents: unknown[]; tools: unknown[] }>(
+        return await api.get<{ agents: JobAgent[]; tools: ToolCategory[] }>(
           `/workspace/${encodeURIComponent(workspaceSlug)}/jobs/options`
         );
       } catch {
@@ -155,7 +159,8 @@ const ScheduledJobs = {
     ): Promise<{
       success: boolean;
       error?: string | null;
-      [key: string]: unknown;
+      workspaceSlug?: string | null;
+      threadSlug?: string | null;
     }> {
       try {
         return await api.post<{ success: boolean; error?: string | null }>(
@@ -229,19 +234,19 @@ const ScheduledJobs = {
 
   toggle: async function (
     id: number | string
-  ): Promise<{ job: JobRecord | null }> {
+  ): Promise<{ job: JobRecord | null; error?: string | null }> {
     try {
-      return await api.post<{ job: JobRecord | null }>(
+      return await api.post<{ job: JobRecord | null; error?: string | null }>(
         `/scheduled-jobs/${id}/toggle`
       );
-    } catch {
-      return { job: null };
+    } catch (error) {
+      return { job: null, error: (error as Error).message };
     }
   },
 
   trigger: async function (
     id: number | string
-  ): Promise<{ success: boolean; error?: string | null }> {
+  ): Promise<{ success: boolean; skipped?: boolean; error?: string | null }> {
     try {
       return await api.post<{ success: boolean; error?: string | null }>(
         `/scheduled-jobs/${id}/trigger`
@@ -251,7 +256,9 @@ const ScheduledJobs = {
     }
   },
 
-  runs: async function (id: number | string): Promise<{ runs: RunRecord[] }> {
+  runs: async function (
+    id: number | string
+  ): Promise<{ runs: RunRecord[]; job?: JobRecord | null }> {
     try {
       return await api.get<{ runs: RunRecord[] }>(`/scheduled-jobs/${id}/runs`);
     } catch {
@@ -303,9 +310,12 @@ const ScheduledJobs = {
     }
   },
 
-  availableTools: async function (): Promise<{ tools: unknown[] }> {
+  availableTools: async function (): Promise<{
+    tools: ToolCategory[];
+    agents?: JobAgent[];
+  }> {
     try {
-      return await api.get<{ tools: unknown[] }>(
+      return await api.get<{ tools: ToolCategory[] }>(
         "/scheduled-jobs/available-tools"
       );
     } catch {

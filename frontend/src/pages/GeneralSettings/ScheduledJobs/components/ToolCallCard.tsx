@@ -1,3 +1,4 @@
+import type { JobToolCall } from "@coregenie/contracts/scheduledJobs.mts";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Wrench } from "@phosphor-icons/react";
@@ -16,7 +17,7 @@ const MAX_RESULT_LENGTH = 5000;
  * @param {boolean} isLight - Whether the theme is light.
  * @returns {string} The highlight.js theme.
  */
-function getHljsTheme(isLight) {
+function getHljsTheme(isLight: boolean) {
   return isLight ? "github" : "github-dark";
 }
 
@@ -26,7 +27,7 @@ function getHljsTheme(isLight) {
  * @param {string} value - The value to format and highlight.
  * @returns {Object} The formatted and highlighted value.
  */
-function formatAndHighlight(value) {
+function formatAndHighlight(value: unknown) {
   const parsed =
     typeof value === "string" ? safeJsonParse(value, value) : value;
   if (typeof parsed !== "object" || parsed === null) return null;
@@ -46,7 +47,7 @@ function formatAndHighlight(value) {
  * @param {Object} toolCall - The tool call object.
  * @returns {React.ReactNode} The rendered tool call card.
  */
-export default function ToolCallCard({ toolCall }) {
+export default function ToolCallCard({ toolCall }: { toolCall: JobToolCall }) {
   const [showResult, setShowResult] = useState(false);
   return (
     <div className="border border-white/5 rounded-lg p-3 bg-theme-bg-primary/30">
@@ -69,7 +70,7 @@ export default function ToolCallCard({ toolCall }) {
   );
 }
 
-function ToolCallTimestamp({ toolCall }) {
+function ToolCallTimestamp({ toolCall }: { toolCall: JobToolCall }) {
   if (!toolCall.timestamp) return null;
   return (
     <span className="text-xs text-theme-text-secondary">
@@ -78,7 +79,7 @@ function ToolCallTimestamp({ toolCall }) {
   );
 }
 
-function ToolCallArguments({ toolCall }) {
+function ToolCallArguments({ toolCall }: { toolCall: JobToolCall }) {
   const { t } = useTranslation();
   const { isLight } = useTheme();
   if (!toolCall.arguments) return null;
@@ -105,7 +106,15 @@ function ToolCallArguments({ toolCall }) {
   );
 }
 
-function ToolCallResult({ toolCall, showResult, setShowResult }) {
+function ToolCallResult({
+  toolCall,
+  showResult,
+  setShowResult,
+}: {
+  toolCall: JobToolCall;
+  showResult: boolean;
+  setShowResult: (value: boolean) => void;
+}) {
   const { t } = useTranslation();
   const { isLight } = useTheme();
   if (!toolCall.result) return null;

@@ -1,3 +1,4 @@
+import type { JobRecord } from "@coregenie/contracts/scheduledJobs.mts";
 import { useNavigate } from "react-router-dom";
 import { Play, PencilSimple, X } from "@phosphor-icons/react";
 import paths from "@/utils/paths";
@@ -14,6 +15,13 @@ export default function JobRow({
   onToggle,
   onEdit,
   onDelete,
+}: {
+  job: JobRecord;
+  workspaceSlug?: string | null;
+  onTrigger: (id: number) => void;
+  onToggle: (id: number) => void;
+  onEdit: (job: JobRecord) => void;
+  onDelete: (id: number) => void;
 }) {
   const navigate = useNavigate();
   const { t, i18n } = useTranslation();
@@ -27,7 +35,7 @@ export default function JobRow({
     ? t(`scheduledJobs.status.${job.latestRun.status}`, job.latestRun.status)
     : t("scheduledJobs.row.neverRun");
 
-  const stop = (handler) => (e) => {
+  const stop = (handler: () => void) => (e: React.MouseEvent) => {
     e.stopPropagation();
     handler();
   };

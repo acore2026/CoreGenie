@@ -6,7 +6,7 @@ import cronstrue from "cronstrue/i18n";
  * @param {number} localMinute - Minute (0-59).
  * @returns {{ hour: number, minute: number }} Hour and minute in UTC.
  */
-export function localTimeToUTC(localHour, localMinute = 0) {
+export function localTimeToUTC(localHour: number, localMinute = 0) {
   const local = new Date();
   local.setHours(localHour, localMinute, 0, 0);
   return { hour: local.getUTCHours(), minute: local.getUTCMinutes() };
@@ -18,7 +18,7 @@ export function localTimeToUTC(localHour, localMinute = 0) {
  * @param {number} utcMinute - Minute (0-59).
  * @returns {{ hour: number, minute: number }} Hour and minute in local time.
  */
-export function utcTimeToLocal(utcHour, utcMinute = 0) {
+export function utcTimeToLocal(utcHour: number, utcMinute = 0) {
   const utc = new Date();
   utc.setUTCHours(utcHour, utcMinute, 0, 0);
   return { hour: utc.getHours(), minute: utc.getMinutes() };
@@ -48,7 +48,7 @@ export function getTimezoneAbbreviation() {
  * @param {string} locale - The locale.
  * @returns {string} The humanized cron expression with timezone indicator.
  */
-export function humanizeCron(cron, locale) {
+export function humanizeCron(cron: string | undefined, locale: string) {
   if (!cron) return "";
   try {
     const localCron = convertCronToLocalTime(cron);
@@ -68,7 +68,7 @@ export function humanizeCron(cron, locale) {
  * @param {string} cron - The cron expression in UTC.
  * @returns {string} The cron expression adjusted to local time.
  */
-function convertCronToLocalTime(cron) {
+function convertCronToLocalTime(cron: string) {
   if (!cron || typeof cron !== "string") return cron;
   const parts = cron.trim().split(/\s+/);
   if (parts.length !== 5) return cron;
@@ -92,7 +92,7 @@ function convertCronToLocalTime(cron) {
  * @param {string} locale - The locale code.
  * @returns {string} The cronstrue locale code.
  */
-function toCronstrueLocale(locale) {
+function toCronstrueLocale(locale: string) {
   if (!locale) return undefined;
   const [lang, region] = locale.split("-");
   return region ? `${lang}_${region.toUpperCase()}` : lang;
@@ -127,7 +127,7 @@ export const DEFAULT_BUILDER_STATE = {
  * @param {string} cron - The cron expression (in UTC).
  * @returns {Object} The builder state (with hours in local time).
  */
-export function parseCronToBuilderState(cron) {
+export function parseCronToBuilderState(cron: string) {
   const fallback = { state: { ...DEFAULT_BUILDER_STATE }, wasFallback: true };
   if (!cron || typeof cron !== "string") return fallback;
   const parts = cron.trim().split(/\s+/);
@@ -242,7 +242,7 @@ export function parseCronToBuilderState(cron) {
  * @param {Object} state - The builder state (with time in local timezone).
  * @returns {string} The cron expression (in UTC).
  */
-export function buildCronFromBuilderState(state) {
+export function buildCronFromBuilderState(state: typeof DEFAULT_BUILDER_STATE) {
   switch (state.frequency) {
     case "minute": {
       const n = state.minuteInterval || 1;

@@ -1,3 +1,4 @@
+import type { RunRecord } from "@coregenie/contracts/scheduledJobs.mts";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -15,7 +16,7 @@ import { userFacingErrorKey } from "@/utils/userFacingError.ts";
  * @param {Object} run - The run object.
  * @returns {string} The formatted duration.
  */
-function formatRunDuration(run) {
+function formatRunDuration(run: RunRecord) {
   if (!run.completedAt || !run.startedAt) return "—";
   return formatDuration(diffSeconds(run.completedAt, run.startedAt));
 }
@@ -28,7 +29,17 @@ function formatRunDuration(run) {
  * @param {function} onKilled - Callback when a run is killed (to refresh the list).
  * @returns {React.ReactNode} The rendered row.
  */
-export default function RunRow({ run, jobId, workspaceSlug = null, onKilled }) {
+export default function RunRow({
+  run,
+  jobId,
+  workspaceSlug = null,
+  onKilled,
+}: {
+  run: RunRecord;
+  jobId: string | number;
+  workspaceSlug?: string | null;
+  onKilled: () => void;
+}) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [killing, setKilling] = useState(false);
@@ -36,7 +47,7 @@ export default function RunRow({ run, jobId, workspaceSlug = null, onKilled }) {
     !run.readAt && !["running", "queued"].includes(run.status);
   const isKillable = ["running", "queued"].includes(run.status);
 
-  const handleKill = async (e) => {
+  const handleKill = async (e: React.MouseEvent) => {
     e.stopPropagation();
     setKilling(true);
     const { success, error } = workspaceSlug

@@ -1,3 +1,4 @@
+import type { JobRecord } from "@coregenie/contracts/scheduledJobs.mts";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import SettingsSidebar from "@/components/SettingsSidebar";
@@ -21,8 +22,8 @@ export default function ScheduledJobsPage() {
   useWebPushNotifications(false);
   const { isOpen, openModal, closeModal } = useModal();
   const [loading, setLoading] = useState(true);
-  const [jobs, setJobs] = useState([]);
-  const [editingJob, setEditingJob] = useState(null);
+  const [jobs, setJobs] = useState<JobRecord[]>([]);
+  const [editingJob, setEditingJob] = useState<JobRecord | null>(null);
   const { slug: workspaceSlug = null } = useParams();
 
   const fetchJobs = async () => {
@@ -40,15 +41,20 @@ export default function ScheduledJobsPage() {
   // Poll every 5s while tab is visible so status badges and run timestamps stay in sync.
   usePolling(fetchJobs, 5000);
 
-  const handleDelete = async (id) => {
+  const handleDelete = async (id: number) => {
     if (!window.confirm(t("scheduledJobs.confirmDelete"))) return;
-    if (workspaceSlug) await ScheduledJobs.workspace.delete(workspaceSlug, id);
-    else await ScheduledJobs.delete(id);
+    const result = workspaceSlug
+      ? await ScheduledJobs.workspace.delete(workspaceSlug, id)
+      : await ScheduledJobs.delete(id);
+    if (!result.success) {
+      showToast(result.error || t("common.error"), "error");
+      return;
+    }
     showToast(t("scheduledJobs.toast.deleted"), "success", { clear: true });
     fetchJobs();
   };
 
-  const handleToggle = async (id) => {
+  const handleToggle = async (id: number) => {
     const result = workspaceSlug
       ? await ScheduledJobs.workspace.toggle(workspaceSlug, id)
       : await ScheduledJobs.toggle(id);
@@ -56,7 +62,7 @@ export default function ScheduledJobsPage() {
     fetchJobs();
   };
 
-  const handleTrigger = async (id) => {
+  const handleTrigger = async (id: number) => {
     const { success, skipped, error } = workspaceSlug
       ? await ScheduledJobs.workspace.trigger(workspaceSlug, id)
       : await ScheduledJobs.trigger(id);
@@ -79,7 +85,7 @@ export default function ScheduledJobsPage() {
     fetchJobs();
   };
 
-  const handleEdit = (job) => {
+  const handleEdit = (job: JobRecord) => {
     setEditingJob(job);
     openModal();
   };
@@ -185,7 +191,11 @@ function BaseLayout({
   showNewJobButton = false,
   handleCreate = () => {},
   children,
-}) {
+}: React.PropsWithChildren<{
+  workspaceSlug?: string | null;
+  showNewJobButton?: boolean;
+  handleCreate?: () => void;
+}>) {
   const { t } = useTranslation();
 
   return (

@@ -1,3 +1,9 @@
+import type {
+  JobRecord,
+  JobAgent,
+  ToolCategory,
+  ScheduleConfig,
+} from "@coregenie/contracts/scheduledJobs.mts";
 import { useState, useEffect } from "react";
 import { X, WarningCircle } from "@phosphor-icons/react";
 import ScheduledJobs from "@/models/scheduledJobs";
@@ -13,7 +19,7 @@ import VisualSchedule, {
   editableScheduleConfig,
 } from "./VisualSchedule";
 
-function setDefaultFormState(job) {
+function setDefaultFormState(job: JobRecord | null) {
   return {
     name: job?.name || "",
     prompt: job?.prompt || "",
@@ -21,7 +27,7 @@ function setDefaultFormState(job) {
     selectedTools: Array.isArray(job?.tools)
       ? job.tools
       : job?.tools
-        ? safeJsonParse(job.tools, [])
+        ? safeJsonParse<string[]>(job.tools, [])
         : [],
     agentId: job?.agent_id || job?.agent?.id || "",
     scheduleConfig: editableScheduleConfig(
@@ -35,12 +41,17 @@ export default function JobFormModal({
   workspaceSlug = null,
   onClose,
   onSaved,
+}: {
+  job?: JobRecord | null;
+  workspaceSlug?: string | null;
+  onClose: () => void;
+  onSaved: () => void;
 }) {
   const { t } = useTranslation();
   const isEditing = !!job;
   const [form, setForm] = useState(setDefaultFormState(job));
-  const [availableTools, setAvailableTools] = useState([]);
-  const [agents, setAgents] = useState([]);
+  const [availableTools, setAvailableTools] = useState<ToolCategory[]>([]);
+  const [agents, setAgents] = useState<JobAgent[]>([]);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState({
     name: false,
@@ -50,8 +61,10 @@ export default function JobFormModal({
   });
   const hasErrors = () => Object.values(errors).some(Boolean);
 
-  const clearError = (field) => {
-    setErrors((prev) => (prev[field] ? { ...prev, [field]: false } : prev));
+  const clearError = (field: string) => {
+    setErrors((prev) =>
+      Object.hasOwn(prev, field) ? { ...prev, [field]: false } : prev
+    );
   };
 
   useEffect(() => {
@@ -70,27 +83,31 @@ export default function JobFormModal({
     });
   }, [workspaceSlug]);
 
-  const handleChange = (e) => {
+  const handleChange = (
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+    >
+  ) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
     clearError(name);
   };
 
-  const handleScheduleChange = (cron) => {
+  const handleScheduleChange = (cron: string) => {
     setForm((prev) => ({ ...prev, schedule: cron }));
     clearError("schedule");
   };
 
-  const setSelectedTools = (selectedTools) => {
+  const setSelectedTools = (selectedTools: string[]) => {
     setForm((prev) => ({ ...prev, selectedTools }));
   };
 
-  const setScheduleConfig = (scheduleConfig) => {
+  const setScheduleConfig = (scheduleConfig: ScheduleConfig) => {
     setForm((prev) => ({ ...prev, scheduleConfig }));
     clearError("schedule");
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const nextErrors = {
       name: !form.name.trim(),

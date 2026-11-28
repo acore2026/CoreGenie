@@ -1,6 +1,14 @@
 import { useTranslation } from "react-i18next";
 
-export default function JobDescription({ form, errors, onChange }) {
+export default function JobDescription({
+  form,
+  errors,
+  onChange,
+}: {
+  form: { name: string; prompt: string };
+  errors: { name: boolean; prompt: boolean };
+  onChange: React.ChangeEventHandler<HTMLInputElement | HTMLTextAreaElement>;
+}) {
   const { t } = useTranslation();
 
   return (

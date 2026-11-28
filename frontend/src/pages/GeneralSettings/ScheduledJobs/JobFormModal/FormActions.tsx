@@ -1,6 +1,14 @@
 import { useTranslation } from "react-i18next";
 
-export default function FormActions({ isEditing, saving, onClose }) {
+export default function FormActions({
+  isEditing,
+  saving,
+  onClose,
+}: {
+  isEditing: boolean;
+  saving: boolean;
+  onClose: () => void;
+}) {
   const { t } = useTranslation();
 
   return (

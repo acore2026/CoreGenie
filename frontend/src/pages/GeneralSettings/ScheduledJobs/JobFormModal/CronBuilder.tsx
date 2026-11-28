@@ -9,7 +9,7 @@ const MINUTE_INTERVALS = [1, 2, 5, 10, 15, 20, 30];
 const MINUTES = Array.from({ length: 60 }, (_, i) => i);
 const DAYS_OF_MONTH = Array.from({ length: 31 }, (_, i) => i + 1);
 
-const pad2 = (n) => String(n).padStart(2, "0");
+const pad2 = (n: number) => String(n).padStart(2, "0");
 
 const inputClass =
   "border-none bg-theme-settings-input-bg text-theme-text-primary text-sm rounded-lg focus:outline-primary-button outline-none p-2.5";
@@ -19,7 +19,13 @@ const labelClass = "text-sm text-theme-text-secondary";
 // Visual cron builder. Maintains its own state derived from the incoming
 // `value` on mount, and emits a fresh 5-field cron string via `onChange`
 // whenever the user changes any sub-field.
-export default function CronBuilder({ value, onChange }) {
+export default function CronBuilder({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (cron: string) => void;
+}) {
   const { t } = useTranslation();
   const WEEKDAYS = [
     { value: 0, label: t("scheduledJobs.builder.weekdays.sun") },
@@ -34,7 +40,7 @@ export default function CronBuilder({ value, onChange }) {
   const [state, setState] = useState(initial.state);
   const [wasFallback, setWasFallback] = useState(initial.wasFallback);
 
-  const update = (patch) => {
+  const update = (patch: Partial<typeof state>) => {
     const next = { ...state, ...patch };
     setState(next);
     if (wasFallback) setWasFallback(false);

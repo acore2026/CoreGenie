@@ -1,3 +1,4 @@
+import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 
 /**
@@ -8,7 +9,9 @@ import { useTranslation } from "react-i18next";
  * @param {string} status - The status of the run.
  * @returns {string} The styled status text.
  */
-function getStatusesMap(t) {
+function getStatusesMap(
+  t: TFunction
+): Record<string, { text: string; style: string }> {
   return {
     completed: {
       text: t("scheduledJobs.status.completed"),
@@ -43,7 +46,7 @@ function getStatusesMap(t) {
  * @param {string} status - The status of the run.
  * @returns {string} The status text.
  */
-export default function StatusBadge({ status }) {
+export default function StatusBadge({ status }: { status: string }) {
   const { t } = useTranslation();
   const statusesMap = getStatusesMap(t);
   const { text, style } = statusesMap[status] || statusesMap.default;

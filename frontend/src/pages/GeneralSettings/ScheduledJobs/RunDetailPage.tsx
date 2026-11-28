@@ -1,3 +1,10 @@
+import type { TFunction } from "i18next";
+import type {
+  JobRecord,
+  RunRecord,
+  JobResult,
+  JobMetrics,
+} from "@coregenie/contracts/scheduledJobs.mts";
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -32,11 +39,11 @@ import {
 
 export default function RunDetailPage() {
   const { t } = useTranslation();
-  const { id, runId, slug: workspaceSlug = null } = useParams();
+  const { id = "", runId = "", slug: workspaceSlug = null } = useParams();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
-  const [run, setRun] = useState(null);
-  const [job, setJob] = useState(null);
+  const [run, setRun] = useState<RunRecord | null>(null);
+  const [job, setJob] = useState<JobRecord | null>(null);
   const [continuing, setContinuing] = useState(false);
   const [killing, setKilling] = useState(false);
 
@@ -166,7 +173,10 @@ export default function RunDetailPage() {
   );
 }
 
-function RunDetailLayout({ workspaceSlug = null, children }) {
+function RunDetailLayout({
+  workspaceSlug = null,
+  children,
+}: React.PropsWithChildren<{ workspaceSlug?: string | null }>) {
   return (
     <div className="w-screen h-screen overflow-hidden bg-theme-bg-container flex">
       {workspaceSlug ? <WorkspaceSidebar /> : <SettingsSidebar />}
@@ -192,8 +202,18 @@ function RunHeader({
   onBack,
   onContinueInThread,
   onKillRun,
+}: {
+  t: TFunction;
+  job: JobRecord | null;
+  run: RunRecord;
+  result: JobResult;
+  continuing: boolean;
+  killing: boolean;
+  onBack: () => void;
+  onContinueInThread: () => void;
+  onKillRun: () => void;
 }) {
-  function getStatusInfo() {
+  function getStatusInfo(): Record<string, { text: string; style: string }> {
     return {
       completed: {
         text: t("scheduledJobs.status.completed"),
@@ -288,7 +308,7 @@ function RunHeader({
   );
 }
 
-function PromptSection({ t, prompt }) {
+function PromptSection({ t, prompt }: { t: TFunction; prompt?: string }) {
   return (
     <div className="border border-zinc-700 light:border-slate-400 rounded-lg p-[18px]">
       <p className="text-sm font-medium text-white light:text-slate-950 uppercase tracking-[1.4px] mb-1">
@@ -301,7 +321,7 @@ function PromptSection({ t, prompt }) {
   );
 }
 
-function ErrorSection({ t, error }) {
+function ErrorSection({ t, error }: { t: TFunction; error?: string | null }) {
   if (!error) return null;
   return (
     <div className="border border-red-500/20 light:border-red-300 rounded-lg p-[18px] bg-red-500/5 light:bg-red-50">
@@ -315,7 +335,13 @@ function ErrorSection({ t, error }) {
   );
 }
 
-function AgentThoughtsSection({ t, result }) {
+function AgentThoughtsSection({
+  t,
+  result,
+}: {
+  t: TFunction;
+  result: JobResult;
+}) {
   if (!result.thoughts || result.thoughts.length === 0) return null;
 
   return (
@@ -342,7 +368,7 @@ function AgentThoughtsSection({ t, result }) {
   );
 }
 
-function ToolCallsSection({ t, result }) {
+function ToolCallsSection({ t, result }: { t: TFunction; result: JobResult }) {
   if (!result.toolCalls || result.toolCalls.length === 0) return null;
 
   return (
@@ -361,7 +387,13 @@ function ToolCallsSection({ t, result }) {
   );
 }
 
-function GeneratedFilesSection({ t, result }) {
+function GeneratedFilesSection({
+  t,
+  result,
+}: {
+  t: TFunction;
+  result: JobResult;
+}) {
   // outputs contains {type, payload} objects from agent plugins
   const outputs = result.outputs || [];
   if (outputs.length === 0) return null;
@@ -376,14 +408,20 @@ function GeneratedFilesSection({ t, result }) {
     >
       <div className="space-y-2">
         {outputs.map((output, i) => (
-          <GeneratedFileCard key={i} file={output.payload} type={output.type} />
+          <GeneratedFileCard key={i} file={output.payload} />
         ))}
       </div>
     </CollapsibleSection>
   );
 }
 
-function FinalResponseSection({ t, result }) {
+function FinalResponseSection({
+  t,
+  result,
+}: {
+  t: TFunction;
+  result: JobResult;
+}) {
   if (!result.text) return null;
   let reasoning = null;
   let msgToRender = result.text;
@@ -424,14 +462,20 @@ function FinalResponseSection({ t, result }) {
   );
 }
 
-function MetricsSection({ t, metrics }) {
+function MetricsSection({
+  t,
+  metrics,
+}: {
+  t: TFunction;
+  metrics?: JobMetrics;
+}) {
   if (!metrics || Object.keys(metrics).length === 0) return null;
 
   // Todo: there is a bug where if you create a job that has no tools, we wont get any metrics
   // To avoid confusion, we should not show the metrics section if there are no metrics.
   if (!metrics.prompt_tokens || !metrics.completion_tokens) return null;
 
-  function renderModel(metrics) {
+  function renderModel(metrics: JobMetrics) {
     if (!metrics.model) return null;
     return (
       <span className="font-mono text-xs font-normal text-zinc-50/50 light:text-slate-950/50">

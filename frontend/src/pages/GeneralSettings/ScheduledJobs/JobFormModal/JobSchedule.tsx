@@ -2,7 +2,15 @@ import { useTranslation } from "react-i18next";
 import CronBuilder from "./CronBuilder";
 import { humanizeCron } from "../utils/cron";
 
-export default function JobSchedule({ schedule, error, onScheduleChange }) {
+export default function JobSchedule({
+  schedule,
+  error,
+  onScheduleChange,
+}: {
+  schedule: string;
+  error: boolean;
+  onScheduleChange: (cron: string) => void;
+}) {
   const { t, i18n } = useTranslation();
 
   return (

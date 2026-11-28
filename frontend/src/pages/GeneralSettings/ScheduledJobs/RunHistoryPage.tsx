@@ -1,3 +1,7 @@
+import type {
+  JobRecord,
+  RunRecord,
+} from "@coregenie/contracts/scheduledJobs.mts";
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -15,9 +19,9 @@ import { scheduleSummary } from "./JobFormModal/VisualSchedule";
 
 export default function RunHistoryPage() {
   const { t } = useTranslation();
-  const { id, slug: workspaceSlug = null } = useParams();
-  const [job, setJob] = useState(null);
-  const [runs, setRuns] = useState([]);
+  const { id = "", slug: workspaceSlug = null } = useParams();
+  const [job, setJob] = useState<JobRecord | null>(null);
+  const [runs, setRuns] = useState<RunRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [triggering, setTriggering] = useState(false);
   const hasInFlightRun = runs.some(
@@ -124,7 +128,7 @@ export default function RunHistoryPage() {
                 <RunRow
                   key={run.id}
                   run={run}
-                  jobId={job?.id}
+                  jobId={job?.id ?? id}
                   workspaceSlug={workspaceSlug}
                   onKilled={fetchRuns}
                 />
@@ -137,7 +141,14 @@ export default function RunHistoryPage() {
   );
 }
 
-function RunHistoryLayout({ job, workspaceSlug = null, children }) {
+function RunHistoryLayout({
+  job,
+  workspaceSlug = null,
+  children,
+}: React.PropsWithChildren<{
+  job: JobRecord | null;
+  workspaceSlug?: string | null;
+}>) {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
 

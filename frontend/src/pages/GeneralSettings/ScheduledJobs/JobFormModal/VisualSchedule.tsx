@@ -1,3 +1,5 @@
+import type { TFunction } from "i18next";
+import type { ScheduleConfig } from "@coregenie/contracts/scheduledJobs.mts";
 import { CalendarBlank, Clock, Repeat } from "@phosphor-icons/react";
 import { useTranslation } from "react-i18next";
 
@@ -5,11 +7,11 @@ const MINUTE_INTERVALS = [1, 2, 5, 10, 15, 20, 30];
 const HOUR_INTERVALS = [1, 2, 4, 6, 8, 12];
 const WEEKDAYS = [1, 2, 3, 4, 5, 6, 0];
 
-function pad(value) {
+function pad(value: number) {
   return String(value).padStart(2, "0");
 }
 
-function localDateValue(date) {
+function localDateValue(date: Date) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
@@ -19,7 +21,7 @@ function defaultOnce() {
   return { date: localDateValue(date) };
 }
 
-export function defaultScheduleConfig() {
+export function defaultScheduleConfig(): ScheduleConfig {
   return {
     type: "recurring",
     frequency: "daily",
@@ -32,7 +34,7 @@ export function defaultScheduleConfig() {
   };
 }
 
-export function editableScheduleConfig(value) {
+export function editableScheduleConfig(value?: Partial<ScheduleConfig> | null) {
   const fallback = defaultScheduleConfig();
   if (!value?.type) return fallback;
   return {
@@ -46,7 +48,10 @@ export function editableScheduleConfig(value) {
   };
 }
 
-export function scheduleSummary(config, t) {
+export function scheduleSummary(
+  config: Partial<ScheduleConfig> | null | undefined,
+  t: TFunction
+) {
   if (!config?.type) return t("scheduledJobs.visual.legacy");
   if (config.type === "once")
     return t("scheduledJobs.visual.summaryOnce", {
@@ -74,7 +79,7 @@ export function scheduleSummary(config, t) {
   });
 }
 
-function previewDates(config, count = 3) {
+function previewDates(config: ScheduleConfig, count = 3) {
   const now = new Date();
   if (config.type === "once") {
     const date = new Date(`${config.date}T${config.time}:00`);
@@ -124,7 +129,16 @@ function previewDates(config, count = 3) {
 const controlClass =
   "h-10 rounded-lg border border-white/10 bg-theme-settings-input-bg px-3 text-sm text-theme-text-primary outline-none transition-[border-color,box-shadow] focus:border-cyan-400/60 focus:ring-2 focus:ring-cyan-400/15 light:border-slate-300";
 
-function Segment({ active, icon: Icon, children, onClick }) {
+function Segment({
+  active,
+  icon: Icon,
+  children,
+  onClick,
+}: React.PropsWithChildren<{
+  active: boolean;
+  icon: typeof Clock;
+  onClick: () => void;
+}>) {
   return (
     <button
       type="button"
@@ -142,10 +156,19 @@ function Segment({ active, icon: Icon, children, onClick }) {
   );
 }
 
-export default function VisualSchedule({ value, onChange, error }) {
+export default function VisualSchedule({
+  value,
+  onChange,
+  error,
+}: {
+  value: ScheduleConfig;
+  onChange: (next: ScheduleConfig) => void;
+  error: boolean;
+}) {
   const { t } = useTranslation();
   const config = editableScheduleConfig(value);
-  const update = (patch) => onChange({ ...config, ...patch });
+  const update = (patch: Partial<ScheduleConfig>) =>
+    onChange({ ...config, ...patch });
   const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const previews =
     config.timezone === browserTimezone ? previewDates(config) : [];
