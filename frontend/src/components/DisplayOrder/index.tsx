@@ -3,30 +3,45 @@ import { Dialog } from "@headlessui/react";
 import { ArrowUp, ArrowDown, ArrowsDownUp } from "@phosphor-icons/react";
 import { useTranslation } from "react-i18next";
 import { API_BASE } from "@/utils/constants";
+import { cleanHeaders } from "@/utils/api";
 import { baseHeaders } from "@/utils/request";
 
 const control =
   "dsh-control min-h-[40px] rounded-lg px-3 text-sm hover:bg-theme-sidebar-subitem-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-button disabled:cursor-not-allowed disabled:opacity-40";
+
+interface OrderedItem {
+  id: number | string;
+  name?: string;
+  title?: string;
+  command?: string;
+}
 
 export default function DisplayOrder({
   items,
   kind,
   onSaved,
   disabled = false,
+}: {
+  items: OrderedItem[];
+  kind: string;
+  onSaved?: () => void | Promise<void>;
+  disabled?: boolean;
 }) {
   const { t } = useTranslation();
-  const [draft, setDraft] = useState(null);
+  const [draft, setDraft] = useState<OrderedItem[] | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const changed = draft?.some((item, index) => item.id !== items[index]?.id);
-  function move(index, delta) {
+  function move(index: number, delta: number) {
     setDraft((current) => {
+      if (!current) return null;
       const next = [...current];
       [next[index], next[index + delta]] = [next[index + delta], next[index]];
       return next;
     });
   }
   async function save() {
+    if (!draft) return;
     setSaving(true);
     setError("");
     try {
@@ -36,7 +51,7 @@ export default function DisplayOrder({
           : `/admin/display-order/${kind}`;
       const response = await fetch(`${API_BASE}${endpoint}`, {
         method: "POST",
-        headers: baseHeaders(),
+        headers: cleanHeaders({ ...baseHeaders() }),
         body: JSON.stringify({ ids: draft.map((item) => item.id) }),
       });
       const result = await response.json();
@@ -46,7 +61,9 @@ export default function DisplayOrder({
       window.dispatchEvent(new Event("displayOrderChanged"));
       setDraft(null);
     } catch (error) {
-      setError(error.message || t("display_order.failed"));
+      setError(
+        error instanceof Error ? error.message : t("display_order.failed")
+      );
     } finally {
       setSaving(false);
     }
@@ -100,17 +117,21 @@ export default function DisplayOrder({
                     {item.name || item.title || item.command}
                   </span>
                   <div className="flex shrink-0 gap-1">
-                    {[
-                      [-1, ArrowUp, "up"],
-                      [1, ArrowDown, "down"],
-                    ].map(([delta, Icon, direction]) => (
+                    {(
+                      [
+                        [-1, ArrowUp, "up"],
+                        [1, ArrowDown, "down"],
+                      ] as const
+                    ).map(([delta, Icon, direction]) => (
                       <button
                         key={direction}
                         type="button"
                         className={control}
                         disabled={
                           saving ||
-                          (delta < 0 ? index === 0 : index === draft.length - 1)
+                          (delta < 0
+                            ? index === 0
+                            : index === (draft?.length ?? 0) - 1)
                         }
                         aria-label={t(`display_order.${direction}`, {
                           name: item.name || item.title || item.command,

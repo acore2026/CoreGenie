@@ -1,10 +1,17 @@
-export default function EmbedderItem({
+export default function ProviderItem({
   name,
   value,
   image,
   description,
   checked,
   onClick,
+}: {
+  name: string;
+  value: string;
+  image: string;
+  description?: React.ReactNode;
+  checked: boolean;
+  onClick: (value: string) => void;
 }) {
   return (
     <div

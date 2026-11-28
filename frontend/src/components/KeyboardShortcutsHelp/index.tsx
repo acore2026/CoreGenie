@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { X } from "@phosphor-icons/react";
 import { useTranslation } from "react-i18next";
 import {
@@ -12,14 +12,10 @@ export default function KeyboardShortcutsHelp() {
   const { t } = useTranslation();
 
   useEffect(() => {
-    window.addEventListener(KEYBOARD_SHORTCUTS_HELP_EVENT, () =>
-      setIsOpen((prev) => !prev)
-    );
-    return () => {
-      window.removeEventListener(KEYBOARD_SHORTCUTS_HELP_EVENT, () =>
-        setIsOpen(false)
-      );
-    };
+    const toggle = () => setIsOpen((prev) => !prev);
+    window.addEventListener(KEYBOARD_SHORTCUTS_HELP_EVENT, toggle);
+    return () =>
+      window.removeEventListener(KEYBOARD_SHORTCUTS_HELP_EVENT, toggle);
   }, []);
 
   if (!isOpen) return null;

@@ -9,7 +9,11 @@ const FOCUSABLE_ELEMENTS = [
   '[tabindex]:not([tabindex="-1"])',
 ].join(",");
 
-export function SettingsModalBackdrop({ onDismiss }) {
+export function SettingsModalBackdrop({
+  onDismiss,
+}: {
+  onDismiss: () => void;
+}) {
   return (
     <button
       type="button"
@@ -27,8 +31,14 @@ export function useSettingsModal({
   labelledBy,
   anchorIsDialog = false,
   active = true,
+}: {
+  anchorRef: React.RefObject<HTMLElement>;
+  onDismiss: () => void;
+  labelledBy?: string;
+  anchorIsDialog?: boolean;
+  active?: boolean;
 }) {
-  const previousFocusRef = useRef(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
 
   useLayoutEffect(() => {
     if (!active) return;
@@ -36,7 +46,10 @@ export function useSettingsModal({
     const dialog = anchorIsDialog ? anchor : anchor?.parentElement;
     if (!dialog) return;
 
-    previousFocusRef.current = document.activeElement;
+    previousFocusRef.current =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
     const previousOverflow = document.body.style.overflow;
     const previousRole = dialog.getAttribute("role");
     const previousAriaModal = dialog.getAttribute("aria-modal");
@@ -49,10 +62,10 @@ export function useSettingsModal({
     document.body.style.overflow = "hidden";
 
     const focusCloseButton = window.requestAnimationFrame(() => {
-      dialog.querySelector("[data-settings-close]")?.focus();
+      dialog.querySelector<HTMLElement>("[data-settings-close]")?.focus();
     });
 
-    const handleKeyDown = (event) => {
+    const handleKeyDown = (event: KeyboardEvent) => {
       if (document.querySelector("dialog[open]")) return;
       const openDialogs = Array.from(
         document.querySelectorAll('[role="dialog"][aria-modal="true"]')
@@ -67,7 +80,7 @@ export function useSettingsModal({
 
       if (event.key !== "Tab") return;
       const focusable = Array.from(
-        dialog.querySelectorAll(FOCUSABLE_ELEMENTS)
+        dialog.querySelectorAll<HTMLElement>(FOCUSABLE_ELEMENTS)
       ).filter((element) => element.getClientRects().length > 0);
       if (!focusable.length) {
         event.preventDefault();
@@ -78,7 +91,7 @@ export function useSettingsModal({
       const last = focusable.at(-1);
       if (event.shiftKey && document.activeElement === first) {
         event.preventDefault();
-        last.focus();
+        last?.focus();
       } else if (!event.shiftKey && document.activeElement === last) {
         event.preventDefault();
         first.focus();

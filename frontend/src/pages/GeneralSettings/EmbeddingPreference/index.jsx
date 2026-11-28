@@ -13,7 +13,7 @@ import OpenAiOptions from "@/components/EmbeddingSelection/OpenAiOptions";
 import NativeEmbeddingOptions from "@/components/EmbeddingSelection/NativeEmbeddingOptions";
 import GenericOpenAiEmbeddingOptions from "@/components/EmbeddingSelection/GenericOpenAiOptions";
 
-import EmbedderItem from "@/components/EmbeddingSelection/EmbedderItem";
+import EmbedderItem from "@/components/lib/ProviderItem";
 import { CaretUpDown, MagnifyingGlass, X } from "@phosphor-icons/react";
 import { useModal } from "@/hooks/useModal";
 import ModalWrapper from "@/components/ModalWrapper";

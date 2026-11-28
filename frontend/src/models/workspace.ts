@@ -1,3 +1,9 @@
+export interface WorkspaceMember {
+  id: number;
+  username: string;
+  displayName?: string | null;
+  employeeNumber?: string | null;
+}
 import type { ChatMessage, ChatResult } from "@/utils/chat/messages";
 import type {
   WorkspaceRecord,
@@ -63,8 +69,8 @@ const Workspace = {
     }
   },
 
-  creationMembers: async function (): Promise<AnyRecord[]> {
-    const result = await api.get<{ users?: AnyRecord[] }>(
+  creationMembers: async function (): Promise<WorkspaceMember[]> {
+    const result = await api.get<{ users?: WorkspaceMember[] }>(
       "/workspace/new/members",
       { defaultError: "成员列表加载失败。" }
     );

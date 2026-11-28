@@ -10,7 +10,7 @@ import { useTranslation } from "react-i18next";
 import PreLoader from "@/components/Preloader";
 import ChangeWarningModal from "@/components/ChangeWarning";
 import ModalWrapper from "@/components/ModalWrapper";
-import VectorDBItem from "@/components/VectorDBSelection/VectorDBItem";
+import VectorDBItem from "@/components/lib/ProviderItem";
 
 import LanceDbLogo from "@/media/vectordbs/lancedb.png";
 import PGVectorLogo from "@/media/vectordbs/pgvector.png";

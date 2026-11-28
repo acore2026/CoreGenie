@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Dialog, Listbox } from "@headlessui/react";
 import {
   Buildings,
@@ -11,7 +11,7 @@ import {
   MagnifyingGlass,
   X,
 } from "@phosphor-icons/react";
-import Workspace from "@/models/workspace";
+import Workspace, { type WorkspaceMember } from "@/models/workspace";
 import paths from "@/utils/paths";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
@@ -20,7 +20,7 @@ import useSidebarPreferences from "@/hooks/useSidebarPreferences";
 import { WORKSPACE_CREATED_EVENT } from "@/components/Sidebar/events";
 import { effectiveWorkspaceGroups } from "@/utils/workspaceGroups.ts";
 
-const noop = () => false;
+const noop = () => {};
 const accessOptions = [
   { value: "private", icon: LockKey },
   { value: "public_readonly", icon: Eye },
@@ -29,19 +29,23 @@ const accessOptions = [
 const secondaryButton =
   "inline-flex h-10 items-center justify-center rounded-md px-3 text-sm text-theme-text-secondary hover:bg-theme-sidebar-subitem-hover hover:text-theme-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-button disabled:cursor-not-allowed disabled:opacity-50";
 
-export default function NewWorkspaceModal({ hideModal = noop }) {
+export default function NewWorkspaceModal({
+  hideModal = noop,
+}: {
+  hideModal?: () => void;
+}) {
   const [name, setName] = useState("");
   const [accessMode, setAccessMode] = useState("private");
-  const [users, setUsers] = useState([]);
+  const [users, setUsers] = useState<WorkspaceMember[]>([]);
   const [membersLoading, setMembersLoading] = useState(false);
   const [membersError, setMembersError] = useState(false);
   const [reloadMembers, setReloadMembers] = useState(0);
-  const [memberIds, setMemberIds] = useState([]);
+  const [memberIds, setMemberIds] = useState<number[]>([]);
   const [search, setSearch] = useState("");
   const [groupId, setGroupId] = useState("");
   const [groupName, setGroupName] = useState("");
   const [groupGlobal, setGroupGlobal] = useState(false);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const { user } = useUser();
   const { preferences, ready, refresh } = useSidebarPreferences();
@@ -54,9 +58,9 @@ export default function NewWorkspaceModal({ hideModal = noop }) {
     preferences.globalGroups
   ).groups.filter((group) => group.scope === scope);
   const groupOptions = [
-    { id: "", name: t("workspace_groups.ungrouped") },
+    { id: "", name: t("workspace_groups.ungrouped"), global: false },
     ...groups,
-    { id: "new", name: t("new-workspace.group_new") },
+    { id: "new", name: t("new-workspace.group_new"), global: false },
   ];
   const selectedGroup =
     groupOptions.find((group) => group.id === groupId) || groupOptions[0];
@@ -93,7 +97,7 @@ export default function NewWorkspaceModal({ hideModal = noop }) {
     };
   }, [user?.id, reloadMembers, accessMode]);
 
-  async function handleCreate(event) {
+  async function handleCreate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (
       creating ||

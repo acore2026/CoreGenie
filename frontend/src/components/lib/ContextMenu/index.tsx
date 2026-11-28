@@ -9,8 +9,13 @@ export default function ContextMenu({
   onClose,
   children,
   width = 190,
-}) {
-  const menuRef = useRef(null);
+}: React.PropsWithChildren<{
+  point: { x: number; y: number } | null;
+  label: string;
+  onClose: () => void;
+  width?: number;
+}>) {
+  const menuRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState(point);
 
   useLayoutEffect(() => {
@@ -30,11 +35,15 @@ export default function ContextMenu({
 
   useEffect(() => {
     if (!point) return;
-    menuRef.current?.querySelector('[role="menuitem"]')?.focus();
-    const closeOnPointerDown = (event) => {
-      if (!menuRef.current?.contains(event.target)) onClose();
+    menuRef.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+    const closeOnPointerDown = (event: PointerEvent) => {
+      if (
+        event.target instanceof Node &&
+        !menuRef.current?.contains(event.target)
+      )
+        onClose();
     };
-    const closeOnEscape = (event) => {
+    const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       event.preventDefault();
       onClose();
@@ -70,12 +79,14 @@ export default function ContextMenu({
           return;
         event.preventDefault();
         const items = [
-          ...event.currentTarget.querySelectorAll(
+          ...event.currentTarget.querySelectorAll<HTMLElement>(
             '[role="menuitem"]:not(:disabled)'
           ),
         ];
         if (!items.length) return;
-        const index = items.indexOf(document.activeElement);
+        const index = items.findIndex(
+          (item) => item === document.activeElement
+        );
         const next =
           event.key === "Home"
             ? 0

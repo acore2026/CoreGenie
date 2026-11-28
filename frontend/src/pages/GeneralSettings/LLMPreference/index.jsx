@@ -4,7 +4,7 @@ import { isMobile } from "react-device-detect";
 import { CaretUpDown, MagnifyingGlass, X } from "@phosphor-icons/react";
 import Sidebar from "@/components/SettingsSidebar";
 import PreLoader from "@/components/Preloader";
-import LLMItem from "@/components/LLMSelection/LLMItem";
+import LLMItem from "@/components/lib/ProviderItem";
 import CTAButton from "@/components/lib/CTAButton";
 import OpenAiOptions from "@/components/LLMSelection/OpenAiOptions";
 import GenericOpenAiOptions from "@/components/LLMSelection/GenericOpenAiOptions";

@@ -4,6 +4,10 @@ export default function ChangeWarningModal({
   warningText = "",
   onClose,
   onConfirm,
+}: {
+  warningText?: string;
+  onClose: () => void;
+  onConfirm: () => void;
 }) {
   return (
     <div className="w-full max-w-2xl bg-theme-bg-secondary rounded-lg shadow border-2 border-theme-modal-border overflow-hidden z-9999">

@@ -1,6 +1,14 @@
 import { Robot } from "@phosphor-icons/react";
 
-export default function AgentAvatar({ agent, size = 40, className = "" }) {
+export default function AgentAvatar({
+  agent,
+  size = 40,
+  className = "",
+}: {
+  agent?: { iconUrl?: string | null } | null;
+  size?: number;
+  className?: string;
+}) {
   const style = { width: size, height: size };
   if (agent?.iconUrl)
     return (

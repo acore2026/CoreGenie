@@ -12,7 +12,7 @@ export interface Task {
   error?: string;
   attempt?: number;
 }
-type AgentIdentity = { name?: string };
+type AgentIdentity = { name?: string; iconUrl?: string | null };
 export interface MessagePart {
   id: string;
   type: string;

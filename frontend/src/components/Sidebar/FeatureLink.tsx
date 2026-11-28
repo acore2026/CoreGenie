@@ -1,3 +1,4 @@
+import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
 import { Link, useLocation } from "react-router-dom";
 
 export default function FeatureLink({
@@ -6,6 +7,12 @@ export default function FeatureLink({
   icon: Icon,
   iconOnly = false,
   iconClassName = "",
+}: {
+  to: string;
+  label: string;
+  icon: PhosphorIcon;
+  iconOnly?: boolean;
+  iconClassName?: string;
 }) {
   const { pathname } = useLocation();
   const active = pathname === to || pathname.startsWith(`${to}/`);

@@ -3,13 +3,16 @@ import { createPortal } from "react-dom";
 import { ArrowsOut, ArrowsIn } from "@phosphor-icons/react";
 import { useTranslation } from "react-i18next";
 
-export default function FullscreenEditor({ children, title }) {
+export default function FullscreenEditor({
+  children,
+  title,
+}: React.PropsWithChildren<{ title: string }>) {
   const { t } = useTranslation();
-  const dialogRef = useRef(null);
+  const dialogRef = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   const [expanded, setExpanded] = useState(false);
   function close() {
-    dialogRef.current.close();
+    dialogRef.current?.close();
     setExpanded(false);
   }
   return (
@@ -20,7 +23,7 @@ export default function FullscreenEditor({ children, title }) {
           className="dsh-control flex items-center gap-2 px-3 py-2 text-xs"
           onClick={() => {
             setExpanded(true);
-            dialogRef.current.showModal();
+            dialogRef.current?.showModal();
           }}
         >
           <ArrowsOut size={16} />

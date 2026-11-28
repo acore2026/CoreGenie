@@ -1,9 +1,9 @@
-import React, { memo } from "react";
+import { memo } from "react";
 import usePfp from "../../hooks/usePfp";
 import UserDefaultPfp from "./user.svg";
 import WorkspaceDefaultPfp from "./workspace.svg";
 
-const UserIcon = memo(({ role }) => {
+const UserIcon = memo(({ role }: { role?: string }) => {
   const { pfp } = usePfp();
 
   return (
@@ -20,7 +20,7 @@ const UserIcon = memo(({ role }) => {
   );
 });
 
-function RenderUserPfp({ pfp }) {
+function RenderUserPfp({ pfp }: { pfp: string | null }) {
   if (!pfp)
     return (
       <img

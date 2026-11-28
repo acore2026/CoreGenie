@@ -24,23 +24,23 @@ const LABEL_STYLES = {
   },
 };
 
-/**
- * @param {Object} props - Component props
- * @param {string} [props.className] - Additional CSS classes
- * @param {boolean} [props.enabled] - Controlled checked state
- * @param {(checked: boolean) => void} [props.onChange] - Change handler receiving new checked state
- * @param {boolean} [props.disabled=false] - Whether toggle is disabled
- * @param {"sm" | "md" | "lg"} [props.size="sm"] - Toggle size
- * @param {string} [props.name] - Input name for form submission
- * @param {string} [props.label] - Label text next to toggle
- * @param {string} [props.description] - Description text below label
- * @param {"default" | "horizontal"} [props.variant="default"] - Layout variant
- * @param {string} [props.hint] - Tooltip ID for info icon hint next to label
- * @param {string} [props.value] - Input value for form submission
- * @param {string} [props.labelClassName] - Additional CSS classes for label
- * @param {string} [props.descriptionClassName] - Additional CSS classes for description
- * @param {string} [props.gapClassName] - Additional CSS classes for gap
- */
+type ToggleSize = keyof typeof TOGGLE_STYLES;
+interface ToggleProps {
+  className?: string;
+  enabled?: boolean;
+  onChange?: (enabled: boolean) => void;
+  disabled?: boolean;
+  size?: ToggleSize;
+  name?: string;
+  label?: React.ReactNode;
+  description?: React.ReactNode;
+  variant?: "default" | "horizontal";
+  hint?: string;
+  value?: string;
+  labelClassName?: string;
+  descriptionClassName?: string;
+  gapClassName?: string;
+}
 export default function Toggle({
   className,
   enabled,
@@ -56,10 +56,14 @@ export default function Toggle({
   labelClassName,
   descriptionClassName,
   gapClassName,
-}) {
+}: ToggleProps) {
   const inputProps =
     enabled !== undefined
-      ? { checked: enabled, onChange: (e) => onChange?.(e.target.checked) }
+      ? {
+          checked: enabled,
+          onChange: (e: React.ChangeEvent<HTMLInputElement>) =>
+            onChange?.(e.target.checked),
+        }
       : { defaultChecked: false };
 
   const labelStyles = LABEL_STYLES[size] || LABEL_STYLES.sm;
@@ -119,7 +123,16 @@ export default function Toggle({
   );
 }
 
-function ToggleSwitch({ name, disabled, size, inputProps, value }) {
+function ToggleSwitch({
+  name,
+  disabled,
+  size,
+  inputProps,
+  value,
+}: Pick<ToggleProps, "name" | "disabled" | "value"> & {
+  size: ToggleSize;
+  inputProps: React.InputHTMLAttributes<HTMLInputElement>;
+}) {
   return (
     <>
       <input
@@ -153,7 +166,15 @@ function TextContent({
   labelClassName,
   descriptionClassName,
   gapClassName,
-}) {
+}: Pick<
+  ToggleProps,
+  | "label"
+  | "description"
+  | "hint"
+  | "labelClassName"
+  | "descriptionClassName"
+  | "gapClassName"
+> & { labelStyles?: Partial<typeof LABEL_STYLES.sm> }) {
   if (!label && !description) return null;
   return (
     <div className={`flex flex-col ${gapClassName ?? labelStyles.gap}`}>
@@ -191,21 +212,28 @@ export function SimpleToggleSwitch({
   onChange,
   disabled = false,
   size = "sm",
+}: {
+  className?: string;
+  enabled: boolean;
+  onChange: (value: boolean) => void;
+  disabled?: boolean;
+  size?: ToggleSize;
 }) {
   return (
     <div
       role="switch"
       aria-checked={enabled}
-      tabIndex={0}
+      aria-disabled={disabled}
+      tabIndex={disabled ? -1 : 0}
       onClick={(e) => {
         e.stopPropagation();
-        onChange(!enabled);
+        if (!disabled) onChange(!enabled);
       }}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
           e.stopPropagation();
-          onChange(!enabled);
+          if (!disabled) onChange(!enabled);
         }
       }}
       className={`

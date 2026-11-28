@@ -11,23 +11,35 @@ export default function ConfirmDialog({
   busy = false,
   onCancel,
   onConfirm,
+}: {
+  open: boolean;
+  title: string;
+  description: React.ReactNode;
+  cancelLabel: string;
+  confirmLabel: string;
+  busy?: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
 }) {
   const titleId = useId();
   const descriptionId = useId();
-  const cancelRef = useRef(null);
-  const dialogRef = useRef(null);
-  const previousFocus = useRef(null);
+  const cancelRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const previousFocus = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (!open) return;
-    previousFocus.current = document.activeElement;
+    previousFocus.current =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
     cancelRef.current?.focus();
     return () => previousFocus.current?.focus?.();
   }, [open]);
 
   useEffect(() => {
     if (!open) return;
-    const handleEscape = (event) => {
+    const handleEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape" && !busy) {
         event.preventDefault();
         onCancel();
@@ -35,7 +47,7 @@ export default function ConfirmDialog({
       }
       if (event.key !== "Tab") return;
       const controls = [
-        ...(dialogRef.current?.querySelectorAll(
+        ...(dialogRef.current?.querySelectorAll<HTMLElement>(
           'button:not(:disabled), [href], input:not(:disabled), [tabindex]:not([tabindex="-1"])'
         ) || []),
       ];

@@ -3,7 +3,11 @@ export default function CTAButton({
   disabled = false,
   onClick,
   className = "",
-}) {
+}: React.PropsWithChildren<{
+  disabled?: boolean;
+  onClick?: () => void;
+  className?: string;
+}>) {
   return (
     <button
       disabled={disabled}

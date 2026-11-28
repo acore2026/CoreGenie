@@ -4,6 +4,10 @@ export default function ContextualSaveBar({
   showing = false,
   onSave,
   onCancel,
+}: {
+  showing?: boolean;
+  onSave: () => void;
+  onCancel: () => void;
 }) {
   if (!showing) return null;
 

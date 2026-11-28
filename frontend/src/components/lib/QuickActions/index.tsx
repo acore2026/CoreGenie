@@ -14,6 +14,11 @@ export default function QuickActions({
   onCreateAgent,
   onEditWorkspace,
   onUploadDocument,
+}: {
+  hasAvailableWorkspace: boolean;
+  onCreateAgent: () => void;
+  onEditWorkspace: () => void;
+  onUploadDocument: () => void;
 }) {
   const { t } = useTranslation();
   const { user } = useUser();
@@ -23,14 +28,14 @@ export default function QuickActions({
       <QuickActionButton
         label={t("main-page.quickActions.createAgent")}
         onClick={onCreateAgent}
-        show={!user || ["admin"].includes(user?.role)}
+        show={!user || ["admin"].includes(user.role ?? "")}
       />
       <QuickActionButton
         label={t("main-page.quickActions.editWorkspace")}
         onClick={onEditWorkspace}
         show={
           hasAvailableWorkspace &&
-          (!user || ["admin", "manager"].includes(user?.role))
+          (!user || ["admin", "manager"].includes(user.role ?? ""))
         }
       />
       <QuickActionButton
@@ -43,7 +48,15 @@ export default function QuickActions({
   );
 }
 
-function QuickActionButton({ label, onClick, show = true }) {
+function QuickActionButton({
+  label,
+  onClick,
+  show = true,
+}: {
+  label: string;
+  onClick: () => void;
+  show?: boolean;
+}) {
   if (!show) return null;
   return (
     <button
