@@ -3,6 +3,8 @@ import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { CaretRight, ListChecks, X } from "@phosphor-icons/react";
 import {
+  type Answers,
+  type WizardField,
   generatePrompt,
   maxSelections,
   missingFields,
@@ -11,6 +13,10 @@ import {
   wizardTasks,
   visibleFields,
 } from "@/utils/agentWizard.ts";
+import type {
+  Agent,
+  AgentWizardConfig,
+} from "@coregenie/contracts/predefinedAgents.mts";
 import CatalogField from "./CatalogField";
 
 const control =
@@ -18,13 +24,34 @@ const control =
 const input =
   "w-full rounded-lg border border-theme-chat-input-border bg-theme-bg-chat-input p-3 text-sm text-theme-text-primary focus:outline-none focus:ring-2 focus:ring-primary-button";
 
-function OptionList({ field, fieldId, answers, invalid, update, options }) {
+interface FieldProps {
+  field: WizardField;
+  fieldId: string;
+  answers: Answers;
+  invalid: boolean;
+  update: (field: WizardField, value: unknown) => void;
+}
+interface WizardProps {
+  agent: Agent;
+  disabled?: boolean;
+  onUse: (prompt: string) => void;
+}
+function OptionList({
+  field,
+  fieldId,
+  answers,
+  invalid,
+  update,
+  options,
+}: FieldProps & { options: NonNullable<WizardField["options"]> }) {
+  const answer = answers[field.id];
+  const selected: unknown[] = Array.isArray(answer) ? answer : [];
   return (
     <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
       {options.map((option) => {
         const checked =
           field.type === "multi"
-            ? (answers[field.id] || []).includes(option.value)
+            ? selected.includes(option.value)
             : answers[field.id] === option.value;
         return (
           <label
@@ -50,10 +77,8 @@ function OptionList({ field, fieldId, answers, invalid, update, options }) {
                   field.type === "single"
                     ? option.value
                     : checked
-                      ? answers[field.id].filter(
-                          (value) => value !== option.value
-                        )
-                      : [...(answers[field.id] || []), option.value]
+                      ? selected.filter((value) => value !== option.value)
+                      : [...selected, option.value]
                 )
               }
             />
@@ -74,21 +99,20 @@ function OptionList({ field, fieldId, answers, invalid, update, options }) {
   );
 }
 
-function GroupedOptions(props) {
+function GroupedOptions(props: FieldProps) {
   const { field } = props;
-  const [openGroups, setOpenGroups] = useState({});
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+  const choices = field.options ?? [];
   if (!field.optionGroups?.length)
-    return <OptionList {...props} options={field.options} />;
+    return <OptionList {...props} options={choices} />;
 
-  const rendered = new Set();
+  const rendered = new Set<string>();
   const groups = field.optionGroups.map((group) => {
-    const options = field.options.filter((option) => option.group === group.id);
+    const options = choices.filter((option) => option.group === group.id);
     options.forEach((option) => rendered.add(option.value));
     return { ...group, options };
   });
-  const ungrouped = field.options.filter(
-    (option) => !rendered.has(option.value)
-  );
+  const ungrouped = choices.filter((option) => !rendered.has(option.value));
 
   return (
     <div className="space-y-4">
@@ -99,12 +123,13 @@ function GroupedOptions(props) {
             <details
               key={group.id}
               open={openGroups[group.id] ?? group.collapsed !== true}
-              onToggle={(event) =>
+              onToggle={(event) => {
+                const open = event.currentTarget.open;
                 setOpenGroups((current) => ({
                   ...current,
-                  [group.id]: event.currentTarget.open,
-                }))
-              }
+                  [group.id]: open,
+                }));
+              }}
               className="group rounded-lg border border-theme-chat-input-border bg-theme-bg-primary"
             >
               <summary className="flex min-h-[44px] cursor-pointer list-none items-center gap-2 px-3 py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-button [&::-webkit-details-marker]:hidden">
@@ -149,7 +174,7 @@ function GroupedOptions(props) {
 }
 
 // Keyed by Agent in the caller: an Agent change cannot reuse another form's answers.
-export default function AgentWizard({ agent, disabled, onUse }) {
+export default function AgentWizard({ agent, disabled, onUse }: WizardProps) {
   const { t } = useTranslation();
   const tasks = wizardTasks(agent?.wizard);
   if (!tasks.length) return null;
@@ -173,14 +198,19 @@ export default function AgentWizard({ agent, disabled, onUse }) {
   );
 }
 
-function WizardTask({ agent, wizard, disabled, onUse }) {
+function WizardTask({
+  agent,
+  wizard,
+  disabled,
+  onUse,
+}: WizardProps & { wizard: AgentWizardConfig }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
-  const [answers, setAnswers] = useState({});
+  const [answers, setAnswers] = useState<Answers>({});
   const [attempted, setAttempted] = useState(false);
-  const [preview, setPreview] = useState(null);
-  const dialog = useRef(null);
-  const trigger = useRef(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const dialog = useRef<HTMLDialogElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
   const titleId = useId();
 
   useEffect(() => {
@@ -191,7 +221,7 @@ function WizardTask({ agent, wizard, disabled, onUse }) {
 
   const fields = visibleFields(wizard, answers);
   const missing = attempted ? missingFields(wizard, answers) : [];
-  const update = (field, value) => {
+  const update = (field: WizardField, value: unknown) => {
     setAnswers((current) => updateAnswer(wizard, current, field.id, value));
   };
   const close = () => {
@@ -203,7 +233,9 @@ function WizardTask({ agent, wizard, disabled, onUse }) {
     const prompt = generatePrompt(wizard, answers);
     if (prompt === null) {
       requestAnimationFrame(() =>
-        dialog.current?.querySelector('[aria-invalid="true"]')?.focus()
+        dialog.current
+          ?.querySelector<HTMLElement>('[aria-invalid="true"]')
+          ?.focus()
       );
       return;
     }
@@ -274,6 +306,7 @@ function WizardTask({ agent, wizard, disabled, onUse }) {
               ) : (
                 fields.map((field) => {
                   const invalid = missing.some((item) => item.id === field.id);
+                  const answer = answers[field.id];
                   const fieldId = `${titleId}-${field.id}`;
                   const label = (
                     <>
@@ -298,7 +331,7 @@ function WizardTask({ agent, wizard, disabled, onUse }) {
                           {field.hint}
                         </p>
                       )}
-                      {["meeting", "agenda"].includes(field.type) ? (
+                      {["meeting", "agenda"].includes(field.type ?? "") ? (
                         <CatalogField
                           field={field}
                           answers={answers}
@@ -317,7 +350,7 @@ function WizardTask({ agent, wizard, disabled, onUse }) {
                         <textarea
                           aria-label={field.label}
                           className={`${input} min-h-[100px] resize-y`}
-                          value={answers[field.id] || ""}
+                          value={typeof answer === "string" ? answer : ""}
                           maxLength={4000}
                           placeholder={field.placeholder}
                           aria-invalid={invalid}
@@ -333,7 +366,7 @@ function WizardTask({ agent, wizard, disabled, onUse }) {
                           aria-label={field.label}
                           type="text"
                           className={input}
-                          value={answers[field.id] || ""}
+                          value={typeof answer === "string" ? answer : ""}
                           maxLength={4000}
                           placeholder={field.placeholder}
                           aria-invalid={invalid}
@@ -346,7 +379,7 @@ function WizardTask({ agent, wizard, disabled, onUse }) {
                         />
                       )}
                       {!!field.examples?.length &&
-                        !["meeting", "agenda"].includes(field.type) && (
+                        !["meeting", "agenda"].includes(field.type ?? "") && (
                           <p className="mt-2 text-xs leading-5 text-theme-text-secondary">
                             {t("agent_wizard.examples", {
                               examples: field.examples.join("；"),

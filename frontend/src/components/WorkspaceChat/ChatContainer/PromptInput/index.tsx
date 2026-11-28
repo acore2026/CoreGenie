@@ -411,23 +411,18 @@ function PromptInput({
               centered={centered}
               highlightedIndexRef={quickCommandsHighlightRef}
             />
-            {centered &&
-              Boolean(
-                (selectedAgent as { wizard?: unknown } | null)?.wizard
-              ) && (
-                <AgentWizard
-                  key={`${selectedAgent?.id}:${workspaceSlug}:${threadSlug}`}
-                  agent={selectedAgent}
-                  disabled={isDisabled || isStreaming || agentSessionActive}
-                  onUse={(prompt: string) =>
-                    selectExamplePrompt(
-                      promptInput.trim()
-                        ? `${promptInput}\n\n${prompt}`
-                        : prompt
-                    )
-                  }
-                />
-              )}
+            {centered && selectedAgent?.wizard && (
+              <AgentWizard
+                key={`${selectedAgent?.id}:${workspaceSlug}:${threadSlug}`}
+                agent={selectedAgent}
+                disabled={isDisabled || isStreaming || agentSessionActive}
+                onUse={(prompt: string) =>
+                  selectExamplePrompt(
+                    promptInput.trim() ? `${promptInput}\n\n${prompt}` : prompt
+                  )
+                }
+              />
+            )}
             <div className="flex flex-col overflow-visible rounded-lg border border-theme-chat-input-border bg-theme-bg-chat-input px-4 transition-[border-color,box-shadow] duration-150 focus-within:ring-1 focus-within:ring-theme-button-primary">
               <AttachmentManager attachments={attachments} />
               <div className="flex items-center">

@@ -5,7 +5,44 @@ export interface ExamplePrompt {
   prompt: string;
 }
 
+export interface WizardField {
+  id: string;
+  label?: string;
+  type?: string;
+  hint?: string;
+  placeholder?: string;
+  examples?: string[];
+  multiple?: boolean;
+  required?: boolean;
+  when?: { field: string; values: string[] }[];
+  groupField?: string;
+  meetingField?: string;
+  options?: {
+    value: string;
+    label: string;
+    description?: string;
+    group?: string;
+  }[];
+  optionGroups?: {
+    id: string;
+    label?: string;
+    description?: string;
+    collapsed?: boolean;
+  }[];
+  maxSelectionsBy?: Record<string, Record<string, number>>;
+}
+export interface Wizard {
+  fields: WizardField[];
+  instructions: string;
+}
+export interface AgentWizardConfig extends Wizard {
+  id?: string;
+  title: string;
+  description?: string;
+}
+
 export interface Agent {
+  wizard?: AgentWizardConfig | AgentWizardConfig[] | null;
   id: number;
   name: string;
   description: string;

@@ -1,21 +1,12 @@
-export interface WizardField {
-  id: string;
-  label?: string;
-  type?: string;
-  multiple?: boolean;
-  required?: boolean;
-  when?: { field: string; values: string[] }[];
-  groupField?: string;
-  meetingField?: string;
-  options?: { value: string; label: string; group?: string }[];
-  optionGroups?: { id: string; collapsed?: boolean }[];
-  maxSelectionsBy?: Record<string, Record<string, number>>;
-}
-export interface Wizard {
-  fields: WizardField[];
-  instructions: string;
-}
-type Answers = Record<string, unknown>;
+import type {
+  WizardField,
+  Wizard,
+} from "@coregenie/contracts/predefinedAgents.mts";
+export type {
+  WizardField,
+  Wizard,
+} from "@coregenie/contracts/predefinedAgents.mts";
+export type Answers = Record<string, unknown>;
 type Form = Pick<Wizard, "fields">;
 function itemValues(
   value: unknown
@@ -46,7 +37,7 @@ export function wizardTasks<T extends { id?: string; title?: string }>(
   value: T
 ): (T & { id: string })[];
 export function wizardTasks<T extends { id?: string; title?: string }>(
-  value: T[] | null | undefined
+  value: T | T[] | null | undefined
 ): T[];
 export function wizardTasks<T extends { id?: string; title?: string }>(
   value: T | T[] | null | undefined

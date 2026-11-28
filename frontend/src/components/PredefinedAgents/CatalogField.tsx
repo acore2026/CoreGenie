@@ -1,27 +1,64 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { API_BASE } from "@/utils/constants";
-import { baseHeaders } from "@/utils/request";
+import { api, errorMessage } from "@/utils/api";
+import type { MeetingChoice } from "@/utils/meetingSelection";
 import MeetingSelect from "./MeetingSelect";
-import { maxSelections } from "@/utils/agentWizard.ts";
+import {
+  type Answers,
+  type WizardField,
+  maxSelections,
+} from "@/utils/agentWizard.ts";
 
 const input =
   "w-full min-h-[40px] rounded-lg border border-theme-chat-input-border bg-theme-bg-chat-input px-3 py-2 text-sm text-theme-text-primary focus:outline-none focus:ring-2 focus:ring-primary-button disabled:opacity-50";
 const button =
   "dsh-control min-h-[40px] px-3 text-sm hover:bg-theme-sidebar-subitem-hover focus-visible:ring-2 focus-visible:ring-primary-button disabled:cursor-not-allowed disabled:opacity-50";
 
-export default function CatalogField({ field, answers, onChange, invalid }) {
+interface CatalogData {
+  meetings?: MeetingChoice[];
+  items?: MeetingChoice[];
+  warning?: string;
+  pending?: boolean;
+  source?: string;
+  fetchedAt?: string;
+}
+function isChoice(value: unknown): value is MeetingChoice {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "label" in value &&
+    typeof value.label === "string"
+  );
+}
+export default function CatalogField({
+  field,
+  answers,
+  onChange,
+  invalid,
+}: {
+  field: WizardField;
+  answers: Answers;
+  onChange: (value: MeetingChoice | MeetingChoice[] | null) => void;
+  invalid: boolean;
+}) {
   const { t } = useTranslation();
-  const group = answers[field.groupField];
-  const meeting = answers[field.meetingField];
+  const groupAnswer = field.groupField && answers[field.groupField];
+  const group = typeof groupAnswer === "string" ? groupAnswer : "";
+  const meetingAnswer = field.meetingField && answers[field.meetingField];
+  const meeting = isChoice(meetingAnswer) ? meetingAnswer : null;
   const value = answers[field.id];
   const isMeeting = field.type === "meeting";
-  const multiple = isMeeting && field.multiple;
+  const multiple = isMeeting && Boolean(field.multiple);
   const requestKey =
     group && (isMeeting || meeting?.id)
-      ? `${group}:${isMeeting ? "" : meeting.id}`
+      ? `${group}:${isMeeting ? "" : meeting?.id}`
       : null;
-  const [result, setResult] = useState(null);
+  const [result, setResult] = useState<{
+    key: string;
+    loading?: boolean;
+    data?: CatalogData;
+    error?: string;
+  } | null>(null);
   const [retry, setRetry] = useState(0);
   const [query, setQuery] = useState("");
   const [manual, setManual] = useState("");
@@ -33,34 +70,35 @@ export default function CatalogField({ field, answers, onChange, invalid }) {
     const controller = new AbortController();
     setResult({ key: requestKey, loading: true });
     const params = new URLSearchParams({ group });
-    if (!isMeeting) params.set("meeting", meeting.id);
-    fetch(`${API_BASE}/3gpp/catalog?${params}`, {
-      headers: baseHeaders(),
-      signal: controller.signal,
-    })
-      .then(async (response) => {
-        const data = await response.json();
-        if (!response.ok)
-          throw new Error(data.error || t("agent_wizard.catalog_error"));
+    if (!isMeeting && meeting?.id) params.set("meeting", meeting.id);
+    api
+      .get<CatalogData>(`/3gpp/catalog?${params}`, {
+        signal: controller.signal,
+        defaultError: t("agent_wizard.catalog_error"),
+      })
+      .then((data) => {
         if (!controller.signal.aborted) setResult({ key: requestKey, data });
       })
-      .catch((error) => {
+      .catch((error: unknown) => {
         if (!controller.signal.aborted)
-          setResult({ key: requestKey, error: error.message });
+          setResult({
+            key: requestKey,
+            error: errorMessage(error, t("agent_wizard.catalog_error")),
+          });
       });
     return () => controller.abort();
   }, [requestKey, retry, group, isMeeting, meeting?.id, t]);
 
   const state = result?.key === requestKey ? result : null;
   const entries = state?.data?.[isMeeting ? "meetings" : "items"] || [];
-  const selectedMeetings = multiple ? (Array.isArray(value) ? value : []) : [];
+  const selectedItems = Array.isArray(value) ? value.filter(isChoice) : [];
   const limit = maxSelections(field, answers);
   const filtered = entries.filter((item) =>
     `${item.label} ${item.description || ""}`
       .toLowerCase()
       .includes(query.toLowerCase())
   );
-  const selectedItems = Array.isArray(value) ? value : [];
+
   const manualAdd = () => {
     const label = manual.trim();
     if (!label) return;
@@ -119,13 +157,13 @@ export default function CatalogField({ field, answers, onChange, invalid }) {
         <MeetingSelect
           key={group || "no-group"}
           entries={entries}
-          value={multiple ? selectedMeetings : value}
+          value={multiple ? selectedItems : isChoice(value) ? value : null}
           onChange={(next) => onChange(multiple ? next : next[0] || null)}
           multiple={multiple}
           group={group}
           limit={multiple ? limit : 1}
           invalid={invalid}
-          label={field.label}
+          label={field.label ?? field.id}
           loading={state?.loading}
           placeholder={field.placeholder}
           examples={field.examples}
@@ -205,10 +243,15 @@ export default function CatalogField({ field, answers, onChange, invalid }) {
           >
             {t("agent_wizard.official_source")}
           </a>{" "}
-          ·{" "}
-          {t("agent_wizard.fetched_at", {
-            date: new Date(state.data.fetchedAt).toLocaleString("zh-CN"),
-          })}
+          {state.data.fetchedAt && (
+            <>
+              {" "}
+              ·{" "}
+              {t("agent_wizard.fetched_at", {
+                date: new Date(state.data.fetchedAt).toLocaleString("zh-CN"),
+              })}
+            </>
+          )}
         </p>
       )}
       {!isMeeting && selectedItems.length > 0 && (

@@ -1,3 +1,4 @@
+import type { Agent } from "@coregenie/contracts/predefinedAgents.mts";
 import { CaretDown, Check, Robot } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -9,13 +10,14 @@ export default function AgentSwitcher({ disabled = false }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [menuPosition, setMenuPosition] = useState({ left: 8, bottom: 8 });
-  const rootRef = useRef(null);
-  const menuRef = useRef(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const { agents, selectedAgent, selectedAgentId, selectAgent } =
     usePredefinedAgent();
 
   useEffect(() => {
-    const close = (event) => {
+    const close = (event: MouseEvent) => {
+      if (!(event.target instanceof Node)) return;
       if (
         !rootRef.current?.contains(event.target) &&
         !menuRef.current?.contains(event.target)
@@ -101,7 +103,15 @@ export default function AgentSwitcher({ disabled = false }) {
   );
 }
 
-function AgentOption({ agent, active, onClick }) {
+function AgentOption({
+  agent,
+  active,
+  onClick,
+}: {
+  agent: Agent;
+  active: boolean;
+  onClick: () => void;
+}) {
   return (
     <button
       type="button"

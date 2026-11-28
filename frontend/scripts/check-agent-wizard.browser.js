@@ -1,10 +1,11 @@
-// Invoke via Playwright CLI with the wizard parsed from the canonical Agent YAML.
+// Invoke via Playwright CLI with the wizard parsed from the canonical quick-task YAML.
 // All API calls are mocked; no messages are sent to the live server.
 async (page, wizard) => {
   const errors = [];
   let writes = 0;
   let agendaReads = 0;
   page.on("pageerror", (error) => errors.push(error.message));
+  const workspace = {id:1, name:"向导测试", slug:"wizard-test", documents:[]};
   const user = { id: 7, username: "测试用户", role: "admin" };
   await page.context().addInitScript((user) => {
     localStorage.clear();
@@ -34,7 +35,10 @@ async (page, wizard) => {
     else if (path === "/system/refresh-user") body = { success: true, user };
     else if (path === "/system/check-token") body = { valid: true };
     else if (path === "/workspaces" || path === "/admin/workspaces")
-      body = { workspaces: [] };
+      body = { workspaces: [workspace] };
+    else if (path === "/workspace/wizard-test") body = {workspace};
+    else if (path.endsWith("/parsed-files")) body = {files:[],contextWindow:32768,currentContextTokenCount:0};
+    else if (path.endsWith("/suggested-messages")) body = {suggestedMessages: []};
     else if (path === "/predefined-agents")
       body = {
         agents: [
@@ -80,11 +84,11 @@ async (page, wizard) => {
     await page.setViewportSize(viewport);
     await page.goto("http://127.0.0.1:7870/");
     const trigger = page.getByRole("button", {
-      name: "按议题分析",
+      name: wizard.title,
       exact: true,
     });
     await trigger.click();
-    const dialog = page.getByRole("dialog", { name: "按议题分析" });
+    const dialog = page.getByRole("dialog", { name: wizard.title });
     const otherGroups = dialog
       .locator("details")
       .filter({ hasText: "其他工作组" });
@@ -101,6 +105,8 @@ async (page, wizard) => {
     await dialog.getByRole("button", { name: "生成提示词" }).click();
     if (!(await dialog.getByRole("alert").count()))
       throw new Error("Missing required validation");
+    await dialog.getByRole("radio", {name:/下载并分析/}).check();
+    await dialog.getByRole("radio", {name:/单独分析/}).check();
     await dialog.getByRole("radio", { name: /^SA2/ }).check();
     await dialog.getByRole("checkbox", { name: /KI#4 · 用户面架构/ }).check();
     await dialog
@@ -108,13 +114,12 @@ async (page, wizard) => {
       .check();
     if (await dialog.getByText("KI / 议程项", { exact: true }).count())
       throw new Error("Old agenda label remains");
-    await dialog
-      .getByRole("combobox", { name: "会议", exact: true })
-      .selectOption("m176");
-    await dialog.getByRole("button", { name: "上一次", exact: true }).click();
-    if ((await dialog.getByRole("combobox").inputValue()) !== "m175")
-      throw new Error("Previous meeting");
-    await dialog.getByRole("button", { name: "下一次", exact: true }).click();
+    const meetingPicker = dialog.getByRole("button", {name:"会议",exact:true});
+    await meetingPicker.click();
+    await dialog.getByRole("checkbox", {name:/SA2#175/}).check();
+    await dialog.getByRole("checkbox", {name:/SA2#175/}).uncheck();
+    await dialog.getByRole("checkbox", {name:/SA2#176/}).check();
+    await dialog.getByRole("button", {name:"完成选择"}).click();
     if (
       !(await dialog
         .getByRole("checkbox", { name: /KI#4 · 用户面架构/ })
@@ -140,9 +145,9 @@ async (page, wizard) => {
     await dialog
       .getByRole("checkbox", { name: /KI#2 · 服务化架构框架/ })
       .check();
-    await dialog
-      .getByRole("combobox", { name: "会议", exact: true })
-      .selectOption("m176");
+    await meetingPicker.click();
+    await dialog.getByRole("checkbox", {name:/SA2#176/}).check();
+    await dialog.getByRole("button", {name:"完成选择"}).click();
     await dialog.getByRole("checkbox", { name: /Huawei/ }).check();
     await dialog.getByRole("checkbox", { name: /方案与技术路线/ }).check();
     await dialog.getByRole("radio", { name: /重点结论与对比表/ }).check();
@@ -187,7 +192,7 @@ async (page, wizard) => {
     .getByRole("button", { name: "通用助手 随时可以开始", exact: true })
     .click();
   if (
-    await page.getByRole("button", { name: "按议题分析", exact: true }).count()
+    await page.getByRole("button", { name: wizard.title, exact: true }).count()
   )
     throw new Error("Agent without wizard shows a trigger");
   await page
@@ -196,7 +201,7 @@ async (page, wizard) => {
       exact: true,
     })
     .click();
-  await page.getByRole("button", { name: "按议题分析", exact: true }).click();
+  await page.getByRole("button", { name: wizard.title, exact: true }).click();
   if (
     await page
       .getByRole("dialog")
