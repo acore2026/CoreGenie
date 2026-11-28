@@ -1,7 +1,7 @@
 ---
 archived: false
 name: 3gpp-review
-description: 读取、提取和分析 3GPP TDoc；按会议和 KI 获取官方提案统一使用 3gpp.download。简短会议事实用 3gpp-lookup；跨会议路线分析用 3gpp-position-evolution；批量转换用 3gpp-doc2md。
+description: 读取、提取和分析 3GPP TDoc；按会议的 KI、议程项或工作项目获取官方提案统一使用 3gpp.download。简短会议事实用 3gpp-lookup；跨会议路线分析用 3gpp-position-evolution；批量转换用 3gpp-doc2md。
 allowed-tools: skill.read_resource 3gpp.resolve-meeting 3gpp.download 3gpp.convert-markdown bash python filesystem.read filesystem.write filesystem.list filesystem.search web.fetch knowledge.search knowledge.ingest user.ask vision.inspect knowledge.publish
 ---
 
@@ -20,7 +20,7 @@ allowed-tools: skill.read_resource 3gpp.resolve-meeting 3gpp.download 3gpp.conve
 
 ## 通用约束
 
-- 官方目录、KI 议程映射、版本和状态必须查看实际资料。按会议和 KI 下载只能调用 `3gpp.download`；不猜 URL，也不直接运行下载命令。
+- 官方目录、KI 议程映射、版本和状态必须查看实际资料。按会议和 KI/议程项/工作项目下载只能调用 `3gpp.download`；CT1/CT4 无 KI 的议题使用 `agenda_item` 或 `work_item` 并省略 `ki`，不套用 SA2 规范号；不猜 URL，也不直接运行下载命令。
 - 包内脚本为 [scripts/3gpp_tdocs.py](scripts/3gpp_tdocs.py)，由下载和转换 Tool 调用。Bash 的 `cwd` 必须使用激活返回的准确 `skillRoot`；不要把 `skill://` 当 shell 文件路径，不复制脚本到工作区。
 - 每次 Bash 调用启动新 shell，在同一次命令中定义所需路径，或直接使用已确认的绝对路径。
 - 中间文件保存在当前任务的新目录。缓存以来源和选择范围为准，不在同一 texts 目录混入其他批次。复用工具返回的准确路径，不重建猜测路径。

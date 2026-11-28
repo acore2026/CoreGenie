@@ -109,8 +109,8 @@ describe("3GPP meeting resolver", () => {
       SA2: "tsg_sa/WG2_Arch",
       SA3: "tsg_sa/WG3_Security",
       SA5: "tsg_sa/WG5_OAM",
-      CT1: "tsg_ct/WG1_NAS",
-      CT4: "tsg_ct/WG4_PROCO",
+      CT1: "tsg_ct/WG1_mm-cc-sm_ex-CN1",
+      CT4: "tsg_ct/WG4_protocollars_ex-CN4",
     });
   });
 

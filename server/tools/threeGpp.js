@@ -18,6 +18,7 @@ const threeGppDocuments = require("../utils/threeGppDocuments");
 const {
   selectMeeting,
   selectKiDocuments,
+  selectAgendaDocuments,
   requestedSpec,
 } = require("./threeGppSelection");
 const { setTimeout: pause } = require("timers/promises");
@@ -32,8 +33,8 @@ const DIRECTORY_BY_GROUP = Object.freeze({
   SA2: "tsg_sa/WG2_Arch",
   SA3: "tsg_sa/WG3_Security",
   SA5: "tsg_sa/WG5_OAM",
-  CT1: "tsg_ct/WG1_NAS",
-  CT4: "tsg_ct/WG4_PROCO",
+  CT1: "tsg_ct/WG1_mm-cc-sm_ex-CN1",
+  CT4: "tsg_ct/WG4_protocollars_ex-CN4",
 });
 
 const GROUP_BY_TDOC_PREFIX = Object.freeze({
@@ -461,11 +462,16 @@ const downloadProposals = defineTool({
   id: "3gpp.download",
   name: "download_3gpp_proposals",
   description:
-    "按会议和 KI 下载、转换官方提案。每次刷新 Docs 中的 TDoc 表并核对 ZIP，保留修订稿及撤回标记；表不可用时按议程下载已知文件并明确范围未确认。meeting 接受 SA2#175、准确官方目录名或 URL（加会必须用准确目录）。提供 spec 如 23.801-01 防止同号 KI 混用；有明确官方映射时可提供 agenda_item 如 20.6.2。重试复用已完成文件。",
+    "按官方会议的 KI、议程项或工作项目下载并转换提案。KI 模式使用 ki；CT1/CT4 等按议题组织的会议应省略 ki，提供 agenda_item 或 work_item（如 FS_6G_CPCN_CT），包括对应子议程。禁止把议程编号或项目名伪装成 KI。spec 只填写本次确需限制的 TR/TS；CT 和议程模式不从提示词推测规范号。meeting 使用准确目录或 URL。保留修订、撤回标记及范围提示，重试复用已完成文件。",
   schema: z.object({
     group: z.string().trim().toUpperCase(),
     meeting: z.string().trim().min(1).max(300),
-    ki: z.array(z.string().trim().min(1).max(40)).min(1).max(20),
+    ki: z.array(z.string().trim().min(1).max(40)).min(1).max(20).optional(),
+    work_item: z
+      .string()
+      .trim()
+      .regex(/^[A-Za-z][A-Za-z0-9_-]{0,99}$/)
+      .optional(),
     spec: z
       .string()
       .trim()
@@ -481,8 +487,11 @@ const downloadProposals = defineTool({
   idempotency: "none",
   retry: { maxAttempts: 1 },
   maxResultBytes: 24 * 1024,
-  activity: ({ group, meeting }) => `下载 ${group} ${meeting} 的官方 KI 提案`,
-  execute: async ({ group, meeting, ki, spec, agenda_item }, context) => {
+  activity: ({ group, meeting }) => `下载 ${group} ${meeting} 的官方提案`,
+  execute: async (
+    { group, meeting, ki, spec, agenda_item, work_item },
+    context
+  ) => {
     context.signal?.throwIfAborted();
     if (!DIRECTORY_BY_GROUP[group])
       return {
@@ -492,7 +501,16 @@ const downloadProposals = defineTool({
           "下载工具目前支持 SA1、SA2、SA3、SA5、CT1、CT4。其他工作组请提供原始文档。",
         retryable: false,
       };
-    if (agenda_item && ki.length !== 1)
+    const hasKi = Boolean(ki?.length);
+    if ((!hasKi && !agenda_item && !work_item) || (hasKi && work_item))
+      return {
+        ok: false,
+        code: "INVALID_SCOPE",
+        summary:
+          "请使用 ki，或省略 ki 并提供 agenda_item/work_item；不能把工作项目名当作 KI。",
+        retryable: false,
+      };
+    if (agenda_item && hasKi && ki.length !== 1)
       return {
         ok: false,
         code: "INVALID_SCOPE",
@@ -534,7 +552,10 @@ const downloadProposals = defineTool({
         retryable: false,
       };
     const number = snapshot.number;
-    const scopeSpec = requestedSpec(spec, context.run.prompt);
+    const scopeSpec = requestedSpec(
+      spec,
+      hasKi && group.startsWith("SA") ? context.run.prompt : ""
+    );
     const meetingAgenda = await threeGppDocuments.meetingDocuments(
       group,
       snapshot,
@@ -551,22 +572,30 @@ const downloadProposals = defineTool({
     const selectionSnapshots = [];
     const pendingDocuments = [];
     try {
-      for (const requestedKi of [...new Set(ki)]) {
+      for (const requestedKi of hasKi ? [...new Set(ki)] : [null]) {
         const normalizedKi = kiNumber(requestedKi);
-        if (!normalizedKi) {
+        if (hasKi && !normalizedKi) {
           failures.push({
             ki: requestedKi,
             code: "INVALID_KI",
-            error: "KI 必须写成 KI18 或 KI#18。",
+            error:
+              "KI 必须写成 KI18 或 KI#18；按议题下载请省略 ki 并提供 agenda_item 或 work_item。",
           });
           continue;
         }
-        const selection = selectKiDocuments(
-          meetingAgenda,
-          requestedKi,
-          scopeSpec,
-          agenda_item
-        );
+        const selection = hasKi
+          ? selectKiDocuments(
+              meetingAgenda,
+              requestedKi,
+              scopeSpec,
+              agenda_item
+            )
+          : selectAgendaDocuments(
+              meetingAgenda,
+              scopeSpec,
+              agenda_item,
+              work_item
+            );
         if (selection.code) {
           failures.push({
             ki: requestedKi,
@@ -577,8 +606,17 @@ const downloadProposals = defineTool({
           });
           continue;
         }
+        const scope = {
+          type: hasKi ? "ki" : work_item ? "work_item" : "agenda",
+          agendaItem: selection.agendaItem,
+          ...(work_item ? { workItem: work_item } : {}),
+        };
+        const scopeKey = hasKi
+          ? `KI${normalizedKi}`
+          : `agenda-${selection.agendaItem}`;
         selections.push({
           ki: requestedKi,
+          scope,
           agendaItem: selection.agendaItem,
           title: selection.title,
           count: selection.documents.length,
@@ -586,6 +624,7 @@ const downloadProposals = defineTool({
         });
         selectionSnapshots.push({
           ki: requestedKi,
+          scope,
           agendaItem: selection.agendaItem,
           proposals: selection.documents,
         });
@@ -612,12 +651,12 @@ const downloadProposals = defineTool({
           return true;
         });
         const tdocs = [...new Set(downloadable.map((d) => d.document))];
-        const rootName = `${safeWorkspaceSegment(snapshot.id)}-${scopeSpec || "agenda"}-${selection.agendaItem}-KI${normalizedKi}`;
+        const rootName = `${safeWorkspaceSegment(snapshot.id)}-${scopeSpec || "agenda"}-${selection.agendaItem}-${scopeKey}`;
         const proposalRelative = `3gpp/${rootName}/proposal`;
         const proposalRoot = await manager.validatePath(proposalRelative);
         await fs.mkdir(proposalRoot, { recursive: true });
         const files = [];
-        const kiTempRelative = `${temporaryRoot}/${safeWorkspaceSegment(`KI${normalizedKi}`)}`;
+        const kiTempRelative = `${temporaryRoot}/${safeWorkspaceSegment(scopeKey)}`;
         const manifestRelative = `${kiTempRelative}/proposals.json`;
         const kiTempPath = await manager.validatePath(kiTempRelative);
         await fs.mkdir(kiTempPath, { recursive: true });
@@ -637,6 +676,7 @@ const downloadProposals = defineTool({
               spec: scopeSpec,
               agendaItem: selection.agendaItem,
               agenda_filter: requestedKi,
+              scope,
               count: selection.documents.length,
               proposals: selection.documents,
             },
@@ -780,12 +820,13 @@ const downloadProposals = defineTool({
             await context.emit("task.progress", {
               taskId: context.taskId,
               phase: "download",
-              summary: `${group}#${number} ${requestedKi}：已完成 ${files.length}/${tdocs.length} 份，未完成 ${failures.filter((f) => f.ki === requestedKi).length} 份。`,
+              summary: `${group}#${number} ${requestedKi || selection.agendaItem}：已完成 ${files.length}/${tdocs.length} 份，未完成 ${failures.filter((f) => f.ki === requestedKi).length} 份。`,
             });
           }
         }
         outputs.push({
-          ki: `KI${normalizedKi}`,
+          ki: hasKi ? `KI${normalizedKi}` : null,
+          scope,
           directory: `/workspace/3gpp/${rootName}`,
           files,
           agendaItem: selection.agendaItem,
@@ -809,7 +850,9 @@ const downloadProposals = defineTool({
             runId,
             group,
             meeting: `${group}#${number}`,
-            ki,
+            ki: ki || [],
+            agendaItem: agenda_item,
+            workItem: work_item,
             selections,
             selectionSnapshots,
             source: meetingAgenda.source,

@@ -73,6 +73,97 @@ function selectKiDocuments(agenda, ki, spec, agendaItem) {
   };
 }
 
+// CT study topics use official agenda/WI scopes, not synthetic KI numbers.
+function selectAgendaDocuments(agenda, spec, agendaItem, workItem) {
+  const documents = agenda.documents || [];
+  const items = agenda.items || [];
+  const within = (value, root) =>
+    value === root || String(value || "").startsWith(root + ".");
+  let section = agendaItem;
+  if (workItem) {
+    const escaped = String(workItem).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const pattern = new RegExp(
+      "(^|[^A-Za-z0-9_])" + escaped + "(?![A-Za-z0-9_])",
+      "i"
+    );
+    const candidates = [
+      ...new Set(
+        [
+          ...items
+            .filter((i) => pattern.test(i.title || ""))
+            .map((i) => i.value),
+          ...documents
+            .filter((d) => pattern.test(d.workItem || ""))
+            .map((d) => d.agenda),
+        ].filter(Boolean)
+      ),
+    ];
+    const roots = candidates.filter(
+      (candidate) =>
+        !candidates.some(
+          (other) => other !== candidate && within(candidate, other)
+        )
+    );
+    if (section) {
+      if (
+        !candidates.some(
+          (candidate) =>
+            within(candidate, section) || within(section, candidate)
+        )
+      )
+        return {
+          code: "WORK_ITEM_SCOPE_NOT_FOUND",
+          error:
+            "指定议程项不属于该工作项目，请核对 work_item 和 agenda_item。",
+        };
+      if (!candidates.some((candidate) => within(section, candidate)))
+        return {
+          code: "AMBIGUOUS_WORK_ITEM",
+          error:
+            "请指定该工作项目对应的准确议程项，不要使用包含其他项目的上级议程。",
+          candidates: roots,
+        };
+    } else if (roots.length !== 1) {
+      return {
+        code: roots.length
+          ? "AMBIGUOUS_WORK_ITEM"
+          : "WORK_ITEM_SCOPE_NOT_FOUND",
+        error: roots.length
+          ? "该工作项目对应多个议程项，请提供 agenda_item。"
+          : "官方清单未找到该工作项目，请核对 work_item 或使用准确的 agenda_item。",
+        candidates: roots,
+      };
+    } else section = roots[0];
+  }
+  if (
+    !section ||
+    !/^\d+(?:\.\d+)*$/.test(section) ||
+    (!items.some((i) => within(i.value, section)) &&
+      !documents.some((d) => within(d.agenda, section)))
+  )
+    return {
+      code: "AGENDA_SCOPE_NOT_FOUND",
+      error: "官方清单未找到指定议程范围，请核对 agenda_item。",
+    };
+  const inScope = documents.filter((d) => within(d.agenda, section));
+  const selected = inScope.filter((d) => {
+    const specs =
+      (d.spec || d.title || "").match(/\b\d{2}\.\d{3}(?:-\d{2})?\b/g) || [];
+    return !spec || !specs.length || specs.includes(spec);
+  });
+  if (spec && inScope.length && !selected.length)
+    return {
+      code: "AGENDA_SCOPE_NOT_FOUND",
+      error: "指定议程项中的提案不属于该 TR/TS，请核对 spec 和 agenda_item。",
+    };
+  return {
+    documents: selected,
+    agendaItem: section,
+    title: items.find((i) => i.value === section)?.title || "",
+    empty: !selected.length,
+  };
+}
+
 function requestedSpec(explicit, prompt) {
   if (explicit) return explicit.replace(/^(?:TR|TS)\s*/i, "").trim();
   const specs = [
@@ -86,4 +177,9 @@ function requestedSpec(explicit, prompt) {
   ];
   return specs.length === 1 ? specs[0] : null;
 }
-module.exports = { selectMeeting, selectKiDocuments, requestedSpec };
+module.exports = {
+  selectMeeting,
+  selectKiDocuments,
+  selectAgendaDocuments,
+  requestedSpec,
+};

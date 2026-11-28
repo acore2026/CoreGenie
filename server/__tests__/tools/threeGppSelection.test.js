@@ -130,3 +130,108 @@ test("does not confuse nested KI or spec prefixes", () => {
   );
   expect(requestedSpec(undefined, "TR 23.801-01 and TR 23.801-04")).toBeNull();
 });
+
+const { selectAgendaDocuments } = require("../../tools/threeGppSelection");
+describe("official agenda and work item scopes", () => {
+  const agenda = {
+    items: [
+      { value: "21.2", title: "Control Plane [FS_6G_CPCN_CT]" },
+      { value: "21.2.1", title: "Transport" },
+      { value: "21.3", title: "User Plane [FS_6G_UPCN_CT]" },
+    ],
+    documents: [
+      {
+        document: "C4-265041",
+        agenda: "21.2",
+        spec: "29.840",
+        workItem: "FS_6G_CPCN_CT",
+        title: "Protocol proposal",
+      },
+      { document: "C4-265048", agenda: "21.2", spec: "", title: "Work plan" },
+      {
+        document: "C4-265049",
+        agenda: "21.2.1",
+        spec: "29.840",
+        title: "Revision",
+      },
+      {
+        document: "C4-265050",
+        agenda: "21.20",
+        spec: "29.840",
+        title: "Different topic",
+      },
+      {
+        document: "C4-265051",
+        agenda: "21.3",
+        spec: "29.841",
+        workItem: "FS_6G_UPCN_CT",
+        title: "UP proposal",
+      },
+    ],
+  };
+  test("agenda mode includes descendants, missing spec metadata and revisions without matching neighboring prefixes", () => {
+    expect(
+      selectAgendaDocuments(agenda, null, "21.2").documents.map(
+        (d) => d.document
+      )
+    ).toEqual(["C4-265041", "C4-265048", "C4-265049"]);
+    expect(
+      selectAgendaDocuments(agenda, null, "21.2.1").documents
+    ).toHaveLength(1);
+    expect(selectAgendaDocuments(agenda, null, "99").code).toBe(
+      "AGENDA_SCOPE_NOT_FOUND"
+    );
+  });
+  test("work item maps from official metadata, never from a KI or a title substring", () => {
+    expect(
+      selectAgendaDocuments(agenda, null, undefined, "FS_6G_CPCN_CT")
+    ).toMatchObject({
+      agendaItem: "21.2",
+      documents: expect.any(Array),
+    });
+    expect(
+      selectAgendaDocuments(agenda, null, undefined, "fs_6g_cpcn_ct").documents
+    ).toHaveLength(3);
+    expect(
+      selectAgendaDocuments(agenda, null, undefined, "FS_6G_CPCN").code
+    ).toBe("WORK_ITEM_SCOPE_NOT_FOUND");
+    expect(
+      selectAgendaDocuments(agenda, null, "21.3", "FS_6G_CPCN_CT").code
+    ).toBe("WORK_ITEM_SCOPE_NOT_FOUND");
+    expect(
+      selectAgendaDocuments(agenda, null, "21", "FS_6G_CPCN_CT").code
+    ).toBe("AMBIGUOUS_WORK_ITEM");
+  });
+  test("ambiguous work item requires an explicit official agenda scope", () => {
+    const duplicated = {
+      ...agenda,
+      items: [...agenda.items, { value: "22.1", title: "[FS_6G_CPCN_CT]" }],
+    };
+    expect(
+      selectAgendaDocuments(duplicated, null, undefined, "FS_6G_CPCN_CT").code
+    ).toBe("AMBIGUOUS_WORK_ITEM");
+    expect(
+      selectAgendaDocuments(duplicated, null, "21.2", "FS_6G_CPCN_CT").documents
+    ).toHaveLength(3);
+  });
+  test("explicit spec still restricts the scope and an empty official heading stays uncertain", () => {
+    expect(
+      selectAgendaDocuments(agenda, "29.840", "21.2").documents
+    ).toHaveLength(3);
+    expect(
+      selectAgendaDocuments(
+        { ...agenda, documents: [agenda.documents[0]] },
+        "23.801-01",
+        "21.2"
+      ).code
+    ).toBe("AGENDA_SCOPE_NOT_FOUND");
+    expect(
+      selectAgendaDocuments(
+        { items: agenda.items, documents: [] },
+        null,
+        undefined,
+        "FS_6G_CPCN_CT"
+      )
+    ).toMatchObject({ empty: true, documents: [], agendaItem: "21.2" });
+  });
+});

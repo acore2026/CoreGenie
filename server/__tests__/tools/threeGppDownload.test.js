@@ -22,9 +22,9 @@ const meeting = {
   source: "https://www.3gpp.org/ftp/tsg_sa/WG2_Arch/TSGS2_175_Dalian_2026-05/",
 };
 const tdoc = "S2-2604004";
-function response(status = 200) {
+function response(status = 200, document = tdoc) {
   const zip = new AdmZip();
-  zip.addFile(tdoc + ".docx", Buffer.from("original DOCX"));
+  zip.addFile(document + ".docx", Buffer.from("original DOCX"));
   return new Response(status === 200 ? zip.toBuffer() : "error", { status });
 }
 beforeEach(async () => {
@@ -76,15 +76,16 @@ beforeEach(async () => {
   });
   jest.spyOn(global, "fetch").mockImplementation(async () => response());
   jest.spyOn(sandbox, "run").mockImplementation(async ({ code }) => {
+    const convertedTdoc = code.match(/--input '[^']+\/([^\/]+)\.docx'/)[1];
     const output = code.match(/--output '\/workspace\/([^']+)'/)[1];
     await fs.mkdir(path.join(root, output, "assets"), { recursive: true });
     await fs.writeFile(path.join(root, output, "assets/image.png"), "image");
     await fs.writeFile(
       path.join(root, output, "conversion-summary.json"),
-      JSON.stringify({ markdown: tdoc + ".md", warnings: [] })
+      JSON.stringify({ markdown: convertedTdoc + ".md", warnings: [] })
     );
     await fs.writeFile(
-      path.join(root, output, tdoc + ".md"),
+      path.join(root, output, convertedTdoc + ".md"),
       "![original](assets/image.png)"
     );
     return { exitCode: 0, stdout: "converted", stderr: "" };
@@ -371,3 +372,230 @@ test("large download results keep structured counts and the complete durable fil
   expect(record.selectionSnapshots[0].proposals).toHaveLength(40);
   expect(fetch).not.toHaveBeenCalled();
 });
+
+test.each([
+  ["CT1", "TSGC1_165_Incheon", "WG1_mm-cc-sm_ex-CN1", "C1-2600001"],
+  ["CT4", "CT4_138_Calgary-2026-11", "WG4_protocollars_ex-CN4", "C4-265041"],
+])(
+  "accepts the official %s archive path and still rejects another group, meeting or TDoc",
+  async (group, folder, directory, document) => {
+    const url =
+      "https://www.3gpp.org/ftp/tsg_ct/" +
+      directory +
+      "/" +
+      folder +
+      "/Docs/" +
+      document +
+      ".zip";
+    fetch.mockImplementation(async () => response(200, document));
+    expect(
+      (
+        await downloadOfficialTdoc(parseTdoc(document), context, manager, {
+          meetingFolder: folder,
+          destinationRoot: "ct-docs",
+          archiveUrl: url,
+        })
+      ).ok
+    ).toBe(true);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    for (const invalid of [
+      url.replace(directory, "WG_OTHER"),
+      url.replace(folder, folder + "_other"),
+      url.replace(document + ".zip", document + "9.zip"),
+      url.replace("www.3gpp.org", "example.com"),
+    ]) {
+      await expect(
+        downloadOfficialTdoc(parseTdoc(document), context, manager, {
+          meetingFolder: folder,
+          destinationRoot: "ct-docs",
+          archiveUrl: invalid,
+        })
+      ).rejects.toThrow();
+    }
+    expect(fetch).toHaveBeenCalledTimes(1);
+  }
+);
+
+test.each([
+  { agenda_item: "21.2" },
+  { work_item: "FS_6G_CPCN_CT" },
+  { ki: ["KI21"], agenda_item: "21.2" },
+])(
+  "CT4 scope %j does not infer a SA2 spec from a warning in the prompt",
+  async (scope) => {
+    const ctMeeting = {
+      id: "CT4_138_Calgary-2026-11",
+      number: 138,
+      source:
+        "https://www.3gpp.org/ftp/tsg_ct/WG4_protocollars_ex-CN4/CT4_138_Calgary-2026-11/",
+    };
+    catalog.meetings.mockResolvedValue({ meetings: [ctMeeting] });
+    context.run.prompt = "CT4 6G 提案。不要套用 SA2 的 TR 23.801-01。";
+    const documents = [
+      { document: "C4-265041", spec: "29.840", status: "available" },
+      { document: "C4-265048", spec: "", status: "withdrawn" },
+    ].map((d) => ({
+      ...d,
+      agenda: "21.2",
+      title: "Control plane proposal",
+      workItem: "FS_6G_CPCN_CT",
+      availability: "listed",
+      downloadUrl: ctMeeting.source + "Docs/" + d.document + ".zip",
+    }));
+    documentCatalog.meetingDocuments.mockResolvedValue({
+      source: ctMeeting.source + "Docs/TDoc_List_Meeting_CT4%23138.xlsx",
+      docsSource: ctMeeting.source + "Docs/",
+      selectionSource: "official-tdoc-list",
+      warnings: [],
+      unindexedTdocs: [],
+      items: [{ value: "21.2", title: "Control Plane [FS_6G_CPCN_CT]" }],
+      documents,
+    });
+    fetch.mockImplementation(async (url) =>
+      response(200, String(url).match(/(C4-\d+)\.zip$/)[1])
+    );
+    const result = await downloadProposals.execute(
+      { group: "CT4", meeting: ctMeeting.id, ...scope },
+      context
+    );
+    expect(result.ok).toBe(true);
+    expect(result.data.selections[0].count).toBe(2);
+    expect(result.data.outputs[0].files.map((f) => f.tdoc)).toEqual([
+      "C4-265041",
+      "C4-265048",
+    ]);
+    expect(result.data.outputs[0].files[1].withdrawn).toBe(true);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    const manifest = JSON.parse(
+      await fs.readFile(
+        path.join(
+          root,
+          result.data.outputs[0].directory.replace("/workspace/", ""),
+          "tdoc-manifest.json"
+        ),
+        "utf8"
+      )
+    );
+    expect(manifest.spec).toBeNull();
+    expect(manifest.scope.agendaItem).toBe("21.2");
+    if (!scope.ki) {
+      expect(result.data.outputs[0].ki).toBeNull();
+      expect(manifest.scope.type).toBe(
+        scope.work_item ? "work_item" : "agenda"
+      );
+      expect(manifest.agenda_filter).toBeNull();
+    }
+    expect(
+      (
+        await downloadProposals.execute(
+          { group: "CT4", meeting: ctMeeting.id, ...scope },
+          context
+        )
+      ).data.outputs[0].files.every((f) => f.cached)
+    ).toBe(true);
+    expect(fetch).toHaveBeenCalledTimes(2);
+  }
+);
+
+test("scope is required and work items cannot be combined with KI identifiers", async () => {
+  for (const scope of [{}, { ki: ["KI21"], work_item: "FS_6G_CPCN_CT" }]) {
+    const result = await downloadProposals.execute(
+      { group: "CT4", meeting: "CT4#138", ...scope },
+      context
+    );
+    expect(result.code).toBe("INVALID_SCOPE");
+  }
+  expect(catalog.meetings).not.toHaveBeenCalled();
+  expect(fetch).not.toHaveBeenCalled();
+  expect(
+    downloadProposals.schema.safeParse({
+      group: "CT4",
+      meeting: "CT4#138",
+      agenda_item: "21.2",
+    }).success
+  ).toBe(true);
+  expect(
+    downloadProposals.schema.safeParse({
+      group: "CT4",
+      meeting: "CT4#138",
+      work_item: "FS_6G_CPCN_CT",
+    }).success
+  ).toBe(true);
+});
+
+test.each([
+  { agenda_item: "21.1" },
+  { work_item: "FS_6G_NAS_CT", agenda_item: "21.1" },
+])(
+  "CT1 scope %j accepts official agenda selection without inventing a KI or inferring SA2 specs",
+  async (scope) => {
+    const ctMeeting = {
+      id: "TSGC1_164_Calgary",
+      number: 164,
+      source:
+        "https://www.3gpp.org/ftp/tsg_ct/WG1_mm-cc-sm_ex-CN1/TSGC1_164_Calgary/",
+    };
+    catalog.meetings.mockResolvedValue({ meetings: [ctMeeting] });
+    context.run.prompt = "CT1 6G 文稿；不要套用 SA2 的 TR 23.801-01。";
+    const documents = [
+      {
+        document: "C1-266058",
+        agenda: "21.1",
+        spec: "24.860",
+        workItem: "FS_6G_NAS_CT",
+        status: "available",
+      },
+      {
+        document: "C1-266059",
+        agenda: "21.1.1",
+        spec: "",
+        workItem: "",
+        status: "revised",
+      },
+      {
+        document: "C1-266103",
+        agenda: "21.2",
+        spec: "24.861",
+        workItem: "FS_6G_MISC_CT",
+        status: "available",
+      },
+    ].map((d) => ({
+      ...d,
+      title: "Protocol proposal",
+      availability: "listed",
+      downloadUrl: ctMeeting.source + "Docs/" + d.document + ".zip",
+    }));
+    documentCatalog.meetingDocuments.mockResolvedValue({
+      source: ctMeeting.source + "Docs/TDoc_List_Meeting_CT1%23164.xlsx",
+      docsSource: ctMeeting.source + "Docs/",
+      selectionSource: "official-tdoc-list",
+      warnings: [],
+      unindexedTdocs: [],
+      items: [
+        { value: "21.1", title: "NAS protocol for 6G [FS_6G_NAS_CT]" },
+        { value: "21.2", title: "Miscellaneous Functions [FS_6G_MISC_CT]" },
+      ],
+      documents,
+    });
+    fetch.mockImplementation(async (url) =>
+      response(200, String(url).match(/(C1-\d+)\.zip$/)[1])
+    );
+    const result = await downloadProposals.execute(
+      { group: "CT1", meeting: ctMeeting.id, ...scope },
+      context
+    );
+    expect(result.ok).toBe(true);
+    expect(result.data.selections[0].count).toBe(2);
+    expect(result.data.outputs[0].ki).toBeNull();
+    expect(result.data.outputs[0].files.map((f) => f.tdoc)).toEqual([
+      "C1-266058",
+      "C1-266059",
+    ]);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(
+      fetch.mock.calls.every(([url]) =>
+        String(url).includes("/WG1_mm-cc-sm_ex-CN1/")
+      )
+    ).toBe(true);
+  }
+);

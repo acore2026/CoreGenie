@@ -24,6 +24,21 @@ Index、ZIP、转换摘要属于中间资料，不能写入上述交付目录。
 
 同号 KI 可能属于不同研究项目。知道 TR/TS 时提供 `spec`，例如 `23.801-01`；已经由官方资料确认议程映射时可同时提供 `agenda_item`，例如 `20.6.2`，此时一次只处理一个 KI。不要根据议程编号末位猜 KI。
 
+
+CT1、CT4 等按工作项目组织的议题不需要 KI。先从官方清单核对议程号或 Related WIs，再任选一种方式调用：
+
+```json
+{"group":"CT4","meeting":"CT4#138","agenda_item":"21.2"}
+```
+
+```json
+{"group":"CT4","meeting":"CT4#138","work_item":"FS_6G_CPCN_CT"}
+```
+
+上例的会议与议程仅用于说明参数，实际值必须重新核对。省略 `ki` 时，`agenda_item` 包含该议程及其子项；`work_item` 只按官方议程标题和 Related WIs 映射，不按提案标题猜测。工作项目跨多个议程时提供准确 `agenda_item` 缩小范围。不得把 `21.2` 写成 `KI21`，也不得把工作项目名放进 `ki`。不要同时传 `ki` 和 `work_item`。
+
+CT 及无 KI 的议程模式仅使用显式 `spec`，不会从用户提示词中的规范号推断过滤条件。除非用户确实要求限定某份 TR/TS，否则省略 `spec`，避免遗漏该议题下其他规范及没有规范号的 LS、工作计划等文稿。
+
 Tool 每次重新读取准确会议的 Docs 目录，优先使用其中对应会议的 `TDoc_List_Meeting_*.xlsx`，按 Spec、议程项筛选，再核对实际 ZIP。标题不含 TR/TS 时仍以表中的 Spec 列区分项目。不会只因 agenda 尚未更新就漏掉表中已上传的提案，也不会按相似文件名改用其他会议或共享同步目录。
 
 TDoc 表缺失或无法解析时，Tool 退回当前官方议程，仍可下载其中已知提案，但会返回来源错误和范围提示。返回 `AMBIGUOUS_KI`、`KI_SCOPE_NOT_FOUND` 或 `AMBIGUOUS_MEETING` 时先核对项目和会议，不要重复相同参数、猜编号或扩大到整场会议。
@@ -45,7 +60,7 @@ TDoc 表缺失或无法解析时，Tool 退回当前官方议程，仍可下载�
 
 `selectionSource` 区分 TDoc 表和议程来源；报告注明来源及 `fetchedAt` 读取时间。`completeness: unknown` 表示不保证覆盖 Inbox 草稿、尚未分配议程项的文档、后续上传或整个 KI。工具不递归下载 Inbox；用户要求包含草稿时，说明当前工具未覆盖的部分。`tdoc-manifest.json` 使用 `3gpp-download-selection/v1`，是本次下载选择记录，不是严格 coverage 凭据。不要将 source URL 当公司署名，也不要将清单或下载记录改造成严格 coverage。需要更完整的范围时先检查实际官方资料；无法确认的部分直接列为缺失。
 
-工具当前支持 SA1、SA2、SA3、SA5、CT1、CT4，KI 必填。meeting 接受 `SA2#177`、准确官方目录名或 URL；加会使用目录列表返回的准确 id 或 source，不用简称猜目录。其他组和整场会议下载不应伪装成受支持。KI 编号必须连同研究项目/TR 和版本理解；同号 KI 的多个研究项目不合并下载。分析阶段复用实际文件；重新下载仍调用 Tool。
+工具当前支持 SA1、SA2、SA3、SA5、CT1、CT4。ki 与 agenda_item/work_item 至少提供一种范围；没有 KI 的议题不要编造 KI。meeting 接受 `SA2#177`、准确官方目录名或 URL；加会使用目录列表返回的准确 id 或 source，不用简称猜目录。其他组和整场会议下载不应伪装成受支持。KI 编号必须连同研究项目/TR 和版本理解；同号 KI 的多个研究项目不合并下载。分析阶段复用实际文件；重新下载仍调用 Tool。
 
 ## 提取和图表核验
 
