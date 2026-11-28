@@ -7,6 +7,7 @@ export interface Announcement {
   createdAt?: string;
   updatedAt?: string;
   read?: boolean;
+  readAt?: string | null;
 }
 
 export interface AnnouncementPayload {

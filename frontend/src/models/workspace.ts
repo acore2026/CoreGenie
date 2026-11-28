@@ -1,3 +1,11 @@
+type SearchWorkspace = Pick<WorkspaceRecord, "slug" | "name">;
+export interface WorkspaceSearchResults {
+  workspaces: SearchWorkspace[];
+  threads: (SearchWorkspace & {
+    workspace: SearchWorkspace;
+    owner?: { username: string; displayName?: string } | null;
+  })[];
+}
 export interface WorkspaceMember {
   id: number;
   username: string;
@@ -769,12 +777,11 @@ const Workspace = {
 
   searchWorkspaceOrThread: async function (
     searchTerm: string
-  ): Promise<{ workspaces: AnyRecord[]; threads: AnyRecord[] }> {
+  ): Promise<WorkspaceSearchResults> {
     try {
-      return await api.post<{ workspaces: AnyRecord[]; threads: AnyRecord[] }>(
-        "/workspace/search",
-        { searchTerm }
-      );
+      return await api.post<WorkspaceSearchResults>("/workspace/search", {
+        searchTerm,
+      });
     } catch (e) {
       console.error(e);
       return { workspaces: [], threads: [] };

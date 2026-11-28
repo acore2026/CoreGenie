@@ -27,7 +27,7 @@ const navControl =
 export default function Sidebar() {
   const { logo, isCustomLogo } = useLogo();
   const { t } = useTranslation();
-  const sidebarRef = useRef(null);
+  const sidebarRef = useRef<HTMLDivElement>(null);
   const { showSidebar, setShowSidebar, canToggleSidebar } = useSidebarToggle();
   const {
     showing: showingNewWsModal,
@@ -39,7 +39,9 @@ export default function Sidebar() {
   function openSearch() {
     setShowSidebar(true);
     requestAnimationFrame(() =>
-      sidebarRef.current?.querySelector('input[type="search"]')?.focus()
+      sidebarRef.current
+        ?.querySelector<HTMLInputElement>('input[type="search"]')
+        ?.focus()
     );
   }
 
@@ -148,7 +150,7 @@ export function SidebarMobileHeader() {
   const { logo, isCustomLogo } = useLogo();
   const { t } = useTranslation();
   const { pathname } = useLocation();
-  const [dialog, setDialog] = useState(null);
+  const [dialog, setDialog] = useState<HTMLDialogElement | null>(null);
   const [showSidebar, setShowSidebar] = useState(false);
   const {
     showing: showingNewWsModal,
@@ -263,7 +265,15 @@ export function SidebarMobileHeader() {
   );
 }
 
-function SidebarBrand({ logo, isCustomLogo, compact = false }) {
+function SidebarBrand({
+  logo,
+  isCustomLogo,
+  compact = false,
+}: {
+  logo: string;
+  isCustomLogo: boolean;
+  compact?: boolean;
+}) {
   if (isCustomLogo) {
     return (
       <img

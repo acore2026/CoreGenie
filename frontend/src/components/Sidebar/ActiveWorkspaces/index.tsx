@@ -67,6 +67,7 @@ function DraggableWorkspaceRow({
   const { attributes, listeners, setNodeRef, transform, isDragging } =
     useDraggable({
       id: String(workspace.id),
+      attributes: { role: "link" },
       disabled,
       data: { workspace, sourceGroupId, sourceIndex },
     });
@@ -558,7 +559,7 @@ function WorkspaceList({
             dialog={groupDialog}
             settings={groupSettings}
             canManageGlobal={canManageGlobal}
-            workspaces={workspaces as never[]}
+            workspaces={workspaces}
             globalAssignments={preferences.globalGroups?.assignments || {}}
             saving={saving}
             onMove={(ids: number[], targetId: string) =>
@@ -595,7 +596,7 @@ function WorkspaceList({
         {showing && (
           <ManageWorkspace
             hideModal={hideModal}
-            providedSlug={(selectedWs ? selectedWs.slug : null) as never}
+            providedSlug={selectedWs?.slug ?? null}
             initialTab="workspaceFiles"
           />
         )}

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { SidebarSimple } from "@phosphor-icons/react";
 import paths from "@/utils/paths";
 import { useLocation } from "react-router-dom";
@@ -29,7 +29,7 @@ export function useSidebarToggle() {
     /^\/workspace\/[^/]+\/t\/[^/]+$/.test(pathname);
 
   useEffect(() => {
-    function toggleSidebar(e) {
+    function toggleSidebar(e: KeyboardEvent) {
       if (!canToggleSidebar) return;
       if (
         (e.ctrlKey || e.metaKey) &&
@@ -67,7 +67,13 @@ export function useSidebarToggle() {
   return { showSidebar, setShowSidebar, canToggleSidebar };
 }
 
-export function ToggleSidebarButton({ showSidebar, setShowSidebar }) {
+export function ToggleSidebarButton({
+  showSidebar,
+  setShowSidebar,
+}: {
+  showSidebar: boolean;
+  setShowSidebar: React.Dispatch<React.SetStateAction<boolean>>;
+}) {
   const { t } = useTranslation();
   const isMac = navigator.userAgent.includes("Mac");
   const shortcut = isMac ? "⌘ + Shift + S" : "Ctrl + Shift + S";

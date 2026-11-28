@@ -20,10 +20,32 @@ import {
   groupDropTargetId,
 } from "@/utils/workspaceGroups.ts";
 
+import type { TFunction } from "i18next";
+import type { GroupSettings, WorkspaceGroup } from "@/utils/workspaceGroups";
+import type { SidebarWorkspace } from "./WorkspaceMenu";
+import type { GroupDialogState } from "./useWorkspaceGroupsState";
+type RenderWorkspace = (
+  workspace: SidebarWorkspace,
+  index: number,
+  sourceGroupId: string
+) => React.ReactNode;
+interface GroupMoverProps {
+  group: WorkspaceGroup;
+  settings: GroupSettings;
+  workspaces: SidebarWorkspace[];
+  globalAssignments: Record<string, string>;
+  onMove: (ids: number[], target: string) => boolean;
+  saving: boolean;
+}
 const iconButton =
   "flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-theme-text-secondary hover:bg-theme-sidebar-subitem-hover hover:text-theme-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-button disabled:opacity-50";
 
-function GroupDropHeader({ id, scope, disabled, children }) {
+function GroupDropHeader({
+  id,
+  scope,
+  disabled,
+  children,
+}: React.PropsWithChildren<{ id: string; scope: string; disabled: boolean }>) {
   const { setNodeRef, isOver } = useDroppable({
     id: groupDropTargetId(id),
     disabled,
@@ -48,6 +70,14 @@ function GroupDropList({
   groups,
   renderWorkspace,
   t,
+}: {
+  id: string;
+  scope: string;
+  disabled: boolean;
+  entries: SidebarWorkspace[];
+  groups: WorkspaceGroup[];
+  renderWorkspace: RenderWorkspace;
+  t: TFunction;
 }) {
   const { setNodeRef, isOver } = useDroppable({
     id,
@@ -85,6 +115,16 @@ export function WorkspaceGroupSection({
   renderWorkspace,
   dragScope,
   canManageGlobal,
+}: {
+  scope: string;
+  workspaces: SidebarWorkspace[];
+  settings: GroupSettings;
+  onToggle: (id: string) => void;
+  onCreate: (scope: string) => void;
+  onEdit: (group: WorkspaceGroup) => void;
+  renderWorkspace: RenderWorkspace;
+  dragScope: string | null;
+  canManageGlobal: boolean;
 }) {
   const { t } = useTranslation();
   const groups = settings.groups.filter((group) => group.scope === scope);
@@ -93,14 +133,14 @@ export function WorkspaceGroupSection({
   );
   const collapsed = settings.collapsed[scope] === true;
   const dropDisabled = Boolean(dragScope && dragScope !== scope);
-  function dropHeader(id, children) {
+  function dropHeader(id: string, children: React.ReactNode) {
     return (
       <GroupDropHeader id={id} scope={scope} disabled={dropDisabled}>
         {children}
       </GroupDropHeader>
     );
   }
-  const renderList = (id) => {
+  const renderList = (id: string) => {
     const entries = rows.filter(
       (workspace) => workspaceGroupId(workspace, settings) === id
     );
@@ -230,29 +270,39 @@ export function WorkspaceGroupDialog({
   globalAssignments = {},
   onMove,
   saving = false,
-}) {
+}: Pick<GroupMoverProps, "settings" | "onMove"> &
+  Partial<
+    Pick<GroupMoverProps, "workspaces" | "globalAssignments" | "saving">
+  > & {
+    dialog: GroupDialogState;
+    onClose: () => void;
+    onSave: (value: string, global: boolean) => boolean;
+    onDelete: (id: string) => boolean;
+    onCreate: (scope: string, workspace: SidebarWorkspace) => void;
+    canManageGlobal: boolean;
+  }) {
   const { t } = useTranslation();
-  const assigning = dialog.mode === "assign";
-  const scope = dialog.scope || workspaceScope(dialog.workspace);
+  const assigning = dialog.mode === "assign" && dialog.workspace;
+  const scope = dialog.scope || workspaceScope(dialog.workspace ?? {});
   const [name, setName] = useState(dialog.group?.name || "");
   const [selected, setSelected] = useState(
-    assigning ? workspaceGroupId(dialog.workspace, settings) : scope
+    assigning ? workspaceGroupId(assigning, settings) : scope
   );
   const [deleting, setDeleting] = useState(false);
   const [global, setGlobal] = useState(!!dialog.group?.global);
   const [error, setError] = useState("");
-  const nameRef = useRef(null);
-  const dialogRef = useRef(null);
+  const nameRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   const descriptionId = useId();
   useEffect(() => {
     const element = dialogRef.current;
     const previousFocus = document.activeElement;
-    element.showModal();
+    element?.showModal();
     nameRef.current?.focus();
     return () => {
-      element.close();
-      previousFocus?.focus?.();
+      element?.close();
+      if (previousFocus instanceof HTMLElement) previousFocus.focus();
     };
   }, []);
   const groups = settings.groups.filter((group) => group.scope === scope);
@@ -262,7 +312,7 @@ export function WorkspaceGroupDialog({
       group.id !== dialog.group?.id &&
       group.name.toLocaleLowerCase() === validName.toLocaleLowerCase()
   );
-  function save(event) {
+  function save(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!assigning && (!validName || duplicate)) return;
     if (!onSave(assigning ? selected : validName, !assigning && global))
@@ -316,9 +366,9 @@ export function WorkspaceGroupDialog({
             <>
               <p
                 className="mb-3 truncate text-sm font-medium text-theme-text-primary"
-                title={dialog.workspace.name}
+                title={assigning.name}
               >
-                {dialog.workspace.name}
+                {assigning.name}
               </p>
               <RadioGroup value={selected} onChange={setSelected}>
                 <RadioGroup.Label className="mb-2 block text-xs text-theme-text-secondary">
@@ -357,7 +407,7 @@ export function WorkspaceGroupDialog({
               </RadioGroup>
               <button
                 type="button"
-                onClick={() => onCreate(scope, dialog.workspace)}
+                onClick={() => onCreate(scope, assigning)}
                 className="mt-2 flex min-h-10 w-full items-center gap-2 rounded-md px-3 text-sm text-theme-text-secondary hover:bg-theme-sidebar-subitem-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-button"
               >
                 <Plus size={16} />
@@ -441,7 +491,7 @@ export function WorkspaceGroupDialog({
                 disabled={saving}
                 onClick={() => {
                   if (!deleting) setDeleting(true);
-                  else if (!onDelete(dialog.group.id))
+                  else if (dialog.group && !onDelete(dialog.group.id))
                     setError(t("workspace_groups.save_failed"));
                 }}
                 className="mr-auto min-h-10 rounded-md px-2 text-xs text-theme-text-secondary hover:bg-theme-sidebar-subitem-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-button disabled:opacity-40"
@@ -481,10 +531,10 @@ function GroupWorkspaceMover({
   globalAssignments,
   onMove,
   saving,
-}) {
+}: GroupMoverProps) {
   const { t } = useTranslation();
   const [search, setSearch] = useState("");
-  const [selected, setSelected] = useState([]);
+  const [selected, setSelected] = useState<number[]>([]);
   const [targetId, setTargetId] = useState(group.scope);
   const [error, setError] = useState(false);
   const current = group.global

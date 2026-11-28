@@ -4,9 +4,12 @@ import { useEffect, useRef, useState } from "react";
  * Tracks whether ctrl/meta is held while the mouse is over the referenced container.
  * Returns { containerRef, ctrlPressed } — attach containerRef to the wrapper element.
  */
-export default function useHoverMetaKey(setThreads, ready = true) {
+export default function useHoverMetaKey<T extends { deleted?: boolean }>(
+  setThreads: React.Dispatch<React.SetStateAction<T[]>>,
+  ready = true
+) {
   const [ctrlPressed, setCtrlPressed] = useState(false);
-  const containerRef = useRef(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const isHovering = useRef(false);
 
   useEffect(() => {
@@ -21,7 +24,7 @@ export default function useHoverMetaKey(setThreads, ready = true) {
     const resetThreadDeletions = () =>
       setThreads((prev) => prev.map((t) => ({ ...t, deleted: false })));
 
-    const handleMouseEnter = (event) => {
+    const handleMouseEnter = (event: MouseEvent) => {
       isHovering.current = true;
       if (event.ctrlKey || event.metaKey) {
         setCtrlPressed(true);
@@ -35,14 +38,14 @@ export default function useHoverMetaKey(setThreads, ready = true) {
       });
     };
 
-    const handleKeyDown = (event) => {
+    const handleKeyDown = (event: KeyboardEvent) => {
       if (!isHovering.current) return;
       if (["Control", "Meta"].includes(event.key)) {
         setCtrlPressed(true);
       }
     };
 
-    const handleKeyUp = (event) => {
+    const handleKeyUp = (event: KeyboardEvent) => {
       if (["Control", "Meta"].includes(event.key)) {
         setCtrlPressed(false);
         resetThreadDeletions();

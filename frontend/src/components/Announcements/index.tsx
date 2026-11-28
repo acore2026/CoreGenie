@@ -1,3 +1,5 @@
+import type { Announcement } from "@coregenie/contracts/announcements.mts";
+import { errorMessage } from "@/utils/api";
 import {
   createContext,
   useCallback,
@@ -18,21 +20,25 @@ import AnnouncementModal, {
   formatDate,
 } from "./Modal";
 
-const Context = createContext(null);
-const active = (item) =>
+const Context = createContext<{
+  activate: () => void;
+  openList: () => void;
+  unread: number;
+} | null>(null);
+const active = (item: Announcement) =>
   new Date(item.startsAt).getTime() <= Date.now() &&
   (!item.expiresAt || new Date(item.expiresAt).getTime() > Date.now());
 
-export function AnnouncementProvider({ children }) {
+export function AnnouncementProvider({ children }: React.PropsWithChildren) {
   const { t } = useTranslation();
-  const [items, setItems] = useState([]);
-  const [queue, setQueue] = useState([]);
-  const [selected, setSelected] = useState(null);
+  const [items, setItems] = useState<Announcement[]>([]);
+  const [queue, setQueue] = useState<number[]>([]);
+  const [selected, setSelected] = useState<number | null>(null);
   const [listOpen, setListOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const identity = useRef(null);
+  const identity = useRef<string | null>(null);
   const requestId = useRef(0);
   const closing = useRef(false);
   const [, tick] = useState(0);
@@ -42,7 +48,7 @@ export function AnnouncementProvider({ children }) {
     setLoading(true);
     setError("");
     try {
-      const { announcements } = await Announcements.list();
+      const { announcements = [] } = await Announcements.list();
       if (current !== requestId.current) return;
       setItems(announcements);
       if (automatic)
@@ -52,7 +58,7 @@ export function AnnouncementProvider({ children }) {
             .map((item) => item.id)
         );
     } catch (e) {
-      if (current === requestId.current) setError(e.message);
+      if (current === requestId.current) setError(errorMessage(e));
     } finally {
       if (current === requestId.current) setLoading(false);
     }
@@ -74,7 +80,7 @@ export function AnnouncementProvider({ children }) {
         (item) =>
           item.expiresAt && new Date(item.expiresAt).getTime() > Date.now()
       )
-      .map((item) => new Date(item.expiresAt).getTime());
+      .map((item) => Date.parse(item.expiresAt ?? ""));
     if (!deadlines.length) return;
     const timer = setTimeout(
       () => tick((n) => n + 1),
@@ -108,7 +114,7 @@ export function AnnouncementProvider({ children }) {
       setQueue((prev) => prev.filter((id) => id !== displayed.id));
       setSelected(null);
     } catch (e) {
-      if (e.status === 404) {
+      if (e && typeof e === "object" && "status" in e && e.status === 404) {
         setItems((prev) => prev.filter((item) => item.id !== displayed.id));
         setSelected(null);
       } else setError(t("announcements.readError"));
@@ -220,16 +226,23 @@ export function AnnouncementProvider({ children }) {
 }
 
 export function AnnouncementSession() {
-  const { activate } = useContext(Context);
+  const activate = useContext(Context)?.activate;
   useEffect(() => {
-    activate();
+    activate?.();
   }, [activate]);
   return null;
 }
 
-export default function AnnouncementButton({ menu = false, onOpen }) {
+export default function AnnouncementButton({
+  menu = false,
+  onOpen,
+}: {
+  menu?: boolean;
+  onOpen?: () => void;
+}) {
   const { t } = useTranslation();
   const context = useContext(Context);
+  if (!context) return null;
   return (
     <button
       type="button"

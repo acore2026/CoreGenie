@@ -13,8 +13,8 @@ import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import paths from "@/utils/paths";
 import Preloader from "@/components/Preloader";
-import debounce from "lodash.debounce";
-import Workspace from "@/models/workspace";
+
+import Workspace, { type WorkspaceSearchResults } from "@/models/workspace";
 import { Tooltip } from "react-tooltip";
 import { LAST_VISITED_WORKSPACE } from "@/utils/constants";
 import { safeJsonParse } from "@/utils/request";
@@ -24,7 +24,7 @@ import useUser from "@/hooks/useUser";
 import useAdminView from "@/hooks/useAdminView";
 import { assignedAdminWorkspaces } from "@/utils/adminView";
 
-const DEFAULT_SEARCH_RESULTS = {
+const DEFAULT_SEARCH_RESULTS: WorkspaceSearchResults = {
   workspaces: [],
   threads: [],
 };
@@ -34,48 +34,59 @@ export default function SearchBox() {
   const { t } = useTranslation();
   const { user } = useUser();
   const { adminView, canUseAdminView } = useAdminView(user);
-  const searchRef = useRef(null);
+
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(false);
   const [searchResults, setSearchResults] = useState(DEFAULT_SEARCH_RESULTS);
-  const handleSearch = debounce(handleSearchDebounced, 500);
 
-  async function handleSearchDebounced(e) {
-    try {
-      const searchValue = e.target.value;
-      setSearchTerm(searchValue);
-      setLoading(true);
-      const [searchResults, assignedWorkspaces] = await Promise.all([
-        Workspace.searchWorkspaceOrThread(searchValue),
-        canUseAdminView && !adminView
-          ? assignedAdminWorkspaces(user.id)
-          : Promise.resolve(null),
-      ]);
-      if (!assignedWorkspaces) {
-        setSearchResults(searchResults);
-        return;
-      }
-      const assignedSlugs = new Set(
-        assignedWorkspaces.map((workspace) => workspace.slug)
-      );
-      setSearchResults({
-        workspaces: searchResults.workspaces.filter((workspace) =>
-          assignedSlugs.has(workspace.slug)
-        ),
-        threads: searchResults.threads.filter((thread) =>
-          assignedSlugs.has(thread.workspace?.slug)
-        ),
-      });
-    } catch (error) {
-      console.error(error);
+  useEffect(() => {
+    if (!searchTerm.trim()) {
       setSearchResults(DEFAULT_SEARCH_RESULTS);
-    } finally {
       setLoading(false);
+      return;
     }
-  }
+    let active = true;
+    setLoading(true);
+    async function search() {
+      try {
+        const [searchResults, assignedWorkspaces] = await Promise.all([
+          Workspace.searchWorkspaceOrThread(searchTerm),
+          canUseAdminView && !adminView && user
+            ? assignedAdminWorkspaces(user.id)
+            : Promise.resolve(null),
+        ]);
+        if (!active) return;
+        if (!assignedWorkspaces) {
+          setSearchResults(searchResults);
+          return;
+        }
+        const assignedSlugs = new Set(
+          assignedWorkspaces.map((workspace) => workspace.slug)
+        );
+        setSearchResults({
+          workspaces: searchResults.workspaces.filter((workspace) =>
+            assignedSlugs.has(workspace.slug)
+          ),
+          threads: searchResults.threads.filter((thread) =>
+            assignedSlugs.has(thread.workspace?.slug)
+          ),
+        });
+      } catch (error) {
+        if (!active) return;
+        console.error(error);
+        setSearchResults(DEFAULT_SEARCH_RESULTS);
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
+    const timer = setTimeout(search, 500);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [searchTerm, canUseAdminView, adminView, user?.id]);
 
   function handleReset() {
-    searchRef.current.value = "";
     setSearchTerm("");
     setLoading(false);
     setSearchResults(DEFAULT_SEARCH_RESULTS);
@@ -91,21 +102,22 @@ export default function SearchBox() {
     <div className="relative flex gap-x-1 w-full items-center h-10 z-[12]">
       <div className="relative h-full w-full flex">
         <input
-          ref={searchRef}
+          value={searchTerm}
           type="search"
           aria-label={t("workbench_nav.search")}
           placeholder={t("common.search")}
-          onChange={handleSearch}
+          onChange={(e) => setSearchTerm(e.currentTarget.value)}
           onReset={handleReset}
           onFocus={(e) => e.target.select()}
           className="border-none w-full h-full rounded-md bg-transparent pl-9 pr-2 placeholder:text-theme-text-secondary outline-none focus-visible:ring-2 focus-visible:ring-theme-button-primary text-theme-text-primary text-sm"
         />
-        <MagnifyingGlass
-          size={14}
-          className="pointer-events-none absolute left-3 top-1/2 transform -translate-y-1/2 text-theme-text-secondary"
-          weight="bold"
-          hidden={!!searchTerm}
-        />
+        {!searchTerm && (
+          <MagnifyingGlass
+            size={14}
+            className="pointer-events-none absolute left-3 top-1/2 transform -translate-y-1/2 text-theme-text-secondary"
+            weight="bold"
+          />
+        )}
       </div>
       <SearchResults
         searchResults={searchResults}
@@ -116,7 +128,7 @@ export default function SearchBox() {
   );
 }
 
-function SearchResultWrapper({ children }) {
+function SearchResultWrapper({ children }: React.PropsWithChildren) {
   return (
     <div className="absolute right-0 top-[6.2%] w-full flex flex-col gap-y-[24px] h-auto bg-theme-modal-border light:bg-theme-bg-primary light:border-2 light:border-theme-modal-border rounded-lg p-[16px] z-10 max-h-[calc(100%-24px)] overflow-y-scroll no-scroll">
       {children}
@@ -124,7 +136,15 @@ function SearchResultWrapper({ children }) {
   );
 }
 
-function SearchResults({ searchResults, searchTerm, loading }) {
+function SearchResults({
+  searchResults,
+  searchTerm,
+  loading,
+}: {
+  searchResults: WorkspaceSearchResults;
+  searchTerm: string;
+  loading: boolean;
+}) {
   if (!searchTerm || searchTerm.length < 3) return null;
   if (loading)
     return (
@@ -182,7 +202,19 @@ function SearchResults({ searchResults, searchTerm, loading }) {
   );
 }
 
-function SearchResultCategory({ items, name }) {
+interface ResultLink {
+  id: string;
+  name: string;
+  to: string;
+  hint?: string;
+}
+function SearchResultCategory({
+  items,
+  name,
+}: {
+  items: ResultLink[];
+  name: string;
+}) {
   if (!items?.length) return null;
   return (
     <div className="flex flex-col gap-y-[8px]">
@@ -203,7 +235,7 @@ function SearchResultCategory({ items, name }) {
   );
 }
 
-function SearchResultItem({ to, name, hint }) {
+function SearchResultItem({ to, name, hint }: Omit<ResultLink, "id">) {
   return (
     <Link
       to={to}
@@ -222,23 +254,31 @@ function SearchResultItem({ to, name, hint }) {
   );
 }
 
-export function CreateMenuButton({ showNewWsModal }) {
+export function CreateMenuButton({
+  showNewWsModal,
+}: {
+  showNewWsModal: () => void;
+}) {
   const { t } = useTranslation();
   const { user } = useUser();
   const { adminView, canUseAdminView } = useAdminView(user);
   const navigate = useNavigate();
   const { slug = null } = useParams();
-  const menuRef = useRef(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [creatingThread, setCreatingThread] = useState(false);
   const [knowledgeOpen, setKnowledgeOpen] = useState(false);
 
   useEffect(() => {
     if (!open) return;
-    const closeOnOutsideClick = (event) => {
-      if (!menuRef.current?.contains(event.target)) setOpen(false);
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      if (
+        event.target instanceof Node &&
+        !menuRef.current?.contains(event.target)
+      )
+        setOpen(false);
     };
-    const closeOnEscape = (event) => {
+    const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") setOpen(false);
     };
     document.addEventListener("mousedown", closeOnOutsideClick);
@@ -251,11 +291,11 @@ export function CreateMenuButton({ showNewWsModal }) {
 
   async function resolveActiveWorkspaceSlug() {
     if (slug) return slug;
-    const lastVisited = safeJsonParse(
+    const lastVisited = safeJsonParse<{ slug?: string } | null>(
       localStorage.getItem(LAST_VISITED_WORKSPACE)
     );
     const visibleWorkspaces =
-      canUseAdminView && !adminView
+      canUseAdminView && !adminView && user
         ? await assignedAdminWorkspaces(user.id)
         : await Workspace.all();
     const workspaces = Workspace.orderWorkspaces(visibleWorkspaces);

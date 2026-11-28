@@ -23,7 +23,8 @@ const Announcements = {
     request<{ announcements?: Announcement[] }>(
       admin ? "/admin/announcements" : "/announcements"
     ),
-  read: (id: number | string) => request(`/announcements/${id}/read`, "POST"),
+  read: (id: number | string) =>
+    request<{ readAt: string }>(`/announcements/${id}/read`, "POST"),
   save: (id: number | string | null | undefined, data: AnnouncementPayload) =>
     request<{ announcement?: Announcement }>(
       `/admin/announcements${id ? `/${id}` : ""}`,

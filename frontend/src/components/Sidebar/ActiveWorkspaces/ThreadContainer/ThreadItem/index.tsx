@@ -26,6 +26,13 @@ import { useTranslation } from "react-i18next";
 import ContextMenu from "@/components/lib/ContextMenu";
 import ConfirmDialog from "@/components/lib/ConfirmDialog";
 
+import type { SidebarWorkspace } from "../../WorkspaceMenu";
+import type { SidebarThread } from "..";
+interface ThreadMenuActions {
+  onStartRename: () => void;
+  onRequestDelete: () => void;
+  close: () => void;
+}
 export default function ThreadItem({
   isActive,
   workspace,
@@ -35,17 +42,29 @@ export default function ThreadItem({
   ctrlPressed = false,
   starred = false,
   onToggleStar,
+}: {
+  isActive: boolean;
+  workspace: SidebarWorkspace;
+  thread: SidebarThread;
+  onRemove: (id: number) => void;
+  toggleMarkForDeletion: (id: number) => void;
+  ctrlPressed?: boolean;
+  starred?: boolean;
+  onToggleStar?: () => void;
 }) {
   const { t } = useTranslation();
   const { slug: urlSlug, threadSlug = null } = useParams();
   const navigate = useNavigate();
   const workspaceSlug = workspace?.slug ?? urlSlug;
-  const optionsContainer = useRef(null);
-  const renameInputRef = useRef(null);
+  const optionsContainer = useRef<HTMLDivElement>(null);
+  const renameInputRef = useRef<HTMLInputElement>(null);
   const renameSavingRef = useRef(false);
   const renameCancelledRef = useRef(false);
   const [showOptions, setShowOptions] = useState(false);
-  const [contextPoint, setContextPoint] = useState(null);
+  const [contextPoint, setContextPoint] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(thread.name);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -66,7 +85,7 @@ export default function ThreadItem({
       ? paths.workspace.chat(workspaceSlug)
       : paths.workspace.thread(workspaceSlug, thread.slug);
 
-  const { ref } = useScrollActiveItemIntoView({
+  const { ref } = useScrollActiveItemIntoView<HTMLAnchorElement>({
     isActive: isActive && Boolean(thread.slug),
     behavior: "instant",
     block: "nearest",
@@ -113,7 +132,7 @@ export default function ThreadItem({
       renameCancelledRef.current = false;
       return;
     }
-    if (renameSavingRef.current) return;
+    if (renameSavingRef.current || !thread.slug) return;
     const name = renameValue.trim();
     if (!name || name === thread.name) {
       setRenameValue(thread.name);
@@ -154,7 +173,7 @@ export default function ThreadItem({
   }
 
   async function deleteThread() {
-    if (deleting) return;
+    if (deleting || !thread.slug || thread.id === undefined) return;
     setDeleting(true);
     const success = await Workspace.threads
       .delete(workspace.slug, thread.slug)
@@ -201,7 +220,9 @@ export default function ThreadItem({
                   type="button"
                   aria-label={t("workspace_list.undo_mark")}
                   className="flex h-9 w-8 shrink-0 items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-button"
-                  onClick={() => toggleMarkForDeletion(thread.id)}
+                  onClick={() =>
+                    thread.id !== undefined && toggleMarkForDeletion(thread.id)
+                  }
                 >
                   <ArrowCounterClockwise
                     className="text-zinc-300 hover:text-white light:text-theme-text-secondary hover:light:text-theme-text-primary"
@@ -248,7 +269,7 @@ export default function ThreadItem({
                   ? "md:pr-8"
                   : "md:pr-10 md:group-hover/thread:pr-[72px] md:group-focus-within/thread:pr-[72px]"
               }`}
-              aria-current={isActive ? "page" : ""}
+              aria-current={isActive ? "page" : undefined}
             >
               <div className="min-w-0 flex-1">
                 <p
@@ -286,7 +307,9 @@ export default function ThreadItem({
                   type="button"
                   aria-label={t("workspace_list.mark_delete")}
                   className="flex h-9 w-8 shrink-0 items-center justify-center bg-transparent hover:bg-theme-sidebar-subitem-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-button"
-                  onClick={() => toggleMarkForDeletion(thread.id)}
+                  onClick={() =>
+                    thread.id !== undefined && toggleMarkForDeletion(thread.id)
+                  }
                 >
                   <X
                     className="text-zinc-300 light:text-theme-text-secondary hover:text-white hover:light:text-theme-text-primary"
@@ -372,21 +395,27 @@ export default function ThreadItem({
   );
 }
 
-function OptionsMenu({ containerRef, onStartRename, onRequestDelete, close }) {
-  const menuRef = useRef(null);
+function OptionsMenu({
+  containerRef,
+  onStartRename,
+  onRequestDelete,
+  close,
+}: ThreadMenuActions & { containerRef: React.RefObject<HTMLDivElement> }) {
+  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!menuRef.current || !containerRef.current) return;
     menuRef.current.querySelector("button")?.focus();
 
-    const outsideClick = (event) => {
+    const outsideClick = (event: MouseEvent) => {
+      if (!(event.target instanceof Node)) return;
       if (
         !menuRef.current?.contains(event.target) &&
         !containerRef.current?.contains(event.target)
       )
         close();
     };
-    const isEsc = (event) => {
+    const isEsc = (event: KeyboardEvent) => {
       if (event.key === "Escape" || event.key === "Esc") {
         event.preventDefault();
         event.stopPropagation();
@@ -418,7 +447,11 @@ function OptionsMenu({ containerRef, onStartRename, onRequestDelete, close }) {
   );
 }
 
-function ThreadMenuItems({ onStartRename, onRequestDelete, close }) {
+function ThreadMenuItems({
+  onStartRename,
+  onRequestDelete,
+  close,
+}: ThreadMenuActions) {
   const { t } = useTranslation();
 
   return (

@@ -14,7 +14,7 @@ async page => {
   let failShared = true;
   const setup = async context => {
     await context.unroute('**/api/**');
-    await context.addInitScript(() => { localStorage.setItem('theme', 'light'); localStorage.setItem('anythingllm_seen_help_intro', 'true'); });
+    await context.addInitScript(() => { localStorage.setItem('theme', 'light'); localStorage.setItem('anythingllm_last_visited_workspace', JSON.stringify({slug:'sa2'})); localStorage.setItem('anythingllm_seen_help_intro', 'true'); });
     await context.route('**/api/**', async route => {
       const path = route.request().url().split('/api')[1].split('?')[0];
       const method = route.request().method();
@@ -23,6 +23,11 @@ async page => {
       if (path === '/ping') return route.fulfill({status:200, headers:{'x-request-id':'workspace-list-test'}, json:{online:true}});
       if (path === '/onboarding') body = { onboardingComplete: true };
       else if (path === '/setup-complete') body = { results: { MultiUserMode: false, RequiresAuth: false } };
+      else if (path === '/announcements') body = {announcements:[]};
+      else if (path === '/user/sidebar-preferences') {
+        const groups = {groups:[],collapsed:{},assignments:{}};
+        body = {preferences:{groups,favorites:{workspaces:[],threads:[]}},globalGroups:groups};
+      }
       else if (path === '/workspaces') body = { workspaces };
       else if (ws && path === `/workspace/${ws.slug}`) body = { workspace: ws };
       else if (path.endsWith('/threads')) {
@@ -83,7 +88,8 @@ async page => {
   await page.waitForLoadState('networkidle');
   const showLessButton = list('SA2 提案分析').getByRole('button',{name:'收起对话',exact:true});
   if (await showLessButton.count()) await showLessButton.click({timeout:1000}).catch(()=>{});
-  check(await list('SA2 提案分析').getByRole('link',{name:'SA2 提案分析 · 历史讨论记录',exact:true}).isVisible(), 'Active row beyond limit stays visible');
+  await list('SA2 提案分析').getByRole('link',{name:'SA2 提案分析 · 历史讨论记录',exact:true}).waitFor();
+  check(true, 'Active row beyond limit stays visible');
   check(await list('通用知识工作').locator('[aria-current="page"]').count() === 0, 'Other workspace does not share active thread highlight');
   await list('SA2 提案分析').getByRole('link',{name:'SA2 提案分析 · 历史讨论记录',exact:true}).click();
   check(await page.getByRole('textbox',{name:'重命名对话',exact:true}).count() === 0, 'Clicking active thread does not rename');
@@ -112,7 +118,7 @@ async page => {
   const newRow = list('SA2 会议研究').getByRole('listitem').filter({hasText:'新建测试对话'});
   await newRow.hover();
   await newRow.getByRole('button',{name:'对话操作'}).click();
-  await newRow.getByRole('button',{name:'重命名对话'}).click();
+  await page.getByRole('menuitem',{name:'重命名对话'}).click();
   await page.getByRole('textbox',{name:'重命名对话'}).fill('新建后重命名');
   await page.getByRole('textbox',{name:'重命名对话'}).press('Enter');
   await list('SA2 会议研究').getByRole('link',{name:'新建后重命名',exact:true}).waitFor();
@@ -160,8 +166,8 @@ async page => {
   const other = list('通用知识工作').getByRole('listitem').filter({hasText:'通用知识工作 · 会议材料对比'});
   await other.hover();
   await other.getByRole('button',{name:'对话操作'}).click();
-  await page.evaluate(() => { window.confirm = () => true; });
-  await other.getByRole('button',{name:'删除对话'}).click();
+  await page.getByRole('menuitem',{name:'删除对话'}).click();
+  await page.getByRole('alertdialog').getByRole('button',{name:'删除对话'}).click();
   await other.waitFor({state:'hidden'});
   check(page.url().endsWith('/workspace/sa2/t/created'), 'Deleting in another workspace keeps current route');
   await list('通用知识工作').hover();
@@ -170,12 +176,14 @@ async page => {
   await list('通用知识工作').getByRole('button',{name:'删除所选对话'}).click();
   await page.keyboard.up('Control');
   check(lists.knowledge.length===6, 'Bulk deletion still works');
-  const handle=page.getByRole('button',{name:'拖动排序：通用知识工作',exact:true});
-  await handle.focus();
-  await page.keyboard.press('Space');
-  await page.keyboard.press('ArrowUp');
-  await page.keyboard.press('Space');
-  await page.waitForFunction(()=>document.querySelector('[data-rbd-draggable-id]')?.getAttribute('data-rbd-draggable-id')==='2');
-  check(true,'Keyboard workspace reordering is preserved');
+  // The sidebar sorts each group by relationship and name. Workspace links support keyboard navigation.
+  const names = await page.locator('a[href^="/workspace/"][aria-roledescription]').allTextContents();
+  const ordered = [...names].sort(new Intl.Collator('zh-CN',{numeric:true,sensitivity:'base'}).compare);
+  check(names.length===3 && JSON.stringify(names)===JSON.stringify(ordered),'Workspaces keep their name order after edits');
+  const link=section('knowledge').getByRole('link',{name:'通用知识工作',exact:true});
+  await link.focus();
+  await page.keyboard.press('Enter');
+  await page.waitForURL('**/workspace/knowledge');
+  check(true,'Workspace link supports keyboard navigation');
   return {results,counts};
 }

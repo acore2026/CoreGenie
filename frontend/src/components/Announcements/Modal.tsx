@@ -1,3 +1,4 @@
+import type { Announcement } from "@coregenie/contracts/announcements.mts";
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { X } from "@phosphor-icons/react";
@@ -17,14 +18,19 @@ export default function AnnouncementModal({
   busy = false,
   children,
   footer,
-}) {
-  const ref = useRef(null);
+}: React.PropsWithChildren<{
+  title: string;
+  onClose: () => void;
+  busy?: boolean;
+  footer?: React.ReactNode;
+}>) {
+  const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   const { t } = useTranslation();
   useEffect(() => {
     const dialog = ref.current;
-    dialog.showModal();
-    return () => dialog.close();
+    dialog?.showModal();
+    return () => dialog?.close();
   }, []);
   return createPortal(
     <dialog
@@ -80,7 +86,7 @@ export default function AnnouncementModal({
   );
 }
 
-export function AnnouncementContent({ item }) {
+export function AnnouncementContent({ item }: { item: Announcement }) {
   const { t } = useTranslation();
   return (
     <>
@@ -92,7 +98,7 @@ export function AnnouncementContent({ item }) {
   );
 }
 
-export function formatDate(value) {
+export function formatDate(value: string) {
   return new Intl.DateTimeFormat("zh-CN", {
     year: "numeric",
     month: "2-digit",

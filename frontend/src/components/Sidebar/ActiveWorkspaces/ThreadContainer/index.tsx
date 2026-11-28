@@ -1,3 +1,5 @@
+import type { WorkspaceThreadRecord } from "@coregenie/contracts";
+import type { SidebarWorkspace } from "../WorkspaceMenu";
 import Workspace from "@/models/workspace";
 import { Plus, CircleNotch, Trash } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
@@ -17,14 +19,28 @@ import {
 
 export { THREAD_CREATED_EVENT, THREAD_RENAME_EVENT } from "../../events";
 
-export default function ThreadContainer({ workspace, expanded = true }) {
+type StoredThreadRow = WorkspaceThreadRecord & {
+  deleted?: boolean;
+  virtual?: boolean;
+};
+export type SidebarThread = Omit<StoredThreadRow, "slug" | "id"> & {
+  slug: string | null;
+  id?: number;
+};
+export default function ThreadContainer({
+  workspace,
+  expanded = true,
+}: {
+  workspace: SidebarWorkspace;
+  expanded?: boolean;
+}) {
   const { t } = useTranslation();
   const { favorites, toggle } = useWorkspaceFavorites();
-  const isFavorite = (thread) =>
+  const isFavorite = (thread: SidebarThread) =>
     favorites.threads.includes(threadFavoriteId(workspace.id, thread.slug));
   const { slug, threadSlug = null } = useParams();
   const navigate = useNavigate();
-  const [threads, setThreads] = useState([]);
+  const [threads, setThreads] = useState<StoredThreadRow[]>([]);
   const [defaultThreadHasChats, setDefaultThreadHasChats] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -46,7 +62,7 @@ export default function ThreadContainer({ workspace, expanded = true }) {
     }
   }, [expanded]);
 
-  function updateThreads(updater) {
+  function updateThreads(updater: React.SetStateAction<StoredThreadRow[]>) {
     revision.current += 1;
     setThreads(updater);
   }
@@ -57,7 +73,7 @@ export default function ThreadContainer({ workspace, expanded = true }) {
   );
 
   useEffect(() => {
-    const chatHandler = (event) => {
+    const chatHandler = (event: WindowEventMap[typeof THREAD_RENAME_EVENT]) => {
       const { threadSlug, newName, workspaceSlug } = event.detail || {};
       if (workspaceSlug && workspaceSlug !== workspace.slug) return;
       updateThreads((prevThreads) =>
@@ -70,7 +86,9 @@ export default function ThreadContainer({ workspace, expanded = true }) {
       );
     };
 
-    const createdHandler = (event) => {
+    const createdHandler = (
+      event: WindowEventMap[typeof THREAD_CREATED_EVENT]
+    ) => {
       const { workspaceSlug, thread } = event.detail || {};
       if (workspaceSlug !== workspace.slug || !thread?.slug) return;
       updateThreads((current) =>
@@ -82,7 +100,9 @@ export default function ThreadContainer({ workspace, expanded = true }) {
 
     window.addEventListener(THREAD_RENAME_EVENT, chatHandler);
     window.addEventListener(THREAD_CREATED_EVENT, createdHandler);
-    const deletedHandler = ({ detail }) => {
+    const deletedHandler = ({
+      detail,
+    }: WindowEventMap[typeof THREAD_DELETED_EVENT]) => {
       if (detail?.workspaceSlug !== workspace.slug) return;
       updateThreads((current) =>
         current.filter((thread) => thread.slug !== detail.threadSlug)
@@ -130,7 +150,7 @@ export default function ThreadContainer({ workspace, expanded = true }) {
     };
   }, [workspace.slug, activated, retry]);
 
-  const toggleForDeletion = (id) => {
+  const toggleForDeletion = (id: number) => {
     updateThreads((prev) =>
       prev.map((t) => {
         if (t.id !== id) return t;
@@ -149,7 +169,7 @@ export default function ThreadContainer({ workspace, expanded = true }) {
       updateThreads((prev) =>
         prev.filter((thread) => !slugs.includes(thread.slug))
       );
-      if (slug === workspace.slug && slugs.includes(threadSlug)) {
+      if (slug === workspace.slug && threadSlug && slugs.includes(threadSlug)) {
         navigate(paths.workspace.chat(workspace.slug));
       }
     } catch {
@@ -159,7 +179,7 @@ export default function ThreadContainer({ workspace, expanded = true }) {
     }
   };
 
-  function removeThread(threadId) {
+  function removeThread(threadId: number) {
     updateThreads((prev) => prev.filter((thread) => thread.id !== threadId));
   }
 
@@ -184,7 +204,7 @@ export default function ThreadContainer({ workspace, expanded = true }) {
     );
   }
 
-  const unorderedRows = defaultThreadHasChats
+  const unorderedRows: SidebarThread[] = defaultThreadHasChats
     ? [{ slug: null, name: t("workspace_list.default_thread") }, ...threads]
     : threads;
   const rows = favoritesFirst(unorderedRows, isFavorite);
@@ -251,7 +271,13 @@ export default function ThreadContainer({ workspace, expanded = true }) {
   );
 }
 
-export function CreateThreadButton({ workspace, onCreated }) {
+export function CreateThreadButton({
+  workspace,
+  onCreated,
+}: {
+  workspace: SidebarWorkspace;
+  onCreated?: () => void;
+}) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [creatingThread, setCreatingThread] = useState(false);
@@ -304,7 +330,17 @@ export function CreateThreadButton({ workspace, onCreated }) {
   );
 }
 
-function DeleteAllThreadButton({ ctrlPressed, threads, onDelete, deleting }) {
+function DeleteAllThreadButton({
+  ctrlPressed,
+  threads,
+  onDelete,
+  deleting,
+}: {
+  ctrlPressed: boolean;
+  threads: StoredThreadRow[];
+  onDelete: () => void;
+  deleting: boolean;
+}) {
   const { t } = useTranslation();
   if (!ctrlPressed || threads.filter((t) => t.deleted).length === 0)
     return null;
