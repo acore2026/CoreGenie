@@ -1,3 +1,12 @@
+const {
+  decodeThreeCharVersion,
+  encodeDottedVersion,
+  parseSpecNumber,
+  recognizeDocument,
+  extractTdocIdsFromText,
+  groupFromPrefix,
+} = require("../contracts/documentIds.ts");
+
 const WG_PATHS = Object.freeze({
   SA: "tsg_sa/TSG_SA",
   SA1: "tsg_sa/WG1_Serv",
@@ -31,27 +40,6 @@ function invalid(publicMessage, status = 400) {
   return Object.assign(new Error(publicMessage), { publicMessage, status });
 }
 
-function decodeThreeCharVersion(ver) {
-  const code = String(ver || "")
-    .replace(/^-/, "")
-    .toLowerCase();
-  if (!/^[0-9a-z]{3}$/.test(code)) return undefined;
-  return [...code].map((c) => parseInt(c, 36)).join(".");
-}
-
-function encodeDottedVersion(dotted) {
-  const parts = String(dotted || "")
-    .trim()
-    .split(".")
-    .map((x) => Number(x));
-  if (
-    parts.length !== 3 ||
-    parts.some((n) => !Number.isInteger(n) || n < 0 || n >= 36)
-  )
-    return null;
-  return "-" + parts.map((n) => n.toString(36)).join("");
-}
-
 /**
  * Resolve WG key and 3GPP FTP sub-path from a normalized TDoc ID or WG name.
  */
@@ -82,13 +70,7 @@ function resolveWgRoute(input) {
 
   const m = raw.match(/^([SCR])([1-6])(?:-|\d)/i);
   if (!m) return null;
-  const family =
-    m[1].toUpperCase() === "S"
-      ? "SA"
-      : m[1].toUpperCase() === "C"
-        ? "CT"
-        : "RAN";
-  const wgKey = `${family}${m[2]}`;
+  const wgKey = groupFromPrefix(m[1].toUpperCase() + m[2]);
   if (!WG_PATHS[wgKey]) return null;
   return { wgKey, wgPath: WG_PATHS[wgKey] };
 }
@@ -131,94 +113,15 @@ function extractConferenceNumber(folderName, docPrefix = "") {
 }
 
 /**
- * Parse a 3GPP specification number into { series, num, ver, kind, dottedVersion }.
- * Implements the verified decision table from issue #4 F3 plus ProtocolFinder forms.
- */
-function parseSpecNumber(rawInput) {
-  const input = String(rawInput || "").trim();
-  if (!input || input.length > 100) return null;
-  const match = input
-    .replace(/\.(?:zip|docx?|pdf|rar)$/i, "")
-    .match(
-      /^(?:3GPP\s+)?(?:(TS|TR)\s*)?(\d{2})\.?(\d{3})([\da-z-]*)(?:\s+v?(\d{1,2}\.\d{1,2}\.\d{1,2}))?$/i
-    );
-  if (!match) return null;
-  const [, type, series, item, tail, dotted] = match;
-  const kind = type?.toUpperCase() || null;
-  const dottedVersion = dotted?.split(".").map(Number).join(".");
-  // Up to two part numbers, followed by an optional base-36 version code.
-  const suffix = tail.match(/^((?:-\d{1,2}){0,2})(?:-?([\da-z]{3}))?$/i);
-  let num = item;
-  let ver = null;
-  if (/^\d{2}$/.test(tail)) num += "-" + tail;
-  else if (suffix) {
-    num += suffix[1];
-    if (suffix[2]) {
-      let code = suffix[2].toLowerCase();
-      if (/^\d{5}0\d{2}$/.test(input)) code = "i" + code.slice(1);
-      ver = "-" + code;
-    }
-  } else return null;
-  if (ver && dottedVersion) return null;
-  if (!ver && dottedVersion) {
-    ver = encodeDottedVersion(dottedVersion);
-  }
-  const requestedVersion =
-    dottedVersion || (ver ? decodeThreeCharVersion(ver) : undefined);
-  const specId = `${series}.${num}`;
-
-  return {
-    kind,
-    series,
-    num,
-    ver,
-    specId,
-    compactId: `${series}${num}`,
-    requestedVersion,
-  };
-}
-
-/**
  * Normalize a TDoc identifier according to issue #4 F1 rules.
  */
 function classifyDocId(rawInput) {
   if (typeof rawInput !== "string" || rawInput.length > 160) {
     throw invalid("请输入规范号、TDoc 编号、RFC 或 IETF Draft 名称。");
   }
-  const input = rawInput.trim();
-  const id = input
-    .replace(/\.(?:zip|docx?|pdf|txt|rar)$/i, "")
-    .replace(/\s+/g, "");
-  if (/^draft-[a-z0-9]+(?:-[a-z0-9]+)*$/i.test(id))
-    return { kind: "ietf-draft", normalizedId: id.toLowerCase() };
-  const workshop = id.match(/^SWS-?([0-9a-z_-]+)$/i);
-  if (workshop)
-    return {
-      kind: "workshop",
-      normalizedId: "SWS-" + workshop[1].toUpperCase(),
-    };
-  const rfc = id.match(/^rfc-?(\d{1,6})$/i);
-  if (rfc)
-    return { kind: "rfc", normalizedId: "rfc" + rfc[1], rfcNumber: rfc[1] };
-  const tdoc = id.match(/^(S3i|[SCR][P1-6])-?(\d{5,8})(r\d{1,2})?$/i);
-  if (tdoc) {
-    const prefix =
-      tdoc[1].toLowerCase() === "s3i" ? "S3i" : tdoc[1].toUpperCase();
-    const normalizedId =
-      prefix +
-      (prefix === "S3i" ? "" : "-") +
-      tdoc[2] +
-      (tdoc[3] || "").toLowerCase();
-    return {
-      kind: "tdoc",
-      normalizedId,
-      ...resolveWgRoute(normalizedId),
-      docPrefix: prefix,
-    };
-  }
-  const parsedSpec = parseSpecNumber(input);
-  if (parsedSpec)
-    return { kind: "spec", normalizedId: parsedSpec.specId, parsedSpec };
+  const doc = recognizeDocument(rawInput);
+  if (doc?.kind === "tdoc") return { ...doc, wgPath: WG_PATHS[doc.wgKey] };
+  if (doc) return doc;
   throw invalid(
     "无法识别这个编号。请检查输入，例如 23.501、S2-2500105 或 RFC 2697。"
   );
@@ -240,35 +143,6 @@ function matchSpecFilename(files, spec) {
       .sort()
       .pop() || null
   );
-}
-
-function extractTdocIdsFromText(text) {
-  const input = String(text || "");
-  const seen = new Set();
-  const result = [];
-  const patterns = [
-    /\bSWS-\d{5,8}\b/gi,
-    /\bS3i\d{5,8}\b/gi,
-    /\b(?:SP|CP|RP|[SCR][1-6])-\d{5,8}(?:r\d{1,2})?\b/gi,
-    /\b(?:SP|CP|RP|[SCR][1-6])\d{7}(?:r\d{1,2})?\b/gi,
-  ];
-  for (const regex of patterns) {
-    for (const match of input.matchAll(regex)) {
-      try {
-        const c = classifyDocId(match[0]);
-        if (c.kind === "tdoc" || c.kind === "workshop") {
-          const key = c.normalizedId.toUpperCase();
-          if (!seen.has(key)) {
-            seen.add(key);
-            result.push(c.normalizedId);
-          }
-        }
-      } catch {
-        // Ignore false positives
-      }
-    }
-  }
-  return result;
 }
 
 module.exports = {

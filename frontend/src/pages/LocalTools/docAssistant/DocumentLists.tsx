@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { extractTdocIdsFromText } from "@/utils/localTools/docClassifier";
 import { AgendaFile } from "./TdocResultView";
 import {
   controlClass,
@@ -29,8 +30,18 @@ type Row = {
 };
 const panel = "space-y-4 rounded-lg border border-theme-sidebar-border p-4";
 
-export default function DocumentLists({ mode }: { mode: Mode }) {
-  const [source, setSource] = useState<"meeting" | "url" | "excel">("meeting");
+export default function DocumentLists({
+  mode,
+  onViewTdoc,
+}: {
+  mode: Mode;
+  onViewTdoc: (id: string, meeting: string) => void;
+}) {
+  const [source, setSource] = useState<"meeting" | "url" | "excel" | "paste">(
+    "meeting"
+  );
+  const [pastedText, setPastedText] = useState("");
+  const pasting = mode === "batch" && source === "paste";
   const [config, setConfig] = useState<AssistantConfig>();
   const [group, setGroup] = useState("SA2");
   const [meetings, setMeetings] = useState<MeetingItem[]>([]);
@@ -77,7 +88,11 @@ export default function DocumentLists({ mode }: { mode: Mode }) {
     const controller = new AbortController();
     fetchWgMeetings(group, false, controller.signal)
       .then((r) => {
-        if (!controller.signal.aborted) setMeetings(r.meetings);
+        if (controller.signal.aborted) return;
+        setMeetings(r.meetings);
+        const latest = r.meetings[0];
+        if (latest)
+          setMeeting((current) => (current.trim() ? current : latest.id));
       })
       .catch(() => {});
     return () => controller.abort();
@@ -91,6 +106,15 @@ export default function DocumentLists({ mode }: { mode: Mode }) {
     setMessage("");
     setError("");
   }
+  function updatePastedText(value: string) {
+    setPastedText(value);
+    clearResults();
+    const ids = extractTdocIdsFromText(value);
+    if (!value.trim()) return;
+    setRows(ids.map((id) => ({ id, label: id, tdocId: id })));
+    if (ids.length <= limit) setSelected(new Set(ids));
+  }
+
   async function run(action: "search" | "download", page = 1) {
     const controller = new AbortController();
     active.current?.abort();
@@ -107,7 +131,7 @@ export default function DocumentLists({ mode }: { mode: Mode }) {
           .map((r) => ({
             url: r.url,
             tdocId: r.tdocId,
-            meetingHint: r.meetingHint,
+            meetingHint: pasting ? meeting.trim() : r.meetingHint,
             name: r.url ? r.label : undefined,
           }));
         const summary = await downloadBatchZip(items, "", signal);
@@ -147,7 +171,7 @@ export default function DocumentLists({ mode }: { mode: Mode }) {
               tdocId: item.tdoc,
               label: item.tdoc,
               detail,
-              meetingHint: item.meeting.split("#")[1],
+              meetingHint: item.meeting?.split("#").pop()?.trim(),
             });
         }
         setRows([...docs.values()]);
@@ -161,7 +185,7 @@ export default function DocumentLists({ mode }: { mode: Mode }) {
             meetingHint: meeting,
           }))
         );
-      } else if (source !== "excel") {
+      } else if (source === "meeting" || source === "url") {
         const data = await fetchBatchList(
           { mode: source, url, group, meeting },
           signal
@@ -215,27 +239,36 @@ export default function DocumentLists({ mode }: { mode: Mode }) {
     <div className="space-y-4">
       <form
         className={panel}
-        onChange={clearResults}
+        onChange={pasting ? undefined : clearResults}
         onSubmit={(e) => {
           e.preventDefault();
-          if (valid) run("search");
+          if (valid && !pasting) run("search");
         }}
       >
         <fieldset disabled={!!busy} className="space-y-4">
           {mode === "batch" && (
             <div className="flex flex-wrap gap-3">
-              {(["meeting", "url", "excel"] as const).map((s, i) => (
+              {(["meeting", "url", "excel", "paste"] as const).map((s) => (
                 <label className="flex items-center gap-2 text-sm" key={s}>
                   <input
                     type="radio"
                     checked={source === s}
                     name="batch-source"
                     onChange={() => {
+                      clearResults();
+                      setPastedText("");
                       setSource(s);
                       setMeeting("");
                     }}
                   />
-                  {tr(["byMeeting", "byUrl", "byExcel"][i])}
+                  {tr(
+                    {
+                      meeting: "byMeeting",
+                      url: "byUrl",
+                      excel: "byExcel",
+                      paste: "byPaste",
+                    }[s]
+                  )}
                 </label>
               ))}
             </div>
@@ -244,6 +277,18 @@ export default function DocumentLists({ mode }: { mode: Mode }) {
             <p className="text-sm text-theme-text-secondary">
               {tr("conditions")}
             </p>
+          )}
+          {pasting && (
+            <label className="grid gap-1.5 text-sm">
+              {tr("pastedText")}
+              <textarea
+                className={inputClass}
+                rows={3}
+                value={pastedText}
+                placeholder={tr("pasteExample")}
+                onChange={(e) => updatePastedText(e.target.value)}
+              />
+            </label>
           )}
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {needsMeeting && (
@@ -272,7 +317,8 @@ export default function DocumentLists({ mode }: { mode: Mode }) {
             )}
             {(needsMeeting ||
               mode === "cr" ||
-              (mode === "batch" && source === "excel")) &&
+              (mode === "batch" && source === "excel") ||
+              pasting) &&
               field(
                 needsMeeting ? "meeting" : "meetingHint",
                 meeting,
@@ -320,11 +366,17 @@ export default function DocumentLists({ mode }: { mode: Mode }) {
               {tr("includeWithdrawn")}
             </label>
           )}
-          <button className={primaryButtonClass} disabled={!valid || !!busy}>
-            {tr(
-              busy === "search" ? "pending" : mode === "batch" ? "list" : "find"
-            )}
-          </button>
+          {!pasting && (
+            <button className={primaryButtonClass} disabled={!valid || !!busy}>
+              {tr(
+                busy === "search"
+                  ? "pending"
+                  : mode === "batch"
+                    ? "list"
+                    : "find"
+              )}
+            </button>
+          )}
         </fieldset>
       </form>
       {busy && (
@@ -395,6 +447,11 @@ export default function DocumentLists({ mode }: { mode: Mode }) {
               </a>
             )}
           </div>
+          {pasting && rows.length > limit && (
+            <p className="text-sm text-theme-text-secondary">
+              {tr("confirmLimit", { count: limit })}
+            </p>
+          )}
           {rows.length > 0 && (
             <>
               <input
@@ -408,16 +465,14 @@ export default function DocumentLists({ mode }: { mode: Mode }) {
                 <button
                   className={controlClass}
                   disabled={!!busy || !visible.length}
-                  onClick={() =>
-                    setSelected(
-                      new Set(
-                        [...selected, ...visible.map((r) => r.id)].slice(
-                          0,
-                          limit
-                        )
-                      )
-                    )
-                  }
+                  onClick={() => {
+                    const next = new Set(selected);
+                    for (const row of visible) {
+                      if (next.size >= limit) break;
+                      next.add(row.id);
+                    }
+                    setSelected(next);
+                  }}
                 >
                   {tr("selectShown", { count: limit })}
                 </button>
@@ -440,11 +495,15 @@ export default function DocumentLists({ mode }: { mode: Mode }) {
               </div>
             </>
           )}
-          {visible.length === 0 && <p className="text-sm">{tr("empty")}</p>}
+          {visible.length === 0 && (
+            <p className="text-sm">
+              {tr(pasting && !rows.length ? "pasteEmpty" : "empty")}
+            </p>
+          )}
           <ul className="max-h-[55vh] divide-y divide-theme-sidebar-border overflow-y-auto">
             {visible.map((r) => (
-              <li key={r.id}>
-                <label className="flex items-start gap-3 py-2 text-sm">
+              <li key={r.id} className="flex items-center gap-2">
+                <label className="flex min-w-0 flex-1 items-start gap-3 py-2 text-sm">
                   <input
                     type="checkbox"
                     className="mt-1"
@@ -468,6 +527,17 @@ export default function DocumentLists({ mode }: { mode: Mode }) {
                     )}
                   </span>
                 </label>
+                {mode === "cr" && (
+                  <button
+                    type="button"
+                    className={controlClass}
+                    disabled={!!busy}
+                    aria-label={tr("viewTdoc", { id: r.id })}
+                    onClick={() => onViewTdoc(r.id, r.meetingHint || "")}
+                  >
+                    {tr("view")}
+                  </button>
+                )}
               </li>
             ))}
           </ul>
