@@ -1,4 +1,6 @@
-import React, { useEffect, useRef, useState } from "react";
+import type { SystemKeys } from "@/models/system";
+import type { SkillPanelProps } from "../skills";
+import { useEffect, useRef, useState } from "react";
 import Admin from "@/models/admin";
 import BaiduSearchIcon from "./icons/baidu.png";
 import SearXNGSearchIcon from "./icons/searxng.png";
@@ -22,7 +24,14 @@ import {
   ExaSearchOptions,
 } from "./SearchProviderOptions";
 
-const SEARCH_PROVIDERS = [
+export interface SearchProvider {
+  name: string;
+  value: string;
+  logo: string;
+  description: string;
+  options: (settings: SystemKeys) => React.ReactNode;
+}
+const SEARCH_PROVIDERS: SearchProvider[] = [
   {
     name: "Tavily Search",
     value: "tavily-search",
@@ -69,14 +78,14 @@ export default function AgentWebSearchSelection({
   toggleSkill,
   enabled = false,
   setHasChanges,
-}) {
-  const searchInputRef = useRef(null);
-  const [filteredResults, setFilteredResults] = useState([]);
+}: SkillPanelProps) {
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const [filteredResults, setFilteredResults] = useState<SearchProvider[]>([]);
   const [selectedProvider, setSelectedProvider] = useState("duckduckgo-engine");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchMenuOpen, setSearchMenuOpen] = useState(false);
 
-  function updateChoice(selection) {
+  function updateChoice(selection: string) {
     setSearchQuery("");
     setSelectedProvider(selection);
     setSearchMenuOpen(false);

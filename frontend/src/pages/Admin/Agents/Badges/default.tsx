@@ -1,4 +1,4 @@
-export function DefaultBadge({ title: _title }) {
+export function DefaultBadge({ title: _title }: { title?: string }) {
   return (
     <>
       <span

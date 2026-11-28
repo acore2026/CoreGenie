@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import showToast from "@/utils/toast";
 import type { AdminWorkspace } from "@/models/admin";
 import { useState } from "react";
@@ -7,12 +8,12 @@ import { LinkSimple, Trash } from "@phosphor-icons/react";
 
 export default function WorkspaceRow({
   workspace,
-
   deletionProtected = false,
 }: {
   workspace: AdminWorkspace;
   deletionProtected?: boolean;
 }) {
+  const { t } = useTranslation();
   const [removed, setRemoved] = useState(false);
   const handleDelete = async () => {
     if (
@@ -23,7 +24,7 @@ export default function WorkspaceRow({
       return false;
     const { success, error } = await Admin.deleteWorkspace(workspace.id);
     if (success) setRemoved(true);
-    else showToast(error || "删除工作区失败", "error");
+    else showToast(error || t("common.delete_workspace_failed"), "error");
   };
 
   if (removed) return null;

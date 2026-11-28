@@ -1,3 +1,4 @@
+import type { SystemKeys } from "@/models/system";
 import type { TFunction } from "i18next";
 import AgentWebSearchSelection from "./WebSearchSelection";
 import AgentSQLConnectorSelection from "./SQLConnectorSelection";
@@ -24,7 +25,29 @@ import GenerateSaveImages from "@/media/agents/generate-save-files.png";
 import FileSystemImage from "@/media/agents/file-system.png";
 import ScheduledJobsImage from "@/media/agents/scheduled-jobs.png";
 
-export const getDefaultSkills = (t: TFunction) => ({
+export interface SkillPanelProps {
+  title: string;
+  description: string;
+  skill: string;
+  image?: string;
+  icon?: typeof Brain;
+  enabled: boolean;
+  disabled?: boolean;
+  settings: SystemKeys;
+  toggleSkill: (name: string) => void;
+  setHasChanges: (changed: boolean) => void;
+  hasChanges?: boolean;
+}
+export interface SkillDefinition extends Pick<
+  SkillPanelProps,
+  "title" | "description" | "skill" | "image" | "icon"
+> {
+  component: React.ComponentType<SkillPanelProps>;
+  mode?: string[];
+}
+export const getDefaultSkills = (
+  t: TFunction
+): Record<string, SkillDefinition> => ({
   "rag-memory": {
     title: t("agent.skill.rag.title"),
     description: t("agent.skill.rag.description"),
@@ -66,7 +89,7 @@ export const getConfigurableSkills = (
     createFilesAgentAvailable = true,
     sandboxAvailable = true,
   } = {}
-) => ({
+): Record<string, SkillDefinition> => ({
   ...(fileSystemAgentAvailable && {
     "filesystem-agent": {
       title: t("agent.skill.filesystem.title"),

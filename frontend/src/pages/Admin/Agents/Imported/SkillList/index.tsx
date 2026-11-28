@@ -1,10 +1,15 @@
+import type { ImportedSkill } from "@/models/admin";
 import { CaretRight } from "@phosphor-icons/react";
 import { sentenceCase } from "text-case";
 
 export default function ImportedSkillList({
   skills = [],
   selectedSkill = null,
-  handleClick = null,
+  handleClick,
+}: {
+  skills: ImportedSkill[];
+  selectedSkill: string | null;
+  handleClick: (skill: ImportedSkill) => void;
 }) {
   if (skills.length === 0)
     return (
@@ -41,7 +46,7 @@ export default function ImportedSkillList({
           } cursor-pointer transition-all duration-300 hover:bg-theme-bg-primary ${
             selectedSkill === config.hubId ? "bg-theme-bg-primary" : ""
           }`}
-          onClick={() => handleClick?.({ ...config, imported: true })}
+          onClick={() => handleClick(config)}
         >
           <div className="text-sm font-light">{sentenceCase(config.name)}</div>
           <div className="flex items-center gap-x-2">

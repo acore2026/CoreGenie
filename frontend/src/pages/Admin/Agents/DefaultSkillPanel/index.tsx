@@ -1,3 +1,4 @@
+import type { SkillPanelProps } from "../skills";
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { DefaultBadge } from "../Badges/default";
@@ -11,7 +12,7 @@ export default function DefaultSkillPanel({
   enabled = true,
   toggleSkill,
   skill,
-}) {
+}: SkillPanelProps) {
   const { t } = useTranslation();
   return (
     <div className="p-2">

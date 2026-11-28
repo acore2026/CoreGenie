@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from "react";
+import type { MCPServerInfo, MCPToolInfo } from "@/models/mcpServers";
+import { useState, useEffect, useRef } from "react";
 import showToast from "@/utils/toast";
 import { CaretDown, Gear, Warning } from "@phosphor-icons/react";
 import MCPLogo from "@/media/agents/mcp-logo.svg";
@@ -7,11 +8,18 @@ import MCPServers from "@/models/mcpServers";
 import { SimpleToggleSwitch } from "@/components/lib/Toggle";
 import { useTranslation, Trans } from "react-i18next";
 
-function ManageServerMenu({ server, toggleServer, onDelete }) {
+type ServerActions = {
+  server: MCPServerInfo;
+  toggleServer: (name: string) => void;
+  onDelete: (name: string) => void;
+};
+type ToggleTool = (server: string, tool: string, enabled: boolean) => void;
+
+function ManageServerMenu({ server, toggleServer, onDelete }: ServerActions) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [running, setRunning] = useState(server.running);
-  const menuRef = useRef(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   async function deleteServer() {
     if (
@@ -57,8 +65,12 @@ function ManageServerMenu({ server, toggleServer, onDelete }) {
   }
 
   useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (menuRef.current && !menuRef.current.contains(event.target)) {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        menuRef.current &&
+        event.target instanceof Node &&
+        !menuRef.current.contains(event.target)
+      ) {
         setOpen(false);
       }
     };
@@ -109,7 +121,7 @@ export default function ServerPanel({
   toggleServer,
   onDelete,
   onToggleTool,
-}) {
+}: ServerActions & { onToggleTool: ToggleTool }) {
   const { t } = useTranslation();
   const suppressedTools = server.config?.anythingllm?.suppressedTools || [];
   const enabledToolCount = server.tools.filter(
@@ -158,7 +170,13 @@ export default function ServerPanel({
   );
 }
 
-function ToolCountWarningBanner({ server, enabledToolCount }) {
+function ToolCountWarningBanner({
+  server,
+  enabledToolCount,
+}: {
+  server: MCPServerInfo;
+  enabledToolCount: number;
+}) {
   if (server.tools.length <= 10) return null;
   if (enabledToolCount <= 10) return null;
 
@@ -176,7 +194,7 @@ function ToolCountWarningBanner({ server, enabledToolCount }) {
   );
 }
 
-function RenderServerConfig({ config = null }) {
+function RenderServerConfig({ config }: { config?: MCPServerInfo["config"] }) {
   const { t } = useTranslation();
   if (!config) return null;
   return (
@@ -198,7 +216,7 @@ function RenderServerConfig({ config = null }) {
   );
 }
 
-function RenderServerStatus({ server }) {
+function RenderServerStatus({ server }: { server: MCPServerInfo }) {
   const { t } = useTranslation();
   if (server.running || !server.error) return null;
   return (
@@ -218,6 +236,11 @@ function RenderServerTools({
   tools = [],
   suppressedTools = [],
   onToggleTool,
+}: {
+  serverName: string;
+  tools?: MCPToolInfo[];
+  suppressedTools?: string[];
+  onToggleTool: ToggleTool;
 }) {
   if (tools.length === 0) return null;
   return (
@@ -237,7 +260,17 @@ function RenderServerTools({
   );
 }
 
-function ServerTool({ serverName, tool, enabled, onToggle }) {
+function ServerTool({
+  serverName,
+  tool,
+  enabled,
+  onToggle,
+}: {
+  serverName: string;
+  tool: MCPToolInfo;
+  enabled: boolean;
+  onToggle: ToggleTool;
+}) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
 

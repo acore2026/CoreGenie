@@ -17,6 +17,57 @@ export interface AdminUser {
   suspended?: number;
   dailyMessageLimit?: number | null;
 }
+export type DatabaseEngine = "postgresql" | "mysql" | "sql-server";
+export interface SQLConnection {
+  database_id: string;
+  engine: DatabaseEngine;
+  username?: string;
+  password?: string;
+  host?: string;
+  port?: string;
+  database?: string;
+  schema?: string | null;
+  encrypt?: boolean;
+  ssl?: boolean;
+  connectionString?: string;
+  action?: "add" | "update" | "remove";
+  originalDatabaseId?: string | null;
+}
+export type SkillInputValue = string | number | boolean;
+export interface ImportedSkill {
+  hubId: string;
+  name: string;
+  description?: string;
+  author_url?: string;
+  author?: string;
+  active: boolean;
+  setup_args?: Record<
+    string,
+    {
+      type: string;
+      required?: boolean;
+      value?: SkillInputValue;
+      input?: {
+        type?: string;
+        required?: boolean;
+        default?: SkillInputValue;
+        placeholder?: string;
+        hint?: string;
+      };
+    }
+  >;
+}
+interface AdminPreferences extends Record<string, unknown> {
+  global_system_prompt?: string;
+  feature_flags?: Record<string, boolean>;
+  agent_search_provider?: string;
+  agent_sql_connections?: SQLConnection[];
+  disabled_create_files_skills?: string[];
+  disabled_filesystem_skills?: string[];
+  default_agent_skills?: string[];
+  disabled_agent_skills?: string[];
+  imported_agent_skills?: ImportedSkill[];
+}
 export interface FeedbackReason {
   id: number;
   code: string;
@@ -202,18 +253,12 @@ const Admin = {
   systemPreferencesByFields: async (
     labels: string[] = []
   ): Promise<{
-    settings: AnyRecord & {
-      global_system_prompt?: string;
-      feature_flags?: Record<string, boolean>;
-    };
+    settings: AdminPreferences;
     error?: string | null;
   } | null> => {
     try {
       return await api.get<{
-        settings: AnyRecord & {
-          global_system_prompt?: string;
-          feature_flags?: Record<string, boolean>;
-        };
+        settings: AdminPreferences;
         error?: string | null;
       }>(`/admin/system-preferences-for?labels=${labels.join(",")}`);
     } catch (e) {

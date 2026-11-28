@@ -1,4 +1,13 @@
-export default function SearchProviderItem({ provider, checked, onClick }) {
+import type { SearchProvider } from "..";
+export default function SearchProviderItem({
+  provider,
+  checked,
+  onClick,
+}: {
+  provider: SearchProvider;
+  checked: boolean;
+  onClick: () => void;
+}) {
   const { name, value, logo, description } = provider;
   return (
     <div

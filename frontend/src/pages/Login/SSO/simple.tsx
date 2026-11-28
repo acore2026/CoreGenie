@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { useEffect, useState } from "react";
 import { FullScreenLoader } from "@/components/Preloader";
 import paths from "@/utils/paths";
@@ -6,6 +7,7 @@ import System from "@/models/system";
 import { AUTH_TIMESTAMP, AUTH_TOKEN, AUTH_USER } from "@/utils/constants";
 
 export default function SimpleSSOPassthrough() {
+  const { t } = useTranslation();
   const query = useQuery();
   const target = query.get("redirectTo");
   const redirectPath =
@@ -30,7 +32,7 @@ export default function SimpleSSOPassthrough() {
       System.simpleSSOLogin(token)
         .then((res) => {
           if (!res.valid || !res.token)
-            throw new Error(res.message || "登录失败");
+            throw new Error(res.message || t("auth_page.sign_in_failed"));
 
           window.localStorage.setItem(AUTH_USER, JSON.stringify(res.user));
           window.localStorage.setItem(AUTH_TOKEN, res.token);

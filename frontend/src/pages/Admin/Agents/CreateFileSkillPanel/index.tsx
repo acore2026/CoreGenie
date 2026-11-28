@@ -1,3 +1,5 @@
+import type { TFunction } from "i18next";
+import type { SkillPanelProps } from "../skills";
 import React, { useEffect, useState, useRef } from "react";
 import Toggle, { SimpleToggleSwitch } from "@/components/lib/Toggle";
 import { useTranslation } from "react-i18next";
@@ -11,7 +13,7 @@ import {
 } from "@phosphor-icons/react";
 import Admin from "@/models/admin";
 
-export const getCreateFileSkills = (t) => [
+export const getCreateFileSkills = (t: TFunction) => [
   {
     name: "create-text-file",
     title: t("agent.skill.createFiles.skills.create-text-file.title"),
@@ -56,9 +58,9 @@ export default function CreateFileSkillPanel({
   icon,
   setHasChanges,
   hasChanges = false,
-}) {
+}: SkillPanelProps) {
   const { t } = useTranslation();
-  const [disabledSkills, setDisabledSkills] = useState([]);
+  const [disabledSkills, setDisabledSkills] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const prevHasChanges = useRef(hasChanges);
   const skills = getCreateFileSkills(t);
@@ -84,7 +86,7 @@ export default function CreateFileSkillPanel({
     prevHasChanges.current = hasChanges;
   }, [hasChanges]);
 
-  function toggleFileSkill(skillName) {
+  function toggleFileSkill(skillName: string) {
     setHasChanges(true);
     setDisabledSkills((prev) =>
       prev.includes(skillName)
@@ -162,7 +164,15 @@ export default function CreateFileSkillPanel({
   );
 }
 
-function SkillRow({ skill, disabled, onToggle }) {
+function SkillRow({
+  skill,
+  disabled,
+  onToggle,
+}: {
+  skill: ReturnType<typeof getCreateFileSkills>[number];
+  disabled: boolean;
+  onToggle: () => void;
+}) {
   const Icon = skill.icon;
   return (
     <div

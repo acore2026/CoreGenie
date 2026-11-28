@@ -1,3 +1,4 @@
+import type { MCPServerInfo } from "@/models/mcpServers";
 import { useState, useEffect } from "react";
 import { titleCase } from "text-case";
 import { BookOpenText, ArrowClockwise, Warning } from "@phosphor-icons/react";
@@ -11,6 +12,10 @@ export function MCPServerHeader({
   setMcpServers,
   setSelectedMcpServer,
   children,
+}: {
+  setMcpServers: (servers: MCPServerInfo[]) => void;
+  setSelectedMcpServer: (server: MCPServerInfo | null) => void;
+  children: (props: { loadingMcpServers: boolean }) => React.ReactNode;
 }) {
   const { t } = useTranslation();
   const [loadingMcpServers, setLoadingMcpServers] = useState(false);
@@ -33,13 +38,23 @@ export function MCPServerHeader({
     ) {
       setLoadingMcpServers(true);
       MCPServers.forceReload()
-        .then(({ servers = [] }) => {
+        .then(({ success, error, servers = [] }) => {
+          if (!success)
+            throw new Error(
+              error || t("agent.tool_settings.refresh_mcp_failed")
+            );
           setSelectedMcpServer(null);
           setMcpServers(servers);
         })
         .catch((err) => {
           console.error(err);
-          showToast(`Failed to refresh MCP servers.`, "error", { clear: true });
+          showToast(
+            err instanceof Error
+              ? err.message
+              : t("agent.tool_settings.refresh_mcp_failed"),
+            "error",
+            { clear: true }
+          );
         })
         .finally(() => {
           setLoadingMcpServers(false);
@@ -91,6 +106,11 @@ export function MCPServersList({
   servers = [],
   selectedServer,
   handleClick,
+}: {
+  isLoading?: boolean;
+  servers: MCPServerInfo[];
+  selectedServer: MCPServerInfo | null;
+  handleClick: (server: MCPServerInfo) => void;
 }) {
   const { t } = useTranslation();
   if (isLoading) {
@@ -148,7 +168,19 @@ export function MCPServersList({
   );
 }
 
-function MCPServerItem({ server, isFirst, isLast, isSelected, handleClick }) {
+function MCPServerItem({
+  server,
+  isFirst,
+  isLast,
+  isSelected,
+  handleClick,
+}: {
+  server: MCPServerInfo;
+  isFirst: boolean;
+  isLast: boolean;
+  isSelected: boolean;
+  handleClick: () => void;
+}) {
   const { t } = useTranslation();
   const suppressedTools = server.config?.anythingllm?.suppressedTools || [];
   const enabledToolCount = server.tools.length - suppressedTools.length;

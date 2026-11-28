@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import type { ImportedSkill, SkillInputValue } from "@/models/admin";
 import System from "@/models/system";
 import showToast from "@/utils/toast";
 import { Gear, Plug } from "@phosphor-icons/react";
@@ -5,37 +7,26 @@ import { useEffect, useState, useRef } from "react";
 import { sentenceCase } from "text-case";
 import Toggle from "@/components/lib/Toggle";
 
-/**
- * Converts setup_args to inputs for the form builder
- * @param {object} setupArgs - The setup arguments object
- * @returns {object} - The inputs object
- */
-function inputsFromArgs(setupArgs) {
-  if (
-    !setupArgs ||
-    setupArgs.constructor?.call?.().toString() !== "[object Object]"
-  ) {
-    return {};
-  }
-  return Object.entries(setupArgs).reduce(
-    (acc, [key, props]) => ({
-      ...acc,
-      [key]: props.hasOwnProperty("value")
-        ? props.value
-        : props?.input?.default || "",
-    }),
-    {}
+type SetSkills = React.Dispatch<React.SetStateAction<ImportedSkill[]>>;
+
+function inputsFromArgs(
+  args: ImportedSkill["setup_args"]
+): Record<string, SkillInputValue> {
+  return Object.fromEntries(
+    Object.entries(args ?? {}).map(([key, arg]) => [
+      key,
+      arg.value ?? arg.input?.default ?? "",
+    ])
   );
 }
-
-/**
- * Imported skill config component for imported skills only.
- * @returns {JSX.Element}
- */
 export default function ImportedSkillConfig({
-  selectedSkill, // imported skill config object
-  setImportedSkills, // function to set imported skills since config is file-write
+  selectedSkill,
+  setImportedSkills,
+}: {
+  selectedSkill: ImportedSkill;
+  setImportedSkills: SetSkills;
 }) {
+  const { t } = useTranslation();
   const [config, setConfig] = useState(selectedSkill);
   const [hasChanges, setHasChanges] = useState(false);
   const [inputs, setInputs] = useState(
@@ -47,11 +38,14 @@ export default function ImportedSkillConfig({
     Object.keys(selectedSkill.setup_args).length > 0;
 
   async function toggleSkill() {
-    const updatedConfig = { ...selectedSkill, active: !config.active };
-    await System.experimentalFeatures.agentPlugins.updatePluginConfig(
-      config.hubId,
-      { active: !config.active }
-    );
+    const updatedConfig = { ...config, active: !config.active };
+    const saved =
+      await System.experimentalFeatures.agentPlugins.updatePluginConfig(
+        config.hubId,
+        { active: !config.active }
+      );
+    if (!saved)
+      return showToast(t("agent.tool_settings.save_skill_failed"), "error");
     setImportedSkills((prev) =>
       prev.map((s) => (s.hubId === config.hubId ? updatedConfig : s))
     );
@@ -63,13 +57,14 @@ export default function ImportedSkillConfig({
     );
   }
 
-  async function handleSubmit(e) {
+  async function handleSubmit(e: React.MouseEvent<HTMLButtonElement>) {
     e.preventDefault();
     const errors = [];
-    const updatedConfig = { ...config };
+    const updatedConfig = { ...config, setup_args: { ...config.setup_args } };
 
     for (const [key, value] of Object.entries(inputs)) {
-      const settings = config.setup_args[key];
+      const settings = updatedConfig.setup_args[key];
+      if (!settings) continue;
       if (settings.required && !value) {
         errors.push(`${key} is required to have a value.`);
         continue;
@@ -78,7 +73,7 @@ export default function ImportedSkillConfig({
         errors.push(`${key} must be of type ${settings.type}.`);
         continue;
       }
-      updatedConfig.setup_args[key].value = value;
+      updatedConfig.setup_args[key] = { ...settings, value };
     }
 
     if (errors.length > 0) {
@@ -86,10 +81,13 @@ export default function ImportedSkillConfig({
       return;
     }
 
-    await System.experimentalFeatures.agentPlugins.updatePluginConfig(
-      config.hubId,
-      updatedConfig
-    );
+    const saved =
+      await System.experimentalFeatures.agentPlugins.updatePluginConfig(
+        config.hubId,
+        updatedConfig
+      );
+    if (!saved)
+      return showToast(t("agent.tool_settings.save_skill_failed"), "error");
     setConfig(updatedConfig);
     setImportedSkills((prev) =>
       prev.map((skill) =>
@@ -144,7 +142,7 @@ export default function ImportedSkillConfig({
 
           {hasSetupArgs ? (
             <div className="flex flex-col gap-y-2">
-              {Object.entries(config.setup_args).map(([key, props]) => (
+              {Object.entries(config.setup_args ?? {}).map(([key, props]) => (
                 <div key={key} className="flex flex-col gap-y-1">
                   <label htmlFor={key} className="text-white text-sm font-bold">
                     {key}
@@ -152,11 +150,7 @@ export default function ImportedSkillConfig({
                   <input
                     type={props?.input?.type || "text"}
                     required={props?.input?.required}
-                    defaultValue={
-                      props.hasOwnProperty("value")
-                        ? props.value
-                        : props?.input?.default || ""
-                    }
+                    defaultValue={String(inputs[key] ?? "")}
                     onChange={(e) =>
                       setInputs({ ...inputs, [key]: e.target.value })
                     }
@@ -189,9 +183,15 @@ export default function ImportedSkillConfig({
   );
 }
 
-function ManageSkillMenu({ config, setImportedSkills }) {
+function ManageSkillMenu({
+  config,
+  setImportedSkills,
+}: {
+  config: ImportedSkill;
+  setImportedSkills: SetSkills;
+}) {
   const [open, setOpen] = useState(false);
-  const menuRef = useRef(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   async function deleteSkill() {
     if (
@@ -213,8 +213,12 @@ function ManageSkillMenu({ config, setImportedSkills }) {
   }
 
   useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (menuRef.current && !menuRef.current.contains(event.target)) {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        menuRef.current &&
+        event.target instanceof Node &&
+        !menuRef.current.contains(event.target)
+      ) {
         setOpen(false);
       }
     };

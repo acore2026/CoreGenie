@@ -1,4 +1,5 @@
-export function TavilySearchOptions({ settings }) {
+import type { SystemKeys } from "@/models/system";
+export function TavilySearchOptions({ settings }: { settings: SystemKeys }) {
   return (
     <>
       <p className="text-sm text-white/60 my-2">
@@ -34,7 +35,7 @@ export function TavilySearchOptions({ settings }) {
   );
 }
 
-export function ExaSearchOptions({ settings }) {
+export function ExaSearchOptions({ settings }: { settings: SystemKeys }) {
   return (
     <>
       <p className="text-sm text-white/60 my-2">
@@ -70,7 +71,7 @@ export function ExaSearchOptions({ settings }) {
   );
 }
 
-export function BaiduSearchOptions({ settings }) {
+export function BaiduSearchOptions({ settings }: { settings: SystemKeys }) {
   return (
     <>
       <p className="text-sm text-white/60 my-2">
@@ -108,7 +109,7 @@ export function BaiduSearchOptions({ settings }) {
   );
 }
 
-export function SearXNGOptions({ settings }) {
+export function SearXNGOptions({ settings }: { settings: SystemKeys }) {
   return (
     <div className="flex gap-x-4">
       <div className="flex flex-col w-60">

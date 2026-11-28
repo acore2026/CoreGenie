@@ -1,3 +1,5 @@
+import type { TFunction } from "i18next";
+import type { SkillPanelProps } from "../skills";
 import React, { useEffect, useState, useRef } from "react";
 import Toggle, { SimpleToggleSwitch } from "@/components/lib/Toggle";
 import { Link } from "react-router-dom";
@@ -20,7 +22,7 @@ import {
 import Admin from "@/models/admin";
 import paths from "@/utils/paths";
 
-export const getFileSystemSubSkills = (t) => {
+export const getFileSystemSubSkills = (t: TFunction) => {
   return [
     {
       name: "filesystem-read-text-file",
@@ -122,9 +124,9 @@ export default function FileSystemSkillPanel({
   icon,
   setHasChanges,
   hasChanges = false,
-}) {
+}: SkillPanelProps) {
   const { t } = useTranslation();
-  const [disabledSubSkills, setDisabledSubSkills] = useState([]);
+  const [disabledSubSkills, setDisabledSubSkills] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const prevHasChanges = useRef(hasChanges);
   const FILESYSTEM_SUB_SKILLS = getFileSystemSubSkills(t);
@@ -150,7 +152,7 @@ export default function FileSystemSkillPanel({
     prevHasChanges.current = hasChanges;
   }, [hasChanges]);
 
-  function toggleSubSkill(subSkillName) {
+  function toggleSubSkill(subSkillName: string) {
     setHasChanges(true);
     setDisabledSubSkills((prev) => {
       if (prev.includes(subSkillName)) {
@@ -297,7 +299,17 @@ function WarningBanner() {
   );
 }
 
-function SubSkillRow({ subSkill, disabled, onToggle, isWriteOperation }) {
+function SubSkillRow({
+  subSkill,
+  disabled,
+  onToggle,
+  isWriteOperation,
+}: {
+  subSkill: ReturnType<typeof getFileSystemSubSkills>[number];
+  disabled: boolean;
+  onToggle: () => void;
+  isWriteOperation?: boolean;
+}) {
   const Icon = subSkill.icon;
   return (
     <div

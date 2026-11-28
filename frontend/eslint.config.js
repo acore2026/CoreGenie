@@ -7,46 +7,32 @@ import pluginPrettier from "eslint-plugin-prettier"
 import configPrettier from "eslint-config-prettier"
 import unusedImports from "eslint-plugin-unused-imports"
 
-const config = [
+export default [
+  { ignores: ["src/media/**/*"] },
   {
-    ignores: ["**/*.min.js", "src/media/**/*"]
-  },
-
-  // Base JS recommended rules
-  js.configs.recommended,
-
-  // Your React/JSX files
-  {
-    files: ["src/**/*.{js,jsx,mjs,cjs}"],
+    files: ["src/**/*.{ts,tsx}"],
     languageOptions: {
-      ecmaVersion: "latest",
-      sourceType: "module",
-      parserOptions: {
-        ecmaFeatures: { jsx: true }
-      },
-      globals: globals.browser
+      parser: tseslint.parser,
+      parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname },
+      globals: globals.browser,
     },
     plugins: {
+      "@typescript-eslint": tseslint.plugin,
       react: pluginReact,
       "react-hooks": pluginReactHooks,
       "unused-imports": unusedImports,
-      prettier: pluginPrettier
+      prettier: pluginPrettier,
     },
-    settings: {
-      react: { version: "detect" }
-    },
+    settings: { react: { version: "detect" } },
     rules: {
-      // React recommended rules (inline, since we're not "extending" in flat config)
+      ...js.configs.recommended.rules,
       ...pluginReact.configs.flat.recommended.rules,
-
-      // If you want hooks rules, add these (recommended)
       ...pluginReactHooks.configs.recommended.rules,
-
-      // Prettier: disable conflicting stylistic rules + optionally enforce formatting
       ...configPrettier.rules,
       "prettier/prettier": "error",
-
-      // Your overrides
+      "@typescript-eslint/no-explicit-any": "warn",
+      "@typescript-eslint/await-thenable": "warn",
+      "unused-imports/no-unused-imports": "error",
       "react/react-in-jsx-scope": "off",
       "react-hooks/exhaustive-deps": "off",
       "react/prop-types": "off",
@@ -61,47 +47,12 @@ const config = [
       "no-prototype-builtins": "off",
       "no-empty": "off",
       "no-useless-escape": "off",
-      "no-undef": "error",
       "no-unsafe-optional-chaining": "off",
       "no-constant-binary-expression": "off",
-
-      // Unused cleanup
-      "no-unused-vars": "off",
-      "unused-imports/no-unused-imports": "error",
-      "unused-imports/no-unused-vars": [
-        "warn",
-        {
-          vars: "all",
-          varsIgnorePattern: "^_",
-          args: "after-used",
-          argsIgnorePattern: "^_"
-        }
-      ]
-    }
-  }
-]
-
-
-// Check migrated TypeScript modules alongside the existing JavaScript.
-export default [
-  ...config,
-  {
-    ...config[2],
-    files: ["src/**/*.{ts,tsx}"],
-    plugins: { ...config[2].plugins, "@typescript-eslint": tseslint.plugin },
-    languageOptions: {
-      ...config[2].languageOptions,
-      parser: tseslint.parser,
-      parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname },
-    },
-    rules: {
-      ...config[2].rules,
-      "@typescript-eslint/no-explicit-any": "warn",
-      "@typescript-eslint/await-thenable": "warn",
-      // The TypeScript compiler checks names, overloads, and unused declarations.
+      // The compiler checks names, overloads, and unused declarations.
       "no-undef": "off",
       "no-redeclare": "off",
-      "unused-imports/no-unused-vars": "off",
+      "no-unused-vars": "off",
     },
   },
 ]

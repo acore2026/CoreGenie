@@ -100,6 +100,7 @@ export interface SystemKeys extends Record<string, unknown> {
   GenericOpenAiEmbeddingApiKey?: string | boolean;
   PGVectorConnectionString?: string | boolean;
   credentialsOnly?: boolean;
+  AgentSearXNGApiUrl?: string;
   MultiUserMode?: boolean;
   HasExistingEmbeddings?: boolean;
   HasCachedEmbeddings?: boolean;

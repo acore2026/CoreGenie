@@ -3,13 +3,20 @@ import { api, errorMessage } from "@/utils/api";
 export interface MCPToolInfo {
   name: string;
   description?: string;
-  inputSchema?: Record<string, unknown>;
+  inputSchema?: {
+    properties?: Record<string, { type?: string | string[] }>;
+    required?: string[];
+  };
 }
 
 export interface MCPServerInfo {
   name: string;
   running: boolean;
-  config?: { anythingllm?: { suppressedTools?: string[] } };
+  config?: {
+    command?: string;
+    args?: string[];
+    anythingllm?: { suppressedTools?: string[] };
+  };
   tools: MCPToolInfo[];
   error: string | null;
   process: { pid: number; cmd: string } | null;

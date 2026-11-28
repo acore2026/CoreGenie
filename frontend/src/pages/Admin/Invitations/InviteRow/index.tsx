@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import type { AdminInvite } from "@/models/admin";
 import { useEffect, useState } from "react";
 import { titleCase } from "text-case";
@@ -7,6 +8,7 @@ import { copyTextToClipboard } from "@/utils/clipboard";
 import showToast from "@/utils/toast";
 
 export default function InviteRow({ invite }: { invite: AdminInvite }) {
+  const { t } = useTranslation();
   const [status, setStatus] = useState(invite.status);
   const [copied, setCopied] = useState(false);
   const handleDelete = async () => {
@@ -18,7 +20,7 @@ export default function InviteRow({ invite }: { invite: AdminInvite }) {
       return false;
     const { success, error } = await Admin.disableInvite(invite.id);
     if (success) setStatus("disabled");
-    else showToast(error || "停用邀请失败", "error");
+    else showToast(error || t("common.disable_invite_failed"), "error");
   };
   const copyInviteLink = async () => {
     if (!invite) return false;

@@ -1,4 +1,6 @@
-import React, { useEffect, useState, useRef } from "react";
+import type { SQLConnection } from "@/models/admin";
+import type { SkillPanelProps } from "../skills";
+import { useEffect, useState, useRef } from "react";
 import DBConnection from "./DBConnection";
 import { Plus, Database, CircleNotch } from "@phosphor-icons/react";
 import NewSQLConnection from "./SQLConnectionModal";
@@ -16,9 +18,9 @@ export default function AgentSQLConnectorSelection({
   enabled = false,
   setHasChanges,
   hasChanges = false,
-}) {
+}: SkillPanelProps) {
   const { isOpen, openModal, closeModal } = useModal();
-  const [connections, setConnections] = useState([]);
+  const [connections, setConnections] = useState<SQLConnection[]>([]);
   const [loading, setLoading] = useState(true);
   const prevHasChanges = useRef(hasChanges);
 
@@ -49,7 +51,7 @@ export default function AgentSQLConnectorSelection({
    * The connection stays in the array (for undo capability) until saved.
    * @param {string} databaseId - The database_id of the connection to remove
    */
-  function handleRemoveConnection(databaseId) {
+  function handleRemoveConnection(databaseId: string) {
     setHasChanges(true);
     setConnections((prev) =>
       prev.map((conn) => {
@@ -72,7 +74,7 @@ export default function AgentSQLConnectorSelection({
    * @param {string} updatedConnection.database_id - The new database_id
    * @param {string} updatedConnection.action - Should be "update"
    */
-  function handleUpdateConnection(updatedConnection) {
+  function handleUpdateConnection(updatedConnection: SQLConnection) {
     setHasChanges(true);
     setConnections((prev) =>
       prev.map((conn) =>
@@ -87,7 +89,7 @@ export default function AgentSQLConnectorSelection({
    * The backend will validate and deduplicate when saved.
    * @param {Object} newConnection - The new connection data with action: "add"
    */
-  function handleAddConnection(newConnection) {
+  function handleAddConnection(newConnection: SQLConnection) {
     setHasChanges(true);
     setConnections((prev) => [...prev, newConnection]);
   }

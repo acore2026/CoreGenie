@@ -680,6 +680,7 @@ const TRANSLATIONS = {
     footer: "资料有出处，工作有进度。",
   },
   auth_page: {
+    sign_in_failed: "登录失败，请重试。",
     codes_title: "保存账户恢复代码",
     codes_description:
       "忘记密码时，可以用恢复代码找回账户。这些代码只显示一次，请先下载并妥善保存，再继续登录。",
@@ -1055,6 +1056,8 @@ const TRANSLATIONS = {
     },
   },
   common: {
+    delete_workspace_failed: "未能删除工作区，请重试。",
+    disable_invite_failed: "未能停用邀请，请重试。",
     "workspaces-name": "工作区名称",
     selection: "模型选择",
     save: "保存更改",
@@ -2207,6 +2210,11 @@ const TRANSLATIONS = {
     },
   },
   agent: {
+    tool_settings: {
+      save_skill_failed: "未能保存 Skill 配置，请重试。",
+      connection_incomplete: "请填写完整的数据库连接信息。",
+      refresh_mcp_failed: "未能刷新 MCP 服务，请重试。",
+    },
     "performance-warning":
       "不明确支持工具调用的 LLMs 的性能高度依赖于模型的功能和准确性。有些能力可能受到限制或不起作用。",
     provider: {

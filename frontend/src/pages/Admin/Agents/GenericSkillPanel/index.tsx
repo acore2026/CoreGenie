@@ -1,3 +1,4 @@
+import type { SkillPanelProps } from "../skills";
 import React from "react";
 import Toggle from "@/components/lib/Toggle";
 
@@ -10,7 +11,7 @@ export default function GenericSkillPanel({
   disabled = false,
   image,
   icon,
-}) {
+}: SkillPanelProps) {
   return (
     <div className="p-2">
       <div className="flex flex-col gap-y-[18px] max-w-[500px]">

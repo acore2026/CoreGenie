@@ -1,3 +1,4 @@
+import type { SQLConnection } from "@/models/admin";
 import PostgreSQLLogo from "./icons/postgresql.png";
 import MySQLLogo from "./icons/mysql.png";
 import MSSQLLogo from "./icons/mssql.png";
@@ -17,6 +18,12 @@ export default function DBConnection({
   onUpdate,
   setHasChanges,
   connections = [],
+}: {
+  connection: SQLConnection;
+  connections: SQLConnection[];
+  onRemove: (id: string) => void;
+  onUpdate: (connection: SQLConnection) => void;
+  setHasChanges: (changed: boolean) => void;
 }) {
   const { database_id, engine } = connection;
   const { isOpen, openModal, closeModal } = useModal();
@@ -34,7 +41,7 @@ export default function DBConnection({
   return (
     <div className="flex gap-x-4 items-center">
       <img
-        src={DB_LOGOS?.[engine] ?? null}
+        src={DB_LOGOS[engine]}
         alt={`${engine} logo`}
         className="w-10 h-10 rounded-md"
       />

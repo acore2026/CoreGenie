@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import type { SQLConnection, DatabaseEngine } from "@/models/admin";
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import ModalWrapper from "@/components/ModalWrapper";
@@ -13,7 +15,7 @@ import Toggle from "@/components/lib/Toggle";
  * @param {string} str - The string to slugify
  * @returns {string} - The slugified string (lowercase, hyphens, no special chars)
  */
-function slugify(str) {
+function slugify(str: string) {
   return str
     .toLowerCase()
     .trim()
@@ -44,9 +46,9 @@ function assembleConnectionString({
   database = "",
   encrypt = false,
   ssl = false,
-}) {
+}: typeof DEFAULT_CONFIG & { engine: DatabaseEngine }) {
   if ([username, password, host, database].every((i) => !!i) === false)
-    return `Please fill out all the fields above.`;
+    return null;
   username = encodeURIComponent(username);
   password = encodeURIComponent(password);
   database = encodeURIComponent(database);
@@ -67,12 +69,12 @@ function assembleConnectionString({
 const DEFAULT_ENGINE = "postgresql";
 const DEFAULT_CONFIG = {
   name: "",
-  username: null,
-  password: null,
-  host: null,
-  port: null,
-  database: null,
-  schema: null,
+  username: "",
+  password: "",
+  host: "",
+  port: "",
+  database: "",
+  schema: "",
   encrypt: false,
   ssl: false,
 };
@@ -98,9 +100,17 @@ export default function SQLConnectionModal({
   setHasChanges,
   existingConnection = null, // { database_id, engine } for edit mode
   connections = [], // List of all existing connections for duplicate detection
+}: {
+  isOpen: boolean;
+  closeModal: () => void;
+  onSubmit: (connection: SQLConnection) => void;
+  setHasChanges: (changed: boolean) => void;
+  existingConnection?: SQLConnection | null;
+  connections: SQLConnection[];
 }) {
+  const { t } = useTranslation();
   const isEditMode = !!existingConnection;
-  const [engine, setEngine] = useState(DEFAULT_ENGINE);
+  const [engine, setEngine] = useState<DatabaseEngine>(DEFAULT_ENGINE);
   const [config, setConfig] = useState(DEFAULT_CONFIG);
   const [isValidating, setIsValidating] = useState(false);
 
@@ -113,14 +123,14 @@ export default function SQLConnectionModal({
       setEngine(existingConnection.engine);
       setConfig({
         name: existingConnection.database_id,
-        username: existingConnection.username,
-        password: existingConnection.password,
-        host: existingConnection.host,
-        port: existingConnection.port,
-        database: existingConnection.database,
-        schema: existingConnection.schema,
-        encrypt: existingConnection?.encrypt,
-        ssl: existingConnection?.ssl,
+        username: existingConnection.username ?? "",
+        password: existingConnection.password ?? "",
+        host: existingConnection.host ?? "",
+        port: existingConnection.port ?? "",
+        database: existingConnection.database ?? "",
+        schema: existingConnection.schema ?? "",
+        encrypt: existingConnection.encrypt ?? false,
+        ssl: existingConnection.ssl ?? false,
       });
     } else {
       setEngine(DEFAULT_ENGINE);
@@ -139,16 +149,16 @@ export default function SQLConnectionModal({
     closeModal();
   }
 
-  function onFormChange(e) {
-    const form = new FormData(e.target.form);
+  function onFormChange(e: React.FormEvent<HTMLFormElement>) {
+    const form = new FormData(e.currentTarget);
     setConfig({
-      name: form.get("name").trim(),
-      username: form.get("username").trim(),
-      password: form.get("password"),
-      host: form.get("host").trim(),
-      port: form.get("port").trim(),
-      database: form.get("database").trim(),
-      schema: form.get("schema")?.trim() || null,
+      name: String(form.get("name") ?? "").trim(),
+      username: String(form.get("username") ?? "").trim(),
+      password: String(form.get("password") ?? ""),
+      host: String(form.get("host") ?? "").trim(),
+      port: String(form.get("port") ?? "").trim(),
+      database: String(form.get("database") ?? "").trim(),
+      schema: String(form.get("schema") ?? "").trim(),
       encrypt: form.get("encrypt") === "true",
       ssl: form.get("ssl") === "true",
     });
@@ -160,7 +170,7 @@ export default function SQLConnectionModal({
    * @param {string} slugifiedName - The slugified name to check
    * @returns {boolean} - True if duplicate exists, false otherwise
    */
-  function isDuplicateConnectionName(slugifiedName) {
+  function isDuplicateConnectionName(slugifiedName: string) {
     // Get active connections (not marked for removal)
     const activeConnections = connections.filter(
       (conn) => conn.action !== "remove"
@@ -187,14 +197,16 @@ export default function SQLConnectionModal({
    * For updates: Includes originalDatabaseId so backend can find and replace the old connection
    * For new connections: Just includes the new connection data
    */
-  async function handleUpdate(e) {
+  async function handleUpdate(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     e.stopPropagation();
-    const form = new FormData(e.target);
+    const form = new FormData(e.currentTarget);
     const connectionString = assembleConnectionString({ engine, ...config });
 
+    if (!connectionString)
+      return showToast(t("agent.tool_settings.connection_incomplete"), "error");
     // Slugify the database_id immediately to match backend behavior
-    const slugifiedDatabaseId = slugify(form.get("name"));
+    const slugifiedDatabaseId = slugify(String(form.get("name") ?? ""));
 
     // Check for duplicate connection names before validation
     if (isDuplicateConnectionName(slugifiedDatabaseId)) {
@@ -254,8 +266,9 @@ export default function SQLConnectionModal({
     } catch (error) {
       console.error("Error validating connection:", error);
       showToast(
-        error?.message ||
-          "Failed to validate connection. Please check your connection details.",
+        error instanceof Error
+          ? error.message
+          : "Failed to validate connection. Please check your connection details.",
         "error",
         { clear: true }
       );
@@ -493,7 +506,8 @@ export default function SQLConnectionModal({
         </div>
       </div>
     </ModalWrapper>,
-    document.getElementById("workspace-agent-settings-container")
+    document.getElementById("workspace-agent-settings-container") ??
+      document.body
   );
 }
 
@@ -507,7 +521,15 @@ export default function SQLConnectionModal({
  * @param {Function} props.onClick - Callback when the engine is clicked
  * @returns {JSX.Element} - Button element with database logo
  */
-function DBEngine({ provider, active, onClick }) {
+function DBEngine({
+  provider,
+  active,
+  onClick,
+}: {
+  provider: DatabaseEngine;
+  active: boolean;
+  onClick: () => void;
+}) {
   return (
     <button
       type="button"

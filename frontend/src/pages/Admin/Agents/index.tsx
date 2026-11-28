@@ -1,3 +1,7 @@
+import type { ImportedSkill } from "@/models/admin";
+import type { MCPServerInfo } from "@/models/mcpServers";
+import type { SystemKeys } from "@/models/system";
+import type { SkillDefinition } from "./skills";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import Sidebar from "@/components/SettingsSidebar";
@@ -8,7 +12,7 @@ import MCPServers from "@/models/mcpServers";
 import showToast from "@/utils/toast";
 import { CaretLeft, CaretRight, Plug, Robot } from "@phosphor-icons/react";
 import ContextualSaveBar from "@/components/ContextualSaveBar";
-import { castToType } from "@/utils/types";
+
 import { ContentLoader } from "@/components/Preloader";
 import { getDefaultSkills, getConfigurableSkills } from "./skills.tsx";
 import { DefaultBadge } from "./Badges/default";
@@ -31,10 +35,11 @@ const IGNORE_CHANGE_SETTINGS = [
 
 export default function AdminAgents() {
   const { t } = useTranslation();
-  const formEl = useRef(null);
+  const formEl = useRef<HTMLFormElement>(null);
   const [hasChanges, setHasChanges] = useState(false);
-  const [settings, setSettings] = useState({});
-  const [selectedSkill, setSelectedSkill] = useState("");
+  const [settings, setSettings] = useState<SystemKeys>({});
+  const [selectedSkill, setSelectedSkill] = useState<string | null>(null);
+  const [importedId, setImportedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [showSkillModal, setShowSkillModal] = useState(false);
   const { pathname } = useLocation();
@@ -46,13 +51,16 @@ export default function AdminAgents() {
         ? "tools"
         : "agents";
 
-  const [agentSkills, setAgentSkills] = useState([]);
-  const [importedSkills, setImportedSkills] = useState([]);
-  const [disabledAgentSkills, setDisabledAgentSkills] = useState([]);
+  const [agentSkills, setAgentSkills] = useState<string[]>([]);
+  const [importedSkills, setImportedSkills] = useState<ImportedSkill[]>([]);
+  const [disabledAgentSkills, setDisabledAgentSkills] = useState<string[]>([]);
 
   // MCP Servers are lazy loaded to not block the UI thread
-  const [mcpServers, setMcpServers] = useState([]);
-  const [selectedMcpServer, setSelectedMcpServer] = useState(null);
+  const [mcpServers, setMcpServers] = useState<MCPServerInfo[]>([]);
+  const [mcpName, setMcpName] = useState<string | null>(null);
+  const selectedMcpServer =
+    mcpServers.find((server) => server.name === mcpName) ?? null;
+  const imported = importedSkills.find((skill) => skill.hubId === importedId);
 
   const [fileSystemAgentAvailable, setFileSystemAgentAvailable] =
     useState(false);
@@ -71,7 +79,7 @@ export default function AdminAgents() {
   // singleUserOnly -> hidden in multi-user mode
   // multiUserOnly -> hidden when NOT in multi-user mode
   const isMultiUserMode = settings?.MultiUserMode ?? false;
-  const filterSkillsByMode = ([_, skillConfig]) => {
+  const filterSkillsByMode = ([, skillConfig]: [string, SkillDefinition]) => {
     if (!skillConfig.mode) return true;
     if (skillConfig.mode.includes("singleUserOnly") && isMultiUserMode)
       return false;
@@ -85,7 +93,7 @@ export default function AdminAgents() {
 
   // Alert user if they try to leave the page with unsaved changes
   useEffect(() => {
-    const handleBeforeUnload = (event) => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
       if (hasChanges) {
         event.preventDefault();
         event.returnValue = "";
@@ -117,12 +125,12 @@ export default function AdminAgents() {
         System.isSandboxAvailable(),
       ]);
 
-      setSettings({ ..._settings, preferences: _preferences.settings } ?? {});
-      setAgentSkills(_preferences.settings?.default_agent_skills ?? []);
+      setSettings(_settings ?? {});
+      setAgentSkills(_preferences?.settings?.default_agent_skills ?? []);
       setDisabledAgentSkills(
-        _preferences.settings?.disabled_agent_skills ?? []
+        _preferences?.settings?.disabled_agent_skills ?? []
       );
-      setImportedSkills(_preferences.settings?.imported_agent_skills ?? []);
+      setImportedSkills(_preferences?.settings?.imported_agent_skills ?? []);
       setFileSystemAgentAvailable(fsAgentAvailable);
       setCreateFilesAgentAvailable(createFilesAvailable);
       setSandboxAvailable(codeSandboxAvailable);
@@ -131,7 +139,7 @@ export default function AdminAgents() {
     fetchSettings();
   }, []);
 
-  const toggleDefaultSkill = (skillName) => {
+  const toggleDefaultSkill = (skillName: string) => {
     setDisabledAgentSkills((prev) => {
       const updatedSkills = prev.includes(skillName)
         ? prev.filter((name) => name !== skillName)
@@ -141,7 +149,7 @@ export default function AdminAgents() {
     });
   };
 
-  const toggleAgentSkill = (skillName) => {
+  const toggleAgentSkill = (skillName: string) => {
     setAgentSkills((prev) => {
       const updatedSkills = prev.includes(skillName)
         ? prev.filter((name) => name !== skillName)
@@ -151,7 +159,7 @@ export default function AdminAgents() {
     });
   };
 
-  const toggleMCP = (serverName) => {
+  const toggleMCP = (serverName: string) => {
     setMcpServers((prev) => {
       return prev.map((server) => {
         if (server.name !== serverName) return server;
@@ -160,94 +168,71 @@ export default function AdminAgents() {
     });
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    const data = {
-      workspace: {},
-      system: {},
-      env: {},
-    };
-
-    const form = new FormData(formEl.current);
-    for (var [key, value] of form.entries()) {
-      if (key.startsWith("system::")) {
-        const [_, label] = key.split("system::");
-        data.system[label] = String(value);
-        continue;
-      }
-
-      if (key.startsWith("env::")) {
-        const [_, label] = key.split("env::");
-        data.env[label] = String(value);
-        continue;
-      }
-      data.workspace[key] = castToType(key, value);
+  const handleSubmit = async (event?: React.FormEvent<HTMLFormElement>) => {
+    event?.preventDefault();
+    if (!formEl.current) return;
+    const system: Record<string, string> = {};
+    const env: Record<string, string> = {};
+    for (const [key, value] of new FormData(formEl.current)) {
+      if (key.startsWith("system::")) system[key.slice(8)] = String(value);
+      if (key.startsWith("env::")) env[key.slice(5)] = String(value);
     }
-
-    const { success } = await Admin.updateSystemPreferences(data.system);
-    await System.updateSystem(data.env);
-
-    if (success) {
+    const { success, error } = await Admin.updateSystemPreferences(system);
+    const envResult = await System.updateSystem(env);
+    if (success && !envResult.error) {
       const _settings = await System.keys();
       const _preferences = await Admin.systemPreferencesByFields([
         "disabled_agent_skills",
         "default_agent_skills",
         "imported_agent_skills",
       ]);
-      setSettings({ ..._settings, preferences: _preferences.settings } ?? {});
-      setAgentSkills(_preferences.settings?.default_agent_skills ?? []);
+      setSettings(_settings ?? {});
+      setAgentSkills(_preferences?.settings?.default_agent_skills ?? []);
       setDisabledAgentSkills(
-        _preferences.settings?.disabled_agent_skills ?? []
+        _preferences?.settings?.disabled_agent_skills ?? []
       );
-      setImportedSkills(_preferences.settings?.imported_agent_skills ?? []);
+      setImportedSkills(_preferences?.settings?.imported_agent_skills ?? []);
       showToast(`Agent preferences saved successfully.`, "success", {
         clear: true,
       });
     } else {
-      showToast(`Agent preferences failed to save.`, "error", { clear: true });
+      return showToast(
+        error || envResult.error || `Agent preferences failed to save.`,
+        "error",
+        { clear: true }
+      );
     }
 
     setHasChanges(false);
   };
 
-  let SelectedSkillComponent = null;
-  if (selectedMcpServer) {
-    SelectedSkillComponent = ServerPanel;
-  } else if (selectedSkill?.imported) {
-    SelectedSkillComponent = ImportedSkillConfig;
-  } else if (configurableSkills[selectedSkill]) {
-    SelectedSkillComponent = configurableSkills[selectedSkill]?.component;
-  } else {
-    SelectedSkillComponent = defaultSkills[selectedSkill]?.component;
-  }
-
-  // Update the click handlers to clear the other selection
-  const handleDefaultSkillClick = (skill) => {
-    setSelectedMcpServer(null);
-    setSelectedSkill(skill);
+  const selectBuiltInSkill = (key: string) => {
+    setMcpName(null);
+    setImportedId(null);
+    setSelectedSkill(key);
     if (isMobile) setShowSkillModal(true);
   };
-
-  const handleSkillClick = (skill) => {
-    setSelectedMcpServer(null);
-    setSelectedSkill(skill);
-    if (isMobile) setShowSkillModal(true);
-  };
-
-  const handleMCPClick = (server) => {
+  const selectImportedSkill = (skill: ImportedSkill) => {
+    setMcpName(null);
     setSelectedSkill(null);
-    setSelectedMcpServer(server);
+    setImportedId(skill.hubId);
     if (isMobile) setShowSkillModal(true);
   };
-
-  const handleMCPServerDelete = (serverName) => {
-    setSelectedMcpServer(null);
-    setMcpServers((prev) =>
-      prev.filter((server) => server.name !== serverName)
-    );
+  const handleMCPClick = (server: MCPServerInfo) => {
+    setImportedId(null);
+    setSelectedSkill(null);
+    setMcpName(server.name);
+    if (isMobile) setShowSkillModal(true);
   };
-
-  const handleMCPToolToggle = async (serverName, toolName, enabled) => {
+  const handleMCPServerDelete = (name: string) => {
+    setMcpName(null);
+    setMcpServers((prev) => prev.filter((server) => server.name !== name));
+  };
+  const handleMCPToolToggle = async (
+    serverName: string,
+    toolName: string,
+    enabled: boolean
+  ) => {
     const { success, error, suppressedTools } = await MCPServers.toggleTool(
       serverName,
       toolName,
@@ -274,21 +259,47 @@ export default function AdminAgents() {
         };
       })
     );
-
-    setSelectedMcpServer((prev) => {
-      if (!prev || prev.name !== serverName) return prev;
-      return {
-        ...prev,
-        config: {
-          ...prev.config,
-          anythingllm: {
-            ...prev.config?.anythingllm,
-            suppressedTools,
-          },
-        },
-      };
-    });
   };
+
+  const isDefault =
+    !!selectedSkill && Object.hasOwn(defaultSkills, selectedSkill);
+  const definition = selectedSkill
+    ? (isDefault ? defaultSkills : configurableSkills)[selectedSkill]
+    : undefined;
+  const Panel = definition?.component;
+  const selectedPanel = selectedMcpServer ? (
+    <ServerPanel
+      server={selectedMcpServer}
+      toggleServer={toggleMCP}
+      onDelete={handleMCPServerDelete}
+      onToggleTool={handleMCPToolToggle}
+    />
+  ) : imported ? (
+    <ImportedSkillConfig
+      key={imported.hubId}
+      selectedSkill={imported}
+      setImportedSkills={setImportedSkills}
+    />
+  ) : definition && Panel ? (
+    <Panel
+      key={definition.skill}
+      {...definition}
+      settings={settings}
+      toggleSkill={isDefault ? toggleDefaultSkill : toggleAgentSkill}
+      enabled={
+        isDefault
+          ? !disabledAgentSkills.includes(definition.skill)
+          : agentSkills.includes(definition.skill)
+      }
+      setHasChanges={setHasChanges}
+      hasChanges={hasChanges}
+    />
+  ) : (
+    <div className="flex flex-col items-center justify-center h-full text-theme-text-secondary">
+      <Robot size={40} />
+      <p className="font-medium">Select an Agent Tool or MCP Server</p>
+    </div>
+  );
 
   if (loading) {
     return (
@@ -321,7 +332,7 @@ export default function AdminAgents() {
       <SkillLayout
         hasChanges={hasChanges}
         handleCancel={() => setHasChanges(false)}
-        handleSubmit={handleSubmit}
+        handleSubmit={() => void handleSubmit()}
       >
         <form
           onSubmit={handleSubmit}
@@ -356,7 +367,7 @@ export default function AdminAgents() {
             <SkillList
               skills={defaultSkills}
               selectedSkill={selectedSkill}
-              handleClick={handleDefaultSkillClick}
+              handleClick={selectBuiltInSkill}
               activeSkills={Object.keys(defaultSkills).filter(
                 (skill) => !disabledAgentSkills.includes(skill)
               )}
@@ -365,7 +376,7 @@ export default function AdminAgents() {
             <SkillList
               skills={configurableSkills}
               selectedSkill={selectedSkill}
-              handleClick={handleDefaultSkillClick}
+              handleClick={selectBuiltInSkill}
               activeSkills={agentSkills}
             />
 
@@ -375,13 +386,13 @@ export default function AdminAgents() {
             </div>
             <ImportedSkillList
               skills={importedSkills}
-              selectedSkill={selectedSkill}
-              handleClick={handleSkillClick}
+              selectedSkill={importedId}
+              handleClick={selectImportedSkill}
             />
 
             <MCPServerHeader
               setMcpServers={setMcpServers}
-              setSelectedMcpServer={setSelectedMcpServer}
+              setSelectedMcpServer={() => setMcpName(null)}
             >
               {({ loadingMcpServers }) => {
                 return (
@@ -405,7 +416,9 @@ export default function AdminAgents() {
                     type="button"
                     onClick={() => {
                       setShowSkillModal(false);
-                      setSelectedSkill("");
+                      setSelectedSkill(null);
+                      setImportedId(null);
+                      setMcpName(null);
                     }}
                     className="text-white/60 hover:text-white transition-colors duration-200"
                   >
@@ -417,62 +430,7 @@ export default function AdminAgents() {
                 </div>
                 <div className="flex-1 overflow-y-auto p-4">
                   <div className=" bg-theme-bg-secondary text-white rounded-xl p-4 overflow-y-scroll overflow-x-visible no-scroll">
-                    {SelectedSkillComponent ? (
-                      <>
-                        {selectedMcpServer ? (
-                          <ServerPanel
-                            server={selectedMcpServer}
-                            toggleServer={toggleMCP}
-                            onDelete={handleMCPServerDelete}
-                            onToggleTool={handleMCPToolToggle}
-                          />
-                        ) : selectedSkill.imported ? (
-                          <ImportedSkillConfig
-                            key={selectedSkill.hubId}
-                            selectedSkill={selectedSkill}
-                            setImportedSkills={setImportedSkills}
-                          />
-                        ) : (
-                          <>
-                            {defaultSkills?.[selectedSkill] ? (
-                              // The selected skill is a default skill - show the default skill panel
-                              <SelectedSkillComponent
-                                skill={defaultSkills[selectedSkill]?.skill}
-                                settings={settings}
-                                toggleSkill={toggleDefaultSkill}
-                                enabled={
-                                  !disabledAgentSkills.includes(
-                                    defaultSkills[selectedSkill]?.skill
-                                  )
-                                }
-                                setHasChanges={setHasChanges}
-                                {...defaultSkills[selectedSkill]}
-                              />
-                            ) : (
-                              // The selected skill is a configurable skill - show the configurable skill panel
-                              <SelectedSkillComponent
-                                skill={configurableSkills[selectedSkill]?.skill}
-                                settings={settings}
-                                toggleSkill={toggleAgentSkill}
-                                enabled={agentSkills.includes(
-                                  configurableSkills[selectedSkill]?.skill
-                                )}
-                                setHasChanges={setHasChanges}
-                                hasChanges={hasChanges}
-                                {...configurableSkills[selectedSkill]}
-                              />
-                            )}
-                          </>
-                        )}
-                      </>
-                    ) : (
-                      <div className="flex flex-col items-center justify-center h-full text-theme-text-secondary">
-                        <Robot size={40} />
-                        <p className="font-medium">
-                          Select an Agent Tool or MCP Server
-                        </p>
-                      </div>
-                    )}
+                    {selectedPanel}
                   </div>
                 </div>
               </div>
@@ -487,13 +445,17 @@ export default function AdminAgents() {
     <SkillLayout
       hasChanges={hasChanges}
       handleCancel={() => setHasChanges(false)}
-      handleSubmit={handleSubmit}
+      handleSubmit={() => void handleSubmit()}
     >
       <form
         onSubmit={handleSubmit}
         onChange={(e) => {
-          if (IGNORE_CHANGE_SETTINGS.includes(e.target.name)) return;
-          if (!selectedSkill?.imported) setHasChanges(true);
+          if (
+            e.target instanceof HTMLInputElement &&
+            IGNORE_CHANGE_SETTINGS.includes(e.target.name)
+          )
+            return;
+          if (!imported) setHasChanges(true);
         }}
         ref={formEl}
         className="flex-1 flex gap-x-6 p-4 mt-10"
@@ -526,7 +488,7 @@ export default function AdminAgents() {
               <SkillList
                 skills={defaultSkills}
                 selectedSkill={selectedSkill}
-                handleClick={handleSkillClick}
+                handleClick={selectBuiltInSkill}
                 activeSkills={Object.keys(defaultSkills).filter(
                   (skill) => !disabledAgentSkills.includes(skill)
                 )}
@@ -535,7 +497,7 @@ export default function AdminAgents() {
               <SkillList
                 skills={configurableSkills}
                 selectedSkill={selectedSkill}
-                handleClick={handleSkillClick}
+                handleClick={selectBuiltInSkill}
                 activeSkills={agentSkills}
               />
 
@@ -545,13 +507,13 @@ export default function AdminAgents() {
               </div>
               <ImportedSkillList
                 skills={importedSkills}
-                selectedSkill={selectedSkill}
-                handleClick={handleSkillClick}
+                selectedSkill={importedId}
+                handleClick={selectImportedSkill}
               />
 
               <MCPServerHeader
                 setMcpServers={setMcpServers}
-                setSelectedMcpServer={setSelectedMcpServer}
+                setSelectedMcpServer={() => setMcpName(null)}
               >
                 {({ loadingMcpServers }) => {
                   return (
@@ -571,62 +533,7 @@ export default function AdminAgents() {
         {/* Selected agent skill setting panel */}
         <div className="flex-[2] flex flex-col gap-y-[18px] mt-10">
           <div className="bg-theme-bg-secondary text-white rounded-xl flex-1 p-4 overflow-y-scroll overflow-x-visible no-scroll">
-            {SelectedSkillComponent ? (
-              <>
-                {selectedMcpServer ? (
-                  <ServerPanel
-                    server={selectedMcpServer}
-                    toggleServer={toggleMCP}
-                    onDelete={handleMCPServerDelete}
-                    onToggleTool={handleMCPToolToggle}
-                  />
-                ) : selectedSkill.imported ? (
-                  <ImportedSkillConfig
-                    key={selectedSkill.hubId}
-                    selectedSkill={selectedSkill}
-                    setImportedSkills={setImportedSkills}
-                  />
-                ) : (
-                  <>
-                    {defaultSkills?.[selectedSkill] ? (
-                      // The selected skill is a default skill - show the default skill panel
-                      <SelectedSkillComponent
-                        skill={defaultSkills[selectedSkill]?.skill}
-                        settings={settings}
-                        toggleSkill={toggleDefaultSkill}
-                        enabled={
-                          !disabledAgentSkills.includes(
-                            defaultSkills[selectedSkill]?.skill
-                          )
-                        }
-                        setHasChanges={setHasChanges}
-                        {...defaultSkills[selectedSkill]}
-                      />
-                    ) : (
-                      // The selected skill is a configurable skill - show the configurable skill panel
-                      <SelectedSkillComponent
-                        skill={configurableSkills[selectedSkill]?.skill}
-                        settings={settings}
-                        toggleSkill={toggleAgentSkill}
-                        enabled={agentSkills.includes(
-                          configurableSkills[selectedSkill]?.skill
-                        )}
-                        setHasChanges={setHasChanges}
-                        hasChanges={hasChanges}
-                        {...configurableSkills[selectedSkill]}
-                      />
-                    )}
-                  </>
-                )}
-              </>
-            ) : (
-              <div className="flex flex-col items-center justify-center h-full text-theme-text-secondary">
-                <Robot size={40} />
-                <p className="font-medium">
-                  Select an Agent Tool or MCP Server
-                </p>
-              </div>
-            )}
+            {selectedPanel}
           </div>
         </div>
       </form>
@@ -634,7 +541,16 @@ export default function AdminAgents() {
   );
 }
 
-function SkillLayout({ children, hasChanges, handleSubmit, handleCancel }) {
+function SkillLayout({
+  children,
+  hasChanges,
+  handleSubmit,
+  handleCancel,
+}: React.PropsWithChildren<{
+  hasChanges: boolean;
+  handleSubmit: () => void;
+  handleCancel: () => void;
+}>) {
   return (
     <div
       id="workspace-agent-settings-container"
@@ -658,13 +574,20 @@ function SkillLayout({ children, hasChanges, handleSubmit, handleCancel }) {
 
 function SkillList({
   isDefault = false,
-  skills = [],
+  skills,
   selectedSkill = null,
-  handleClick = null,
+  handleClick,
   activeSkills = [],
-  Icon = null,
+  Icon,
+}: {
+  isDefault?: boolean;
+  skills: Record<string, SkillDefinition>;
+  selectedSkill?: string | null;
+  handleClick: (skill: string) => void;
+  activeSkills?: string[];
+  Icon?: typeof Robot;
 }) {
-  if (skills.length === 0) return null;
+  if (Object.keys(skills).length === 0) return null;
 
   return (
     <>
@@ -690,8 +613,8 @@ function SkillList({
             onClick={() => handleClick?.(skill)}
           >
             <div className="flex items-center gap-x-2">
-              {settings.Icon ? (
-                <settings.Icon size={16} />
+              {settings.icon ? (
+                <settings.icon size={16} />
               ) : (
                 Icon && <Icon size={16} />
               )}
