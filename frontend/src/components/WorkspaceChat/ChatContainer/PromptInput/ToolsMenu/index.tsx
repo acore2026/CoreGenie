@@ -11,30 +11,26 @@ import AgentSkillsTab from "./Tabs/AgentSkills";
 
 export const TOOLS_MENU_KEYBOARD_EVENT = "tools-menu-keyboard";
 
-/**
- * @param {Workspace} props.workspace - the workspace object
- * @param {boolean} props.showing
- * @param {function} props.setShowing
- * @param {function} props.sendCommand
- * @param {object} props.promptRef
- * @param {boolean} [props.centered] - when true, popup opens below the input
- * @param {boolean} [props.agentSessionActive] - whether this conversation has an active Agent session
- */
 export default function ToolsMenu({
   workspace,
   agentSessionActive,
   showing,
   setShowing,
-  sendCommand,
-  promptRef,
   centered = false,
   highlightedIndexRef,
+}: {
+  workspace?: { showAgentCommand?: boolean };
+  agentSessionActive?: boolean;
+  showing: boolean;
+  setShowing: (show: boolean) => void;
+  centered?: boolean;
+  highlightedIndexRef?: React.MutableRefObject<number>;
 }) {
   const { t } = useTranslation();
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const [maxHeight, setMaxHeight] = useState(360);
   const itemCountRef = useRef(0);
-  const popoverRef = useRef(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
 
   // Reset highlight when opening or closing.
   useEffect(() => {
@@ -64,14 +60,14 @@ export default function ToolsMenu({
     if (highlightedIndexRef) highlightedIndexRef.current = highlightedIndex;
   }, [highlightedIndex]);
 
-  const registerItemCount = useCallback((count) => {
+  const registerItemCount = useCallback((count: number) => {
     itemCountRef.current = count;
   }, []);
 
   useEffect(() => {
     if (!showing) return;
 
-    function handleKeyboard(e) {
+    function handleKeyboard(e: WindowEventMap["tools-menu-keyboard"]) {
       const { key } = e.detail;
 
       if (key === "ArrowUp" || key === "ArrowDown") {
@@ -108,7 +104,8 @@ export default function ToolsMenu({
         onMouseDown={(e) => {
           // Prevents prompt textarea from losing focus when clicking inside the menu.
           // Skip for portaled modals so their inputs can still receive focus.
-          if (e.currentTarget.contains(e.target)) e.preventDefault();
+          if (e.target instanceof Node && e.currentTarget.contains(e.target))
+            e.preventDefault();
         }}
         style={{ maxHeight }}
         className={`dsh-menu absolute left-2 right-2 z-50 flex flex-col gap-2.5 overflow-hidden p-3 md:left-14 md:right-auto md:w-[400px] ${
@@ -127,9 +124,6 @@ export default function ToolsMenu({
         <div className="flex flex-col gap-1 overflow-y-auto no-scroll min-h-0">
           <AgentSkillsTab
             agentSessionActive={agentSessionActive}
-            sendCommand={sendCommand}
-            setShowing={setShowing}
-            promptRef={promptRef}
             highlightedIndex={highlightedIndex}
             registerItemCount={registerItemCount}
             workspace={workspace}

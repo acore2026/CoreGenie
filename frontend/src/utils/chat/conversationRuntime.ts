@@ -11,9 +11,10 @@ const listeners = new Map<string, Set<Listener>>();
 
 export function conversationRuntimeKey(
   workspaceSlug: string,
-  threadSlug: string | null = null
+  threadSlug: string | null,
+  userId: number | undefined
 ) {
-  return `${workspaceSlug}:${threadSlug || "__default__"}`;
+  return JSON.stringify([userId ?? null, workspaceSlug, threadSlug]);
 }
 
 function notify(key: string) {

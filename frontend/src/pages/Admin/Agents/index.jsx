@@ -10,7 +10,7 @@ import { CaretLeft, CaretRight, Plug, Robot } from "@phosphor-icons/react";
 import ContextualSaveBar from "@/components/ContextualSaveBar";
 import { castToType } from "@/utils/types";
 import { ContentLoader } from "@/components/Preloader";
-import { getDefaultSkills, getConfigurableSkills } from "./skills.jsx";
+import { getDefaultSkills, getConfigurableSkills } from "./skills.tsx";
 import { DefaultBadge } from "./Badges/default";
 import ImportedSkillList from "./Imported/SkillList";
 import ImportedSkillConfig from "./Imported/ImportedSkillConfig";

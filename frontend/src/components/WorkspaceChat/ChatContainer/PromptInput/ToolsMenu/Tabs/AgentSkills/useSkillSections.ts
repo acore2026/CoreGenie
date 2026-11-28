@@ -1,3 +1,25 @@
+import type { TFunction } from "i18next";
+import type useAgentSkillsState from "./useAgentSkillsState";
+type SkillState = ReturnType<typeof useAgentSkillsState>;
+interface MenuSkill {
+  id: string;
+  name: string;
+  enabled: boolean;
+  onToggle: () => void;
+  hasSubSkills?: boolean;
+  subSkills?: (MenuSkill & { parentEnabled: boolean })[] | null;
+}
+interface MenuSection {
+  id: string;
+  name: string;
+  items: MenuSkill[];
+  enabledCount: number;
+  isMcp?: boolean;
+}
+type Definitions = Record<
+  string,
+  { title: string; mode?: string[] } | undefined
+>;
 import { useMemo } from "react";
 import { titleCase } from "text-case";
 import { getSubSkillsForSkill, hasSubSkills } from "./skillRegistry";
@@ -13,7 +35,13 @@ function buildSkillItem({
   t,
   isSubSkillEnabled,
   toggleSubSkill,
-}) {
+}: Pick<SkillState, "toggleSubSkill" | "isSubSkillEnabled"> & {
+  key: string;
+  title: string;
+  t: TFunction;
+  isEnabled: SkillState["isSkillEnabled"];
+  onToggle: SkillState["toggleSkill"];
+}): MenuSkill {
   const subSkills = getSubSkillsForSkill(key, t);
   const parentEnabled = isEnabled(key);
 
@@ -53,16 +81,34 @@ export default function useSkillSections({
   toggleImportedSkill,
   toggleMcpTool,
   disabledSubSkills,
+}: Pick<
+  SkillState,
+  | "importedSkills"
+  | "mcpServers"
+  | "isMultiUser"
+  | "isSkillEnabled"
+  | "toggleSkill"
+  | "isSubSkillEnabled"
+  | "toggleSubSkill"
+  | "toggleImportedSkill"
+  | "toggleMcpTool"
+  | "disabledSubSkills"
+> & {
+  t: TFunction;
+  defaultSkills: Definitions;
+  configurableSkills: Definitions;
 }) {
   return useMemo(() => {
-    const sectionList = [];
+    const sectionList: MenuSection[] = [];
 
     // Agent Skills (default + configurable)
     const skillItems = [];
-    for (const [key, { title, mode }] of Object.entries({
+    for (const [key, definition] of Object.entries({
       ...defaultSkills,
       ...configurableSkills,
     })) {
+      if (!definition) continue;
+      const { title, mode } = definition;
       if (isMultiUser && mode?.includes("singleUserOnly")) continue;
       skillItems.push(
         buildSkillItem({

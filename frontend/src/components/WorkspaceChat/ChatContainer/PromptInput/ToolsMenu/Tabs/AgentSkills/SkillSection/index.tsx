@@ -11,8 +11,17 @@ export default function SkillSection({
   indented = false,
   highlighted = false,
   children,
-}) {
-  const ref = useRef(null);
+}: React.PropsWithChildren<{
+  name: string;
+  expanded: boolean;
+  onToggle: () => void;
+  enabledCount: number;
+  totalCount: number;
+  isMcp?: boolean;
+  indented?: boolean;
+  highlighted?: boolean;
+}>) {
+  const ref = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (highlighted) ref.current?.scrollIntoView({ block: "nearest" });
   }, [highlighted]);

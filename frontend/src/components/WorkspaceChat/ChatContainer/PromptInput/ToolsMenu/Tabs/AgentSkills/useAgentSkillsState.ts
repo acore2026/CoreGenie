@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import Admin from "@/models/admin";
 import System from "@/models/system";
 import AgentPlugins from "@/models/experimental/agentPlugins";
-import MCPServers from "@/models/mcpServers";
+import MCPServers, { type MCPServerInfo } from "@/models/mcpServers";
 import { getSubSkillPreferenceKeys } from "./skillRegistry";
 import useSubSkillPreferences from "./useSubSkillPreferences";
 import { toggleAgentSessionTool } from "@/utils/chat/agent";
@@ -11,16 +11,40 @@ import { toggleAgentSessionTool } from "@/utils/chat/agent";
  * Core hook for managing all agent skill state.
  * Handles fetching, toggling, and persisting skill preferences.
  */
-export default function useAgentSkillsState(defaultSkills) {
+export interface ImportedSkill {
+  hubId: string;
+  name: string;
+  active: boolean;
+}
+function importedSkill(value: unknown): value is ImportedSkill {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "hubId" in value &&
+    typeof value.hubId === "string" &&
+    "name" in value &&
+    typeof value.name === "string" &&
+    "active" in value &&
+    typeof value.active === "boolean"
+  );
+}
+function stringList(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
+}
+export default function useAgentSkillsState(
+  defaultSkills: Record<string, unknown>
+) {
   // Core skill state
   const [fileSystemAgentAvailable, setFileSystemAgentAvailable] =
     useState(false);
   const [sandboxAvailable, setSandboxAvailable] = useState(false);
   const [isMultiUser, setIsMultiUser] = useState(false);
-  const [disabledDefaults, setDisabledDefaults] = useState([]);
-  const [enabledConfigurable, setEnabledConfigurable] = useState([]);
-  const [importedSkills, setImportedSkills] = useState([]);
-  const [mcpServers, setMcpServers] = useState([]);
+  const [disabledDefaults, setDisabledDefaults] = useState<string[]>([]);
+  const [enabledConfigurable, setEnabledConfigurable] = useState<string[]>([]);
+  const [importedSkills, setImportedSkills] = useState<ImportedSkill[]>([]);
+  const [mcpServers, setMcpServers] = useState<MCPServerInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [mcpLoading, setMcpLoading] = useState(true);
 
@@ -50,9 +74,13 @@ export default function useAgentSkillsState(defaultSkills) {
         ]);
 
       if (prefs?.settings) {
-        setDisabledDefaults(prefs.settings.disabled_agent_skills ?? []);
-        setEnabledConfigurable(prefs.settings.default_agent_skills ?? []);
-        setImportedSkills(prefs.settings.imported_agent_skills ?? []);
+        setDisabledDefaults(stringList(prefs.settings.disabled_agent_skills));
+        setEnabledConfigurable(stringList(prefs.settings.default_agent_skills));
+        setImportedSkills(
+          Array.isArray(prefs.settings.imported_agent_skills)
+            ? prefs.settings.imported_agent_skills.filter(importedSkill)
+            : []
+        );
         subSkillPrefs.loadFromSettings(prefs.settings);
       }
       setFileSystemAgentAvailable(fsAgentAvailable);
@@ -78,7 +106,7 @@ export default function useAgentSkillsState(defaultSkills) {
 
   // Skill enabled/disabled checks
   const isSkillEnabled = useCallback(
-    (key) => {
+    (key: string) => {
       return key in defaultSkills
         ? !disabledDefaults.includes(key)
         : enabledConfigurable.includes(key);
@@ -88,8 +116,8 @@ export default function useAgentSkillsState(defaultSkills) {
 
   // Toggle functions
   const toggleSkill = useCallback(
-    async (key) => {
-      const toggleItem = (arr, item) =>
+    async (key: string) => {
+      const toggleItem = (arr: string[], item: string) =>
         arr.includes(item) ? arr.filter((s) => s !== item) : [...arr, item];
       const newEnabled = !isSkillEnabled(key);
 
@@ -115,7 +143,7 @@ export default function useAgentSkillsState(defaultSkills) {
     [defaultSkills, disabledDefaults, enabledConfigurable, isSkillEnabled]
   );
 
-  const toggleImportedSkill = useCallback(async (skill) => {
+  const toggleImportedSkill = useCallback(async (skill: ImportedSkill) => {
     const newActive = !skill.active;
     setImportedSkills((prev) =>
       prev.map((s) =>
@@ -127,7 +155,7 @@ export default function useAgentSkillsState(defaultSkills) {
   }, []);
 
   const toggleMcpTool = useCallback(
-    async (serverName, toolName, currentlyEnabled) => {
+    async (serverName: string, toolName: string, currentlyEnabled: boolean) => {
       const newEnabled = !currentlyEnabled;
       setMcpServers((prev) => {
         return prev.map((server) => {

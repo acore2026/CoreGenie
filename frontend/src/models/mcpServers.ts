@@ -9,6 +9,7 @@ export interface MCPToolInfo {
 export interface MCPServerInfo {
   name: string;
   running: boolean;
+  config?: { anythingllm?: { suppressedTools?: string[] } };
   tools: MCPToolInfo[];
   error: string | null;
   process: { pid: number; cmd: string } | null;

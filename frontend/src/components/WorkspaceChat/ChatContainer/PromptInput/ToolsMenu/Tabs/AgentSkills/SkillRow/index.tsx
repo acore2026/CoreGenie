@@ -1,5 +1,4 @@
 import { useRef, useEffect } from "react";
-import { SimpleToggleSwitch } from "@/components/lib/Toggle";
 
 export default function SkillRow({
   name,
@@ -7,8 +6,14 @@ export default function SkillRow({
   onToggle,
   highlighted = false,
   disabled = false,
+}: {
+  name: string;
+  enabled: boolean;
+  onToggle: () => void;
+  highlighted?: boolean;
+  disabled?: boolean;
 }) {
-  const ref = useRef(null);
+  const ref = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (highlighted) ref.current?.scrollIntoView({ block: "nearest" });
   }, [highlighted]);
@@ -25,11 +30,20 @@ export default function SkillRow({
       ref={ref}
       type="button"
       className={classNames}
-      onClick={() => !disabled && onToggle()}
+      role="switch"
+      aria-checked={enabled}
+      disabled={disabled}
+      onClick={onToggle}
     >
       <span className="text-xs text-white light:text-slate-900">{name}</span>
       <div className="pointer-events-none" aria-hidden="true">
-        <SimpleToggleSwitch size="sm" enabled={enabled} />
+        <span
+          className={`relative block h-3 w-5 rounded-full ${enabled ? "bg-green-400" : "bg-zinc-500"}`}
+        >
+          <span
+            className={`absolute left-0.5 top-0.5 h-2 w-2 rounded-full bg-white transition-transform ${enabled ? "translate-x-full" : ""}`}
+          />
+        </span>
       </div>
     </button>
   );

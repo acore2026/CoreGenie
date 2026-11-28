@@ -1,3 +1,4 @@
+import useUser from "@/hooks/useUser";
 import {
   useState,
   useEffect,
@@ -93,7 +94,12 @@ export default function ChatContainer({
 }) {
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const runtimeKey = conversationRuntimeKey(workspace.slug, threadSlug);
+  const { user } = useUser();
+  const runtimeKey = conversationRuntimeKey(
+    workspace.slug,
+    threadSlug,
+    user?.id
+  );
   const initialRuntime = initializeConversationRuntime(
     runtimeKey,
     knownHistory

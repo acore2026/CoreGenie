@@ -1,3 +1,4 @@
+import type { TFunction } from "i18next";
 import AgentWebSearchSelection from "./WebSearchSelection";
 import AgentSQLConnectorSelection from "./SQLConnectorSelection";
 import GenericSkillPanel from "./GenericSkillPanel";
@@ -23,7 +24,7 @@ import GenerateSaveImages from "@/media/agents/generate-save-files.png";
 import FileSystemImage from "@/media/agents/file-system.png";
 import ScheduledJobsImage from "@/media/agents/scheduled-jobs.png";
 
-export const getDefaultSkills = (t) => ({
+export const getDefaultSkills = (t: TFunction) => ({
   "rag-memory": {
     title: t("agent.skill.rag.title"),
     description: t("agent.skill.rag.description"),
@@ -59,7 +60,7 @@ export const getDefaultSkills = (t) => ({
  * @returns {object} The configurable skills.
  */
 export const getConfigurableSkills = (
-  t,
+  t: TFunction,
   {
     fileSystemAgentAvailable = true,
     createFilesAgentAvailable = true,

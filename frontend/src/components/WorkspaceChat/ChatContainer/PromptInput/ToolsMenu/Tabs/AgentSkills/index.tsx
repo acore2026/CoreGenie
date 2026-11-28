@@ -21,6 +21,11 @@ export default function AgentSkillsTab({
   registerItemCount,
   workspace,
   agentSessionActive: scopedAgentSessionActive,
+}: {
+  highlightedIndex?: number;
+  registerItemCount?: (count: number) => void;
+  workspace?: { showAgentCommand?: boolean };
+  agentSessionActive?: boolean;
 }) {
   const { t } = useTranslation();
   const { showAgentCommand = true } = workspace ?? {};
@@ -55,8 +60,12 @@ export default function AgentSkillsTab({
   });
 
   // UI state
-  const [expandedSections, setExpandedSections] = useState({});
-  const [expandedSubSections, setExpandedSubSections] = useState({});
+  const [expandedSections, setExpandedSections] = useState<
+    Record<string, boolean>
+  >({});
+  const [expandedSubSections, setExpandedSubSections] = useState<
+    Record<string, boolean>
+  >({});
   const [searchQuery, setSearchQuery] = useState("");
 
   const showAgentCmdActivationAlert = showAgentCommand && !agentSessionActive;
@@ -79,24 +88,24 @@ export default function AgentSkillsTab({
   });
 
   // Section expansion helpers
-  function isSectionExpanded(sectionId) {
+  function isSectionExpanded(sectionId: string) {
     return !!(searchQuery.trim() || expandedSections[sectionId] !== false);
   }
 
-  function toggleSection(sectionId) {
+  function toggleSection(sectionId: string) {
     setExpandedSections((prev) => ({
       ...prev,
       [sectionId]: !(prev[sectionId] ?? true),
     }));
   }
 
-  function isSubSectionExpanded(subSectionId) {
+  function isSubSectionExpanded(subSectionId: string) {
     return !!(
       searchQuery.trim() || expandedSubSections[subSectionId] !== false
     );
   }
 
-  function toggleSubSection(subSectionId) {
+  function toggleSubSection(subSectionId: string) {
     setExpandedSubSections((prev) => ({
       ...prev,
       [subSectionId]: !(prev[subSectionId] ?? true),
@@ -127,13 +136,11 @@ export default function AgentSkillsTab({
 
   // Flat list of navigable items for keyboard nav
   const { flatItems, flatIndexMap } = useMemo(() => {
-    const items = [];
-    const indexMap = {};
+    const items: { onToggle: () => void }[] = [];
+    const indexMap: Record<string, number> = {};
     for (const section of filteredSections) {
       indexMap[section.id] = items.length;
       items.push({
-        type: "header",
-        id: section.id,
         onToggle: () => toggleSection(section.id),
       });
       if (isSectionExpanded(section.id)) {
@@ -141,12 +148,9 @@ export default function AgentSkillsTab({
           indexMap[item.id] = items.length;
           items.push(item);
 
-          if (item.hasSubSkills && item.subSkills) {
+          if (item.enabled && item.hasSubSkills && item.subSkills) {
             indexMap[`subsection-${item.id}`] = items.length;
             items.push({
-              type: "subheader",
-              id: `subsection-${item.id}`,
-              parentId: item.id,
               onToggle: () => toggleSubSection(item.id),
             });
 
@@ -168,10 +172,7 @@ export default function AgentSkillsTab({
   useToolsMenuItems({
     items: flatItems,
     highlightedIndex,
-    onSelect: (item) => {
-      if (item.type === "header") return item.onToggle();
-      item.onToggle();
-    },
+    onSelect: (item) => item.onToggle(),
     registerItemCount,
   });
 
@@ -269,7 +270,15 @@ export default function AgentSkillsTab({
   );
 }
 
-function SearchInput({ value, onChange, placeholder }) {
+function SearchInput({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string;
+  onChange: (query: string) => void;
+  placeholder: string;
+}) {
   return (
     <div className="relative shrink-0">
       <MagnifyingGlass
@@ -286,7 +295,7 @@ function SearchInput({ value, onChange, placeholder }) {
         onKeyDown={(e) => {
           if (e.key === "Escape") {
             onChange("");
-            e.target.blur();
+            e.currentTarget.blur();
           }
           if (e.key === "Enter") e.preventDefault();
         }}

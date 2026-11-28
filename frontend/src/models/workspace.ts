@@ -1,4 +1,4 @@
-import type { ChatResult } from "@/utils/chat/messages";
+import type { ChatMessage, ChatResult } from "@/utils/chat/messages";
 import type {
   WorkspaceRecord,
   ParsedWorkspaceContext,
@@ -119,9 +119,9 @@ const Workspace = {
       signal = undefined,
       throwOnError = false,
     }: { signal?: AbortSignal; throwOnError?: boolean } = {}
-  ): Promise<AnyRecord[]> {
+  ): Promise<ChatMessage[]> {
     try {
-      const result = await api.get<{ history?: AnyRecord[] }>(
+      const result = await api.get<{ history?: ChatMessage[] }>(
         `/workspace/${slug}/chats`,
         { signal, defaultError: "Unable to load conversation." }
       );

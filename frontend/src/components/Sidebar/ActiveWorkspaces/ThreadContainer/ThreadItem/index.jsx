@@ -1,3 +1,4 @@
+import useUser from "@/hooks/useUser";
 import useScrollActiveItemIntoView from "@/hooks/useScrollActiveItemIntoView";
 import Workspace from "@/models/workspace";
 import paths from "@/utils/paths";
@@ -71,6 +72,7 @@ export default function ThreadItem({
     block: "nearest",
   });
 
+  const { user } = useUser();
   useEffect(() => {
     if (!renaming) return;
     renameInputRef.current?.focus();
@@ -82,7 +84,11 @@ export default function ThreadItem({
       setIsProcessing(false);
       return;
     }
-    const runtimeKey = conversationRuntimeKey(workspaceSlug, thread.slug);
+    const runtimeKey = conversationRuntimeKey(
+      workspaceSlug,
+      thread.slug,
+      user?.id
+    );
     return subscribeConversationRuntime(runtimeKey, (runtime) => {
       setIsProcessing(
         Boolean(
@@ -92,7 +98,7 @@ export default function ThreadItem({
         )
       );
     });
-  }, [workspaceSlug, thread.slug, thread.virtual, thread.deleted]);
+  }, [user?.id, workspaceSlug, thread.slug, thread.virtual, thread.deleted]);
 
   function startInlineRename() {
     if (!canModify || !thread.slug || thread.virtual || thread.deleted) return;

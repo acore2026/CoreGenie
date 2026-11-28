@@ -19,6 +19,9 @@ export interface WorkspaceThreadRecord {
   id: number;
   name: string;
   slug: string;
+  canModify?: boolean;
+  submittedAt?: string | null;
+  owner?: { username?: string; displayName?: string };
   workspace_id?: number;
   user_id?: number | null;
   createdAt?: string;

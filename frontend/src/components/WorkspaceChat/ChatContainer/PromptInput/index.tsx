@@ -400,8 +400,6 @@ function PromptInput({
               agentSessionActive={agentSessionActive}
               showing={showTools}
               setShowing={setShowTools}
-              sendCommand={sendCommand}
-              promptRef={textareaRef}
               centered={centered}
               highlightedIndexRef={toolsHighlightRef}
             />

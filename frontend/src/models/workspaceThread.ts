@@ -1,4 +1,4 @@
-import type { ChatResult } from "@/utils/chat/messages";
+import type { ChatMessage, ChatResult } from "@/utils/chat/messages";
 import type { WorkspaceThreadRecord } from "@coregenie/contracts";
 import { api, cleanHeaders } from "@/utils/api";
 import { ABORT_STREAM_EVENT } from "@/utils/chat";
@@ -101,12 +101,12 @@ const WorkspaceThread = {
       throwOnError = false,
     }: { signal?: AbortSignal; throwOnError?: boolean } = {}
   ): Promise<{
-    history: Record<string, unknown>[];
+    history: ChatMessage[];
     thread: WorkspaceThreadRecord | null;
   }> {
     try {
       const result = await api.get<{
-        history?: Record<string, unknown>[];
+        history?: ChatMessage[];
         thread?: WorkspaceThreadRecord | null;
       }>(`/workspace/${workspaceSlug}/thread/${threadSlug}/chats`, {
         signal,

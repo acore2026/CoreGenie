@@ -2690,6 +2690,9 @@ const TRANSLATIONS = {
     },
   },
   chat_window: {
+    workspace_unavailable: "无法打开工作区",
+    workspace_unavailable_hint: "工作区可能已删除，或你的账号没有访问权限。",
+    back_to_home: "返回首页",
     thread_by: "由 {{username}} 创建",
     shared_thread_read_only: "正在查看他人的会话",
     shared_thread_owner:

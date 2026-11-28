@@ -9,24 +9,28 @@ import { toggleAgentSessionTool } from "@/utils/chat/agent";
  *
  * This hook eliminates the need for separate state variables for each skill's
  * sub-skills. Adding a new skill with sub-skills only requires updating the
- * skillRegistry.js file.
+ * skillRegistry.ts file.
  */
 export default function useSubSkillPreferences() {
   // Single state object holding disabled sub-skills for all skills
   // Key: preferenceKey, Value: array of disabled sub-skill names
-  const [disabledSubSkills, setDisabledSubSkills] = useState({});
+  const [disabledSubSkills, setDisabledSubSkills] = useState<
+    Record<string, string[]>
+  >({});
 
   /**
    * Load sub-skill preferences from settings object.
    * Called after fetching system preferences.
    */
-  const loadFromSettings = useCallback((settings) => {
+  const loadFromSettings = useCallback((settings: Record<string, unknown>) => {
     if (!settings) return;
 
-    const loaded = {};
+    const loaded: Record<string, string[]> = {};
     for (const [, config] of Object.entries(SUB_SKILL_REGISTRY)) {
       const value = settings[config.preferenceKey];
-      loaded[config.preferenceKey] = value ?? [];
+      loaded[config.preferenceKey] = Array.isArray(value)
+        ? value.filter((item): item is string => typeof item === "string")
+        : [];
     }
     setDisabledSubSkills(loaded);
   }, []);
@@ -35,7 +39,7 @@ export default function useSubSkillPreferences() {
    * Check if a sub-skill is enabled for a given skill.
    */
   const isSubSkillEnabled = useCallback(
-    (skillKey, subSkillName) => {
+    (skillKey: string, subSkillName: string) => {
       const prefKey = getPreferenceKeyForSkill(skillKey);
       if (!prefKey) return true;
 
@@ -49,7 +53,7 @@ export default function useSubSkillPreferences() {
    * Toggle a sub-skill's enabled state.
    */
   const toggleSubSkill = useCallback(
-    async (skillKey, subSkillName) => {
+    async (skillKey: string, subSkillName: string) => {
       const prefKey = getPreferenceKeyForSkill(skillKey);
       if (!prefKey) return;
 
