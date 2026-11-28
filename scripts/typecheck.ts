@@ -21,7 +21,12 @@ const tsc = findTsc();
 const projects = process.argv.slice(2);
 const targets = projects.length
   ? projects
-  : ["server/tsconfig.json", "frontend/tsconfig.json"];
+  : [
+      "packages/contracts/tsconfig.json",
+      "collector/tsconfig.json",
+      "server/tsconfig.json",
+      "frontend/tsconfig.json",
+    ];
 
 for (const project of targets) {
   const fullPath = path.resolve(root, project);

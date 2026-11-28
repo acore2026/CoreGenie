@@ -3,16 +3,7 @@ export default {
   darkMode: "class",
   content: {
     relative: true,
-    files: [
-      "./src/components/**/*.{js,jsx}",
-      "./src/hooks/**/*.js",
-      "./src/models/**/*.js",
-      "./src/pages/**/*.{js,jsx,ts,tsx}",
-      "./src/utils/**/*.js",
-      "./src/*.jsx",
-      "./index.html",
-      "./node_modules/@tremor/**/*.{js,ts,jsx,tsx}"
-    ]
+    files: ["./src/**/*.{js,jsx,ts,tsx}", "./index.html"]
   },
   theme: {
     extend: {

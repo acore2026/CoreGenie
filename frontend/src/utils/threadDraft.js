@@ -20,9 +20,9 @@ export function openThreadDraft(workspaceSlug, threadSlug, onDeleted) {
   try {
     protectedDraft = Boolean(
       localStorage.getItem(touchedKey(threadSlug)) ||
-        JSON.parse(localStorage.getItem(USER_PROMPT_INPUT_MAP) || "{}")[
-          threadSlug
-        ]
+      JSON.parse(localStorage.getItem(USER_PROMPT_INPUT_MAP) || "{}")[
+        threadSlug
+      ]
     );
   } catch {
     protectedDraft = true;

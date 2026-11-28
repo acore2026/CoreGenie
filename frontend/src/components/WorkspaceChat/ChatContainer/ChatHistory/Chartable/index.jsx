@@ -1,12 +1,5 @@
 import { v4 } from "uuid";
 import {
-  AreaChart,
-  BarChart,
-  DonutChart,
-  Legend,
-  LineChart,
-} from "@tremor/react";
-import {
   Bar,
   CartesianGrid,
   ComposedChart,
@@ -26,7 +19,8 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { Colors, getTremorColor } from "./chart-utils.js";
+import { Colors } from "./colors";
+import { SeriesChart, DonutChart, SeriesLegend } from "./SeriesChart";
 import CustomCell from "./CustomCell.jsx";
 import Tooltip from "./CustomTooltip.jsx";
 import { safeJsonParse } from "@/utils/request";
@@ -36,10 +30,6 @@ import { memo, useCallback, useState } from "react";
 import { saveAs } from "file-saver";
 import { useGenerateImage } from "recharts-to-png";
 import { CircleNotch, DownloadSimple } from "@phosphor-icons/react";
-
-const dataFormatter = (number) => {
-  return Intl.NumberFormat("us").format(number).toString();
-};
 
 export function Chartable({ props }) {
   const [getDivJpeg, { ref }] = useGenerateImage({
@@ -55,75 +45,37 @@ export function Chartable({ props }) {
     if (jpeg) saveAs(jpeg, `chart-${v4().split("-")[0]}.jpg`);
   }, []);
 
-  const color = null;
-  const showLegend = true;
   const content =
     typeof props.content === "string"
       ? safeJsonParse(props.content, null)
       : props.content;
-  if (content === null) return null;
+  if (!content || typeof content !== "object") return null;
 
   const chartType = content?.type?.toLowerCase();
   const data =
     typeof content.dataset === "string"
       ? safeJsonParse(content.dataset, [])
       : content.dataset;
-  const value = data.length > 0 ? Object.keys(data[0])[1] : "value";
+  if (
+    !Array.isArray(data) ||
+    data.some((row) => !row || typeof row !== "object")
+  )
+    return null;
+  const value =
+    Object.keys(data[0] ?? {}).find((key) => key !== "name") ?? "value";
   const title = content?.title;
 
   const renderChart = () => {
     switch (chartType) {
       case "area":
-        return (
-          <div className="bg-theme-bg-primary p-8 rounded-xl text-white light:border light:border-theme-border-primary">
-            <h3 className="text-lg text-theme-text-primary font-medium">
-              {title}
-            </h3>
-            <AreaChart
-              className="h-[350px]"
-              data={data}
-              index="name"
-              categories={[value]}
-              colors={[color || "blue", "cyan"]}
-              showLegend={showLegend}
-              valueFormatter={dataFormatter}
-            />
-          </div>
-        );
       case "bar":
-        return (
-          <div className="bg-theme-bg-primary p-8 rounded-xl text-white light:border light:border-theme-border-primary">
-            <h3 className="text-lg text-theme-text-primary font-medium">
-              {title}
-            </h3>
-            <BarChart
-              className="h-[350px]"
-              data={data}
-              index="name"
-              categories={[value]}
-              colors={[color || "blue"]}
-              showLegend={showLegend}
-              valueFormatter={dataFormatter}
-              layout={"vertical"}
-              yAxisWidth={100}
-            />
-          </div>
-        );
       case "line":
         return (
-          <div className="bg-theme-bg-primary p-8 pb-12 rounded-xl text-white h-[500px] w-full light:border light:border-theme-border-primary">
+          <div className="bg-theme-bg-primary p-8 rounded-xl text-white light:border light:border-theme-border-primary">
             <h3 className="text-lg text-theme-text-primary font-medium">
               {title}
             </h3>
-            <LineChart
-              className="h-[400px]"
-              data={data}
-              index="name"
-              categories={[value]}
-              colors={[color || "blue"]}
-              showLegend={showLegend}
-              valueFormatter={dataFormatter}
-            />
+            <SeriesChart type={chartType} data={data} valueKey={value} />
           </div>
         );
       case "composed":
@@ -132,13 +84,7 @@ export function Chartable({ props }) {
             <h3 className="text-lg text-theme-text-primary font-medium">
               {title}
             </h3>
-            {showLegend && (
-              <Legend
-                categories={[value]}
-                colors={[color || "blue", color || "blue"]}
-                className="mb-5 justify-end"
-              />
-            )}
+            <SeriesLegend label={value} />
             <ComposedChart width={500} height={260} data={data}>
               <CartesianGrid
                 strokeDasharray="3 3"
@@ -167,11 +113,11 @@ export function Chartable({ props }) {
                   fontFamily: "Inter; Helvetica",
                 }}
               />
-              <Tooltip legendColor={getTremorColor(color || "blue")} />
+              <Tooltip legendColor={Colors.blue} />
               <Line
                 type="linear"
                 dataKey={value}
-                stroke={getTremorColor(color || "blue")}
+                stroke={Colors.blue}
                 dot={false}
                 strokeWidth={2}
               />
@@ -179,7 +125,7 @@ export function Chartable({ props }) {
                 dataKey="value"
                 name="value"
                 type="linear"
-                fill={getTremorColor(color || "blue")}
+                fill={Colors.blue}
               />
             </ComposedChart>
           </div>
@@ -190,15 +136,7 @@ export function Chartable({ props }) {
             <h3 className="text-lg text-theme-text-primary font-medium">
               {title}
             </h3>
-            {showLegend && (
-              <div className="flex justify-end">
-                <Legend
-                  categories={[value]}
-                  colors={[color || "blue", color || "blue"]}
-                  className="mb-5"
-                />
-              </div>
-            )}
+            <SeriesLegend label={value} />
             <ScatterChart width={500} height={260} data={data}>
               <CartesianGrid
                 strokeDasharray="3 3"
@@ -227,8 +165,8 @@ export function Chartable({ props }) {
                   fontFamily: "Inter; Helvetica",
                 }}
               />
-              <Tooltip legendColor={getTremorColor(color || "blue")} />
-              <Scatter dataKey={value} fill={getTremorColor(color || "blue")} />
+              <Tooltip legendColor={Colors.blue} />
+              <Scatter dataKey={value} fill={Colors.blue} />
             </ScatterChart>
           </div>
         );
@@ -238,24 +176,7 @@ export function Chartable({ props }) {
             <h3 className="text-lg text-theme-text-primary font-medium">
               {title}
             </h3>
-            <DonutChart
-              data={data}
-              category={value}
-              index="name"
-              colors={[
-                color || "cyan",
-                "violet",
-                "rose",
-                "amber",
-                "emerald",
-                "teal",
-                "fuchsia",
-              ]}
-              // No actual legend for pie chart, but this will toggle the central text
-              showLabel={showLegend}
-              valueFormatter={dataFormatter}
-              customTooltip={customTooltip}
-            />
+            <DonutChart data={data} valueKey={value} />
           </div>
         );
       case "radar":
@@ -264,15 +185,7 @@ export function Chartable({ props }) {
             <h3 className="text-lg text-theme-text-primary font-medium">
               {title}
             </h3>
-            {showLegend && (
-              <div className="flex justify-end">
-                <Legend
-                  categories={[value]}
-                  colors={[color || "blue", color || "blue"]}
-                  className="mb-5"
-                />
-              </div>
-            )}
+            <SeriesLegend label={value} />
             <RadarChart
               cx={300}
               cy={250}
@@ -284,11 +197,11 @@ export function Chartable({ props }) {
               <PolarGrid />
               <PolarAngleAxis dataKey="name" tick={{ fill: "white" }} />
               <PolarRadiusAxis tick={{ fill: "white" }} />
-              <Tooltip legendColor={getTremorColor(color || "blue")} />
+              <Tooltip legendColor={Colors.blue} />
               <Radar
                 dataKey="value"
-                stroke={getTremorColor(color || "blue")}
-                fill={getTremorColor(color || "blue")}
+                stroke={Colors.blue}
+                fill={Colors.blue}
                 fillOpacity={0.6}
               />
             </RadarChart>
@@ -300,15 +213,7 @@ export function Chartable({ props }) {
             <h3 className="text-lg text-theme-text-primary font-medium">
               {title}
             </h3>
-            {showLegend && (
-              <div className="flex justify-end">
-                <Legend
-                  categories={[value]}
-                  colors={[color || "blue", color || "blue"]}
-                  className="mb-5"
-                />
-              </div>
-            )}
+            <SeriesLegend label={value} />
             <RadialBarChart
               width={500}
               height={300}
@@ -323,11 +228,11 @@ export function Chartable({ props }) {
                 angleAxisId={15}
                 label={{
                   position: "insideStart",
-                  fill: getTremorColor(color || "blue"),
+                  fill: Colors.blue,
                 }}
                 dataKey="value"
               />
-              <Tooltip legendColor={getTremorColor(color || "blue")} />
+              <Tooltip legendColor={Colors.blue} />
             </RadialBarChart>
           </div>
         );
@@ -337,25 +242,17 @@ export function Chartable({ props }) {
             <h3 className="text-lg text-theme-text-primary font-medium">
               {title}
             </h3>
-            {showLegend && (
-              <div className="flex justify-end">
-                <Legend
-                  categories={[value]}
-                  colors={[color || "blue", color || "blue"]}
-                  className="mb-5"
-                />
-              </div>
-            )}
+            <SeriesLegend label={value} />
             <Treemap
               width={500}
               height={260}
               data={data}
               dataKey="value"
               stroke="#fff"
-              fill={getTremorColor(color || "blue")}
+              fill={Colors.blue}
               content={<CustomCell colors={Object.values(Colors)} />}
             >
-              <Tooltip legendColor={getTremorColor(color || "blue")} />
+              <Tooltip legendColor={Colors.blue} />
             </Treemap>
           </div>
         );
@@ -365,18 +262,10 @@ export function Chartable({ props }) {
             <h3 className="text-lg text-theme-text-primary font-medium">
               {title}
             </h3>
-            {showLegend && (
-              <div className="flex justify-end">
-                <Legend
-                  categories={[value]}
-                  colors={[color || "blue", color || "blue"]}
-                  className="mb-5"
-                />
-              </div>
-            )}
+            <SeriesLegend label={value} />
             <FunnelChart width={500} height={300} data={data}>
-              <Tooltip legendColor={getTremorColor(color || "blue")} />
-              <Funnel dataKey="value" color={getTremorColor(color || "blue")} />
+              <Tooltip legendColor={Colors.blue} />
+              <Funnel dataKey="value" color={Colors.blue} />
             </FunnelChart>
           </div>
         );
@@ -421,32 +310,6 @@ export function Chartable({ props }) {
     </div>
   );
 }
-
-const customTooltip = (props) => {
-  const { payload, active } = props;
-  if (!active || !payload) return null;
-  const categoryPayload = payload?.[0];
-  if (!categoryPayload) return null;
-  return (
-    <div className="w-56 bg-theme-bg-primary rounded-lg border p-2 text-white">
-      <div className="flex flex-1 space-x-2.5">
-        <div
-          className={`flex w-1.5 flex-col bg-${categoryPayload?.color}-500 rounded`}
-        />
-        <div className="w-full">
-          <div className="flex items-center justify-between space-x-8">
-            <p className="whitespace-nowrap text-right text-tremor-content">
-              {categoryPayload.name}
-            </p>
-            <p className="whitespace-nowrap text-right font-medium text-tremor-content-emphasis">
-              {categoryPayload.value}
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
 
 function DownloadGraph({ onClick }) {
   const [loading, setLoading] = useState(false);

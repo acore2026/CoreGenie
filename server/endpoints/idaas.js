@@ -196,7 +196,10 @@ function idaasEndpoints(app, dependencies = {}) {
     const flow = flowFor(req);
     if (!flow) return rejectCallback(res, "flow missing or expired");
     if (flow.used) return rejectCallback(res, "callback already used");
-    if (typeof req.query.state !== "string" || !same(flow.state, req.query.state))
+    if (
+      typeof req.query.state !== "string" ||
+      !same(flow.state, req.query.state)
+    )
       return rejectCallback(res, "state mismatch");
     flow.used = true;
     try {

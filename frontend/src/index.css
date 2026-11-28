@@ -1406,10 +1406,6 @@ does not extend the close button beyond the viewport. */
   margin-bottom: 10px;
 }
 
-.text-tremor-content {
-  padding-bottom: 10px;
-}
-
 .file-upload {
   -webkit-animation: fadein 0.3s linear forwards;
   animation: fadein 0.3s linear forwards;

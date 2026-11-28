@@ -27,7 +27,9 @@ function publicSkill(skill, { includeContent = false } = {}) {
     revision: skill.revision || skill.sha256 || null,
     manifest: skill.manifest || {},
     skillMd: includeContent ? skill.skillMd || skill.source : undefined,
-    instructions: includeContent ? skill.instructions ?? skill.body : undefined,
+    instructions: includeContent
+      ? (skill.instructions ?? skill.body)
+      : undefined,
     files: (skill.files || []).map((file) => ({
       path: file.path,
       size: file.size,

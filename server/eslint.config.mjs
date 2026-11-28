@@ -1,7 +1,7 @@
 import js from "@eslint/js";
 import globals from "globals";
 import { defineConfig } from "eslint/config";
-import tsParser from "@typescript-eslint/parser";
+import tseslint from "typescript-eslint";
 import pluginPrettier from "eslint-plugin-prettier";
 import configPrettier from "eslint-config-prettier";
 import unusedImports from "eslint-plugin-unused-imports";
@@ -29,7 +29,7 @@ const sharedRules = {
 };
 
 export default defineConfig([
-  { ignores: ["__tests__/**", "**/syncStaticLists.mjs"] },
+  { ignores: ["dist/**", "__tests__/**", "**/syncStaticLists.mjs"] },
   {
     files: ["**/*.{js,mjs,cjs}"],
     plugins: { js, prettier: pluginPrettier, "unused-imports": unusedImports },
@@ -40,14 +40,25 @@ export default defineConfig([
   { files: ["**/*.js"], languageOptions: { sourceType: "commonjs" } },
   {
     files: ["**/*.{ts,mts,cts}"],
-    plugins: { js, prettier: pluginPrettier, "unused-imports": unusedImports },
+    plugins: {
+      "@typescript-eslint": tseslint.plugin,
+      js,
+      prettier: pluginPrettier,
+      "unused-imports": unusedImports,
+    },
     extends: ["js/recommended"],
     languageOptions: {
-      parser: tsParser,
+      parser: tseslint.parser,
+      parserOptions: {
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname,
+      },
       globals: { ...globals.node, ...globals.browser },
     },
     rules: {
       ...sharedRules,
+      "@typescript-eslint/no-explicit-any": "warn",
+      "@typescript-eslint/await-thenable": "warn",
       "no-undef": "off",
       "no-redeclare": "off",
       "unused-imports/no-unused-vars": "off",

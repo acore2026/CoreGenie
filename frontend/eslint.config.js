@@ -1,4 +1,4 @@
-import tsParser from "@typescript-eslint/parser"
+import tseslint from "typescript-eslint"
 import js from "@eslint/js"
 import globals from "globals"
 import pluginReact from "eslint-plugin-react"
@@ -88,9 +88,16 @@ export default [
   {
     ...config[2],
     files: ["src/**/*.{ts,tsx}"],
-    languageOptions: { ...config[2].languageOptions, parser: tsParser },
+    plugins: { ...config[2].plugins, "@typescript-eslint": tseslint.plugin },
+    languageOptions: {
+      ...config[2].languageOptions,
+      parser: tseslint.parser,
+      parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname },
+    },
     rules: {
       ...config[2].rules,
+      "@typescript-eslint/no-explicit-any": "warn",
+      "@typescript-eslint/await-thenable": "warn",
       // The TypeScript compiler checks names, overloads, and unused declarations.
       "no-undef": "off",
       "no-redeclare": "off",

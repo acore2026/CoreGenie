@@ -144,6 +144,7 @@ RUN --mount=type=cache,id=pnpm-store-frontend,target=/pnpm/store \
       --registry="${NPM_REGISTRY}" \
       --store-dir=/pnpm/store
 ENV VITE_API_BASE=/api
+COPY ./tsconfig.base.json ./
 COPY ./packages/contracts/ ./packages/contracts/
 COPY ./server/contracts/ ./server/contracts/
 COPY ./docs/help/ ./docs/help/

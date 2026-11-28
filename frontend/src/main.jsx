@@ -45,27 +45,24 @@ const router = createBrowserRouter([
       {
         path: "/skills",
         lazy: async () => {
-          const { default: PersonalSkills } = await import(
-            "@/pages/PersonalSkills"
-          );
+          const { default: PersonalSkills } =
+            await import("@/pages/PersonalSkills");
           return { element: <PrivateRoute Component={PersonalSkills} /> };
         },
       },
       {
         path: "/tools",
         lazy: async () => {
-          const { default: ToolCatalog } = await import(
-            "@/pages/LocalTools/Catalog"
-          );
+          const { default: ToolCatalog } =
+            await import("@/pages/LocalTools/Catalog");
           return { element: <PrivateRoute Component={ToolCatalog} /> };
         },
       },
       {
         path: "/tools/protocol-finder",
         lazy: async () => {
-          const { default: ProtocolFinder } = await import(
-            "@/pages/LocalTools/ProtocolFinder"
-          );
+          const { default: ProtocolFinder } =
+            await import("@/pages/LocalTools/ProtocolFinder");
           return { element: <PrivateRoute Component={ProtocolFinder} /> };
         },
       },
@@ -120,9 +117,8 @@ const router = createBrowserRouter([
       {
         path: "/share/chat/:token",
         lazy: async () => {
-          const { default: PublicChatShare } = await import(
-            "@/pages/PublicChatShare"
-          );
+          const { default: PublicChatShare } =
+            await import("@/pages/PublicChatShare");
           return { element: <PublicChatShare /> };
         },
       },
@@ -133,18 +129,16 @@ const router = createBrowserRouter([
       {
         path: "/workspace/:slug/settings/:tab",
         lazy: async () => {
-          const { default: WorkspaceSettings } = await import(
-            "@/pages/WorkspaceSettings"
-          );
+          const { default: WorkspaceSettings } =
+            await import("@/pages/WorkspaceSettings");
           return { element: <ManagerRoute Component={WorkspaceSettings} /> };
         },
       },
       {
         path: "/workspace/:slug",
         lazy: async () => {
-          const { default: WorkspaceChat } = await import(
-            "@/pages/WorkspaceChat"
-          );
+          const { default: WorkspaceChat } =
+            await import("@/pages/WorkspaceChat");
           return { element: <PrivateRoute Component={WorkspaceChat} /> };
         },
         children: [{ path: "t/:threadSlug" }],
@@ -152,27 +146,24 @@ const router = createBrowserRouter([
       {
         path: "/workspace/:slug/jobs",
         lazy: async () => {
-          const { default: ScheduledJobs } = await import(
-            "@/pages/GeneralSettings/ScheduledJobs"
-          );
+          const { default: ScheduledJobs } =
+            await import("@/pages/GeneralSettings/ScheduledJobs");
           return { element: <PrivateRoute Component={ScheduledJobs} /> };
         },
       },
       {
         path: "/workspace/:slug/jobs/:id/runs",
         lazy: async () => {
-          const { default: ScheduledJobRuns } = await import(
-            "@/pages/GeneralSettings/ScheduledJobs/RunHistoryPage"
-          );
+          const { default: ScheduledJobRuns } =
+            await import("@/pages/GeneralSettings/ScheduledJobs/RunHistoryPage");
           return { element: <PrivateRoute Component={ScheduledJobRuns} /> };
         },
       },
       {
         path: "/workspace/:slug/jobs/:id/runs/:runId",
         lazy: async () => {
-          const { default: ScheduledJobRunDetail } = await import(
-            "@/pages/GeneralSettings/ScheduledJobs/RunDetailPage"
-          );
+          const { default: ScheduledJobRunDetail } =
+            await import("@/pages/GeneralSettings/ScheduledJobs/RunDetailPage");
           return {
             element: <PrivateRoute Component={ScheduledJobRunDetail} />,
           };
@@ -189,18 +180,16 @@ const router = createBrowserRouter([
       {
         path: "/settings/llm-preference",
         lazy: async () => {
-          const { default: GeneralLLMPreference } = await import(
-            "@/pages/GeneralSettings/LLMPreference"
-          );
+          const { default: GeneralLLMPreference } =
+            await import("@/pages/GeneralSettings/LLMPreference");
           return { element: <AdminRoute Component={GeneralLLMPreference} /> };
         },
       },
       {
         path: "/settings/embedding-preference",
         lazy: async () => {
-          const { default: GeneralEmbeddingPreference } = await import(
-            "@/pages/GeneralSettings/EmbeddingPreference"
-          );
+          const { default: GeneralEmbeddingPreference } =
+            await import("@/pages/GeneralSettings/EmbeddingPreference");
           return {
             element: <AdminRoute Component={GeneralEmbeddingPreference} />,
           };
@@ -209,9 +198,8 @@ const router = createBrowserRouter([
       {
         path: "/settings/text-splitter-preference",
         lazy: async () => {
-          const { default: EmbeddingTextSplitterPreference } = await import(
-            "@/pages/GeneralSettings/EmbeddingTextSplitterPreference"
-          );
+          const { default: EmbeddingTextSplitterPreference } =
+            await import("@/pages/GeneralSettings/EmbeddingTextSplitterPreference");
           return {
             element: <AdminRoute Component={EmbeddingTextSplitterPreference} />,
           };
@@ -220,9 +208,8 @@ const router = createBrowserRouter([
       {
         path: "/settings/vector-database",
         lazy: async () => {
-          const { default: GeneralVectorDatabase } = await import(
-            "@/pages/GeneralSettings/VectorDatabase"
-          );
+          const { default: GeneralVectorDatabase } =
+            await import("@/pages/GeneralSettings/VectorDatabase");
           return {
             element: <AdminRoute Component={GeneralVectorDatabase} />,
           };
@@ -259,18 +246,16 @@ const router = createBrowserRouter([
       {
         path: "/settings/agents/prompts",
         lazy: async () => {
-          const { default: AgentPromptSettings } = await import(
-            "@/pages/Admin/Agents/PromptSettings"
-          );
+          const { default: AgentPromptSettings } =
+            await import("@/pages/Admin/Agents/PromptSettings");
           return { element: <AdminRoute Component={AgentPromptSettings} /> };
         },
       },
       {
         path: "/settings/agents/feedback",
         lazy: async () => {
-          const { default: AgentFeedbackSettings } = await import(
-            "@/pages/Admin/Agents/FeedbackSettings"
-          );
+          const { default: AgentFeedbackSettings } =
+            await import("@/pages/Admin/Agents/FeedbackSettings");
           return { element: <AdminRoute Component={AgentFeedbackSettings} /> };
         },
       },
@@ -285,72 +270,64 @@ const router = createBrowserRouter([
       {
         path: "/settings/security",
         lazy: async () => {
-          const { default: GeneralSecurity } = await import(
-            "@/pages/GeneralSettings/Security"
-          );
+          const { default: GeneralSecurity } =
+            await import("@/pages/GeneralSettings/Security");
           return { element: <AdminRoute Component={GeneralSecurity} /> };
         },
       },
       {
         path: "/settings/privacy",
         lazy: async () => {
-          const { default: PrivacyAndData } = await import(
-            "@/pages/GeneralSettings/PrivacyAndData"
-          );
+          const { default: PrivacyAndData } =
+            await import("@/pages/GeneralSettings/PrivacyAndData");
           return { element: <AdminRoute Component={PrivacyAndData} /> };
         },
       },
       {
         path: "/settings/interface",
         lazy: async () => {
-          const { default: InterfaceSettings } = await import(
-            "@/pages/GeneralSettings/Settings/Interface"
-          );
+          const { default: InterfaceSettings } =
+            await import("@/pages/GeneralSettings/Settings/Interface");
           return { element: <ManagerRoute Component={InterfaceSettings} /> };
         },
       },
       {
         path: "/settings/branding",
         lazy: async () => {
-          const { default: BrandingSettings } = await import(
-            "@/pages/GeneralSettings/Settings/Branding"
-          );
+          const { default: BrandingSettings } =
+            await import("@/pages/GeneralSettings/Settings/Branding");
           return { element: <ManagerRoute Component={BrandingSettings} /> };
         },
       },
       {
         path: "/settings/chat",
         lazy: async () => {
-          const { default: ChatSettings } = await import(
-            "@/pages/GeneralSettings/Settings/Chat"
-          );
+          const { default: ChatSettings } =
+            await import("@/pages/GeneralSettings/Settings/Chat");
           return { element: <ManagerRoute Component={ChatSettings} /> };
         },
       },
       {
         path: "/settings/beta-features",
         lazy: async () => {
-          const { default: ExperimentalFeatures } = await import(
-            "@/pages/Admin/ExperimentalFeatures"
-          );
+          const { default: ExperimentalFeatures } =
+            await import("@/pages/Admin/ExperimentalFeatures");
           return { element: <AdminRoute Component={ExperimentalFeatures} /> };
         },
       },
       {
         path: "/settings/api-keys",
         lazy: async () => {
-          const { default: GeneralApiKeys } = await import(
-            "@/pages/GeneralSettings/ApiKeys"
-          );
+          const { default: GeneralApiKeys } =
+            await import("@/pages/GeneralSettings/ApiKeys");
           return { element: <AdminRoute Component={GeneralApiKeys} /> };
         },
       },
       {
         path: "/settings/system-prompt-variables",
         lazy: async () => {
-          const { default: SystemPromptVariables } = await import(
-            "@/pages/Admin/SystemPromptVariables"
-          );
+          const { default: SystemPromptVariables } =
+            await import("@/pages/Admin/SystemPromptVariables");
           return {
             element: <AdminRoute Component={SystemPromptVariables} />,
           };
@@ -359,27 +336,24 @@ const router = createBrowserRouter([
       {
         path: "/settings/workspace-chats",
         lazy: async () => {
-          const { default: GeneralChats } = await import(
-            "@/pages/GeneralSettings/Chats"
-          );
+          const { default: GeneralChats } =
+            await import("@/pages/GeneralSettings/Chats");
           return { element: <ManagerRoute Component={GeneralChats} /> };
         },
       },
       {
         path: "/settings/invites",
         lazy: async () => {
-          const { default: AdminInvites } = await import(
-            "@/pages/Admin/Invitations"
-          );
+          const { default: AdminInvites } =
+            await import("@/pages/Admin/Invitations");
           return { element: <ManagerRoute Component={AdminInvites} /> };
         },
       },
       {
         path: "/settings/announcements",
         lazy: async () => {
-          const { default: Announcements } = await import(
-            "@/pages/Admin/Announcements"
-          );
+          const { default: Announcements } =
+            await import("@/pages/Admin/Announcements");
           return { element: <AdminRoute Component={Announcements} /> };
         },
       },
@@ -393,18 +367,16 @@ const router = createBrowserRouter([
       {
         path: "/settings/workspaces",
         lazy: async () => {
-          const { default: AdminWorkspaces } = await import(
-            "@/pages/Admin/Workspaces"
-          );
+          const { default: AdminWorkspaces } =
+            await import("@/pages/Admin/Workspaces");
           return { element: <ManagerRoute Component={AdminWorkspaces} /> };
         },
       },
       {
         path: "/settings/global-knowledge",
         lazy: async () => {
-          const { default: GlobalKnowledge } = await import(
-            "@/pages/Admin/GlobalKnowledge"
-          );
+          const { default: GlobalKnowledge } =
+            await import("@/pages/Admin/GlobalKnowledge");
           return { element: <PrivateRoute Component={GlobalKnowledge} /> };
         },
       },
@@ -421,9 +393,8 @@ const router = createBrowserRouter([
       {
         path: "/settings/beta-features/live-document-sync/manage",
         lazy: async () => {
-          const { default: LiveDocumentSyncManage } = await import(
-            "@/pages/Admin/ExperimentalFeatures/Features/LiveSync/manage"
-          );
+          const { default: LiveDocumentSyncManage } =
+            await import("@/pages/Admin/ExperimentalFeatures/Features/LiveSync/manage");
           return {
             element: <AdminRoute Component={LiveDocumentSyncManage} />,
           };
@@ -432,27 +403,24 @@ const router = createBrowserRouter([
       {
         path: "/settings/scheduled-jobs",
         lazy: async () => {
-          const { default: ScheduledJobs } = await import(
-            "@/pages/GeneralSettings/ScheduledJobs"
-          );
+          const { default: ScheduledJobs } =
+            await import("@/pages/GeneralSettings/ScheduledJobs");
           return { element: <SingleUserRoute Component={ScheduledJobs} /> };
         },
       },
       {
         path: "/settings/scheduled-jobs/:id/runs",
         lazy: async () => {
-          const { default: ScheduledJobRuns } = await import(
-            "@/pages/GeneralSettings/ScheduledJobs/RunHistoryPage"
-          );
+          const { default: ScheduledJobRuns } =
+            await import("@/pages/GeneralSettings/ScheduledJobs/RunHistoryPage");
           return { element: <SingleUserRoute Component={ScheduledJobRuns} /> };
         },
       },
       {
         path: "/settings/scheduled-jobs/:id/runs/:runId",
         lazy: async () => {
-          const { default: ScheduledJobRunDetail } = await import(
-            "@/pages/GeneralSettings/ScheduledJobs/RunDetailPage"
-          );
+          const { default: ScheduledJobRunDetail } =
+            await import("@/pages/GeneralSettings/ScheduledJobs/RunDetailPage");
           return {
             element: <SingleUserRoute Component={ScheduledJobRunDetail} />,
           };

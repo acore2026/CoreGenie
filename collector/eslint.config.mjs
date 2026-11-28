@@ -1,3 +1,4 @@
+import tseslint from "typescript-eslint";
 import js from "@eslint/js";
 import globals from "globals";
 import { defineConfig } from "eslint/config";
@@ -6,9 +7,9 @@ import configPrettier from "eslint-config-prettier";
 import unusedImports from "eslint-plugin-unused-imports";
 
 export default defineConfig([
-  { ignores: ["__tests__/**"] },
+  { ignores: ["dist/**", "__tests__/**"] },
   {
-    files: ["**/*.{js,mjs,cjs}"],
+    files: ["**/*.{js,mjs,cjs,ts,mts,cts}"],
     plugins: { js, prettier: pluginPrettier, "unused-imports": unusedImports },
     extends: ["js/recommended"],
     languageOptions: { globals: { ...globals.node, ...globals.browser } },
@@ -32,6 +33,24 @@ export default defineConfig([
           argsIgnorePattern: "^_",
         },
       ],
+    },
+  },
+  {
+    files: ["**/*.{ts,mts,cts}"],
+    plugins: { "@typescript-eslint": tseslint.plugin },
+    languageOptions: {
+      parser: tseslint.parser,
+      parserOptions: {
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+    rules: {
+      "@typescript-eslint/no-explicit-any": "warn",
+      "@typescript-eslint/await-thenable": "warn",
+      "no-undef": "off",
+      "no-redeclare": "off",
+      "unused-imports/no-unused-vars": "off",
     },
   },
   { files: ["**/*.js"], languageOptions: { sourceType: "commonjs" } },

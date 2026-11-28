@@ -49,8 +49,8 @@ function normalizedHistory(entries = []) {
 function isImageAttachment(attachment) {
   return Boolean(
     attachment?.contentString &&
-      (String(attachment.mime || "").startsWith("image/") ||
-        String(attachment.contentString).startsWith("data:image/"))
+    (String(attachment.mime || "").startsWith("image/") ||
+      String(attachment.contentString).startsWith("data:image/"))
   );
 }
 

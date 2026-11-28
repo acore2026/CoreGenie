@@ -87,8 +87,8 @@ export default function ThreadItem({
       setIsProcessing(
         Boolean(
           runtime?.requestInFlight ||
-            runtime?.loadingResponse ||
-            runtime?.socketId
+          runtime?.loadingResponse ||
+          runtime?.socketId
         )
       );
     });

@@ -102,10 +102,7 @@ interface MessageFields {
   outputs?: unknown[];
 }
 export interface RunPayload
-  extends TaskFields,
-    ToolFields,
-    ContextFields,
-    MessageFields {
+  extends TaskFields, ToolFields, ContextFields, MessageFields {
   phase?: string;
   requestId?: string;
   title?: string;

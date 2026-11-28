@@ -3,9 +3,9 @@
 function canCollaborateOnThread(user, workspace, thread) {
   return Boolean(
     user?.id &&
-      workspace?.accessMode === "public_collaborative" &&
-      thread?.id &&
-      thread.workspace_id === workspace.id
+    workspace?.accessMode === "public_collaborative" &&
+    thread?.id &&
+    thread.workspace_id === workspace.id
   );
 }
 

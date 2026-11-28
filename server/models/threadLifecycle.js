@@ -13,7 +13,7 @@ function threadVisibility(userId) {
 function canViewThread(thread, userId) {
   return Boolean(
     thread &&
-      (thread.submittedAt || (userId && thread.user_id === Number(userId)))
+    (thread.submittedAt || (userId && thread.user_id === Number(userId)))
   );
 }
 

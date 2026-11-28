@@ -13,6 +13,9 @@ on:
       - "pnpm-workspace.yaml"
       - "pnpm-lock.yaml"
       - ".github/workflows/lint.yaml"
+      - "tsconfig.base.json"
+      - "scripts/check-source-extensions.ts"
+      - "scripts/typecheck.ts"
       - "packages/**"
       - "server/**"
       - "collector/**"
@@ -25,6 +28,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
@@ -45,6 +50,8 @@ jobs:
 
       - name: Lint workspace
         run: pnpm lint:ci
+        env:
+          SOURCE_BASE: ${{ github.event.pull_request.base.sha }}
 
       - name: Build frontend and check server entry assets
         working-directory: frontend
