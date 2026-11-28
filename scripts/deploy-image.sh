@@ -8,6 +8,9 @@ SCRIPT_DIR=""
 if [[ -n "${BASH_SOURCE[0]:-}" && -f "${BASH_SOURCE[0]}" ]]; then
   SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 fi
+log() {
+  printf '[%s] %s\n' "$(date +%H:%M:%S)" "$*"
+}
 usage() {
   cat <<'HELP'
 Usage: bash deploy-image.sh [update|update-all|update-broker|install] [TAG]
@@ -63,6 +66,8 @@ fi
 [[ "$TAG" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]] || { echo 'TAG must be a valid Docker image tag.' >&2; exit 2; }
 IMAGE="${IMAGE:-ghcr.io/acore2026/coregenie:${TAG}}"
 BROKER_IMAGE="${BROKER_IMAGE:-ghcr.io/acore2026/coregenie-sandbox-broker:${TAG}}"
+log "Mode: $mode | Container: $CONTAINER_NAME | Tag: $TAG"
+log "Checking Docker daemon..."
 command -v docker >/dev/null
 docker info >/dev/null
 if [[ "$mode" != install ]]; then
@@ -89,12 +94,16 @@ if [[ "$mode" != install ]]; then
       helper_url="https://raw.githubusercontent.com/acore2026/CoreGenie/${helper_ref}/scripts/deploy-existing-container.cjs"
     fi
   fi
-  if [[ -z "$helper" ]]; then
+  if [[ -n "$helper" ]]; then
+    log "Using local deployment helper: $helper"
+  else
     command -v curl >/dev/null
     temp_dir="$(mktemp -d)"
     trap 'rm -r -- "$temp_dir"' EXIT
     helper="$temp_dir/deploy-existing-container.cjs"
+    log "Downloading deployment helper from $helper_url..."
     curl --fail --show-error --location --retry 3 "$helper_url" --output "$helper"
+    log "Deployment helper downloaded."
   fi
   run_update() {
     local target_kind="$1" target_name="$2" target_image="$3" state_dir="${4:-}"
@@ -104,7 +113,9 @@ if [[ "$mode" != install ]]; then
     if [[ -n "${CA_BUNDLE_FILE:-}" ]]; then args+=(--ca-bundle "$CA_BUNDLE_FILE"); fi
     if [[ -n "$state_dir" ]]; then args+=(--state-dir "$state_dir"); fi
     if [[ "${ALLOW_RUNNING:-0}" == 1 ]]; then args+=(--allow-running); fi
+    log "Updating $target_kind container '$target_name' -> $target_image"
     node "$helper" "${args[@]}"
+    log "Finished updating $target_kind container '$target_name'."
   }
   if [[ "$mode" == update-broker ]]; then
     docker container inspect "$BROKER_CONTAINER_NAME" >/dev/null
@@ -119,14 +130,16 @@ if [[ "$mode" != install ]]; then
     fi
     run_update app "$CONTAINER_NAME" "$IMAGE" "$app_state_dir"
     if docker ps --format '{{.Names}}' | grep -Fxq -- "$BROKER_CONTAINER_NAME"; then
+      log "Detected running sandbox broker '$BROKER_CONTAINER_NAME'; updating next..."
       run_update broker "$BROKER_CONTAINER_NAME" "$BROKER_IMAGE" "$broker_state_dir"
     else
-      echo "Sandbox broker container '$BROKER_CONTAINER_NAME' is not running; skipped."
+      log "Sandbox broker container '$BROKER_CONTAINER_NAME' is not running; skipped."
     fi
   else
     docker container inspect "$CONTAINER_NAME" >/dev/null
     run_update app "$CONTAINER_NAME" "$IMAGE" "${STATE_DIR:-}"
   fi
+  log "Deployment completed."
 else
   # Fail closed if the daemon is inaccessible or the name already exists.
   existing="$(docker container ls -a --format '{{.Names}}')"
@@ -151,27 +164,35 @@ else
   if [[ -n "${ENV_FILE:-}" ]]; then
     [[ "$ENV_FILE" = /* && -f "$ENV_FILE" ]] || { echo 'ENV_FILE must be an existing absolute path.' >&2; exit 2; }
   fi
+  log "Pulling image $IMAGE..."
   docker pull "$IMAGE"
   image_id="$(docker image inspect --format '{{.Id}}' "$IMAGE")"
   if [[ -z "${ENV_FILE:-}" ]]; then
     mkdir -p -- "${CONFIG_DIR:-$PWD/coregenie-config}"
     config_dir="$(cd -- "${CONFIG_DIR:-$PWD/coregenie-config}" && pwd)"
+    log "Initializing .env in $config_dir (if missing)..."
     docker run --rm --user root --entrypoint /bin/sh \
       --mount "type=bind,source=$config_dir,target=/config" "$image_id" -ec \
       'if [ ! -e /config/.env ]; then cp /app/server/.env /config/.env; chown --reference=/app/server/.env /config/.env; chmod 600 /config/.env; fi'
     ENV_FILE="$config_dir/.env"
   fi
+  log "Starting container '$CONTAINER_NAME' on port ${HOST_PORT:-7555}..."
   docker run -d --name "$CONTAINER_NAME" --restart unless-stopped \
     --publish "${HOST_PORT:-7555}:3001" \
     --mount "type=volume,source=${STORAGE_VOLUME:-${CONTAINER_NAME}-storage},target=/app/server/storage" \
     --env-file "$ENV_FILE" --mount "type=bind,source=$ENV_FILE,target=/app/server/.env" \
     --env STORAGE_DIR=/app/server/storage "${extra[@]}" "$image_id"
+  last_status=""
   for ((i=0; i<90; i++)); do
     status="$(docker inspect --format '{{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{end}}' "$CONTAINER_NAME")"
     if [[ "$status" == 'running healthy' ]]; then
-      echo "CoreGenie $VERSION is ready on port ${HOST_PORT:-7555}."; exit 0
+      log "CoreGenie $TAG is ready on port ${HOST_PORT:-7555}."; exit 0
     fi
     [[ "$status" == running* ]] || break
+    if [[ "$status" != "$last_status" || $((i % 5)) -eq 0 ]]; then
+      log "Waiting for '$CONTAINER_NAME' to become healthy ($((i * 2))s/180s, status: ${status:-unknown})..."
+      last_status="$status"
+    fi
     sleep 2
   done
   echo "Startup failed. Inspect: docker logs $CONTAINER_NAME. Persistent data is retained." >&2

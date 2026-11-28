@@ -34,6 +34,10 @@ const allowRunning = args.includes("--allow-running");
 const docker = (...params) => execFileSync("docker", params, {
   encoding: "utf8", stdio: ["ignore", "pipe", "pipe"],
 }).trim();
+const step = (message) => {
+  const time = new Date().toTimeString().slice(0, 8);
+  console.error(`[${time}] [${name}] ${message}`);
+};
 const pause = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 function api(method, endpoint, body) {
   return new Promise((resolve, reject) => {
@@ -88,12 +92,17 @@ async function main() {
     : process.env.DOCKER_HOST || docker("context", "inspect", "--format", "{{.Endpoints.docker.Host}}");
   if (endpoint !== "unix:///var/run/docker.sock")
     throw new Error("Run this helper on the Docker host using unix:///var/run/docker.sock.");
+  step("Inspecting current container...");
   const old = JSON.parse(docker("inspect", name))[0];
   if (!old.State.Running) throw new Error("Expected a running source container.");
-  if (args.includes("--pull")) docker("pull", image);
+  if (args.includes("--pull")) {
+    step(`Pulling image ${image}...`);
+    execFileSync("docker", ["pull", image], { stdio: ["ignore", "inherit", "inherit"] });
+  }
   const imageConfig = JSON.parse(docker("image", "inspect", image))[0];
   const imageId = imageConfig.Id;
   const active = () => {
+    step("Checking for active Agent tasks" + (brokerMode ? " and sandbox runners" : "") + "...");
     const output = docker("exec", brokerMode ? appName : name, "node", "-e",
       'const p=require("/app/server/utils/prisma");p.agent_runs.count({where:{status:{in:["running","queued"]}}}).then(n=>console.log("ACTIVE="+n)).finally(()=>p.$disconnect())');
     if (!/ACTIVE=0(?:\s|$)/.test(output) && !allowRunning) throw new Error("Agent tasks are running; wait before deployment or explicitly authorize --allow-running.");
@@ -175,14 +184,18 @@ async function main() {
       Aliases: (settings.Aliases || []).filter(a => a !== old.Id && a !== old.Id.slice(0, 12)),
     };
   }
+  step(`Creating candidate container ${candidate}...`);
   await api("POST", "/containers/create?name=" + encodeURIComponent(candidate), body);
   let stopped = false, renamed = false, swapped = false;
   try {
     active();
+    step("Stopping previous container (waiting up to 30s)...");
     docker("stop", "--time", "30", name); stopped = true;
+    step("Swapping containers and starting new version...");
     docker("rename", name, backup); renamed = true;
     docker("rename", candidate, name); swapped = true;
     docker("start", name);
+    let lastHealthStatus = "";
     for (let i = 0; i < 90; i++) {
       const state = JSON.parse(docker("inspect", name))[0].State;
       if (!state.Running) throw new Error("Candidate container exited.");
@@ -198,15 +211,22 @@ async function main() {
         } catch { healthy = false; }
       }
       if (healthy) {
+        step("Health check passed; new container is ready.");
         const result = { container: name, image, imageId, backup, authMode: mode || "preserved", ports: old.HostConfig.PortBindings };
         fs.writeFileSync(path.join(directory, "deployment.json"), JSON.stringify(result, null, 2), { mode: 0o600, flag: "wx" });
         console.log(JSON.stringify(result));
         return;
       }
+      const statusText = brokerMode ? "waiting-for-socket" : (state.Health?.Status || "starting");
+      if (statusText !== lastHealthStatus || i % 5 === 0) {
+        step(`Waiting for health check (${i * 2}s/180s, status: ${statusText})...`);
+        lastHealthStatus = statusText;
+      }
       await pause(2000);
     }
     throw new Error("Candidate health check timed out.");
   } catch (error) {
+    step("Update failed; restoring previous container...");
     if (swapped) {
       docker("stop", "--time", "10", name);
       docker("rename", name, `${name}-failed-${suffix}`);
