@@ -89,6 +89,8 @@ export interface BaselineSpecData {
   release: string;
   currentTsVersion: string;
   apis: BaselineApiBlock[];
+  source?: string;
+  fetchedAt?: string;
 }
 
 export interface ApiCrGenerationConfig {

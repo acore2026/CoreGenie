@@ -136,7 +136,8 @@ const TRANSLATIONS = {
         "读取会后 API_impacts 表格，按规范和 Release 批量生成 Update of info and externalDocs fields CR。",
       description:
         "上传会后整理的 API_impacts_TSGCT.xlsx（可补充规范基线 Word 或 YAML），按受影响的规范与 Release 自动整理 Reason for change、计算 API 版本号，并生成 CR Word（参考 C3-265629 格式）。",
-      privacy: "表格与规范文件都在浏览器本地处理，不上传服务器。",
+      privacy:
+        "表格、基线解析与 CR 生成均在浏览器本地完成，不上传你的文件；点击官网拉取时仅由服务端从 3GPP 官方归档读取对应正式版规范。",
       next_step_link: "下一步：导出文稿号申请表",
       upload_section: "选择输入文件",
       step1_title: "1. 上传 API_impacts 表格",
@@ -146,10 +147,19 @@ const TRANSLATIONS = {
       clear_impacts: "清空表格",
       impacts_loaded:
         "已读取工作表：{{sheets}}；共 {{rows}} 条源 CR 记录，整理出 {{crs}} 篇待生成 CR。",
-      step2_title: "2. 上传规范基线文件（可选）",
+      step2_title: "2. 获取规范基线文件（可选）",
       step2_hint:
-        "可上传对应的规范 Word（.docx）或 OpenAPI 文件（.yaml）。工具会自动提取附录条款号、当前 API 版本、externalDocs 原文和完整 YAML，并用修订标记生成正文；不上传也可先生成带占位的 CR。",
-      choose_baselines: "选择规范 Word / YAML",
+        "上传表格后可直接从 3GPP 正式归档一键拉取已选规范最新版，或手动上传本地规范 Word（.docx）/ YAML。工具会自动提取附录条款号、当前版本号和完整 YAML 并生成正文修订标记。",
+      choose_baselines: "上传本地 Word / YAML",
+      fetch_official_selected: "从 3GPP 官网拉取已选基线（{{count}} 份）",
+      fetch_official_single: "拉取官网基线",
+      fetching_official_progress:
+        "正在从 3GPP 官网拉取第 {{current}} / {{total}} 份基线：TS {{spec}} {{release}}…",
+      fetch_official_done:
+        "已从 3GPP 官方归档拉取并应用 {{count}} 份规范基线。",
+      fetch_official_partial:
+        "已拉取 {{succeeded}} 份基线，{{failed}} 份未成功（详见上方提示，可手动上传）。",
+      official_archive_source: "查看 3GPP 官方归档来源",
       remove_baseline: "移除基线文件 {{name}}",
       unknown_spec: "未识别规范号",
       baseline_api_count: "提取到 {{count}} 个 API",

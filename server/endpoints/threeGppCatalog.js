@@ -10,6 +10,10 @@ const {
 } = require("../utils/middleware/multiUserProtected");
 const catalog = require("../utils/threeGppCatalog");
 const { downloadMeetingList } = require("../utils/threeGppMeetingList");
+const {
+  listOfficialBaselineVersions,
+  downloadOfficialBaselineDocx,
+} = require("../utils/threeGppBaselineSpec");
 const { createCatalog } = require("../utils/globalReferenceCatalog");
 const { reqBody } = require("../utils/http");
 
@@ -169,6 +173,41 @@ function threeGppCatalogEndpoints(app) {
       }
     );
   }
+  app.get(
+    "/3gpp/baseline-spec",
+    [validatedRequest, flexUserRoleValid(ROLES.all)],
+    async (request, response) => {
+      const { spec, release, version, mode } = request.query;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 70000);
+      const close = () => controller.abort();
+      response.on("close", close);
+      try {
+        const result =
+          mode === "list"
+            ? await listOfficialBaselineVersions(spec, release, {
+                signal: controller.signal,
+              })
+            : await downloadOfficialBaselineDocx(spec, release, version, {
+                signal: controller.signal,
+              });
+        if (response.destroyed) return;
+        response.set("Cache-Control", "no-store");
+        return response.json(result);
+      } catch (error) {
+        if (response.destroyed) return;
+        console.warn("[3GPP baseline spec]", error.message);
+        return response.status(error.status || 502).json({
+          error:
+            error.publicMessage ||
+            "暂时无法从 3GPP 官方归档下载基线规范，请稍后重试或手动上传。",
+        });
+      } finally {
+        clearTimeout(timer);
+        response.off("close", close);
+      }
+    }
+  );
   app.get(
     "/3gpp/catalog",
     [validatedRequest, flexUserRoleValid(ROLES.all)],

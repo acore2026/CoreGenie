@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import {
   ArrowLeft,
   ArrowRight,
+  CloudArrowDown,
   DownloadSimple,
   FileDoc,
   FileXls,
@@ -13,6 +14,10 @@ import {
 import Sidebar, { SidebarMobileHeader } from "@/components/Sidebar";
 import paths from "@/utils/paths";
 import { LIMITS, LocalToolError } from "@/utils/localTools/proposalFill";
+import {
+  BaselineDownloadError,
+  downloadOfficialBaseline,
+} from "@/utils/localTools/baselineDownload";
 import {
   readFileBytes,
   triggerBrowserDownload,
@@ -125,6 +130,11 @@ export default function ApiCrGenerator({
     [visibleDrafts]
   );
 
+  const selectedMissingBaseline = useMemo(
+    () => selectedVisible.filter((d) => !d.baselineFileName),
+    [selectedVisible]
+  );
+
   async function handleSelectExcel(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = "";
@@ -179,6 +189,87 @@ export default function ApiCrGenerator({
       }
     } catch (err) {
       setError(errorText(err));
+    } finally {
+      operation.current = false;
+      setBusy("");
+      setProgress("");
+    }
+  }
+
+  function mergeBaselineIntoList(
+    current: BaselineSpecData[],
+    incoming: BaselineSpecData
+  ): BaselineSpecData[] {
+    const filtered = current.filter(
+      (b) =>
+        !(
+          b.spec &&
+          b.release &&
+          b.spec === incoming.spec &&
+          b.release === incoming.release
+        )
+    );
+    return [...filtered, incoming];
+  }
+
+  async function fetchOfficialBaselines(targets: ApiUpdateCrDraft[]) {
+    if (!targets.length || operation.current) return;
+    operation.current = true;
+    setBusy("reading");
+    setError("");
+    setNotice("");
+    let nextBaselines = [...baselines];
+    let succeeded = 0;
+    const failures: string[] = [];
+    try {
+      for (let i = 0; i < targets.length; i++) {
+        const draft = targets[i];
+        setProgress(
+          tr("fetching_official_progress", {
+            current: i + 1,
+            total: targets.length,
+            spec: draft.spec,
+            release: draft.release,
+          })
+        );
+        await pause();
+        try {
+          const downloaded = await downloadOfficialBaseline(
+            draft.spec,
+            draft.release
+          );
+          const parsed = await readBaselineSpec(downloaded.file);
+          const enriched: BaselineSpecData = {
+            ...parsed,
+            spec: parsed.spec || downloaded.spec,
+            release: parsed.release || downloaded.release,
+            currentTsVersion: parsed.currentTsVersion || downloaded.version,
+            source: downloaded.source,
+            fetchedAt: downloaded.fetchedAt,
+          };
+          nextBaselines = mergeBaselineIntoList(nextBaselines, enriched);
+          setBaselines(nextBaselines);
+          setDrafts((curr) => applyBaselinesToDrafts(curr, nextBaselines));
+          succeeded += 1;
+        } catch (err) {
+          const reason =
+            err instanceof BaselineDownloadError ? err.message : errorText(err);
+          failures.push(`TS ${draft.spec} ${draft.release}：${reason}`);
+        }
+      }
+      if (succeeded > 0) {
+        setNotice(
+          failures.length
+            ? tr("fetch_official_partial", {
+                succeeded,
+                failed: failures.length,
+              })
+            : tr("fetch_official_done", { count: succeeded })
+        );
+      }
+      if (failures.length) {
+        setError(failures.join("；"));
+      }
     } finally {
       operation.current = false;
       setBusy("");
@@ -484,6 +575,25 @@ export default function ApiCrGenerator({
               <div className="mt-4 flex flex-wrap gap-2">
                 <button
                   type="button"
+                  className={`${control} inline-flex items-center gap-1.5`}
+                  disabled={locked || !selectedVisible.length}
+                  onClick={() =>
+                    fetchOfficialBaselines(
+                      selectedMissingBaseline.length
+                        ? selectedMissingBaseline
+                        : selectedVisible
+                    )
+                  }
+                >
+                  <CloudArrowDown size={16} />
+                  {tr("fetch_official_selected", {
+                    count: selectedMissingBaseline.length
+                      ? selectedMissingBaseline.length
+                      : selectedVisible.length,
+                  })}
+                </button>
+                <button
+                  type="button"
                   className={control}
                   disabled={locked}
                   onClick={() => baselineRef.current?.click()}
@@ -511,6 +621,18 @@ export default function ApiCrGenerator({
                           {" · "}
                           {tr("baseline_api_count", { count: b.apis.length })}
                         </p>
+                        {b.source && (
+                          <p className="mt-0.5 break-all text-theme-text-secondary">
+                            <a
+                              href={b.source}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="underline focus-visible:ring-2 focus-visible:ring-primary-button"
+                            >
+                              {tr("official_archive_source")}
+                            </a>
+                          </p>
+                        )}
                       </div>
                       <button
                         type="button"
@@ -834,14 +956,25 @@ export default function ApiCrGenerator({
                           </p>
                         </div>
                       </label>
-                      <button
-                        type="button"
-                        className={control}
-                        disabled={locked}
-                        onClick={() => exportSingle(draft)}
-                      >
-                        {tr("download_single")}
-                      </button>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          className={`${control} inline-flex items-center gap-1.5`}
+                          disabled={locked}
+                          onClick={() => fetchOfficialBaselines([draft])}
+                        >
+                          <CloudArrowDown size={16} />
+                          {tr("fetch_official_single")}
+                        </button>
+                        <button
+                          type="button"
+                          className={control}
+                          disabled={locked}
+                          onClick={() => exportSingle(draft)}
+                        >
+                          {tr("download_single")}
+                        </button>
+                      </div>
                     </div>
 
                     <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

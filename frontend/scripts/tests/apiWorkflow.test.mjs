@@ -397,22 +397,44 @@ test("UI rendering & interaction across Catalog, API CR Generator, and TDoc Allo
   assert.equal(await page.getByText("贡献人：张雪飞").count(), 2);
   await page.getByText("贡献人：戚彩霞").waitFor();
 
-  // 2. Tool 1 interactive upload & filter & export
+  // 2. Tool 1 interactive upload, filter, one-click official baseline fetch, and export
+  const baselineContent = (
+    await readFile(path.join(artifacts, "29574-k10.docx"))
+  ).toString("base64");
+  await page.route("**/api/3gpp/baseline-spec**", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        name: "29574-k10.docx",
+        spec: "29.574",
+        release: "Rel-20",
+        version: "20.1.0",
+        zipName: "29574-k10.zip",
+        source:
+          "https://www.3gpp.org/ftp/Specs/archive/29_series/29.574/29574-k10.zip",
+        fetchedAt: "2026-11-28T00:00:00Z",
+        content: baselineContent,
+      }),
+    })
+  );
   await page.goto(`${baseURL}/tools/api-cr-generator`);
   await page
     .locator('input[aria-label="选择 API_impacts Excel"]')
     .setInputFiles(path.join(artifacts, "API_impacts_TSGCT.xlsx"));
   await page.getByText("整理出 2 篇待生成 CR").waitFor();
-  await page
-    .locator('input[aria-label="选择规范 Word / YAML"]')
-    .setInputFiles(path.join(artifacts, "29574-k10.docx"));
-  await page.getByText("TS 29.574 · Rel-20").waitFor();
 
-  // Filter to 29.574
+  // Filter to 29.574 and fetch baseline directly via official archive button
   await page
     .getByPlaceholder("例如 29.574, 29.522 或 Ndccf")
     .fill("29.574");
   await page.getByText("显示 1 / 2 篇").waitFor();
+  await page
+    .getByRole("button", { name: /从 3GPP 官网拉取已选基线/ })
+    .click();
+  await page.getByText("已从 3GPP 官方归档拉取并应用 1 份规范基线").waitFor();
+  await page.getByText("查看 3GPP 官方归档来源").waitFor();
+  await page.getByText("TS 29.574 · Rel-20").waitFor();
 
   // Trigger ZIP export and verify download succeeds
   const [zipDownload] = await Promise.all([
