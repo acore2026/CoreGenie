@@ -70,3 +70,102 @@ test('fresh install injects network settings before startup and mounts trusted C
   assert.ok(run.some(x => x.endsWith('target=/etc/coregenie/ca-bundle.pem,readonly')));
   assert.equal(run.filter(x => x === '--env-file').length, 2);
 });
+
+function runUpdate(args, options = {}) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'image-update-test-'));
+  const dockerLog = path.join(dir, 'docker.log');
+  const nodeLog = path.join(dir, 'node.log');
+  const curlLog = path.join(dir, 'curl.log');
+  const stateDir = options.stateDir ? path.join(dir, 'state') : '';
+  fs.writeFileSync(path.join(dir, 'docker'), `#!${process.execPath}
+const fs = require('node:fs');
+const a = process.argv.slice(2);
+fs.appendFileSync(process.env.TEST_DOCKER_LOG, JSON.stringify(a) + '\\n');
+if (a[0] === 'ps') console.log(process.env.TEST_RUNNING_CONTAINERS || '');
+`, { mode: 0o755 });
+  fs.writeFileSync(path.join(dir, 'node'), `#!${process.execPath}
+const fs = require('node:fs');
+fs.appendFileSync(process.env.TEST_NODE_LOG, JSON.stringify(process.argv.slice(2)) + '\\n');
+`, { mode: 0o755 });
+  fs.writeFileSync(path.join(dir, 'curl'), `#!${process.execPath}
+const fs = require('node:fs');
+const a = process.argv.slice(2);
+fs.appendFileSync(process.env.TEST_CURL_LOG, JSON.stringify(a) + '\\n');
+const outIndex = a.indexOf('--output');
+if (outIndex >= 0) fs.writeFileSync(a[outIndex + 1], '// downloaded helper\\n');
+`, { mode: 0o755 });
+  const env = {
+    ...process.env,
+    PATH: dir + ':' + process.env.PATH,
+    TEST_DOCKER_LOG: dockerLog,
+    TEST_NODE_LOG: nodeLog,
+    TEST_CURL_LOG: curlLog,
+    TEST_RUNNING_CONTAINERS: options.runningContainers || '',
+    CONTAINER_NAME: options.containerName || 'anythingllm',
+    STATE_DIR: stateDir,
+    ALLOW_RUNNING: options.allowRunning ? '1' : '',
+    TAG: '',
+    IMAGE: '',
+    BROKER_IMAGE: '',
+  };
+  try {
+    const run = options.piped
+      ? spawnSync('bash', ['-s', '--', ...args], { env, input: fs.readFileSync(script, 'utf8'), encoding: 'utf8' })
+      : spawnSync('bash', [script, ...args], { env, encoding: 'utf8' });
+    const readJsonLines = (file) =>
+      fs.existsSync(file) ? fs.readFileSync(file, 'utf8').trim().split('\n').filter(Boolean).map(JSON.parse) : [];
+    return {
+      status: run.status,
+      stdout: run.stdout,
+      stderr: run.stderr,
+      nodeCalls: readJsonLines(nodeLog),
+      curlCalls: readJsonLines(curlLog),
+      stateDir,
+    };
+  } finally {
+    fs.rmSync(dir, { recursive: true });
+  }
+}
+
+test('update-all latest updates app and running broker with split state dirs', () => {
+  const r = runUpdate(['update-all', 'latest'], {
+    runningContainers: 'anythingllm\nanythingllm-sandbox-broker\n',
+    stateDir: true,
+    allowRunning: true,
+  });
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(r.curlCalls.length, 0);
+  assert.equal(r.nodeCalls.length, 2);
+  assert.ok(r.nodeCalls[0].includes('ghcr.io/acore2026/coregenie:latest'));
+  assert.ok(r.nodeCalls[0].includes('--allow-running'));
+  assert.ok(r.nodeCalls[0].includes(path.join(r.stateDir, 'app')));
+  assert.ok(r.nodeCalls[1].includes('--broker'));
+  assert.ok(r.nodeCalls[1].includes('ghcr.io/acore2026/coregenie-sandbox-broker:latest'));
+  assert.ok(r.nodeCalls[1].includes(path.join(r.stateDir, 'broker')));
+});
+
+test('update-all skips sandbox broker when it is not running', () => {
+  const r = runUpdate(['update-all', 'latest'], { runningContainers: 'anythingllm\n' });
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(r.nodeCalls.length, 1);
+  assert.match(r.stdout, /skipped/i);
+});
+
+test('piped execution downloads helper from matching commit for sha tags', () => {
+  const sha = '1dea4aa21234567890abcdef1234567890abcdef';
+  const r = runUpdate(['update-all', `sha-${sha}`], {
+    piped: true,
+    runningContainers: 'anythingllm\n',
+  });
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(r.curlCalls.length, 1);
+  assert.ok(r.curlCalls[0].includes(`https://raw.githubusercontent.com/acore2026/CoreGenie/${sha}/scripts/deploy-existing-container.cjs`));
+  assert.equal(r.nodeCalls.length, 1);
+  assert.ok(r.nodeCalls[0].includes(`ghcr.io/acore2026/coregenie:sha-${sha}`));
+});
+
+test('rejects invalid image tags before touching containers', () => {
+  const r = runUpdate(['update-all', 'bad/tag']);
+  assert.equal(r.status, 2);
+  assert.equal(r.nodeCalls.length, 0);
+});

@@ -2,20 +2,27 @@
 # Download a published image; no local build and no data backups.
 set -Eeuo pipefail
 VERSION="${VERSION:-1.15.5}"
-IMAGE="${IMAGE:-ghcr.io/acore2026/coregenie:${VERSION}}"
 CONTAINER_NAME="${CONTAINER_NAME:-anythingllm}"
-SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+BROKER_CONTAINER_NAME="${BROKER_CONTAINER_NAME:-${CONTAINER_NAME}-sandbox-broker}"
+SCRIPT_DIR=""
+if [[ -n "${BASH_SOURCE[0]:-}" && -f "${BASH_SOURCE[0]}" ]]; then
+  SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+fi
 usage() {
   cat <<'HELP'
-Usage: bash deploy-image.sh [update|install|update-broker]
+Usage: bash deploy-image.sh [update|update-all|update-broker|install] [TAG]
 
 update (default): preserve existing mounts, ports, authentication, database and
 proxy settings; refuse to interrupt active Agent tasks; restore old container
 if startup fails. Requires Docker and Node.js 18+ on the host.
+update-all: update the application container, then automatically update the
+sandbox broker if it is running. Accepts an optional TAG (e.g. latest, sha-...,
+or x.y.z; defaults to VERSION).
 install: start a new basic SQLite installation with a persistent Docker volume.
 Requires Docker. Code execution sandbox is not included in a basic install.
 
-VERSION          Image version and deployment helper release (default: 1.15.5)
+VERSION          Fixed x.y.z release version (default: 1.15.5)
+TAG              Image tag for update/update-all/update-broker (default: VERSION)
 IMAGE            Override image reference, including an immutable digest
 CONTAINER_NAME   Container name (default: anythingllm)
 HOST_PORT        New installation port (default: 7555)
@@ -26,52 +33,100 @@ IDAAS_CONFIG_FILE Optional absolute IDaaS JSON file; enables OAuth on install
 STATE_DIR        Optional absolute directory for update metadata (not data backup)
 NETWORK_ENV_FILE  Optional private file with HTTP(S)_PROXY and NO_PROXY settings
 CA_BUNDLE_FILE    Optional absolute PEM bundle (public roots + enterprise roots)
-BROKER_IMAGE     Override the versioned broker image for update-broker
+BROKER_IMAGE     Override the broker image for update-broker/update-all
 BROKER_CONTAINER_NAME Existing broker name (default: <container>-sandbox-broker)
+ALLOW_RUNNING    Set to 1 to allow interrupting active Agent tasks during update
 
 update-broker: update an existing broker, preserving its runner image, workspace
 mounts and limits. Waits for no active Agent tasks/runners before replacement.
 Network/CA options are applied only when explicitly supplied and survive updates.
 
-Download deploy-existing-container.cjs from the same release alongside this
-script, or let update download it automatically. No database/file backups run.
+Download deploy-existing-container.cjs alongside this script, or let update
+download it automatically. No database/file backups run.
 Container rollback does not reverse database migrations.
 HELP
 }
 case "${1:-update}" in
   -h|--help) usage; exit 0 ;;
-  update|install|update-broker) mode="${1:-update}" ;;
+  update|update-all|install|update-broker) mode="${1:-update}" ;;
   *) usage >&2; exit 2 ;;
 esac
-[[ $# -le 1 ]] || { usage >&2; exit 2; }
-[[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo 'VERSION must be a fixed x.y.z release.' >&2; exit 2; }
+[[ $# -le 2 ]] || { usage >&2; exit 2; }
+if [[ $# -eq 2 ]]; then
+  if [[ "$mode" == install ]]; then usage >&2; exit 2; fi
+  TAG="$2"
+fi
+if [[ -z "${TAG:-}" ]]; then
+  [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo 'VERSION must be a fixed x.y.z release.' >&2; exit 2; }
+  TAG="$VERSION"
+fi
+[[ "$TAG" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]] || { echo 'TAG must be a valid Docker image tag.' >&2; exit 2; }
+IMAGE="${IMAGE:-ghcr.io/acore2026/coregenie:${TAG}}"
+BROKER_IMAGE="${BROKER_IMAGE:-ghcr.io/acore2026/coregenie-sandbox-broker:${TAG}}"
 command -v docker >/dev/null
 docker info >/dev/null
 if [[ "$mode" != install ]]; then
   command -v node >/dev/null || { echo 'Install Node.js 18+ to run the deployment helper.' >&2; exit 1; }
-  target_name="$CONTAINER_NAME"
-  target_image="$IMAGE"
-  if [[ "$mode" == update-broker ]]; then
-    target_name="${BROKER_CONTAINER_NAME:-${CONTAINER_NAME}-sandbox-broker}"
-    target_image="${BROKER_IMAGE:-ghcr.io/acore2026/coregenie-sandbox-broker:${VERSION}}"
+  helper=""
+  local_helper=""
+  if [[ -n "$SCRIPT_DIR" && -f "$SCRIPT_DIR/deploy-existing-container.cjs" ]]; then
+    local_helper="$SCRIPT_DIR/deploy-existing-container.cjs"
   fi
-  docker container inspect "$target_name" >/dev/null
-  helper="$SCRIPT_DIR/deploy-existing-container.cjs"
-  if [[ ! -f "$helper" ]] || ! grep -Fxq "// CoreGenie deployment helper version: $VERSION" "$helper"; then
+  if [[ "$TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    if [[ -n "$local_helper" ]] && grep -Fxq "// CoreGenie deployment helper version: $TAG" "$local_helper"; then
+      helper="$local_helper"
+    else
+      helper_url="https://github.com/acore2026/CoreGenie/releases/download/v${TAG}/deploy-existing-container.cjs"
+    fi
+  else
+    if [[ -n "$local_helper" ]]; then
+      helper="$local_helper"
+    else
+      helper_ref="master"
+      if [[ "$TAG" =~ ^sha-([0-9a-f]{7,40})$ ]]; then
+        helper_ref="${BASH_REMATCH[1]}"
+      fi
+      helper_url="https://raw.githubusercontent.com/acore2026/CoreGenie/${helper_ref}/scripts/deploy-existing-container.cjs"
+    fi
+  fi
+  if [[ -z "$helper" ]]; then
     command -v curl >/dev/null
     temp_dir="$(mktemp -d)"
     trap 'rm -r -- "$temp_dir"' EXIT
     helper="$temp_dir/deploy-existing-container.cjs"
-    curl --fail --show-error --location --retry 3 \
-      "https://github.com/acore2026/CoreGenie/releases/download/v${VERSION}/deploy-existing-container.cjs" \
-      --output "$helper"
+    curl --fail --show-error --location --retry 3 "$helper_url" --output "$helper"
   fi
-  args=(--image "$target_image" --container "$target_name" --pull)
-  if [[ "$mode" == update-broker ]]; then args+=(--broker --app-container "$CONTAINER_NAME"); fi
-  if [[ -n "${NETWORK_ENV_FILE:-}" ]]; then args+=(--network-env-file "$NETWORK_ENV_FILE"); fi
-  if [[ -n "${CA_BUNDLE_FILE:-}" ]]; then args+=(--ca-bundle "$CA_BUNDLE_FILE"); fi
-  if [[ -n "${STATE_DIR:-}" ]]; then args+=(--state-dir "$STATE_DIR"); fi
-  node "$helper" "${args[@]}"
+  run_update() {
+    local target_kind="$1" target_name="$2" target_image="$3" state_dir="${4:-}"
+    local args=(--image "$target_image" --container "$target_name" --pull)
+    if [[ "$target_kind" == broker ]]; then args+=(--broker --app-container "$CONTAINER_NAME"); fi
+    if [[ -n "${NETWORK_ENV_FILE:-}" ]]; then args+=(--network-env-file "$NETWORK_ENV_FILE"); fi
+    if [[ -n "${CA_BUNDLE_FILE:-}" ]]; then args+=(--ca-bundle "$CA_BUNDLE_FILE"); fi
+    if [[ -n "$state_dir" ]]; then args+=(--state-dir "$state_dir"); fi
+    if [[ "${ALLOW_RUNNING:-0}" == 1 ]]; then args+=(--allow-running); fi
+    node "$helper" "${args[@]}"
+  }
+  if [[ "$mode" == update-broker ]]; then
+    docker container inspect "$BROKER_CONTAINER_NAME" >/dev/null
+    run_update broker "$BROKER_CONTAINER_NAME" "$BROKER_IMAGE" "${STATE_DIR:-}"
+  elif [[ "$mode" == update-all ]]; then
+    docker container inspect "$CONTAINER_NAME" >/dev/null
+    app_state_dir=""
+    broker_state_dir=""
+    if [[ -n "${STATE_DIR:-}" ]]; then
+      app_state_dir="${STATE_DIR}/app"
+      broker_state_dir="${STATE_DIR}/broker"
+    fi
+    run_update app "$CONTAINER_NAME" "$IMAGE" "$app_state_dir"
+    if docker ps --format '{{.Names}}' | grep -Fxq -- "$BROKER_CONTAINER_NAME"; then
+      run_update broker "$BROKER_CONTAINER_NAME" "$BROKER_IMAGE" "$broker_state_dir"
+    else
+      echo "Sandbox broker container '$BROKER_CONTAINER_NAME' is not running; skipped."
+    fi
+  else
+    docker container inspect "$CONTAINER_NAME" >/dev/null
+    run_update app "$CONTAINER_NAME" "$IMAGE" "${STATE_DIR:-}"
+  fi
 else
   # Fail closed if the daemon is inaccessible or the name already exists.
   existing="$(docker container ls -a --format '{{.Names}}')"

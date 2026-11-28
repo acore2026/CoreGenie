@@ -31,10 +31,21 @@ curl -fL --retry 3 -o deploy-image.sh \
 在 Docker 宿主机执行，需要 Docker 和 Node.js 18+，使用默认本地 Docker socket：
 
 ```bash
+# 仅更新主应用到固定版本
 CONTAINER_NAME=anythingllm bash deploy-image.sh update
+
+# 一键更新主应用，并自动更新正在运行的沙箱 broker（支持 latest、sha-<commit> 或固定版本号）
+bash deploy-image.sh update-all latest
 ```
 
-脚本自动下载同版本更新工具，拉取镜像后才停止旧容器。保留挂载、网络、代理、端口、启动命令、认证方式和数据目录。默认拒绝中断正在运行或排队的 Agent 任务。健康检查失败会恢复旧容器。
+在生产机不拉源码时，也可以直接通过管道一键更新到 `master` 最新镜像：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/acore2026/CoreGenie/master/scripts/deploy-image.sh \
+  | bash -s -- update-all latest
+```
+
+脚本自动复用同目录或下载对应版本的更新工具，拉取镜像后才停止旧容器。保留挂载、网络、代理、端口、启动命令、认证方式和数据目录。默认拒绝中断正在运行或排队的 Agent 任务（确认可中断时可加 `ALLOW_RUNNING=1`）。健康检查失败会恢复旧容器。
 
 **不备份数据库或文件。** 更新工具只保存权限为 600 的容器配置和部署记录，默认放在宿主机临时目录，可用 `STATE_DIR=/absolute/private/directory` 指定新的空目录。记录含环境变量，请按私密配置保管。旧容器保留为 `anythingllm-before-时间戳`；容器恢复不会回滚数据库迁移。
 
