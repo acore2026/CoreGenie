@@ -1,6 +1,19 @@
+import type { Question, Draft, UpdateDraft } from "./utils";
 import { useTranslation } from "react-i18next";
 
-function OptionButton({ label, description, index, selected, onClick }) {
+function OptionButton({
+  label,
+  description,
+  index,
+  selected,
+  onClick,
+}: {
+  label: string;
+  description?: string;
+  index: number;
+  selected: boolean;
+  onClick: () => void;
+}) {
   return (
     <button
       type="button"
@@ -29,7 +42,19 @@ function OptionButton({ label, description, index, selected, onClick }) {
   );
 }
 
-function CustomAnswerRow({ index, selected, onToggle, allowSkip, onSkip }) {
+function CustomAnswerRow({
+  index,
+  selected,
+  onToggle,
+  allowSkip,
+  onSkip,
+}: {
+  index: number;
+  selected: boolean;
+  onToggle: () => void;
+  allowSkip: boolean;
+  onSkip: () => void;
+}) {
   const { t } = useTranslation();
   return (
     <div className="flex items-center w-full">
@@ -66,7 +91,7 @@ function CustomAnswerRow({ index, selected, onToggle, allowSkip, onSkip }) {
   );
 }
 
-function SkipButton({ onClick }) {
+function SkipButton({ onClick }: { onClick: () => void }) {
   const { t } = useTranslation();
   return (
     <button
@@ -79,7 +104,13 @@ function SkipButton({ onClick }) {
   );
 }
 
-function NotesInput({ value, onChange }) {
+function NotesInput({
+  value,
+  onChange,
+}: {
+  value?: string;
+  onChange: (value: string) => void;
+}) {
   const { t } = useTranslation();
   return (
     <label className="mt-2 flex flex-col gap-2 text-xs font-medium text-zinc-300 light:text-slate-700">
@@ -113,16 +144,23 @@ export default function ChoiceForm({
   onAutoAdvance,
   allowSkip,
   onSkip,
+}: {
+  question: Question;
+  draft: Draft;
+  onChange: UpdateDraft;
+  onAutoAdvance: UpdateDraft | null;
+  allowSkip: boolean;
+  onSkip: () => void;
 }) {
   const showOther = question.allowOther !== false;
 
-  function isChecked(opt) {
+  function isChecked(opt: string) {
     if (question.multiSelect)
       return Array.isArray(draft.selected) && draft.selected.includes(opt);
     return draft.selected === opt;
   }
 
-  function handleSelect(opt) {
+  function handleSelect(opt: string) {
     if (question.multiSelect) {
       const list = Array.isArray(draft.selected) ? draft.selected : [];
       const next = list.includes(opt)
@@ -146,7 +184,7 @@ export default function ChoiceForm({
 
   return (
     <div className="flex flex-col w-full">
-      {question.options.map((opt, idx) => (
+      {(question.options ?? []).map((opt, idx) => (
         <OptionButton
           key={`${opt}-${idx}`}
           label={opt}
@@ -158,7 +196,7 @@ export default function ChoiceForm({
       ))}
       {showOther && (
         <CustomAnswerRow
-          index={question.options.length}
+          index={question.options?.length ?? 0}
           selected={!!draft.otherSelected}
           onToggle={handleOtherToggle}
           allowSkip={allowSkip}

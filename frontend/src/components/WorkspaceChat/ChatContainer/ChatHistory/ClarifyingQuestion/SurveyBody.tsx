@@ -1,13 +1,26 @@
+import type { Question, Answer, SurveyResult } from "./utils";
 import { useTranslation } from "react-i18next";
 import { formatAnswerDisplay } from "./utils";
 
-function StatusMessage({ message }) {
+function StatusMessage({ message }: { message: string }) {
   return (
     <div className="text-xs text-white/60 light:text-slate-600">{message}</div>
   );
 }
 
-function AnswerRow({ question, answer, index, showNumber, skippedLabel }) {
+function AnswerRow({
+  question,
+  answer,
+  index,
+  showNumber,
+  skippedLabel,
+}: {
+  question: Question;
+  answer: Answer;
+  index: number;
+  showNumber: boolean;
+  skippedLabel: string;
+}) {
   return (
     <div className="flex gap-2">
       {showNumber && (
@@ -27,7 +40,13 @@ function AnswerRow({ question, answer, index, showNumber, skippedLabel }) {
   );
 }
 
-function AnswersList({ questions, answers }) {
+function AnswersList({
+  questions,
+  answers,
+}: {
+  questions: Question[];
+  answers: Answer[];
+}) {
   const { t } = useTranslation();
   const showNumbers = questions.length > 1;
   const skippedLabel = t("chat_window.agent_invocation.answer_skipped");
@@ -58,7 +77,13 @@ function AnswersList({ questions, answers }) {
  * @param {{ timedOut?: boolean, skipped?: boolean, answers?: Array<{ skipped: boolean, answer: any }> }} props.result
  *   The survey's resolution payload — same shape returned by the websocket.
  */
-export default function SurveyBody({ questions = [], result = {} }) {
+export default function SurveyBody({
+  questions = [],
+  result = {},
+}: {
+  questions?: Question[];
+  result?: SurveyResult;
+}) {
   const { t } = useTranslation();
 
   if (result.timedOut) {

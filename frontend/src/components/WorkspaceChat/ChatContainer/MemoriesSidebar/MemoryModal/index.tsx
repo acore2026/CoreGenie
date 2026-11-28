@@ -17,6 +17,12 @@ export default function MemoryModal({
   onSubmit,
   initialContent = "",
   mode = "create",
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (content: string) => void;
+  initialContent?: string;
+  mode?: "create" | "edit";
 }) {
   const { t } = useTranslation();
   const [content, setContent] = useState(initialContent);

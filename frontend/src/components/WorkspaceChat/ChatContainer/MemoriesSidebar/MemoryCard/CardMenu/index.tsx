@@ -22,6 +22,14 @@ export default function CardMenu({
   onEdit,
   onMove,
   onDelete,
+}: {
+  menuRef: React.RefObject<HTMLDivElement>;
+  buttonRef: React.RefObject<HTMLButtonElement>;
+  isWorkspace: boolean;
+  canMove: boolean;
+  onEdit: () => void;
+  onMove: () => void;
+  onDelete: () => void;
 }) {
   const { t } = useTranslation();
   const [pos, setPos] = useState({ top: 0, left: 0 });
@@ -58,7 +66,7 @@ export default function CardMenu({
   );
 }
 
-function MenuItem({ label, onClick }) {
+function MenuItem({ label, onClick }: { label: string; onClick: () => void }) {
   return (
     <button
       type="button"

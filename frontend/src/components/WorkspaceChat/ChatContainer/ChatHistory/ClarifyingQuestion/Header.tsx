@@ -1,10 +1,18 @@
+interface PaginationProps {
+  index: number;
+  total: number;
+  onPrev: () => void;
+  onNext: () => void;
+  isFirst: boolean;
+  isLast: boolean;
+}
 import { CaretLeft, CaretRight, X } from "@phosphor-icons/react";
 import { useTranslation } from "react-i18next";
 
 const NAV_BUTTON_CLASS =
   "border-none p-0 flex items-center justify-center text-white/70 light:text-slate-700 hover:text-white light:hover:text-slate-900 disabled:opacity-30 disabled:cursor-not-allowed";
 
-function QuestionText({ children }) {
+function QuestionText({ children }: React.PropsWithChildren) {
   return (
     <p className="flex-1 min-w-0 text-white light:text-slate-900 text-sm font-medium leading-5 break-words">
       {children}
@@ -12,7 +20,14 @@ function QuestionText({ children }) {
   );
 }
 
-function PaginationControls({ index, total, onPrev, onNext, isFirst, isLast }) {
+function PaginationControls({
+  index,
+  total,
+  onPrev,
+  onNext,
+  isFirst,
+  isLast,
+}: PaginationProps) {
   const { t } = useTranslation();
   return (
     <div className="flex items-center gap-2 shrink-0">
@@ -44,7 +59,13 @@ function PaginationControls({ index, total, onPrev, onNext, isFirst, isLast }) {
   );
 }
 
-function CloseButton({ disabled, onClick }) {
+function CloseButton({
+  disabled,
+  onClick,
+}: {
+  disabled: boolean;
+  onClick: () => void;
+}) {
   const { t } = useTranslation();
   return (
     <button
@@ -75,6 +96,11 @@ export default function Header({
   onClose,
   isFirst,
   isLast,
+}: PaginationProps & {
+  question?: string;
+  isSingle: boolean;
+  responded: boolean;
+  onClose: () => void;
 }) {
   const showPagination = !isSingle && !responded;
 

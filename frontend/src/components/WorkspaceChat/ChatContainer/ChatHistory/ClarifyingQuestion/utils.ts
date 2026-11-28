@@ -1,8 +1,40 @@
+export interface Question {
+  kind: "choice" | "input";
+  question: string;
+  inputType?: string;
+  placeholder?: string;
+  options?: string[];
+  multiSelect?: boolean;
+  allowOther?: boolean;
+  optionDescriptions?: string[];
+}
+export interface Draft {
+  skipped: boolean;
+  value?: string;
+  selected?: string | string[] | null;
+  otherSelected?: boolean;
+  otherText?: string;
+}
+export interface Answer {
+  skipped?: boolean;
+  answer?: string | string[] | null;
+}
+export interface SurveyResult {
+  timedOut?: boolean;
+  resolved?: boolean;
+  skipped?: boolean;
+  answers?: Answer[];
+}
+export interface Survey {
+  questions?: Question[];
+  result?: SurveyResult;
+}
+export type UpdateDraft = (patch: Partial<Draft>) => void;
 /**
  * Build the empty draft state for a question. Lives next to the renderers so
  * Header/InputForm/ChoiceForm and the parent stay in sync on shape.
  */
-export function emptyDraftFor(question) {
+export function emptyDraftFor(question: Question): Draft {
   if (question?.kind === "choice") {
     return {
       skipped: false,
@@ -19,7 +51,7 @@ export function emptyDraftFor(question) {
  * wire. Empty strings, missing selections and the "Other" option without text
  * all collapse to skipped so the LLM never sees junk.
  */
-export function answerForDraft(question, draft) {
+export function answerForDraft(question: Question, draft?: Draft): Answer {
   if (!draft || draft.skipped) return { skipped: true, answer: null };
 
   if (question.kind === "input") {
@@ -34,13 +66,16 @@ export function answerForDraft(question, draft) {
     if (question.multiSelect)
       return {
         skipped: false,
-        answer: [...(draft.selected || []), trimmed],
+        answer: [
+          ...(Array.isArray(draft.selected) ? draft.selected : []),
+          trimmed,
+        ],
       };
     return { skipped: false, answer: trimmed };
   }
 
   if (question.multiSelect) {
-    const picks = draft.selected || [];
+    const picks = Array.isArray(draft.selected) ? draft.selected : [];
     if (picks.length === 0) return { skipped: true, answer: null };
     return { skipped: false, answer: picks };
   }
@@ -54,7 +89,10 @@ export function answerForDraft(question, draft) {
  * (live card and historical chat). `skippedLabel` is passed in so callers can
  * supply a translated string.
  */
-export function formatAnswerDisplay(answer, skippedLabel) {
+export function formatAnswerDisplay(
+  answer: Answer | undefined,
+  skippedLabel: string
+) {
   if (!answer || answer.skipped) return skippedLabel;
   if (Array.isArray(answer.answer)) return answer.answer.join(", ");
   return String(answer.answer ?? "");

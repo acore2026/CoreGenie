@@ -1,7 +1,13 @@
+import type { Question, Draft } from "./utils";
+interface InputProps {
+  value: string;
+  placeholder: string;
+  onChange: (value: string) => void;
+}
 const SHARED_CLASS =
   "w-full border border-solid border-zinc-700 light:border-slate-500 bg-zinc-800 light:bg-white text-white light:text-slate-900 placeholder:text-zinc-500 light:placeholder:text-slate-500 text-sm leading-5 rounded-lg focus:outline-white light:focus:outline-slate-400 outline-none px-[14px] py-[10px]";
 
-function TextareaInput({ value, placeholder, onChange }) {
+function TextareaInput({ value, placeholder, onChange }: InputProps) {
   return (
     <textarea
       autoFocus
@@ -13,8 +19,14 @@ function TextareaInput({ value, placeholder, onChange }) {
   );
 }
 
-function TextInput({ type, value, placeholder, onChange, onSubmit }) {
-  function handleKeyDown(e) {
+function TextInput({
+  type,
+  value,
+  placeholder,
+  onChange,
+  onSubmit,
+}: InputProps & { type: string; onSubmit: () => void }) {
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === "Enter") {
       e.preventDefault();
       onSubmit?.();
@@ -39,7 +51,17 @@ function TextInput({ type, value, placeholder, onChange, onSubmit }) {
  * normalizeQuestion has already constrained `inputType` to a known value
  * before sending, so we just trust it here and fall back to "text" if missing.
  */
-export default function InputForm({ question, draft, onChange, onSubmit }) {
+export default function InputForm({
+  question,
+  draft,
+  onChange,
+  onSubmit,
+}: {
+  question: Question;
+  draft: Draft;
+  onChange: InputProps["onChange"];
+  onSubmit: () => void;
+}) {
   const inputType = question.inputType || "text";
   const value = draft.value || "";
   const placeholder = question.placeholder || "";

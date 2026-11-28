@@ -1,3 +1,4 @@
+import type { Survey } from "../../ClarifyingQuestion/utils";
 import SurveyBody from "../../ClarifyingQuestion/SurveyBody";
 
 /**
@@ -6,7 +7,11 @@ import SurveyBody from "../../ClarifyingQuestion/SurveyBody";
  * no header (the question/answer pairs in SurveyBody are self-describing). One
  * card per survey (an agent can call `ask-user` multiple times in a single turn).
  */
-export default function HistoricalClarifyingQuestions({ surveys = [] }) {
+export default function HistoricalClarifyingQuestions({
+  surveys = [],
+}: {
+  surveys?: Survey[];
+}) {
   if (!Array.isArray(surveys) || surveys.length === 0) return null;
 
   return (
@@ -18,7 +23,7 @@ export default function HistoricalClarifyingQuestions({ surveys = [] }) {
   );
 }
 
-function SurveyCard({ survey }) {
+function SurveyCard({ survey }: { survey: Survey }) {
   const questions = Array.isArray(survey?.questions) ? survey.questions : [];
   const result = survey?.result || {};
 

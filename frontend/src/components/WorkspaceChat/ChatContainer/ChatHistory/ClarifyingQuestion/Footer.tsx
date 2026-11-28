@@ -1,7 +1,20 @@
+export interface FooterProps {
+  isSingle: boolean;
+  isLast: boolean;
+  allowSkip: boolean;
+  answeredCount: number;
+  total: number;
+  onSkipThis: () => void;
+  onNext: () => void;
+  onSubmitAll: () => void;
+}
 import { SkipForward, Check, ArrowRight } from "@phosphor-icons/react";
 import { useTranslation } from "react-i18next";
 
-function ProgressIndicator({ answeredCount, total }) {
+function ProgressIndicator({
+  answeredCount,
+  total,
+}: Pick<FooterProps, "answeredCount" | "total">) {
   const { t } = useTranslation();
   return (
     <div className="text-xs text-zinc-400 light:text-slate-500">
@@ -13,7 +26,13 @@ function ProgressIndicator({ answeredCount, total }) {
   );
 }
 
-function SkipButton({ isSingle, onClick }) {
+function SkipButton({
+  isSingle,
+  onClick,
+}: {
+  isSingle: boolean;
+  onClick: () => void;
+}) {
   const { t } = useTranslation();
   return (
     <button
@@ -29,7 +48,13 @@ function SkipButton({ isSingle, onClick }) {
   );
 }
 
-function SubmitButton({ isSingle, onClick }) {
+function SubmitButton({
+  isSingle,
+  onClick,
+}: {
+  isSingle: boolean;
+  onClick: () => void;
+}) {
   const { t } = useTranslation();
   return (
     <button
@@ -45,7 +70,7 @@ function SubmitButton({ isSingle, onClick }) {
   );
 }
 
-function NextButton({ onClick }) {
+function NextButton({ onClick }: { onClick: () => void }) {
   const { t } = useTranslation();
   return (
     <button
@@ -74,7 +99,7 @@ export default function Footer({
   onSkipThis,
   onNext,
   onSubmitAll,
-}) {
+}: FooterProps) {
   return (
     <div className="flex items-center justify-between gap-2 mt-1">
       {!isSingle && (

@@ -1,3 +1,10 @@
+import type { Question, Draft, UpdateDraft, SurveyResult } from "./utils";
+import type { FooterProps } from "./Footer";
+interface ActiveForm {
+  question: Question;
+  draft: Draft;
+  updateDraft: UpdateDraft;
+}
 import { useEffect, useMemo, useState } from "react";
 import useTimeoutProgress from "@/hooks/useTimeoutProgress";
 import Header from "./Header";
@@ -7,7 +14,7 @@ import Footer from "./Footer";
 import SurveyBody from "./SurveyBody";
 import { answerForDraft, emptyDraftFor } from "./utils";
 
-function TimeoutProgressBar({ percent }) {
+function TimeoutProgressBar({ percent }: { percent: number }) {
   return (
     <div className="absolute bottom-0 left-0 right-0 h-1 bg-zinc-700 light:bg-slate-300">
       <div
@@ -18,7 +25,7 @@ function TimeoutProgressBar({ percent }) {
   );
 }
 
-function CardWrapper({ children }) {
+function CardWrapper({ children }: React.PropsWithChildren) {
   return (
     <div className="flex justify-center w-full my-1 pr-4">
       <div className="w-full flex flex-col">
@@ -33,7 +40,12 @@ function CardWrapper({ children }) {
   );
 }
 
-function ActiveInputForm({ question, draft, updateDraft, onSubmit }) {
+function ActiveInputForm({
+  question,
+  draft,
+  updateDraft,
+  onSubmit,
+}: ActiveForm & { onSubmit: () => void }) {
   if (question?.kind !== "input") return null;
   return (
     <InputForm
@@ -52,6 +64,10 @@ function ActiveChoiceForm({
   onAutoAdvance,
   allowSkip,
   onSkip,
+}: ActiveForm & {
+  onAutoAdvance: UpdateDraft;
+  allowSkip: boolean;
+  onSkip: () => void;
 }) {
   if (question?.kind !== "choice") return null;
   return (
@@ -81,7 +97,7 @@ function ActiveFooter({
   onSkipThis,
   onNext,
   onSubmitAll,
-}) {
+}: Pick<ActiveForm, "question" | "draft"> & FooterProps) {
   const isChoice = question?.kind === "choice";
   const isInput = question?.kind === "input";
   const showFooter =
@@ -103,7 +119,15 @@ function ActiveFooter({
   );
 }
 
-function CompletedSurvey({ questions, drafts, submittedResult }) {
+function CompletedSurvey({
+  questions,
+  drafts,
+  submittedResult,
+}: {
+  questions: Question[];
+  drafts: Draft[];
+  submittedResult: SurveyResult | null;
+}) {
   const result =
     submittedResult?.timedOut ||
     submittedResult?.skipped ||
@@ -130,10 +154,18 @@ export default function ClarifyingQuestionCard({
   resolved = false,
   resolution = null,
   websocket,
+}: {
+  requestId?: string;
+  questions?: Question[];
+  allowSkip?: boolean;
+  timeoutMs?: number | null;
+  resolved?: boolean;
+  resolution?: SurveyResult | null;
+  websocket?: Pick<WebSocket, "readyState" | "send"> | null;
 }) {
   const [index, setIndex] = useState(0);
   const [responded, setResponded] = useState(resolved);
-  const [submittedResult, setSubmittedResult] = useState(
+  const [submittedResult, setSubmittedResult] = useState<SurveyResult | null>(
     resolution || (resolved ? { resolved: true } : null)
   );
   const [drafts, setDrafts] = useState(() =>
@@ -172,13 +204,13 @@ export default function ClarifyingQuestionCard({
 
   if (!total) return null;
 
-  function updateDraft(patch) {
+  function updateDraft(patch: Partial<Draft>) {
     setDrafts((prev) =>
       prev.map((d, i) => (i === index ? { ...d, ...patch } : d))
     );
   }
 
-  function send(payload) {
+  function send(payload: SurveyResult) {
     if (responded) return;
     setResponded(true);
     setSubmittedResult(payload);
@@ -205,7 +237,7 @@ export default function ClarifyingQuestionCard({
     setIndex(index + 1);
   }
 
-  function handleAutoAdvance(pendingPatch) {
+  function handleAutoAdvance(pendingPatch: Partial<Draft>) {
     if (isLast) return handleSubmitAll(pendingPatch);
     setIndex(index + 1);
   }
@@ -215,7 +247,7 @@ export default function ClarifyingQuestionCard({
     setIndex(index - 1);
   }
 
-  function handleSubmitAll(pendingPatch) {
+  function handleSubmitAll(pendingPatch?: Partial<Draft>) {
     const resolved = pendingPatch
       ? drafts.map((d, i) => (i === index ? { ...d, ...pendingPatch } : d))
       : drafts;
@@ -267,7 +299,7 @@ export default function ClarifyingQuestionCard({
             total={total}
             onSkipThis={handleSkipThis}
             onNext={handleNext}
-            onSubmitAll={handleSubmitAll}
+            onSubmitAll={() => handleSubmitAll()}
           />
         </>
       )}

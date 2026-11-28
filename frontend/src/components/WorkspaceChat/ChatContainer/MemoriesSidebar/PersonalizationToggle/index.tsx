@@ -14,7 +14,7 @@ export default function PersonalizationToggle() {
   } = useMemoriesContext();
   const { t } = useTranslation();
 
-  async function handleToggle(checked) {
+  async function handleToggle(checked: boolean) {
     const value = checked ? "true" : "false";
     const { success } = await Admin.updateSystemPreferences({
       memory_enabled: value,
@@ -23,7 +23,7 @@ export default function PersonalizationToggle() {
     setEnabled(checked);
   }
 
-  async function handleAutoExtractionToggle(checked) {
+  async function handleAutoExtractionToggle(checked: boolean) {
     const value = checked ? "true" : "false";
     const { success } = await Admin.updateSystemPreferences({
       memory_auto_extraction: value,

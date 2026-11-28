@@ -3,7 +3,11 @@ import { DotsThreeVertical } from "@phosphor-icons/react";
 import { useMemoriesContext, LIMITS } from "../MemoriesContext";
 import CardMenu from "./CardMenu";
 
-export default function MemoryCard({ memory }) {
+export default function MemoryCard({
+  memory,
+}: {
+  memory: import("@coregenie/contracts").Memory;
+}) {
   const {
     activeTab,
     memories,
@@ -14,12 +18,13 @@ export default function MemoryCard({ memory }) {
   } = useMemoriesContext();
 
   const [menuOpen, setMenuOpen] = useState(false);
-  const menuRef = useRef(null);
-  const buttonRef = useRef(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!menuOpen) return;
-    function handleClickOutside(e) {
+    function handleClickOutside(e: MouseEvent) {
+      if (!(e.target instanceof Node)) return;
       if (
         menuRef.current &&
         !menuRef.current.contains(e.target) &&

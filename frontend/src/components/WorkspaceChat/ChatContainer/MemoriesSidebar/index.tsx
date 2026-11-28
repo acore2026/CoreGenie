@@ -10,7 +10,11 @@ import MemoryModal from "./MemoryModal";
 
 export { useMemoriesSidebar } from "../ChatSidebar";
 
-function MemoriesSidebar({ workspace }) {
+function MemoriesSidebar({
+  workspace,
+}: {
+  workspace: { slug: string; name?: string };
+}) {
   return (
     <MemoriesProvider workspace={workspace}>
       <MemoriesSidebarContent />
@@ -38,7 +42,7 @@ function MemoriesSidebarContent() {
   );
 }
 
-function SidebarPanel({ children }) {
+function SidebarPanel({ children }: React.PropsWithChildren) {
   return (
     <div
       className="w-[366px] flex-shrink-0 flex flex-col gap-5 mt-[72px] px-5 overflow-y-auto no-scroll"
@@ -93,7 +97,7 @@ function MemoryModalWrapper() {
       onClose={closeModal}
       onSubmit={(content) => {
         if (modalState.mode === "edit" && editingMemory) {
-          handleUpdate(editingMemory.id, content);
+          editingMemory && handleUpdate(editingMemory.id, content);
         } else {
           handleCreate(content);
         }

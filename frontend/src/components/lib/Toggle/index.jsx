@@ -186,7 +186,7 @@ function TextContent({
  * Simple toggle switch that doesn't use label/input to avoid focus-scroll issues
  */
 export function SimpleToggleSwitch({
-  className,
+  className = "",
   enabled,
   onChange,
   disabled = false,
