@@ -86,6 +86,7 @@ export interface Skill {
 }
 
 export interface QuickTask {
+  definition?: AgentWizardConfig;
   id: number;
   title: string;
   description: string;

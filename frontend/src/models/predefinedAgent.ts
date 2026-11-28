@@ -1,4 +1,5 @@
 import type {
+  AgentWizardConfig,
   AdminData,
   Agent,
   Capability,
@@ -106,8 +107,8 @@ const PredefinedAgent = {
 
   validateQuickTask: async (
     payload: Record<string, unknown>
-  ): Promise<Record<string, unknown>> =>
-    safeJson<Record<string, unknown>>(
+  ): Promise<SaveResult<{ definition: AgentWizardConfig }>> =>
+    safeJson<SaveResult<{ definition: AgentWizardConfig }>>(
       "/admin/predefined-quick-tasks/validate",
       "POST",
       payload

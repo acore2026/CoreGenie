@@ -1,28 +1,27 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import ConfigSync from "@/models/configSync";
+import ConfigSync, {
+  type ConfigSyncDetail,
+  type ConfigSyncStatus,
+} from "@/models/configSync";
 
 const buttonClass =
   "min-h-[40px] rounded-lg border border-white/10 px-3 py-2 text-xs font-medium text-theme-text-primary transition-colors hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 disabled:cursor-not-allowed disabled:opacity-50 light:border-slate-200 light:hover:bg-slate-100";
 
-function preview(value) {
-  if (typeof value === "string") return value;
-  if (!value) return "";
-  if (value.skillMd)
-    return `${value.skillMd}\n${JSON.stringify({ archived: value.archived, files: Object.keys(value.files || {}) }, null, 2)}`;
-  return JSON.stringify(value, null, 2);
-}
-
-export default function ConfigSyncPanel({ onResolved }) {
+export default function ConfigSyncPanel({
+  onResolved,
+}: {
+  onResolved?: () => void;
+}) {
   const { t } = useTranslation();
-  const [status, setStatus] = useState(null);
+  const [status, setStatus] = useState<ConfigSyncStatus | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [detail, setDetail] = useState(null);
+  const [detail, setDetail] = useState<ConfigSyncDetail | null>(null);
 
   useEffect(() => {
     let active = true;
-    let timeout;
+    let timeout: ReturnType<typeof setTimeout>;
     const poll = async () => {
       try {
         const next = await ConfigSync.status();
@@ -31,7 +30,10 @@ export default function ConfigSyncPanel({ onResolved }) {
           setError("");
         }
       } catch (err) {
-        if (active) setError(err.message || t("config_sync.request_error"));
+        if (active)
+          setError(
+            err instanceof Error ? err.message : t("config_sync.request_error")
+          );
       }
       if (active) timeout = setTimeout(poll, 5000);
     };
@@ -42,19 +44,22 @@ export default function ConfigSyncPanel({ onResolved }) {
     };
   }, [t]);
 
-  async function act(action) {
+  async function act(action: () => Promise<void>) {
     setBusy(true);
     setError("");
     try {
       await action();
     } catch (err) {
-      setError(err.message || t("config_sync.request_error"));
+      setError(
+        err instanceof Error ? err.message : t("config_sync.request_error")
+      );
     } finally {
       setBusy(false);
     }
   }
 
-  async function resolve(side) {
+  async function resolve(side: "file" | "database") {
+    if (!detail) return;
     const next = await ConfigSync.resolve(detail, side);
     setStatus(next);
     setDetail(null);
@@ -96,7 +101,7 @@ export default function ConfigSyncPanel({ onResolved }) {
             role="alert"
             className="break-words text-sm text-red-400 light:text-red-700"
           >
-            {error || status.error}
+            {error || status?.error}
           </p>
         )}
         {status?.enabled && (
@@ -160,13 +165,13 @@ export default function ConfigSyncPanel({ onResolved }) {
               </p>
             )}
             <div className="grid min-w-0 gap-4 lg:grid-cols-2">
-              {["file", "database"].map((side) => (
+              {(["file", "database"] as const).map((side) => (
                 <div key={side} className="min-w-0 space-y-3">
                   <h3 className="text-sm font-medium">
                     {t(`config_sync.${side}`)}
                   </h3>
                   <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-theme-bg-container p-3 text-xs leading-5">
-                    {preview(detail[side]) || t("config_sync.missing")}
+                    {detail[side] || t("config_sync.missing")}
                   </pre>
                   <button
                     type="button"

@@ -31,7 +31,7 @@ export default function AgentPromptSettings() {
     };
   }, []);
 
-  async function savePrompt(event) {
+  async function savePrompt(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSaving(true);
     const result = await Admin.updateSystemPreferences({
@@ -161,7 +161,19 @@ export default function AgentPromptSettings() {
   );
 }
 
-function PromptLayer({ icon: Icon, index, title, detail, accent }) {
+function PromptLayer({
+  icon: Icon,
+  index,
+  title,
+  detail,
+  accent,
+}: {
+  icon: typeof Robot;
+  index: string;
+  title: string;
+  detail: string;
+  accent: "cyan" | "violet" | "amber";
+}) {
   const colors = {
     cyan: "bg-cyan-300/10 text-cyan-300 light:bg-cyan-50 light:text-cyan-700",
     violet:

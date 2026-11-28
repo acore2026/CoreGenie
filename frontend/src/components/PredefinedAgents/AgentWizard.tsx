@@ -32,7 +32,7 @@ interface FieldProps {
   update: (field: WizardField, value: unknown) => void;
 }
 interface WizardProps {
-  agent: Agent;
+  agent: Pick<Agent, "wizard" | "name">;
   disabled?: boolean;
   onUse: (prompt: string) => void;
 }

@@ -13,7 +13,7 @@ export default function AgentSkillReranker() {
 
   const debouncedUpdateMaxTools = useMemo(
     () =>
-      debounce(async (newMaxToolsCount) => {
+      debounce(async (newMaxToolsCount: string) => {
         await System.updateSystem({
           AgentSkillRerankerTopN: newMaxToolsCount.toString(),
         });
@@ -24,8 +24,8 @@ export default function AgentSkillReranker() {
   useEffect(() => {
     System.keys()
       .then((res) => {
-        setEnabled(res.AgentSkillRerankerEnabled);
-        setMaxTools(parseInt(res.AgentSkillRerankerTopN));
+        setEnabled(res?.AgentSkillRerankerEnabled === true);
+        setMaxTools(Number(res?.AgentSkillRerankerTopN) || 15);
       })
       .finally(() => {
         setLoading(false);
@@ -36,7 +36,7 @@ export default function AgentSkillReranker() {
     return () => debouncedUpdateMaxTools.cancel();
   }, [debouncedUpdateMaxTools]);
 
-  async function toggleEnabled(enabled) {
+  async function toggleEnabled(enabled: boolean) {
     setEnabled(enabled);
     await System.updateSystem({
       AgentSkillRerankerEnabled: String(enabled),
@@ -86,11 +86,11 @@ export default function AgentSkillReranker() {
             min={10}
             value={maxTools}
             onChange={(e) => {
-              if (e.target.value < 10) return;
+              if (e.currentTarget.valueAsNumber < 10) return;
               debouncedUpdateMaxTools(e.target.value);
               setMaxTools(parseInt(e.target.value));
             }}
-            onWheel={(e) => e.target.blur()}
+            onWheel={(e) => e.currentTarget.blur()}
             className="border border-white/10 bg-theme-settings-input-bg text-white placeholder:text-theme-settings-input-placeholder text-sm rounded-lg focus:outline-primary-button active:outline-primary-button outline-none block w-[80px] p-2.5 text-center"
             placeholder="15"
             autoComplete="off"

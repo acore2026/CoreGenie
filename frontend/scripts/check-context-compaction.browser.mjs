@@ -37,7 +37,7 @@ await page.route("**/__context-preview", (route) =>
       const React=(await import('/node_modules/.vite/deps/react.js')).default;
       const ReactDOM=(await import('/node_modules/.vite/deps/react-dom.js')).default;
       await import('/src/i18n.ts'); await import('/src/index.css');
-      const Component=(await import('/src/pages/Admin/Agents/AgentSkillSettings/ContextCompaction.jsx')).default;
+      const Component=(await import('/src/pages/Admin/Agents/AgentSkillSettings/ContextCompaction.tsx')).default;
       window.submissions=0;
       ReactDOM.createRoot(document.getElementById('root')).render(
         React.createElement('form',{

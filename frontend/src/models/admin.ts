@@ -17,6 +17,13 @@ export interface AdminUser {
   suspended?: number;
   dailyMessageLimit?: number | null;
 }
+export interface FeedbackReason {
+  id: number;
+  code: string;
+  label: string;
+  sortOrder: number;
+  enabled: boolean;
+}
 export interface AdminInvite {
   id: number;
   code: string;
@@ -195,12 +202,18 @@ const Admin = {
   systemPreferencesByFields: async (
     labels: string[] = []
   ): Promise<{
-    settings: AnyRecord & { feature_flags?: Record<string, boolean> };
+    settings: AnyRecord & {
+      global_system_prompt?: string;
+      feature_flags?: Record<string, boolean>;
+    };
     error?: string | null;
   } | null> => {
     try {
       return await api.get<{
-        settings: AnyRecord & { feature_flags?: Record<string, boolean> };
+        settings: AnyRecord & {
+          global_system_prompt?: string;
+          feature_flags?: Record<string, boolean>;
+        };
         error?: string | null;
       }>(`/admin/system-preferences-for?labels=${labels.join(",")}`);
     } catch (e) {
@@ -225,13 +238,14 @@ const Admin = {
   },
 
   agentFeedbackReasons: async function (): Promise<{
-    reasons: AnyRecord[];
+    reasons: FeedbackReason[];
     error?: string | null;
   }> {
     try {
-      return await api.get<{ reasons: AnyRecord[]; error?: string | null }>(
-        "/admin/agent-feedback/reasons"
-      );
+      return await api.get<{
+        reasons: FeedbackReason[];
+        error?: string | null;
+      }>("/admin/agent-feedback/reasons");
     } catch (error) {
       return { reasons: [], error: (error as Error).message };
     }
@@ -239,10 +253,10 @@ const Admin = {
 
   createAgentFeedbackReason: async function (
     data: AnyRecord
-  ): Promise<{ reason: AnyRecord | null; error?: string | null }> {
+  ): Promise<{ reason: FeedbackReason | null; error?: string | null }> {
     try {
       return await api.post<{
-        reason: AnyRecord | null;
+        reason: FeedbackReason | null;
         error?: string | null;
       }>("/admin/agent-feedback/reasons", data);
     } catch (error) {
@@ -253,10 +267,10 @@ const Admin = {
   updateAgentFeedbackReason: async function (
     id: number | string,
     data: AnyRecord
-  ): Promise<{ reason: AnyRecord | null; error?: string | null }> {
+  ): Promise<{ reason: FeedbackReason | null; error?: string | null }> {
     try {
       return await api.patch<{
-        reason: AnyRecord | null;
+        reason: FeedbackReason | null;
         error?: string | null;
       }>(`/admin/agent-feedback/reasons/${id}`, data);
     } catch (error) {

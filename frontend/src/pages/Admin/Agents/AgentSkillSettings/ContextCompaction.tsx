@@ -30,7 +30,7 @@ export default function ContextCompaction() {
     void load();
   }, [load]);
 
-  async function toggleEnabled(next) {
+  async function toggleEnabled(next: boolean) {
     if (loading || saving || loadError) return;
     setSaving(true);
     try {

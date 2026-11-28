@@ -1,4 +1,9 @@
 import { useEffect, useRef, useState } from "react";
+import type {
+  QuickTask,
+  AgentWizardConfig,
+} from "@coregenie/contracts/predefinedAgents.mts";
+import type { EditorActions } from "./types";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import PredefinedAgent from "@/models/predefinedAgent";
@@ -9,9 +14,13 @@ const control =
 const input =
   "mt-2 w-full rounded-lg border border-theme-chat-input-border bg-theme-bg-chat-input p-3 text-sm text-theme-text-primary focus:outline-none focus:ring-2 focus:ring-primary-button disabled:opacity-50";
 
-export default function QuickTaskEditor({ task, onClose, onSaved }) {
+export default function QuickTaskEditor({
+  task,
+  onClose,
+  onSaved,
+}: EditorActions & { task: QuickTask | null }) {
   const { t } = useTranslation();
-  const dialog = useRef(null);
+  const dialog = useRef<HTMLDialogElement>(null);
   const [key, setKey] = useState(task?.key || "");
   const [title, setTitle] = useState(task?.title || "");
   const [description, setDescription] = useState(task?.description || "");
@@ -35,19 +44,19 @@ export default function QuickTaskEditor({ task, onClose, onSaved }) {
   const [archived, setArchived] = useState(task?.archived || false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [preview, setPreview] = useState(null);
+  const [preview, setPreview] = useState<AgentWizardConfig | null>(null);
   const [prompt, setPrompt] = useState("");
   useEffect(() => {
     const element = dialog.current;
-    element.showModal();
-    return () => element.close();
+    element?.showModal();
+    return () => element?.close();
   }, []);
   useEffect(() => {
     setPreview(null);
     setPrompt("");
   }, [key, title, description, instructions, fields]);
 
-  async function submit(save) {
+  async function submit(save: boolean) {
     setError("");
     let payload;
     try {
@@ -69,19 +78,19 @@ export default function QuickTaskEditor({ task, onClose, onSaved }) {
     }
     setBusy(true);
     try {
-      const result = save
-        ? task
-          ? await PredefinedAgent.updateQuickTask(task.id, payload)
-          : await PredefinedAgent.createQuickTask(payload)
-        : await PredefinedAgent.validateQuickTask(payload);
-      if (!result.success) {
-        setError(result.error || t("quick_tasks.save_error"));
+      if (!save) {
+        const result = await PredefinedAgent.validateQuickTask(payload);
+        if (result.success) setPreview(result.definition);
+        else setError(result.error || t("quick_tasks.save_error"));
         return;
       }
-      if (save) {
-        await onSaved();
-        onClose();
-      } else setPreview(result.definition);
+      const result = task
+        ? await PredefinedAgent.updateQuickTask(task.id, payload)
+        : await PredefinedAgent.createQuickTask(payload);
+      if (!result.success)
+        return setError(result.error || t("quick_tasks.save_error"));
+      await onSaved();
+      onClose();
     } catch {
       setError(t("quick_tasks.save_error"));
     } finally {

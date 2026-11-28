@@ -14,7 +14,7 @@ export default function AgentClarifyingQuestions() {
 
   const debouncedUpdateMaxPerTurn = useMemo(
     () =>
-      debounce(async (value) => {
+      debounce(async (value: string) => {
         await Admin.updateSystemPreferences({
           agent_clarifying_questions_max_per_turn: String(value),
         });
@@ -25,8 +25,8 @@ export default function AgentClarifyingQuestions() {
   useEffect(() => {
     System.keys()
       .then((res) => {
-        setEnabled(!!res.AgentClarifyingQuestionsEnabled);
-        setMaxPerTurn(parseInt(res.AgentClarifyingQuestionsMaxPerTurn) || 3);
+        setEnabled(!!res?.AgentClarifyingQuestionsEnabled);
+        setMaxPerTurn(Number(res?.AgentClarifyingQuestionsMaxPerTurn) || 3);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -37,7 +37,7 @@ export default function AgentClarifyingQuestions() {
     };
   }, [debouncedUpdateMaxPerTurn]);
 
-  async function toggleEnabled(next) {
+  async function toggleEnabled(next: boolean) {
     setEnabled(next);
     await Admin.updateSystemPreferences({
       agent_clarifying_questions_enabled: String(next),
@@ -91,11 +91,11 @@ export default function AgentClarifyingQuestions() {
               min={1}
               value={maxPerTurn}
               onChange={(e) => {
-                if (e.target.value < 1) return;
+                if (e.currentTarget.valueAsNumber < 1) return;
                 debouncedUpdateMaxPerTurn(e.target.value);
                 setMaxPerTurn(parseInt(e.target.value));
               }}
-              onWheel={(e) => e.target.blur()}
+              onWheel={(e) => e.currentTarget.blur()}
               className="border border-white/10 bg-theme-settings-input-bg text-white placeholder:text-theme-settings-input-placeholder text-sm rounded-lg focus:outline-primary-button active:outline-primary-button outline-none block w-[80px] p-2.5 text-center"
               placeholder="3"
               autoComplete="off"

@@ -9,12 +9,12 @@ import {
 } from "@phosphor-icons/react";
 import { useTranslation } from "react-i18next";
 import Sidebar from "@/components/SettingsSidebar";
-import Admin from "@/models/admin";
+import Admin, { type FeedbackReason } from "@/models/admin";
 import showToast from "@/utils/toast";
 
 export default function AgentFeedbackSettings() {
   const { t } = useTranslation();
-  const [reasons, setReasons] = useState([]);
+  const [reasons, setReasons] = useState<FeedbackReason[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [code, setCode] = useState("");
@@ -33,26 +33,28 @@ export default function AgentFeedbackSettings() {
     loadReasons();
   }, []);
 
-  async function createReason(event) {
+  async function createReason(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!code.trim() || !label.trim()) return;
     setCreating(true);
     const result = await Admin.createAgentFeedbackReason({ code, label });
     setCreating(false);
-    if (!result?.reason)
+    const updated = result.reason;
+    if (!updated)
       return showToast(
         result?.error || t("agent_feedback_settings.create_error"),
         "error"
       );
     setCode("");
     setLabel("");
-    setReasons((current) => [...current, result.reason]);
+    setReasons((current) => [...current, updated]);
     showToast(t("agent_feedback_settings.created"), "success", { clear: true });
   }
 
-  async function updateReason(id, updates) {
+  async function updateReason(id: number, updates: Partial<FeedbackReason>) {
     const result = await Admin.updateAgentFeedbackReason(id, updates);
-    if (!result?.reason) {
+    const updated = result.reason;
+    if (!updated) {
       showToast(
         result?.error || t("agent_feedback_settings.update_error"),
         "error"
@@ -61,13 +63,13 @@ export default function AgentFeedbackSettings() {
     }
     setReasons((current) =>
       current
-        .map((reason) => (reason.id === id ? result.reason : reason))
+        .map((reason) => (reason.id === id ? updated : reason))
         .sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id)
     );
     return result.reason;
   }
 
-  async function moveReason(index, direction) {
+  async function moveReason(index: number, direction: number) {
     const targetIndex = index + direction;
     if (targetIndex < 0 || targetIndex >= reasons.length) return;
     const current = reasons[index];
@@ -218,7 +220,21 @@ export default function AgentFeedbackSettings() {
   );
 }
 
-function ReasonRow({ reason, first, last, onMove, onUpdate }) {
+function ReasonRow({
+  reason,
+  first,
+  last,
+  onMove,
+  onUpdate,
+}: {
+  reason: FeedbackReason;
+  first: boolean;
+  last: boolean;
+  onMove: (direction: number) => void;
+  onUpdate: (
+    updates: Partial<FeedbackReason>
+  ) => Promise<FeedbackReason | null>;
+}) {
   const { t } = useTranslation();
   const [label, setLabel] = useState(reason.label);
   const [saving, setSaving] = useState(false);

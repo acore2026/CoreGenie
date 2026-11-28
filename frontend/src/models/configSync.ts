@@ -6,16 +6,26 @@ export interface ConfigSyncDetailRef {
   databaseHash?: string | null;
 }
 
+export interface ConfigSyncStatus {
+  enabled: boolean;
+  directory?: string;
+  error?: string;
+  items?: { key: string; name: string; status: string; error?: string }[];
+}
+export interface ConfigSyncDetail extends ConfigSyncDetailRef {
+  file: string | null;
+  database: string | null;
+  error: string | null;
+}
 const ConfigSync = {
-  status: () => api.get<Record<string, unknown>>("/admin/config-sync"),
+  status: () => api.get<ConfigSyncStatus>("/admin/config-sync"),
   detail: (key: string) =>
-    api.get<Record<string, unknown>>(
+    api.get<ConfigSyncDetail>(
       `/admin/config-sync/detail?key=${encodeURIComponent(key)}`
     ),
-  retry: () =>
-    api.post<Record<string, unknown>>("/admin/config-sync/reconcile", {}),
+  retry: () => api.post<ConfigSyncStatus>("/admin/config-sync/reconcile", {}),
   resolve: (detail: ConfigSyncDetailRef, side: string) =>
-    api.post<Record<string, unknown>>("/admin/config-sync/resolve", {
+    api.post<ConfigSyncStatus>("/admin/config-sync/resolve", {
       key: detail.key,
       fileHash: detail.fileHash,
       databaseHash: detail.databaseHash,

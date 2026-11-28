@@ -28,7 +28,13 @@ export default function AgentSkillSettings() {
   );
 }
 
-function AgentSkillSettingsModal({ isOpen, closeModal }) {
+function AgentSkillSettingsModal({
+  isOpen,
+  closeModal,
+}: {
+  isOpen: boolean;
+  closeModal: () => void;
+}) {
   const { t } = useTranslation();
   if (!isOpen) return null;
 
