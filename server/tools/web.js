@@ -48,23 +48,8 @@ function normalizeWebSearchResults(value, { query, maxResults = 10 } = {}) {
 }
 
 async function searchWithConfiguredProvider(query) {
-  // Keep the governed runtime on the same provider and credentials as the
-  // existing web-browsing Agent plugin instead of maintaining two provider
-  // implementations that can drift apart.
-  const { webBrowsing } = require("../services/webSearch");
-  let definition = null;
-  const host = {
-    function(value) {
-      definition = value;
-    },
-    introspect() {},
-    addCitation() {},
-    handlerProps: { log() {} },
-  };
-  webBrowsing.plugin.call(webBrowsing).setup(host);
-  if (!definition?.search)
-    throw new Error("The configured online search provider is unavailable.");
-  return definition.search.call(definition, query);
+  const { searchWeb } = require("../services/webSearch");
+  return searchWeb(query);
 }
 
 function threeGppDirectoryFailureFamily({ url } = {}) {

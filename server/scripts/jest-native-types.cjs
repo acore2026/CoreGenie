@@ -1,4 +1,4 @@
-// Jest 29 runs modules in its own VM. Match Node 24's native TS loading there.
+// Jest 29 runs modules in its own VM. Match Node 24's native TS type-stripping there.
 const path = require("path");
 
 function loadTypeScript() {
@@ -11,19 +11,21 @@ function loadTypeScript() {
     } catch {}
   }
   throw new Error(
-    "TypeScript compiler not found. Run yarn install in root or frontend."
+    "TypeScript compiler not found. Run pnpm install at the workspace root."
   );
 }
 
 const ts = loadTypeScript();
 
 module.exports = {
-  process(source) {
+  process(source, filename) {
     return {
       code: ts.transpileModule(source, {
+        fileName: filename,
         compilerOptions: {
           target: ts.ScriptTarget.ES2022,
           module: ts.ModuleKind.CommonJS,
+          esModuleInterop: true,
         },
       }).outputText,
     };

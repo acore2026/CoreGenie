@@ -20,6 +20,7 @@
   },
   "scripts": {
     "test": "NODE_OPTIONS=--experimental-vm-modules jest",
+    "test:contracts": "pnpm --filter @coregenie/contracts test",
     "test:frontend": "pnpm --filter anything-llm-frontend test:unit",
     "typecheck": "node scripts/typecheck.mjs",
     "lint": "pnpm --filter anything-llm-server lint && pnpm --filter anything-llm-frontend lint && pnpm --filter @coregenie/collector lint",

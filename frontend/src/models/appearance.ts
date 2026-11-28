@@ -2,9 +2,7 @@ import { APPEARANCE_SETTINGS } from "@/utils/constants";
 import { safeJsonParse } from "@/utils/request";
 
 export type AvailableAppearanceSetting =
-  | "showScrollbar"
-  | "enableSpellCheck"
-  | "renderHTML";
+  "showScrollbar" | "enableSpellCheck" | "renderHTML";
 
 export interface AppearanceSettings {
   showScrollbar: boolean;

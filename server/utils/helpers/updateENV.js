@@ -5,11 +5,6 @@ const KEY_MAPPING = {
     envKey: "LLM_PROVIDER",
     checks: [isNotEmpty, supportedLLM],
   },
-  // Model Router Settings
-  ModelRouterId: {
-    envKey: "MODEL_ROUTER_ID",
-    checks: [],
-  },
   // OpenAI Settings
   OpenAiKey: {
     envKey: "OPEN_AI_KEY",
@@ -19,187 +14,7 @@ const KEY_MAPPING = {
     envKey: "OPEN_MODEL_PREF",
     checks: [isNotEmpty],
   },
-  // Azure OpenAI Settings
-  AzureOpenAiEndpoint: {
-    envKey: "AZURE_OPENAI_ENDPOINT",
-    checks: [isNotEmpty],
-  },
-  AzureOpenAiTokenLimit: {
-    envKey: "AZURE_OPENAI_TOKEN_LIMIT",
-    checks: [validOpenAiTokenLimit],
-  },
-  AzureOpenAiKey: {
-    envKey: "AZURE_OPENAI_KEY",
-    checks: [isNotEmpty],
-  },
-  AzureOpenAiModelPref: {
-    envKey: "AZURE_OPENAI_MODEL_PREF",
-    checks: [isNotEmpty],
-  },
-  AzureOpenAiEmbeddingModelPref: {
-    envKey: "EMBEDDING_MODEL_PREF",
-    checks: [isNotEmpty],
-  },
-  AzureOpenAiModelType: {
-    envKey: "AZURE_OPENAI_MODEL_TYPE",
-    checks: [
-      (input) =>
-        ["default", "reasoning"].includes(input)
-          ? null
-          : "Invalid model type. Must be one of: default, reasoning.",
-    ],
-  },
-
-  // Anthropic Settings
-  AnthropicApiKey: {
-    envKey: "ANTHROPIC_API_KEY",
-    checks: [isNotEmpty, validAnthropicApiKey],
-  },
-  AnthropicModelPref: {
-    envKey: "ANTHROPIC_MODEL_PREF",
-    checks: [isNotEmpty],
-  },
-  AnthropicCacheControl: {
-    envKey: "ANTHROPIC_CACHE_CONTROL",
-    checks: [
-      (input) =>
-        ["none", "5m", "1h"].includes(input)
-          ? null
-          : "Invalid cache control. Must be one of: 5m, 1h.",
-    ],
-  },
-
-  GeminiLLMApiKey: {
-    envKey: "GEMINI_API_KEY",
-    checks: [isNotEmpty],
-  },
-  GeminiLLMModelPref: {
-    envKey: "GEMINI_LLM_MODEL_PREF",
-    checks: [isNotEmpty],
-  },
-  GeminiSafetySetting: {
-    envKey: "GEMINI_SAFETY_SETTING",
-    checks: [validGeminiSafetySetting],
-  },
-
-  // LMStudio Settings
-  LMStudioBasePath: {
-    envKey: "LMSTUDIO_BASE_PATH",
-    checks: [isNotEmpty, validLLMExternalBasePath, validDockerizedUrl],
-  },
-  LMStudioModelPref: {
-    envKey: "LMSTUDIO_MODEL_PREF",
-    checks: [],
-  },
-  LMStudioTokenLimit: {
-    envKey: "LMSTUDIO_MODEL_TOKEN_LIMIT",
-    checks: [],
-  },
-  LMStudioAuthToken: {
-    envKey: "LMSTUDIO_AUTH_TOKEN",
-    checks: [],
-  },
-
-  // LocalAI Settings
-  LocalAiBasePath: {
-    envKey: "LOCAL_AI_BASE_PATH",
-    checks: [isNotEmpty, validLLMExternalBasePath, validDockerizedUrl],
-  },
-  LocalAiModelPref: {
-    envKey: "LOCAL_AI_MODEL_PREF",
-    checks: [],
-  },
-  LocalAiTokenLimit: {
-    envKey: "LOCAL_AI_MODEL_TOKEN_LIMIT",
-    checks: [nonZero],
-  },
-  LocalAiApiKey: {
-    envKey: "LOCAL_AI_API_KEY",
-    checks: [],
-  },
-
-  OllamaLLMBasePath: {
-    envKey: "OLLAMA_BASE_PATH",
-    checks: [isNotEmpty, validOllamaLLMBasePath, validDockerizedUrl],
-  },
-  OllamaLLMModelPref: {
-    envKey: "OLLAMA_MODEL_PREF",
-    checks: [],
-  },
-  OllamaLLMTokenLimit: {
-    envKey: "OLLAMA_MODEL_TOKEN_LIMIT",
-    checks: [],
-  },
-  OllamaLLMKeepAliveSeconds: {
-    envKey: "OLLAMA_KEEP_ALIVE_TIMEOUT",
-    checks: [isInteger],
-  },
-  OllamaLLMAuthToken: {
-    envKey: "OLLAMA_AUTH_TOKEN",
-    checks: [],
-  },
-
-  // Mistral AI API Settings
-  MistralApiKey: {
-    envKey: "MISTRAL_API_KEY",
-    checks: [isNotEmpty],
-  },
-  MistralModelPref: {
-    envKey: "MISTRAL_MODEL_PREF",
-    checks: [isNotEmpty],
-  },
-
-  // KoboldCPP Settings
-  KoboldCPPBasePath: {
-    envKey: "KOBOLD_CPP_BASE_PATH",
-    checks: [isNotEmpty, isValidURL],
-  },
-  KoboldCPPModelPref: {
-    envKey: "KOBOLD_CPP_MODEL_PREF",
-    checks: [isNotEmpty],
-  },
-  KoboldCPPTokenLimit: {
-    envKey: "KOBOLD_CPP_MODEL_TOKEN_LIMIT",
-    checks: [nonZero],
-  },
-  KoboldCPPMaxTokens: {
-    envKey: "KOBOLD_CPP_MAX_TOKENS",
-    checks: [nonZero],
-  },
-
-  // Text Generation Web UI Settings
-  TextGenWebUIBasePath: {
-    envKey: "TEXT_GEN_WEB_UI_BASE_PATH",
-    checks: [isValidURL],
-  },
-  TextGenWebUITokenLimit: {
-    envKey: "TEXT_GEN_WEB_UI_MODEL_TOKEN_LIMIT",
-    checks: [nonZero],
-  },
-  TextGenWebUIAPIKey: {
-    envKey: "TEXT_GEN_WEB_UI_API_KEY",
-    checks: [],
-  },
-
-  // LiteLLM Settings
-  LiteLLMModelPref: {
-    envKey: "LITE_LLM_MODEL_PREF",
-    checks: [isNotEmpty],
-  },
-  LiteLLMTokenLimit: {
-    envKey: "LITE_LLM_MODEL_TOKEN_LIMIT",
-    checks: [nonZero],
-  },
-  LiteLLMBasePath: {
-    envKey: "LITE_LLM_BASE_PATH",
-    checks: [isValidURL],
-  },
-  LiteLLMApiKey: {
-    envKey: "LITE_LLM_API_KEY",
-    checks: [],
-  },
-
-  // Generic OpenAI InferenceSettings
+  // Generic OpenAI Inference Settings
   GenericOpenAiBasePath: {
     envKey: "GENERIC_OPEN_AI_BASE_PATH",
     checks: [isValidURL],
@@ -221,24 +36,7 @@ const KEY_MAPPING = {
     checks: [nonZero],
   },
 
-  // AWS Bedrock LLM Settings
-  AwsBedrockLLMApiKey: {
-    envKey: "AWS_BEDROCK_LLM_API_KEY",
-    checks: [isNotEmpty],
-  },
-  AwsBedrockLLMRegion: {
-    envKey: "AWS_BEDROCK_LLM_REGION",
-    checks: [isNotEmpty],
-  },
-  AwsBedrockLLMModel: {
-    envKey: "AWS_BEDROCK_LLM_MODEL_PREFERENCE",
-    checks: [isNotEmpty],
-  },
-  AwsBedrockLLMTokenLimit: {
-    envKey: "AWS_BEDROCK_LLM_MODEL_TOKEN_LIMIT",
-    checks: [nonZero],
-  },
-
+  // Embedding Settings
   EmbeddingEngine: {
     envKey: "EMBEDDING_ENGINE",
     checks: [supportedEmbeddingModel],
@@ -261,18 +59,6 @@ const KEY_MAPPING = {
     envKey: "EMBEDDING_OUTPUT_DIMENSIONS",
     checks: [],
   },
-  OllamaEmbeddingBatchSize: {
-    envKey: "OLLAMA_EMBEDDING_BATCH_SIZE",
-    checks: [nonZero],
-  },
-
-  // Gemini Embedding Settings
-  GeminiEmbeddingApiKey: {
-    envKey: "GEMINI_EMBEDDING_API_KEY",
-    checks: [isNotEmpty],
-  },
-
-  // Generic OpenAI Embedding Settings
   GenericOpenAiEmbeddingApiKey: {
     envKey: "GENERIC_OPEN_AI_EMBEDDING_API_KEY",
     checks: [],
@@ -296,103 +82,6 @@ const KEY_MAPPING = {
     checks: [isNotEmpty, supportedVectorDB],
     postUpdate: [handleVectorStoreReset],
   },
-
-  // Chroma Options
-  ChromaEndpoint: {
-    envKey: "CHROMA_ENDPOINT",
-    checks: [isValidURL, validChromaURL, validDockerizedUrl],
-  },
-  ChromaApiHeader: {
-    envKey: "CHROMA_API_HEADER",
-    checks: [],
-  },
-  ChromaApiKey: {
-    envKey: "CHROMA_API_KEY",
-    checks: [],
-  },
-
-  // ChromaCloud Options
-  ChromaCloudApiKey: {
-    envKey: "CHROMACLOUD_API_KEY",
-    checks: [isNotEmpty],
-  },
-  ChromaCloudTenant: {
-    envKey: "CHROMACLOUD_TENANT",
-    checks: [isNotEmpty],
-  },
-  ChromaCloudDatabase: {
-    envKey: "CHROMACLOUD_DATABASE",
-    checks: [isNotEmpty],
-  },
-
-  // Weaviate Options
-  WeaviateEndpoint: {
-    envKey: "WEAVIATE_ENDPOINT",
-    checks: [isValidURL, validDockerizedUrl],
-  },
-  WeaviateApiKey: {
-    envKey: "WEAVIATE_API_KEY",
-    checks: [],
-  },
-
-  // QDrant Options
-  QdrantEndpoint: {
-    envKey: "QDRANT_ENDPOINT",
-    checks: [isValidURL, validDockerizedUrl],
-  },
-  QdrantApiKey: {
-    envKey: "QDRANT_API_KEY",
-    checks: [],
-  },
-  PineConeKey: {
-    envKey: "PINECONE_API_KEY",
-    checks: [],
-  },
-  PineConeIndex: {
-    envKey: "PINECONE_INDEX",
-    checks: [],
-  },
-
-  // Milvus Options
-  MilvusAddress: {
-    envKey: "MILVUS_ADDRESS",
-    checks: [isValidURL, validDockerizedUrl],
-  },
-  MilvusUsername: {
-    envKey: "MILVUS_USERNAME",
-    checks: [isNotEmpty],
-  },
-  MilvusPassword: {
-    envKey: "MILVUS_PASSWORD",
-    checks: [isNotEmpty],
-  },
-
-  // Zilliz Cloud Options
-  ZillizEndpoint: {
-    envKey: "ZILLIZ_ENDPOINT",
-    checks: [isValidURL],
-  },
-  ZillizApiToken: {
-    envKey: "ZILLIZ_API_TOKEN",
-    checks: [isNotEmpty],
-  },
-
-  // Astra DB Options
-  AstraDBApplicationToken: {
-    envKey: "ASTRA_DB_APPLICATION_TOKEN",
-    checks: [isNotEmpty],
-  },
-  AstraDBEndpoint: {
-    envKey: "ASTRA_DB_ENDPOINT",
-    checks: [isNotEmpty],
-  },
-
-  /*
-  PGVector Options
-  - Does very simple validations - we should expand this in the future
-  - to ensure the connection string is valid and the table name is valid
-  - via direct query
-  */
   PGVectorConnectionString: {
     envKey: "PGVECTOR_CONNECTION_STRING",
     checks: [isNotEmpty, looksLikePostgresConnectionString],
@@ -402,90 +91,6 @@ const KEY_MAPPING = {
     envKey: "PGVECTOR_TABLE_NAME",
     checks: [isNotEmpty],
     preUpdate: [validatePGVectorTableName],
-  },
-
-  // Together Ai Options
-  TogetherAiApiKey: {
-    envKey: "TOGETHER_AI_API_KEY",
-    checks: [isNotEmpty],
-  },
-  TogetherAiModelPref: {
-    envKey: "TOGETHER_AI_MODEL_PREF",
-    checks: [isNotEmpty],
-  },
-
-  // Fireworks AI Options
-  FireworksAiLLMApiKey: {
-    envKey: "FIREWORKS_AI_LLM_API_KEY",
-    checks: [isNotEmpty],
-  },
-  FireworksAiLLMModelPref: {
-    envKey: "FIREWORKS_AI_LLM_MODEL_PREF",
-    checks: [isNotEmpty],
-  },
-
-  // Perplexity Options
-  PerplexityApiKey: {
-    envKey: "PERPLEXITY_API_KEY",
-    checks: [isNotEmpty],
-  },
-  PerplexityModelPref: {
-    envKey: "PERPLEXITY_MODEL_PREF",
-    checks: [isNotEmpty],
-  },
-
-  // OpenRouter Options
-  OpenRouterApiKey: {
-    envKey: "OPENROUTER_API_KEY",
-    checks: [isNotEmpty],
-  },
-  OpenRouterModelPref: {
-    envKey: "OPENROUTER_MODEL_PREF",
-    checks: [isNotEmpty],
-  },
-  OpenRouterTimeout: {
-    envKey: "OPENROUTER_TIMEOUT_MS",
-    checks: [],
-  },
-
-  // Novita Options
-  NovitaLLMApiKey: {
-    envKey: "NOVITA_LLM_API_KEY",
-    checks: [isNotEmpty],
-  },
-  NovitaLLMModelPref: {
-    envKey: "NOVITA_LLM_MODEL_PREF",
-    checks: [isNotEmpty],
-  },
-  NovitaLLMTimeout: {
-    envKey: "NOVITA_LLM_TIMEOUT_MS",
-    checks: [],
-  },
-
-  // Groq Options
-  GroqApiKey: {
-    envKey: "GROQ_API_KEY",
-    checks: [isNotEmpty],
-  },
-  GroqModelPref: {
-    envKey: "GROQ_MODEL_PREF",
-    checks: [isNotEmpty],
-  },
-
-  // Cohere Options
-  CohereApiKey: {
-    envKey: "COHERE_API_KEY",
-    checks: [isNotEmpty],
-  },
-  CohereModelPref: {
-    envKey: "COHERE_MODEL_PREF",
-    checks: [isNotEmpty],
-  },
-
-  // VoyageAi Options
-  VoyageAiApiKey: {
-    envKey: "VOYAGEAI_API_KEY",
-    checks: [isNotEmpty],
   },
 
   // System Settings
@@ -498,43 +103,7 @@ const KEY_MAPPING = {
     checks: [requiresForceMode],
   },
 
-  // Agent Integration ENVs
-  AgentSerpApiKey: {
-    envKey: "AGENT_SERPAPI_API_KEY",
-    checks: [],
-  },
-  AgentSerpApiEngine: {
-    envKey: "AGENT_SERPAPI_ENGINE",
-    checks: [],
-  },
-  AgentSearchApiKey: {
-    envKey: "AGENT_SEARCHAPI_API_KEY",
-    checks: [],
-  },
-  AgentSearchApiEngine: {
-    envKey: "AGENT_SEARCHAPI_ENGINE",
-    checks: [],
-  },
-  AgentSerperApiKey: {
-    envKey: "AGENT_SERPER_DEV_KEY",
-    checks: [],
-  },
-  AgentBingSearchApiKey: {
-    envKey: "AGENT_BING_SEARCH_API_KEY",
-    checks: [],
-  },
-  AgentBaiduSearchApiKey: {
-    envKey: "AGENT_BAIDU_SEARCH_API_KEY",
-    checks: [],
-  },
-  AgentSerplyApiKey: {
-    envKey: "AGENT_SERPLY_API_KEY",
-    checks: [],
-  },
-  AgentSearXNGApiUrl: {
-    envKey: "AGENT_SEARXNG_API_URL",
-    checks: [],
-  },
+  // Agent Web Search ENVs
   AgentTavilyApiKey: {
     envKey: "AGENT_TAVILY_API_KEY",
     checks: [],
@@ -543,222 +112,12 @@ const KEY_MAPPING = {
     envKey: "AGENT_EXA_API_KEY",
     checks: [],
   },
-  AgentPerplexityApiKey: {
-    envKey: "AGENT_PERPLEXITY_API_KEY",
+  AgentBaiduSearchApiKey: {
+    envKey: "AGENT_BAIDU_SEARCH_API_KEY",
     checks: [],
   },
-  AgentBraveApiKey: {
-    envKey: "AGENT_BRAVE_API_KEY",
-    checks: [],
-  },
-  AgentCrwApiKey: {
-    envKey: "AGENT_CRW_API_KEY",
-    checks: [],
-  },
-  AgentCrwApiUrl: {
-    envKey: "AGENT_CRW_API_URL",
-    checks: [],
-  },
-
-  // DeepSeek Options
-  DeepSeekApiKey: {
-    envKey: "DEEPSEEK_API_KEY",
-    checks: [isNotEmpty],
-  },
-  DeepSeekModelPref: {
-    envKey: "DEEPSEEK_MODEL_PREF",
-    checks: [isNotEmpty],
-  },
-
-  // Minimax Options
-  MinimaxApiKey: {
-    envKey: "MINIMAX_API_KEY",
-    checks: [isNotEmpty],
-  },
-  MinimaxModelPref: {
-    envKey: "MINIMAX_MODEL_PREF",
-    checks: [isNotEmpty],
-  },
-
-  // Cerebras Options
-  CerebrasApiKey: {
-    envKey: "CEREBRAS_API_KEY",
-    checks: [isNotEmpty],
-  },
-  CerebrasModelPref: {
-    envKey: "CEREBRAS_MODEL_PREF",
-    checks: [isNotEmpty],
-  },
-
-  // APIPie Options
-  ApipieLLMApiKey: {
-    envKey: "APIPIE_LLM_API_KEY",
-    checks: [isNotEmpty],
-  },
-  ApipieLLMModelPref: {
-    envKey: "APIPIE_LLM_MODEL_PREF",
-    checks: [isNotEmpty],
-  },
-
-  // xAI Options
-  XAIApiKey: {
-    envKey: "XAI_LLM_API_KEY",
-    checks: [isNotEmpty],
-  },
-  XAIModelPref: {
-    envKey: "XAI_LLM_MODEL_PREF",
-    checks: [isNotEmpty],
-  },
-
-  // Nvidia NIM Options
-  NvidiaNimLLMBasePath: {
-    envKey: "NVIDIA_NIM_LLM_BASE_PATH",
-    checks: [isValidURL],
-  },
-  NvidiaNimLLMModelPref: {
-    envKey: "NVIDIA_NIM_LLM_MODEL_PREF",
-    checks: [],
-  },
-
-  // PPIO Options
-  PPIOApiKey: {
-    envKey: "PPIO_API_KEY",
-    checks: [isNotEmpty],
-  },
-  PPIOModelPref: {
-    envKey: "PPIO_MODEL_PREF",
-    checks: [isNotEmpty],
-  },
-
-  // Moonshot AI Options
-  MoonshotAiApiKey: {
-    envKey: "MOONSHOT_AI_API_KEY",
-    checks: [isNotEmpty],
-  },
-  MoonshotAiModelPref: {
-    envKey: "MOONSHOT_AI_MODEL_PREF",
-    checks: [isNotEmpty],
-  },
-
-  // Foundry Options
-  FoundryBasePath: {
-    envKey: "FOUNDRY_BASE_PATH",
-    checks: [isNotEmpty],
-  },
-  FoundryModelPref: {
-    envKey: "FOUNDRY_MODEL_PREF",
-    checks: [isNotEmpty],
-  },
-  FoundryModelTokenLimit: {
-    envKey: "FOUNDRY_MODEL_TOKEN_LIMIT",
-    checks: [],
-  },
-
-  // CometAPI Options
-  CometApiLLMApiKey: {
-    envKey: "COMETAPI_LLM_API_KEY",
-    checks: [isNotEmpty],
-  },
-  CometApiLLMModelPref: {
-    envKey: "COMETAPI_LLM_MODEL_PREF",
-    checks: [isNotEmpty],
-  },
-  CometApiLLMTimeout: {
-    envKey: "COMETAPI_LLM_TIMEOUT_MS",
-    checks: [],
-  },
-
-  // Z.AI Options
-  ZAiApiKey: {
-    envKey: "ZAI_API_KEY",
-    checks: [isNotEmpty],
-  },
-  ZAiModelPref: {
-    envKey: "ZAI_MODEL_PREF",
-    checks: [isNotEmpty],
-  },
-
-  // GiteeAI Options
-  GiteeAIApiKey: {
-    envKey: "GITEE_AI_API_KEY",
-    checks: [isNotEmpty],
-  },
-  GiteeAIModelPref: {
-    envKey: "GITEE_AI_MODEL_PREF",
-    checks: [isNotEmpty],
-  },
-  GiteeAITokenLimit: {
-    envKey: "GITEE_AI_MODEL_TOKEN_LIMIT",
-    checks: [nonZero],
-  },
-
-  // Docker Model Runner Options
-  DockerModelRunnerBasePath: {
-    envKey: "DOCKER_MODEL_RUNNER_BASE_PATH",
-    checks: [isValidURL],
-  },
-  DockerModelRunnerModelPref: {
-    envKey: "DOCKER_MODEL_RUNNER_LLM_MODEL_PREF",
-    checks: [isNotEmpty],
-  },
-  DockerModelRunnerModelTokenLimit: {
-    envKey: "DOCKER_MODEL_RUNNER_LLM_MODEL_TOKEN_LIMIT",
-    checks: [nonZero],
-  },
-
-  // Privatemode Options
-  PrivateModeBasePath: {
-    envKey: "PRIVATEMODE_LLM_BASE_PATH",
-    checks: [isValidURL],
-  },
-  PrivateModeModelPref: {
-    envKey: "PRIVATEMODE_LLM_MODEL_PREF",
-    checks: [isNotEmpty],
-  },
-
-  // SambaNova Options
-  SambaNovaLLMApiKey: {
-    envKey: "SAMBANOVA_LLM_API_KEY",
-    checks: [isNotEmpty],
-  },
-  SambaNovaLLMModelPref: {
-    envKey: "SAMBANOVA_LLM_MODEL_PREF",
-    checks: [isNotEmpty],
-  },
-
-  // Lemonade Options
-  LemonadeLLMBasePath: {
-    envKey: "LEMONADE_LLM_BASE_PATH",
-    checks: [isValidURL],
-  },
-  LemonadeLLMApiKey: {
-    envKey: "LEMONADE_LLM_API_KEY",
-    checks: [],
-  },
-  LemonadeLLMModelPref: {
-    envKey: "LEMONADE_LLM_MODEL_PREF",
-    checks: [isNotEmpty],
-  },
-  LemonadeLLMModelTokenLimit: {
-    envKey: "LEMONADE_LLM_MODEL_TOKEN_LIMIT",
-    checks: [nonZero],
-  },
-
-  // OMLX Options
-  OMLXLLMBasePath: {
-    envKey: "OMLX_LLM_BASE_PATH",
-    checks: [isValidURL],
-  },
-  OMLXLLMApiKey: {
-    envKey: "OMLX_LLM_API_KEY",
-    checks: [],
-  },
-  OMLXLLMModelPref: {
-    envKey: "OMLX_LLM_MODEL_PREF",
-    checks: [isNotEmpty],
-  },
-  OMLXLLMTokenLimit: {
-    envKey: "OMLX_LLM_TOKEN_LIMIT",
+  AgentSearXNGApiUrl: {
+    envKey: "AGENT_SEARXNG_API_URL",
     checks: [],
   },
 
@@ -786,11 +145,6 @@ function nonZero(input = "") {
   return Number(input) <= 0 ? "Value must be greater than zero" : null;
 }
 
-function isInteger(input = "") {
-  if (isNaN(Number(input))) return "Value must be a number";
-  return Number(input);
-}
-
 function isValidURL(input = "") {
   try {
     new URL(input);
@@ -804,102 +158,23 @@ function validOpenAIKey(input = "") {
   return input.startsWith("sk-") ? null : "OpenAI Key must start with sk-";
 }
 
-function validAnthropicApiKey(input = "") {
-  return input.startsWith("sk-ant-")
-    ? null
-    : "Anthropic Key must start with sk-ant-";
-}
-
-function validLLMExternalBasePath(input = "") {
-  try {
-    new URL(input);
-    if (!input.includes("v1")) return "URL must include /v1";
-    if (input.split("").slice(-1)?.[0] === "/")
-      return "URL cannot end with a slash";
-    return null;
-  } catch {
-    return "Not a valid URL";
-  }
-}
-
-function validOllamaLLMBasePath(input = "") {
-  try {
-    new URL(input);
-    if (input.split("").slice(-1)?.[0] === "/")
-      return "URL cannot end with a slash";
-    return null;
-  } catch {
-    return "Not a valid URL";
-  }
-}
-
 function supportedLLM(input = "") {
   const validSelection = ["openai", "generic-openai"].includes(input);
   return validSelection ? null : `${input} is not a valid LLM provider.`;
 }
 
-function validGeminiSafetySetting(input = "") {
-  const validModes = [
-    "BLOCK_NONE",
-    "BLOCK_ONLY_HIGH",
-    "BLOCK_MEDIUM_AND_ABOVE",
-    "BLOCK_LOW_AND_ABOVE",
-  ];
-  return validModes.includes(input)
-    ? null
-    : `Invalid Safety setting. Must be one of ${validModes.join(", ")}.`;
-}
-
 function supportedEmbeddingModel(input = "") {
-  const supported = [
-    "openai",
-    "azure",
-    "gemini",
-    "localai",
-    "native",
-    "ollama",
-    "lmstudio",
-    "cohere",
-    "voyageai",
-    "litellm",
-    "generic-openai",
-    "mistral",
-    "openrouter",
-    "lemonade",
-  ];
+  const supported = ["native", "openai", "generic-openai"];
   return supported.includes(input)
     ? null
     : `Invalid Embedding model type. Must be one of ${supported.join(", ")}.`;
 }
 
 function supportedVectorDB(input = "") {
-  const supported = [
-    "chroma",
-    "chromacloud",
-    "pinecone",
-    "lancedb",
-    "weaviate",
-    "qdrant",
-    "milvus",
-    "zilliz",
-    "astra",
-    "pgvector",
-  ];
+  const supported = ["lancedb", "pgvector"];
   return supported.includes(input)
     ? null
     : `Invalid VectorDB type. Must be one of ${supported.join(", ")}.`;
-}
-
-function validChromaURL(input = "") {
-  return input.slice(-1) === "/"
-    ? `Chroma Instance URL should not end in a trailing slash.`
-    : null;
-}
-
-function validOpenAiTokenLimit(input = "") {
-  const tokenLimit = Number(input);
-  if (isNaN(tokenLimit)) return "Token limit is not a number";
-  return null;
 }
 
 function requiresForceMode(_, forceModeEnabled = false) {
@@ -916,13 +191,12 @@ async function validDockerizedUrl(input = "") {
     const hostname = url.hostname.toLowerCase();
     const port = parseInt(url.port, 10);
 
-    // If not a loopback, skip this check.
     if (!localInterfaces.includes(hostname)) return null;
     if (isNaN(port)) return "Invalid URL: Port is not specified or invalid";
 
     const isPortAvailableFromDocker = await isPortInUse(port, hostname);
     if (isPortAvailableFromDocker)
-      return "Port is not running a reachable service on loopback address from inside the AnythingLLM container. Please use host.docker.internal (for linux use 172.17.0.1), a real machine ip, or domain to connect to your service.";
+      return "Port is not running a reachable service on loopback address from inside the container. Please use host.docker.internal (for linux use 172.17.0.1), a real machine ip, or domain to connect to your service.";
   } catch (error) {
     console.error(error.message);
     return "An error occurred while validating the URL";
@@ -956,27 +230,17 @@ async function handleVectorStoreReset(key, prevValue, nextValue) {
   return false;
 }
 
-/**
- * Downloads the embedding model in background if the user has selected a different model
- * - Only supported for the native embedder
- * - Must have the native embedder selected prior (otherwise will download on embed)
- */
 async function downloadEmbeddingModelIfRequired(key, prevValue, nextValue) {
   if (prevValue === nextValue) return;
   if (key !== "EmbeddingModelPref" || process.env.EMBEDDING_ENGINE !== "native")
     return;
 
   const { NativeEmbedder } = require("../EmbeddingEngines/native");
-  if (!NativeEmbedder.supportedModels[nextValue]) return; // if the model is not supported, don't download it
+  if (!NativeEmbedder.supportedModels[nextValue]) return;
   new NativeEmbedder().embedderClient();
   return false;
 }
 
-/**
- * Validates the Postgres connection string for the PGVector options.
- * @param {string} input - The Postgres connection string to validate.
- * @returns {string} - An error message if the connection string is invalid, otherwise null.
- */
 async function looksLikePostgresConnectionString(connectionString = null) {
   if (!connectionString || !connectionString.startsWith("postgresql://"))
     return "Invalid Postgres connection string. Must start with postgresql://";
@@ -985,19 +249,14 @@ async function looksLikePostgresConnectionString(connectionString = null) {
   return null;
 }
 
-/**
- * Validates the Postgres connection string for the PGVector options.
- * @param {string} key - The ENV key we are validating.
- * @param {string} prevValue - The previous value of the key.
- * @param {string} nextValue - The next value of the key.
- * @returns {string} - An error message if the connection string is invalid, otherwise null.
- */
 async function validatePGVectorConnectionString(key, prevValue, nextValue) {
   const envKey = KEY_MAPPING[key].envKey;
-
-  if (prevValue === nextValue) return; // If the value is the same as the previous value, don't validate it.
-  if (!nextValue) return; // If the value is not set, don't validate it.
-  if (nextValue === process.env[envKey]) return; // If the value is the same as the current connection string, don't validate it.
+  if (
+    prevValue === nextValue ||
+    !nextValue ||
+    nextValue === process.env[envKey]
+  )
+    return;
 
   const { PGVector } = require("../vectorDbProviders/pgvector");
   const { error, success } = await PGVector.validateConnection({
@@ -1005,26 +264,19 @@ async function validatePGVectorConnectionString(key, prevValue, nextValue) {
   });
   if (!success) return error;
 
-  // Set the ENV variable for the PGVector connection string early so we can use it in the table check.
   process.env[envKey] = nextValue;
   return null;
 }
 
-/**
- * Validates the Postgres table name for the PGVector options.
- * - Table should not already exist in the database.
- * @param {string} key - The ENV key we are validating.
- * @param {string} prevValue - The previous value of the key.
- * @param {string} nextValue - The next value of the key.
- * @returns {string} - An error message if the table name is invalid, otherwise null.
- */
 async function validatePGVectorTableName(key, prevValue, nextValue) {
   const envKey = KEY_MAPPING[key].envKey;
-
-  if (prevValue === nextValue) return; // If the value is the same as the previous value, don't validate it.
-  if (!nextValue) return; // If the value is not set, don't validate it.
-  if (nextValue === process.env[envKey]) return; // If the value is the same as the current table name, don't validate it.
-  if (!process.env.PGVECTOR_CONNECTION_STRING) return; // if connection string is not set, don't validate it since it will fail.
+  if (
+    prevValue === nextValue ||
+    !nextValue ||
+    nextValue === process.env[envKey] ||
+    !process.env.PGVECTOR_CONNECTION_STRING
+  )
+    return;
 
   const { PGVector } = require("../vectorDbProviders/pgvector");
   const { error, success } = await PGVector.validateConnection({
@@ -1036,10 +288,6 @@ async function validatePGVectorTableName(key, prevValue, nextValue) {
   return null;
 }
 
-// This will force update .env variables which for any which reason were not able to be parsed or
-// read from an ENV file as this seems to be a complicating step for many so allowing people to write
-// to the process will at least alleviate that issue. It does not perform comprehensive validity checks or sanity checks
-// and is simply for debugging when the .env not found issue many come across.
 async function updateENV(newENVs = {}, force = false, userId = null) {
   let error = "";
   if (
@@ -1054,7 +302,7 @@ async function updateENV(newENVs = {}, force = false, userId = null) {
   const runAfterAll = [];
   const validKeys = Object.keys(KEY_MAPPING);
   const ENV_KEYS = Object.keys(newENVs).filter(
-    (key) => validKeys.includes(key) && !newENVs[key].includes("******") // strip out answers where the value is all asterisks
+    (key) => validKeys.includes(key) && !newENVs[key].includes("******")
   );
   const newValues = {};
 
@@ -1062,31 +310,26 @@ async function updateENV(newENVs = {}, force = false, userId = null) {
     const {
       envKey,
       checks,
-      preUpdate = [], // Functions to run before updating a specific ENV variable
-      postUpdate = [], // Functions to run after updating a specific ENV variable
-      postSettled = [], // Functions to run after all ENV variables have been updated
+      preUpdate = [],
+      postUpdate = [],
+      postSettled = [],
     } = KEY_MAPPING[key];
     runAfterAll.push(...postSettled);
     const prevValue = process.env[envKey];
     const nextValue = newENVs[key];
     let errors = await executeValidationChecks(checks, nextValue, force);
 
-    // If there are any errors from regular simple validation checks
-    // exit early.
     if (errors.length > 0) {
       error += errors.join("\n");
       break;
     }
 
-    // Accumulate errors from preUpdate functions
     errors = [];
     for (const preUpdateFunc of preUpdate) {
       const errorMsg = await preUpdateFunc(key, prevValue, nextValue);
       if (!!errorMsg && typeof errorMsg === "string") errors.push(errorMsg);
     }
 
-    // If there are any errors from preUpdate functions
-    // exit early.
     if (errors.length > 0) {
       error += errors.join("\n");
       break;
@@ -1123,10 +366,9 @@ async function logChangesToEventLog(newValues = {}, userId = null) {
   };
 
   for (const [key, eventName] of Object.entries(eventMapping)) {
-    if (!newValues.hasOwnProperty(key)) continue;
+    if (!Object.prototype.hasOwnProperty.call(newValues, key)) continue;
     await EventLogs.logEvent(eventName, {}, userId);
   }
-  return;
 }
 
 function dumpENV() {
@@ -1136,17 +378,11 @@ function dumpENV() {
   const frozenEnvs = {};
   const protectedKeys = [
     ...Object.values(KEY_MAPPING).map((values) => values.envKey),
-    // Manually Add Keys here which are not already defined in KEY_MAPPING
-    // and are either managed or manually set ENV key:values.
     "JWT_EXPIRY",
-
     "STORAGE_DIR",
     "SERVER_PORT",
-    "COLLECTOR_PORT",
-    // For persistent data encryption
     "SIG_KEY",
     "SIG_SALT",
-    // Password Schema Keys if present.
     "PASSWORDMINCHAR",
     "PASSWORDMAXCHAR",
     "PASSWORDLOWERCASE",
@@ -1154,75 +390,44 @@ function dumpENV() {
     "PASSWORDNUMERIC",
     "PASSWORDSYMBOL",
     "PASSWORDREQUIREMENTS",
-    // HTTPS SETUP KEYS
     "ENABLE_HTTPS",
     "HTTPS_CERT_PATH",
     "HTTPS_KEY_PATH",
-    // Other Configuration Keys
     "DISABLE_VIEW_CHAT_HISTORY",
     "DISABLE_SWAGGER_DOCS",
-    // Simple SSO
     "SIMPLE_SSO_ENABLED",
     "SIMPLE_SSO_NO_LOGIN",
     "SIMPLE_SSO_NO_LOGIN_REDIRECT",
-    // Community Hub
-    "COMMUNITY_HUB_BUNDLE_DOWNLOADS_ENABLED",
-
-    // Nvidia NIM Keys that are automatically managed
-    "NVIDIA_NIM_LLM_MODEL_TOKEN_LIMIT",
-
-    // OCR Language Support
     "TARGET_OCR_LANG",
-
-    // Collector API common ENV - allows bypassing URL validation checks
     "COLLECTOR_ALLOW_ANY_IP",
-
-    // Allow disabling of streaming for generic openai
     "GENERIC_OPENAI_STREAMING_DISABLED",
-    // Custom headers for Generic OpenAI
     "GENERIC_OPEN_AI_CUSTOM_HEADERS",
-
-    // Allow setting a custom response timeout for Ollama
-    "OLLAMA_RESPONSE_TIMEOUT",
-
-    // Allow disabling of MCP tool cooldown
     "MCP_NO_COOLDOWN",
-
-    // Allow disabling of streaming for AWS Bedrock
-    "AWS_BEDROCK_STREAMING_DISABLED",
-
-    // Allow capabilities for specific providers.
     "PROVIDER_DISABLE_NATIVE_TOOL_CALLING",
     "PROVIDER_SUPPORTS_REASONING",
     "PROVIDER_SUPPORTS_IMAGE_GENERATION",
     "PROVIDER_SUPPORTS_VISION",
     "GENERIC_OPEN_AI_REPORT_USAGE",
-
-    // Allow auto-approval of skills
     "AGENT_AUTO_APPROVED_SKILLS",
-
-    // Allow setting a custom fetch timeouts for providers
     "ANYTHINGLLM_FETCH_TIMEOUT",
     "ANYTHINGLLM_MAX_RETRIES",
   ];
 
-  // Simple sanitization of each value to prevent ENV injection via newline or quote escaping.
   function sanitizeValue(value) {
     const offendingChars =
       /[\n\r\t\v\f\u0085\u00a0\u1680\u180e\u2000-\u200a\u2028\u2029\u202f\u205f\u3000"'`#]/;
     const firstOffendingCharIndex = value.search(offendingChars);
     if (firstOffendingCharIndex === -1) return value;
-
     return value.substring(0, firstOffendingCharIndex);
   }
 
   for (const key of protectedKeys) {
     const envValue = process.env?.[key] || null;
     if (!envValue) continue;
-    frozenEnvs[key] = process.env?.[key] || null;
+    frozenEnvs[key] = envValue;
   }
 
-  var envResult = `# Auto-dump ENV from system call on ${new Date().toTimeString()}\n`;
+  let envResult = `# Auto-dump ENV from system call on ${new Date().toTimeString()}\n`;
   envResult += Object.entries(frozenEnvs)
     .map(([key, value]) => `${key}='${sanitizeValue(value)}'`)
     .join("\n");

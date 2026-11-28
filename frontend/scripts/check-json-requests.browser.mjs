@@ -56,7 +56,7 @@ try {
     window.__vite_plugin_react_preamble_installed__ = true;
     const { default: personal } = await import("/src/models/personalSkills.ts");
     const { default: config } = await import("/src/models/configSync.ts");
-    const { default: workspace } = await import("/src/models/workspace.js");
+    const { default: workspace } = await import("/src/models/workspace.ts");
     const { default: predefined } = await import("/src/models/predefinedAgent.ts");
     const results = [];
     const check = async (name, action) => {
