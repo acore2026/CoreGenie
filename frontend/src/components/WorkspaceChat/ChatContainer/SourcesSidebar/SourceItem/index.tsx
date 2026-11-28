@@ -1,7 +1,13 @@
 import { parseChunkSource, SourceTypeCircle } from "../../ChatHistory/Citation";
 import { useTranslation } from "react-i18next";
 
-export default function SourceItem({ source, onClick }) {
+export default function SourceItem({
+  source,
+  onClick,
+}: {
+  source: import("@/utils/chat/messages").CitationGroup;
+  onClick: () => void;
+}) {
   const { t } = useTranslation();
   const info = parseChunkSource(source);
   const subtitle = info?.isUrl ? info?.text : t("chat_window.document");

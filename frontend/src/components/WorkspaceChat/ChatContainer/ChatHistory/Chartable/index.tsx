@@ -21,8 +21,8 @@ import {
 } from "recharts";
 import { Colors } from "./colors";
 import { SeriesChart, DonutChart, SeriesLegend } from "./SeriesChart";
-import CustomCell from "./CustomCell.jsx";
-import Tooltip from "./CustomTooltip.jsx";
+import CustomCell from "./CustomCell.tsx";
+import Tooltip from "./CustomTooltip.tsx";
 import { safeJsonParse } from "@/utils/request";
 import renderMarkdown from "@/utils/chat/markdown.ts";
 import DOMPurify from "dompurify";
@@ -31,39 +31,42 @@ import { saveAs } from "file-saver";
 import { useGenerateImage } from "recharts-to-png";
 import { CircleNotch, DownloadSimple } from "@phosphor-icons/react";
 
-export function Chartable({ props }) {
+import { isRecord } from "@/utils/types";
+
+export function Chartable({
+  props,
+}: {
+  props: { content?: unknown; chatId?: number | null };
+}) {
   const [getDivJpeg, { ref }] = useGenerateImage({
     quality: 1,
     type: "image/jpeg",
     options: {
       backgroundColor: "#393d43",
-      padding: 20,
     },
   });
   const handleDownload = useCallback(async () => {
     const jpeg = await getDivJpeg();
     if (jpeg) saveAs(jpeg, `chart-${v4().split("-")[0]}.jpg`);
-  }, []);
+  }, [getDivJpeg]);
 
   const content =
     typeof props.content === "string"
-      ? safeJsonParse(props.content, null)
+      ? safeJsonParse<unknown>(props.content, null)
       : props.content;
-  if (!content || typeof content !== "object") return null;
+  if (!isRecord(content)) return null;
 
-  const chartType = content?.type?.toLowerCase();
+  const chartType =
+    typeof content.type === "string" ? content.type.toLowerCase() : "";
   const data =
     typeof content.dataset === "string"
-      ? safeJsonParse(content.dataset, [])
+      ? safeJsonParse<unknown>(content.dataset, [])
       : content.dataset;
-  if (
-    !Array.isArray(data) ||
-    data.some((row) => !row || typeof row !== "object")
-  )
-    return null;
+  if (!Array.isArray(data) || !data.every(isRecord)) return null;
   const value =
     Object.keys(data[0] ?? {}).find((key) => key !== "name") ?? "value";
-  const title = content?.title;
+  const title = typeof content.title === "string" ? content.title : "";
+  const caption = typeof content.caption === "string" ? content.caption : "";
 
   const renderChart = () => {
     switch (chartType) {
@@ -284,7 +287,7 @@ export function Chartable({ props }) {
             <span
               className="flex flex-col gap-y-1 mt-2"
               dangerouslySetInnerHTML={{
-                __html: DOMPurify.sanitize(renderMarkdown(content.caption)),
+                __html: DOMPurify.sanitize(renderMarkdown(caption)),
               }}
             />
           </div>
@@ -303,7 +306,7 @@ export function Chartable({ props }) {
         <span
           className="flex flex-col gap-y-1 mt-2"
           dangerouslySetInnerHTML={{
-            __html: DOMPurify.sanitize(renderMarkdown(content.caption)),
+            __html: DOMPurify.sanitize(renderMarkdown(caption)),
           }}
         />
       </div>
@@ -311,7 +314,7 @@ export function Chartable({ props }) {
   );
 }
 
-function DownloadGraph({ onClick }) {
+function DownloadGraph({ onClick }: { onClick: () => Promise<void> }) {
   const [loading, setLoading] = useState(false);
   const handleClick = async () => {
     setLoading(true);

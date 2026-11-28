@@ -11,6 +11,14 @@ export default function MobileCitationModal({
   selectedSource,
   setSelectedSource,
   onClose,
+}: {
+  sources: import("@/utils/chat/messages").CitationChunk[];
+  isOpen: boolean;
+  selectedSource: import("@/utils/chat/messages").CitationGroup | null;
+  setSelectedSource: (
+    value: import("@/utils/chat/messages").CitationGroup | null
+  ) => void;
+  onClose: () => void;
 }) {
   const sources = combineLikeSources(rawSources);
   const { t } = useTranslation();

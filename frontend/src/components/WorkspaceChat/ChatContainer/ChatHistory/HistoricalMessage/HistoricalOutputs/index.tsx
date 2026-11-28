@@ -1,11 +1,17 @@
+import { isRecord } from "@/utils/types";
 import { memo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import FileDownloadCard from "../../FileDownloadCard";
 import ScheduledJobCreatedCard from "../../ScheduledJobCreatedCard";
 
-function HistoricalOutputs({ outputs = [] }) {
+function HistoricalOutputs({
+  outputs: rawOutputs = [],
+}: {
+  outputs?: unknown[];
+}) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
+  const outputs = rawOutputs.filter(isRecord);
   if (!outputs || outputs.length === 0) return null;
 
   return (
@@ -17,7 +23,10 @@ function HistoricalOutputs({ outputs = [] }) {
       )}
       {(expanded ? outputs : outputs.slice(0, 5)).map((output, index) => {
         const key = `${output.type}-${index}`;
-        const cardProps = { content: output.payload, outputType: output.type };
+        const cardProps = {
+          content: output.payload,
+          outputType: typeof output.type === "string" ? output.type : undefined,
+        };
         if (output.type === "scheduledJobCreated")
           return <ScheduledJobCreatedCard key={key} props={cardProps} />;
         return <FileDownloadCard key={key} props={cardProps} />;

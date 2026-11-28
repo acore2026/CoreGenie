@@ -16,7 +16,8 @@ import { toPercentString } from "@/utils/numbers";
 import { useTranslation } from "react-i18next";
 import { useSourcesSidebar } from "../../ChatSidebar";
 
-const CIRCLE_ICONS = {
+import type { CitationChunk, CitationGroup } from "@/utils/chat/messages";
+const CIRCLE_ICONS: Record<string, typeof FileText> = {
   file: FileText,
   link: LinkSimple,
   youtube: YoutubeLogo,
@@ -40,6 +41,11 @@ export function SourceTypeCircle({
   size = 22,
   iconSize = 12,
   url = null,
+}: {
+  type?: string;
+  size?: number;
+  iconSize?: number;
+  url?: string | null;
 }) {
   const Icon = CIRCLE_ICONS[type] || CIRCLE_ICONS.file;
   const [imgError, setImgError] = useState(false);
@@ -78,25 +84,22 @@ export function SourceTypeCircle({
   );
 }
 
-export function combineLikeSources(sources) {
-  const combined = {};
-  sources.forEach((source) => {
-    const { id, title, text, chunkSource = "", score = null } = source;
-    if (combined.hasOwnProperty(title)) {
-      combined[title].chunks.push({ id, text, chunkSource, score });
-      combined[title].references += 1;
-    } else {
-      combined[title] = {
-        title,
-        chunks: [{ id, text, chunkSource, score }],
-        references: 1,
-      };
-    }
-  });
-  return Object.values(combined);
+export function combineLikeSources(sources: CitationChunk[]): CitationGroup[] {
+  const groups = new Map<string, CitationGroup>();
+  for (const { title, id, text, chunkSource = "", score = null } of sources) {
+    const group = groups.get(title) ?? { title, chunks: [], references: 0 };
+    group.chunks.push({ id, text, chunkSource, score });
+    group.references++;
+    groups.set(title, group);
+  }
+  return Array.from(groups.values());
 }
 
-export default function Citations({ sources = [] }) {
+export default function Citations({
+  sources = [],
+}: {
+  sources?: CitationChunk[];
+}) {
   const {
     sidebarOpen,
     openSidebar,
@@ -158,12 +161,18 @@ export default function Citations({ sources = [] }) {
   );
 }
 
-export function omitChunkHeader(text) {
+export function omitChunkHeader(text: string) {
   if (!text.includes("<document_metadata>")) return text;
-  return text.split("</document_metadata>")[1].trim();
+  return text.split("</document_metadata>")[1]?.trim() ?? text;
 }
 
-export function CitationDetailModal({ source, onClose }) {
+export function CitationDetailModal({
+  source,
+  onClose,
+}: {
+  source: CitationGroup;
+  onClose: () => void;
+}) {
   const { references, title, chunks } = source;
   const { isUrl, text: webpageUrl, href: linkTo } = parseChunkSource(source);
   const { t } = useTranslation();
@@ -175,7 +184,7 @@ export function CitationDetailModal({ source, onClose }) {
           <div className="w-full flex gap-x-2 items-center">
             {isUrl ? (
               <a
-                href={linkTo}
+                href={linkTo ?? undefined}
                 target="_blank"
                 rel="noreferrer"
                 className="text-xl w-[90%] font-semibold text-white light:text-slate-900 whitespace-nowrap hover:underline hover:text-blue-300 light:hover:text-blue-600 flex items-center gap-x-1"
@@ -277,7 +286,10 @@ const supportedSources = [
  * @param {{title: string, chunks: {text: string, chunkSource: string}[]}} options
  * @returns {{isUrl: boolean, text: string, href: string, icon: string}}
  */
-export function parseChunkSource({ title = "", chunks = [] }) {
+export function parseChunkSource({
+  title = "",
+  chunks = [],
+}: Partial<Pick<CitationGroup, "title" | "chunks">>) {
   const nullResponse = {
     isUrl: false,
     text: null,
@@ -297,17 +309,19 @@ export function parseChunkSource({ title = "", chunks = [] }) {
     const sourceID = supportedSources.find((source) =>
       chunks[0].chunkSource?.startsWith(source)
     );
-    let url, text, icon;
+    if (!sourceID) return nullResponse;
+    let url: URL | undefined, text: string, icon: string;
 
     // Try to parse the URL from the chunk source
     // If it fails, we'll use the title as the text and the link icon
     // but the document will not be linkable
     try {
-      url = new URL(chunks[0].chunkSource.split(sourceID)[1]);
+      url = new URL(chunks[0].chunkSource?.slice(sourceID.length) ?? "");
     } catch {}
 
     switch (sourceID) {
       case "link://":
+        if (!url) return nullResponse;
         text = url.host + url.pathname;
         icon = "link";
         break;
@@ -372,6 +386,7 @@ export function parseChunkSource({ title = "", chunks = [] }) {
         break;
 
       default:
+        if (!url) return nullResponse;
         text = url.host + url.pathname;
         icon = "link";
         break;

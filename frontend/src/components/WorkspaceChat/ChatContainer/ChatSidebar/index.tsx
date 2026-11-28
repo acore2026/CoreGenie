@@ -6,16 +6,29 @@ import {
   useState,
 } from "react";
 
-const ChatSidebarContext = createContext();
+import type { CitationChunk } from "@/utils/chat/messages";
+type SidebarType = "sources" | "memories" | "workspaceFiles";
+interface SidebarState {
+  activeSidebar: SidebarType | null;
+  sidebarData: CitationChunk[] | null;
+  openSidebar: (type: SidebarType, data?: CitationChunk[] | null) => void;
+  toggleSidebar: (type: SidebarType, data?: CitationChunk[] | null) => void;
+  closeSidebar: () => void;
+}
+const ChatSidebarContext = createContext<SidebarState | null>(null);
+const emptySources: CitationChunk[] = [];
 
-export function ChatSidebarProvider({ children }) {
-  const [activeSidebar, setActiveSidebar] = useState(null);
-  const [sidebarData, setSidebarData] = useState(null);
+export function ChatSidebarProvider({ children }: React.PropsWithChildren) {
+  const [activeSidebar, setActiveSidebar] = useState<SidebarType | null>(null);
+  const [sidebarData, setSidebarData] = useState<CitationChunk[] | null>(null);
 
-  const openSidebar = useCallback((type, data = null) => {
-    setActiveSidebar(type);
-    setSidebarData(data);
-  }, []);
+  const openSidebar = useCallback(
+    (type: SidebarType, data: CitationChunk[] | null = null) => {
+      setActiveSidebar(type);
+      setSidebarData(data);
+    },
+    []
+  );
 
   const closeSidebar = useCallback(() => {
     setActiveSidebar(null);
@@ -23,7 +36,7 @@ export function ChatSidebarProvider({ children }) {
   }, []);
 
   const toggleSidebar = useCallback(
-    (type, data = null) => {
+    (type: SidebarType, data: CitationChunk[] | null = null) => {
       if (activeSidebar === type) closeSidebar();
       else openSidebar(type, data);
     },
@@ -52,20 +65,28 @@ export function useChatSidebar() {
   return useContext(ChatSidebarContext);
 }
 
+function useSidebarState() {
+  const state = useChatSidebar();
+  if (!state)
+    throw new Error("Chat sidebar controls require ChatSidebarProvider");
+  return state;
+}
 export function useSourcesSidebar() {
   const { activeSidebar, sidebarData, openSidebar, closeSidebar } =
-    useContext(ChatSidebarContext);
+    useSidebarState();
   return {
     sidebarOpen: activeSidebar === "sources",
-    sources: activeSidebar === "sources" ? sidebarData : [],
-    openSidebar: (sources) => openSidebar("sources", sources),
+    sources:
+      activeSidebar === "sources"
+        ? (sidebarData ?? emptySources)
+        : emptySources,
+    openSidebar: (sources: CitationChunk[]) => openSidebar("sources", sources),
     closeSidebar,
   };
 }
 
 export function useMemoriesSidebar() {
-  const { activeSidebar, toggleSidebar, closeSidebar } =
-    useContext(ChatSidebarContext);
+  const { activeSidebar, toggleSidebar, closeSidebar } = useSidebarState();
   return {
     sidebarOpen: activeSidebar === "memories",
     toggleSidebar: () => toggleSidebar("memories"),
@@ -74,8 +95,7 @@ export function useMemoriesSidebar() {
 }
 
 export function useWorkspaceFilesSidebar() {
-  const { activeSidebar, toggleSidebar, closeSidebar } =
-    useContext(ChatSidebarContext);
+  const { activeSidebar, toggleSidebar, closeSidebar } = useSidebarState();
   return {
     sidebarOpen: activeSidebar === "workspaceFiles",
     toggleSidebar: () => toggleSidebar("workspaceFiles"),
@@ -89,7 +109,10 @@ export function useWorkspaceFilesSidebar() {
  * never triggers layout recalculation on the chat history (which can have
  * 500+ message nodes).
  */
-export default function ChatSidebar({ isOpen, children }) {
+export default function ChatSidebar({
+  isOpen,
+  children,
+}: React.PropsWithChildren<{ isOpen: boolean }>) {
   return (
     <div
       className="absolute right-0 top-0 z-40 h-full overflow-hidden"

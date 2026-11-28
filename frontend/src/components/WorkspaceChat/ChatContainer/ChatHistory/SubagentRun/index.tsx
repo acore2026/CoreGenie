@@ -10,7 +10,13 @@ import AgentAvatar from "@/components/PredefinedAgents/AgentAvatar";
 import { useTranslation } from "react-i18next";
 import { activityText } from "@/utils/userFacingError.ts";
 
-export default function SubagentRun({ run, live = false }) {
+export default function SubagentRun({
+  run,
+  live = false,
+}: {
+  run: import("@/utils/chat/messages").SubagentState;
+  live?: boolean;
+}) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(live);
   const running = run.status === "running";

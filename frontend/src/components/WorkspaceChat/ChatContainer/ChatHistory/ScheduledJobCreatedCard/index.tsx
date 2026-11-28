@@ -1,3 +1,4 @@
+import { isRecord } from "@/utils/types";
 import { memo } from "react";
 import { useNavigate } from "react-router-dom";
 import { CalendarCheck, ArrowRight } from "@phosphor-icons/react";
@@ -8,9 +9,15 @@ import paths from "@/utils/paths";
  * create-scheduled-job tool. Clicking it opens the run history page for the job.
  * @param {{content: {jobId: number|string, jobName?: string, schedule?: string, nextRun?: string}}} props
  */
-function ScheduledJobCreatedCard({ props }) {
+function ScheduledJobCreatedCard({ props }: { props: { content?: unknown } }) {
   const navigate = useNavigate();
-  const { jobId, jobName, schedule } = props.content || {};
+  const content = isRecord(props.content) ? props.content : {};
+  const jobId =
+    typeof content.jobId === "number" || typeof content.jobId === "string"
+      ? content.jobId
+      : null;
+  const jobName = typeof content.jobName === "string" ? content.jobName : "";
+  const schedule = typeof content.schedule === "string" ? content.schedule : "";
 
   const goToJob = () => {
     if (!jobId) return;

@@ -16,7 +16,7 @@ import {
 } from "recharts";
 import { Colors } from "./colors";
 
-type ChartData = { data: Record<string, string | number>[]; valueKey: string };
+type ChartData = { data: Record<string, unknown>[]; valueKey: string };
 const numbers = new Intl.NumberFormat("zh-CN");
 const tooltipStyle = {
   backgroundColor: "var(--theme-bg-primary)",

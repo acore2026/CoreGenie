@@ -7,19 +7,24 @@ import Workspace from "@/models/workspace";
 import showToast from "@/utils/toast";
 import { useTranslation } from "react-i18next";
 
-/**
- * @param {{content: {filename: string, storageFilename?: string, fileSize?: number}}} props
- */
-function FileDownloadCard({ props }) {
+import { isRecord } from "@/utils/types";
+
+function FileDownloadCard({
+  props,
+}: {
+  props: { content?: unknown; outputType?: string };
+}) {
   const { t } = useTranslation();
-  const {
-    filename,
-    storageFilename,
-    fileSize,
-    workspaceSlug,
-    path: workspacePath,
-    archive = false,
-  } = props.content || {};
+  const content = isRecord(props.content) ? props.content : {};
+  const filename = typeof content.filename === "string" ? content.filename : "";
+  const storageFilename =
+    typeof content.storageFilename === "string" ? content.storageFilename : "";
+  const fileSize =
+    typeof content.fileSize === "number" ? content.fileSize : undefined;
+  const workspaceSlug =
+    typeof content.workspaceSlug === "string" ? content.workspaceSlug : "";
+  const workspacePath = typeof content.path === "string" ? content.path : "";
+  const archive = content.archive === true;
   const { badge, badgeBg, badgeText, fileType } = getFileDisplayInfo(
     filename,
     t
@@ -113,7 +118,7 @@ function FileDownloadCard({ props }) {
  * @param {(key: string) => string} t
  * @returns {{badge: string, badgeBg: string, badgeText: string, fileType: string}}
  */
-function getFileDisplayInfo(filename, t) {
+function getFileDisplayInfo(filename: string, t: (key: string) => string) {
   const extension = filename?.split(".")?.pop()?.toLowerCase() ?? "txt";
   switch (extension) {
     case "pptx":

@@ -8,7 +8,36 @@ export interface ChatCommand {
   attachments?: unknown[];
 }
 
+export interface CitationChunk {
+  id?: string | number;
+  title: string;
+  text: string;
+  chunkSource?: string;
+  score?: number | null;
+}
+export interface CitationGroup {
+  title: string;
+  chunks: Omit<CitationChunk, "title">[];
+  references: number;
+}
+export interface SubagentState {
+  task?: string;
+  status?: string;
+  depth?: number;
+  agent?: { name?: string; iconUrl?: string };
+  result?: string;
+}
+export interface ModelRoute {
+  model?: string;
+  ruleTitle?: string;
+}
 export interface ContextTrace {
+  kind?: string;
+  items?: string[];
+  scopes?: string[];
+  detail?: string;
+  titleKey?: string;
+  titleArgs?: Record<string, unknown>;
   id: string;
   title?: string;
 }
@@ -22,7 +51,7 @@ export interface ChatMessage {
   outputs?: unknown[];
   messageParts?: unknown[];
   runtime?: { key: string } | null;
-  subagentRun?: { status?: string };
+  subagentRun?: SubagentState;
   userMessage?: string;
   attachments?: unknown[];
   sources?: unknown[];

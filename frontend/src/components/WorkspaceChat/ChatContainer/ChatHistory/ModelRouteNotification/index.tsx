@@ -9,7 +9,13 @@ import { Trans } from "react-i18next";
  * @param {Object} props.routedTo - { model, ruleTitle, routerName }
  * @param {boolean} [props.isStreaming] - whether the response is still streaming
  */
-export default function ModelRouteNotification({ routedTo, isStreaming }) {
+export default function ModelRouteNotification({
+  routedTo,
+  isStreaming,
+}: {
+  routedTo?: import("@/utils/chat/messages").ModelRoute | null;
+  isStreaming?: boolean;
+}) {
   if (!routedTo) return null;
 
   return (
@@ -46,7 +52,7 @@ export default function ModelRouteNotification({ routedTo, isStreaming }) {
   );
 }
 
-function RouterIcon({ isStreaming }) {
+function RouterIcon({ isStreaming }: { isStreaming?: boolean }) {
   if (!isStreaming)
     return (
       <Shuffle className="w-4 h-4 text-zinc-50 light:text-slate-950 flex-shrink-0" />

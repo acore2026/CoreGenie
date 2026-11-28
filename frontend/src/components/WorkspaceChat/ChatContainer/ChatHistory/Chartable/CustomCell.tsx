@@ -1,5 +1,26 @@
-export default function CustomCell({ ...props }) {
-  const { root, depth, x, y, width, height, index, colors, name } = props;
+interface CellProps {
+  colors: string[];
+  root?: { children?: unknown[] };
+  depth?: number;
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  index?: number;
+  name?: string;
+}
+// Recharts supplies the layout when it clones the cell for a treemap node.
+export default function CustomCell({
+  root,
+  depth = 0,
+  x = 0,
+  y = 0,
+  width = 0,
+  height = 0,
+  index = 0,
+  colors,
+  name,
+}: CellProps) {
   return (
     <g>
       <rect
@@ -10,7 +31,7 @@ export default function CustomCell({ ...props }) {
         style={{
           fill:
             depth < 2
-              ? colors[Math.floor((index / root.children.length) * 6)]
+              ? colors[Math.floor((index / (root?.children?.length || 1)) * 6)]
               : "#ffffff00",
           stroke: "#fff",
           strokeWidth: 2 / (depth + 1e-10),

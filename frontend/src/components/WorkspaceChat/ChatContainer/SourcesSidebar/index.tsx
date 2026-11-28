@@ -16,7 +16,9 @@ export { useSourcesSidebar } from "../ChatSidebar";
 function SourcesSidebar() {
   const { sources, sidebarOpen, closeSidebar } = useSourcesSidebar();
   const { t } = useTranslation();
-  const [selectedSource, setSelectedSource] = useState(null);
+  const [selectedSource, setSelectedSource] = useState<
+    import("@/utils/chat/messages").CitationGroup | null
+  >(null);
 
   const combined = combineLikeSources(sources);
 

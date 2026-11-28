@@ -1,7 +1,10 @@
 import { Books, Brain, Database, Sparkle, Trash } from "@phosphor-icons/react";
 import { useTranslation } from "react-i18next";
 
-const variants = {
+const variants: Record<
+  string,
+  { icon: typeof Books; labelKey: string; colorClass: string }
+> = {
   skill: {
     icon: Sparkle,
     labelKey: "skill",
@@ -36,9 +39,15 @@ const variants = {
 
 const fallbackVariant = variants.memory;
 
-export default function ContextTrace({ trace = {}, compact = false }) {
+export default function ContextTrace({
+  trace = {},
+  compact = false,
+}: {
+  trace?: Partial<import("@/utils/chat/messages").ContextTrace>;
+  compact?: boolean;
+}) {
   const { t } = useTranslation();
-  const variant = variants[trace.kind] || fallbackVariant;
+  const variant = variants[trace.kind ?? ""] || fallbackVariant;
   const Icon = variant.icon;
   const items = Array.isArray(trace.items) ? trace.items : [];
   const scopes = Array.isArray(trace.scopes) ? trace.scopes : [];

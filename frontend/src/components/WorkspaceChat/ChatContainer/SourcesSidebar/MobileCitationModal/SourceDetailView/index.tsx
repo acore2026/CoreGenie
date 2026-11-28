@@ -6,7 +6,15 @@ import { useTranslation } from "react-i18next";
 import { omitChunkHeader } from "../../../ChatHistory/Citation";
 import { toPercentString } from "@/utils/numbers";
 
-export default function SourceDetailView({ source, onBack, onClose }) {
+export default function SourceDetailView({
+  source,
+  onBack,
+  onClose,
+}: {
+  source: import("@/utils/chat/messages").CitationGroup;
+  onBack: () => void;
+  onClose: () => void;
+}) {
   const { t } = useTranslation();
   return (
     <>
