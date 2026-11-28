@@ -1,4 +1,4 @@
-import moment from "moment";
+import { formatDateTime } from "@/utils/dateTime";
 
 export function formatDate(dateString) {
   const date = isNaN(new Date(dateString).getTime())
@@ -10,12 +10,7 @@ export function formatDate(dateString) {
 }
 
 export function formatDateTimeAsMoment(dateString, format = "LLL") {
-  if (!dateString) return moment().format(format);
-  try {
-    return moment(dateString).format(format);
-  } catch {
-    return moment().format(format);
-  }
+  return formatDateTime(dateString, format);
 }
 
 export function getFileExtension(path) {

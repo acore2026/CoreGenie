@@ -12,7 +12,7 @@ import {
   MagnifyingGlass,
   ArrowRight,
 } from "@phosphor-icons/react";
-import { Droppable } from "react-beautiful-dnd";
+import { useDroppable } from "@dnd-kit/core";
 import { useTranslation } from "react-i18next";
 import {
   workspaceGroupId,
@@ -22,6 +22,57 @@ import {
 
 const iconButton =
   "flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-theme-text-secondary hover:bg-theme-sidebar-subitem-hover hover:text-theme-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-button disabled:opacity-50";
+
+function GroupDropHeader({ id, scope, disabled, children }) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: groupDropTargetId(id),
+    disabled,
+  });
+  return (
+    <div
+      ref={setNodeRef}
+      data-workspace-group-drop-target={id}
+      data-workspace-group-drop-scope={scope}
+      className={`rounded-md ${isOver ? "bg-theme-sidebar-subitem-hover ring-2 ring-inset ring-primary-button" : ""}`}
+    >
+      {children}
+    </div>
+  );
+}
+
+function GroupDropList({
+  id,
+  scope,
+  disabled,
+  entries,
+  groups,
+  renderWorkspace,
+  t,
+}) {
+  const { setNodeRef, isOver } = useDroppable({
+    id,
+    disabled,
+  });
+  return (
+    <div
+      ref={setNodeRef}
+      role="list"
+      aria-label={
+        id === scope
+          ? t("workspace_groups.ungrouped")
+          : groups.find((group) => group.id === id)?.name
+      }
+      className={`min-h-3 rounded-md ${isOver ? "bg-theme-sidebar-subitem-hover" : ""}`}
+    >
+      {entries.map((entry, index) => renderWorkspace(entry, index, id))}
+      {!entries.length && (id !== scope || groups.length === 0) && (
+        <p className="px-3 py-2 text-xs text-theme-text-secondary">
+          {t("workspace_groups.empty")}
+        </p>
+      )}
+    </div>
+  );
+}
 
 // The permission heading remains visible while its nested workspace groups fold.
 export function WorkspaceGroupSection({
@@ -33,7 +84,6 @@ export function WorkspaceGroupSection({
   onEdit,
   renderWorkspace,
   dragScope,
-  dragHeader,
   canManageGlobal,
 }) {
   const { t } = useTranslation();
@@ -42,27 +92,12 @@ export function WorkspaceGroupSection({
     (workspace) => workspaceScope(workspace) === scope
   );
   const collapsed = settings.collapsed[scope] === true;
+  const dropDisabled = Boolean(dragScope && dragScope !== scope);
   function dropHeader(id, children) {
     return (
-      <Droppable
-        droppableId={groupDropTargetId(id)}
-        isDropDisabled={!!dragScope && dragScope !== scope}
-      >
-        {(provided, snapshot) => (
-          <div
-            ref={provided.innerRef}
-            {...provided.droppableProps}
-            data-workspace-group-drop-target={id}
-            data-workspace-group-drop-scope={scope}
-            className={`rounded-md ${dragHeader === id || (!dragHeader && snapshot.isDraggingOver) ? "bg-theme-sidebar-subitem-hover ring-2 ring-inset ring-primary-button" : ""}`}
-          >
-            {children}
-            <div className="pointer-events-none h-0 overflow-hidden">
-              {provided.placeholder}
-            </div>
-          </div>
-        )}
-      </Droppable>
+      <GroupDropHeader id={id} scope={scope} disabled={dropDisabled}>
+        {children}
+      </GroupDropHeader>
     );
   }
   const renderList = (id) => {
@@ -70,39 +105,15 @@ export function WorkspaceGroupSection({
       (workspace) => workspaceGroupId(workspace, settings) === id
     );
     return (
-      <Droppable
-        droppableId={id}
-        isDropDisabled={!!dragScope && dragScope !== scope}
-      >
-        {(provided, snapshot) => (
-          <div
-            ref={provided.innerRef}
-            {...provided.droppableProps}
-            role="list"
-            aria-label={
-              id === scope
-                ? t("workspace_groups.ungrouped")
-                : groups.find((group) => group.id === id)?.name
-            }
-            className={`min-h-3 rounded-md ${!dragHeader && snapshot.isDraggingOver ? "bg-theme-sidebar-subitem-hover" : ""}`}
-          >
-            {entries.map(renderWorkspace)}
-            {snapshot.draggingFromThisWith ? (
-              provided.placeholder
-            ) : (
-              // Keep later group headings stationary while crossing this list.
-              <div className="pointer-events-none h-0 overflow-hidden">
-                {provided.placeholder}
-              </div>
-            )}
-            {!entries.length && (id !== scope || groups.length === 0) && (
-              <p className="px-3 py-2 text-xs text-theme-text-secondary">
-                {t("workspace_groups.empty")}
-              </p>
-            )}
-          </div>
-        )}
-      </Droppable>
+      <GroupDropList
+        id={id}
+        scope={scope}
+        disabled={dropDisabled}
+        entries={entries}
+        groups={groups}
+        renderWorkspace={renderWorkspace}
+        t={t}
+      />
     );
   };
   return (

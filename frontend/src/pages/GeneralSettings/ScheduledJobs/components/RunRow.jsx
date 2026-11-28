@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Circle, Stop } from "@phosphor-icons/react";
-import moment from "moment";
+import { diffSeconds } from "@/utils/dateTime";
 import paths from "@/utils/paths";
 import StatusBadge from "./StatusBadge";
 import ScheduledJobs from "@/models/scheduledJobs";
@@ -17,10 +17,7 @@ import { userFacingErrorKey } from "@/utils/userFacingError.mjs";
  */
 function formatRunDuration(run) {
   if (!run.completedAt || !run.startedAt) return "—";
-  const duration = moment.duration(
-    moment(run.completedAt).diff(moment(run.startedAt))
-  );
-  return formatDuration(duration.asSeconds());
+  return formatDuration(diffSeconds(run.completedAt, run.startedAt));
 }
 
 /**

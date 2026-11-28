@@ -2,7 +2,7 @@ import { DotsThreeVertical } from "@phosphor-icons/react";
 import { useRef, useState, useEffect } from "react";
 import PromptHistory from "@/models/promptHistory";
 import { useTranslation } from "react-i18next";
-import moment from "moment";
+import { formatRelativeTime } from "@/utils/dateTime";
 import truncate from "truncate";
 
 const MAX_PROMPT_LENGTH = 200; // chars
@@ -60,7 +60,7 @@ export default function PromptHistoryItem({
             </>
           )}
           <span className="text-white opacity-50 light:opacity-100">
-            {moment(modifiedAt).fromNow()}
+            {formatRelativeTime(modifiedAt)}
           </span>
         </div>
         <div className="flex items-center gap-2">

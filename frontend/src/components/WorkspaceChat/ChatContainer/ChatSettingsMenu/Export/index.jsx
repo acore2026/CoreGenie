@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { saveAs } from "file-saver";
 import Workspace from "@/models/workspace";
 import showToast from "@/utils/toast";
-import moment from "moment";
+import { formatStamp } from "@/utils/dateTime";
 
 const EXPORT_FORMATS = [
   { key: "pdf", label: "PDF", ext: "pdf" },
@@ -34,7 +34,7 @@ export default function ExportRow({
       format.key
     );
     if (blob) {
-      const stamp = moment().format("YYYY-MM-DD HH:mm:ss");
+      const stamp = formatStamp();
       saveAs(blob, `AnythingLLM Export - ${stamp}.${format.ext}`);
     } else {
       showToast("Failed to export chat.", "error");

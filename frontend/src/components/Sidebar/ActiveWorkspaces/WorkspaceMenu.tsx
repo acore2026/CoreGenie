@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -29,28 +29,6 @@ export interface WorkspaceMenuAction {
   label: string;
   icon: Icon;
   action: () => void;
-}
-
-// Desktop density uses CSS zoom; DnD positions are measured in viewport pixels.
-export function workspaceDragStyle(
-  style: CSSProperties | undefined
-): CSSProperties | undefined {
-  if (style?.position !== "fixed") return style;
-  const zoom = Number(getComputedStyle(document.body).zoom) || 1;
-  if (zoom === 1) return style;
-  const next: Record<string, unknown> = { ...style };
-  for (const field of ["top", "left", "width", "height"]) {
-    if (typeof next[field] === "number")
-      next[field] = (next[field] as number) / zoom;
-  }
-  if (typeof next.transform === "string") {
-    next.transform = next.transform.replace(
-      /translate\((-?[\d.]+)px,\s*(-?[\d.]+)px\)/,
-      (_, x: string, y: string) =>
-        `translate(${Number(x) / zoom}px, ${Number(y) / zoom}px)`
-    );
-  }
-  return next as CSSProperties;
 }
 
 function workspaceMenuActions({

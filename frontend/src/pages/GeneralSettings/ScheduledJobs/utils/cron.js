@@ -1,30 +1,27 @@
 import cronstrue from "cronstrue/i18n";
-import moment from "moment";
 
 /**
- * Convert a local hour and minute to UTC using moment.js.
- * Handles DST and timezone edge cases properly.
+ * Convert a local hour and minute to UTC.
  * @param {number} localHour - Hour in local time (0-23).
  * @param {number} localMinute - Minute (0-59).
  * @returns {{ hour: number, minute: number }} Hour and minute in UTC.
  */
 export function localTimeToUTC(localHour, localMinute = 0) {
-  const local = moment().hour(localHour).minute(localMinute).second(0);
-  const utc = local.clone().utc();
-  return { hour: utc.hour(), minute: utc.minute() };
+  const local = new Date();
+  local.setHours(localHour, localMinute, 0, 0);
+  return { hour: local.getUTCHours(), minute: local.getUTCMinutes() };
 }
 
 /**
- * Convert a UTC hour and minute to local time using moment.js.
- * Handles DST and timezone edge cases properly.
+ * Convert a UTC hour and minute to local time.
  * @param {number} utcHour - Hour in UTC (0-23).
  * @param {number} utcMinute - Minute (0-59).
  * @returns {{ hour: number, minute: number }} Hour and minute in local time.
  */
 export function utcTimeToLocal(utcHour, utcMinute = 0) {
-  const utc = moment.utc().hour(utcHour).minute(utcMinute).second(0);
-  const local = utc.clone().local();
-  return { hour: local.hour(), minute: local.minute() };
+  const utc = new Date();
+  utc.setUTCHours(utcHour, utcMinute, 0, 0);
+  return { hour: utc.getHours(), minute: utc.getMinutes() };
 }
 
 /**

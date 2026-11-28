@@ -1,11 +1,23 @@
-import { useEffect, useRef, useState, type MouseEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type MouseEvent,
+  type ReactNode,
+} from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
 import { Link, useMatch, useNavigate, useParams } from "react-router-dom";
 import { CaretDown } from "@phosphor-icons/react";
 import { useTranslation } from "react-i18next";
-import { DragDropContext, Draggable } from "react-beautiful-dnd";
+import {
+  DndContext,
+  PointerSensor,
+  useDraggable,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
 import Workspace from "@/models/workspace";
 import ManageWorkspace, {
   useManageWorkspaceModal,
@@ -31,11 +43,54 @@ import { queryKeys } from "@/lib/queryKeys";
 import {
   WorkspaceActionsMenu,
   WorkspaceContextMenu,
-  workspaceDragStyle,
   type SidebarWorkspace,
 } from "./WorkspaceMenu";
 import { StarredWorkspacesSection } from "./StarredWorkspacesSection";
 import { useWorkspaceGroupsState } from "./useWorkspaceGroupsState";
+
+function DraggableWorkspaceRow({
+  workspace,
+  sourceGroupId,
+  sourceIndex,
+  disabled,
+  children,
+}: {
+  workspace: SidebarWorkspace;
+  sourceGroupId: string;
+  sourceIndex: number;
+  disabled: boolean;
+  children: (props: {
+    dragHandleProps: Record<string, unknown>;
+    isDragging: boolean;
+  }) => ReactNode;
+}) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } =
+    useDraggable({
+      id: String(workspace.id),
+      disabled,
+      data: { workspace, sourceGroupId, sourceIndex },
+    });
+  const style = transform
+    ? {
+        transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
+        zIndex: isDragging ? 50 : undefined,
+      }
+    : undefined;
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`flex flex-col w-full group ${isDragging ? "opacity-50" : ""}`}
+      role="listitem"
+    >
+      {children({
+        dragHandleProps: { ...attributes, ...listeners },
+        isDragging,
+      })}
+    </div>
+  );
+}
 
 interface WorkspaceContextMenuState {
   point: { x: number; y: number };
@@ -105,7 +160,6 @@ function WorkspaceList({
     setGroupDialog,
     dragScope,
     setDragScope,
-    dragHeader,
     saveGroups,
     moveGroupWorkspaces,
     saveGroupDialog,
@@ -215,6 +269,12 @@ function WorkspaceList({
     }
   }, [expansion, expansionKey]);
 
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 6 },
+    })
+  );
+
   if (loading) {
     return (
       <Skeleton.default
@@ -312,28 +372,25 @@ function WorkspaceList({
     return workspaces[0]?.slug ?? null;
   })();
 
-  function renderWorkspace(workspace: SidebarWorkspace, index: number) {
+  function renderWorkspace(
+    workspace: SidebarWorkspace,
+    index: number,
+    sourceGroupId: string
+  ) {
     const isVirtuallyActive = workspace.slug === virtualActiveSlug;
     const isActive = workspace.slug === slug || isVirtuallyActive;
     const isExpanded = expansion[workspace.slug] ?? isActive;
     const canParticipate = workspace.viewerAccess !== "public_readonly";
     return (
-      <Draggable
+      <DraggableWorkspaceRow
         key={workspace.id}
-        draggableId={workspace.id.toString()}
-        index={index}
-        isDragDisabled={!ready || saving || renamingSlug === workspace.slug}
+        workspace={workspace}
+        sourceGroupId={sourceGroupId}
+        sourceIndex={index}
+        disabled={!ready || saving || renamingSlug === workspace.slug}
       >
-        {(provided, snapshot) => (
-          <div
-            ref={provided.innerRef}
-            {...provided.draggableProps}
-            style={workspaceDragStyle(provided.draggableProps.style)}
-            className={`flex flex-col w-full group ${
-              snapshot.isDragging ? "opacity-50" : ""
-            }`}
-            role="listitem"
-          >
+        {({ dragHandleProps }) => (
+          <>
             <div
               className="group/workspace relative flex min-h-10 items-center hover:bg-theme-sidebar-subitem-hover focus-within:bg-theme-sidebar-subitem-hover"
               onContextMenu={(event) => {
@@ -390,7 +447,7 @@ function WorkspaceList({
                 </div>
               ) : (
                 <Link
-                  {...provided.dragHandleProps}
+                  {...dragHandleProps}
                   to={paths.workspace.chat(workspace.slug)}
                   onClick={(event) => handleWorkspaceClick(event, workspace)}
                   title={workspace.name}
@@ -437,24 +494,23 @@ function WorkspaceList({
             <div id={`workspace-threads-${workspace.id}`} hidden={!isExpanded}>
               <ThreadContainer workspace={workspace} expanded={isExpanded} />
             </div>
-          </div>
+          </>
         )}
-      </Draggable>
+      </DraggableWorkspaceRow>
     );
   }
 
   return (
-    <DragDropContext
+    <DndContext
+      sensors={sensors}
       onDragEnd={onDragEnd}
-      onDragStart={(result) =>
-        setDragScope(
-          workspaceScope(
-            workspaces.find(
-              (workspace) => String(workspace.id) === result.draggableId
-            )
-          )
-        )
-      }
+      onDragCancel={() => setDragScope(null)}
+      onDragStart={(event) => {
+        const ws = workspaces.find(
+          (workspace) => String(workspace.id) === String(event.active.id)
+        );
+        setDragScope(ws ? workspaceScope(ws) : null);
+      }}
     >
       <div
         className="flex flex-col gap-y-4"
@@ -475,7 +531,6 @@ function WorkspaceList({
             settings={groupSettings}
             dragScope={dragScope}
             canManageGlobal={canManageGlobal}
-            dragHeader={dragHeader}
             onToggle={(id: string) =>
               saveGroups({
                 ...groupSettings,
@@ -551,6 +606,6 @@ function WorkspaceList({
           />
         )}
       </div>
-    </DragDropContext>
+    </DndContext>
   );
 }

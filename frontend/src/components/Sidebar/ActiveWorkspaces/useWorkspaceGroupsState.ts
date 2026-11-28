@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
+import type { DragEndEvent } from "@dnd-kit/core";
 import { v4 as uuidv4 } from "uuid";
 import {
   GROUP_SCOPES,
@@ -50,40 +51,6 @@ export function useWorkspaceGroupsState({
   );
   const [groupDialog, setGroupDialog] = useState<GroupDialogState | null>(null);
   const [dragScope, setDragScope] = useState<string | null>(null);
-  const [dragHeader, setDragHeader] = useState<string | null>(null);
-  const dragHeaderRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    if (!dragScope) return;
-    function trackHeader(event: MouseEvent | TouchEvent) {
-      const point = "touches" in event ? event.touches?.[0] : event;
-      if (!point) return;
-      const header = [
-        ...document.querySelectorAll<HTMLElement>(
-          "[data-workspace-group-drop-target]"
-        ),
-      ].find((element) => {
-        if (element.dataset.workspaceGroupDropScope !== dragScope) return false;
-        const rect = element.getBoundingClientRect();
-        return (
-          rect.width > 0 &&
-          point.clientX >= rect.left &&
-          point.clientX <= rect.right &&
-          point.clientY >= rect.top &&
-          point.clientY <= rect.bottom
-        );
-      });
-      const id = header?.dataset.workspaceGroupDropTarget || null;
-      dragHeaderRef.current = id;
-      setDragHeader(id);
-    }
-    document.addEventListener("mousemove", trackHeader);
-    document.addEventListener("touchmove", trackHeader, { passive: true });
-    return () => {
-      document.removeEventListener("mousemove", trackHeader);
-      document.removeEventListener("touchmove", trackHeader);
-    };
-  }, [dragScope]);
 
   function saveGroups(next: typeof groupSettings) {
     const personal = personalWorkspaceGroups(
@@ -245,31 +212,31 @@ export function useWorkspaceGroupsState({
     return true;
   }
 
-  function onDragEnd(result: {
-    reason: string;
-    source: { droppableId: string; index: number };
-    destination?: { droppableId: string; index: number } | null;
-  }) {
-    const header = dragHeaderRef.current;
-    dragHeaderRef.current = null;
-    setDragHeader(null);
+  function onDragEnd(event: DragEndEvent) {
     setDragScope(null);
-    if (result.reason !== "DROP") return;
-    const destination = header
-      ? { droppableId: header, index: 0 }
-      : groupDropDestination(result.destination);
+    if (!event.over) return;
+    const activeData = event.active.data.current as
+      { sourceGroupId?: string; sourceIndex?: number } | undefined;
+    const sourceDroppableId = activeData?.sourceGroupId;
+    const sourceIndex = activeData?.sourceIndex ?? 0;
+    if (!sourceDroppableId) return;
+
+    const destination = groupDropDestination({
+      droppableId: String(event.over.id),
+      index: 0,
+    });
     if (!destination) return;
-    if (result.source.droppableId === destination.droppableId) return;
+    if (sourceDroppableId === destination.droppableId) return;
     const sourceGroup = groupSettings.groups.find(
-      (group: WorkspaceGroup) => group.id === result.source.droppableId
+      (group: WorkspaceGroup) => group.id === sourceDroppableId
     );
     const targetGroup = groupSettings.groups.find(
       (group: WorkspaceGroup) => group.id === destination.droppableId
     );
     const moving = workspaces.filter(
       (workspace) =>
-        workspaceGroupId(workspace, groupSettings) === result.source.droppableId
-    )[result.source.index];
+        workspaceGroupId(workspace, groupSettings) === sourceDroppableId
+    )[sourceIndex];
     if (
       moving &&
       sourceGroup?.global &&
@@ -283,7 +250,7 @@ export function useWorkspaceGroupsState({
     const next = moveGroupedWorkspace(
       workspaces,
       groupSettings,
-      result.source,
+      { droppableId: sourceDroppableId, index: sourceIndex },
       destination
     );
     if (!next || !saveGroups(next.settings)) return;
@@ -299,7 +266,6 @@ export function useWorkspaceGroupsState({
     setGroupDialog,
     dragScope,
     setDragScope,
-    dragHeader,
     saveGroups,
     moveGroupWorkspaces,
     saveGroupDialog,

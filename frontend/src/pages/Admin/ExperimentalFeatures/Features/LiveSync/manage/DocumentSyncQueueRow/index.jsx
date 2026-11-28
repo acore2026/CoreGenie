@@ -1,7 +1,7 @@
 import { useRef } from "react";
 import { Trash } from "@phosphor-icons/react";
 import { stripUuidAndJsonFromString } from "@/components/Modals/ManageWorkspace/Documents/Directory/utils";
-import moment from "moment";
+import { formatDateTime, formatRelativeTime } from "@/utils/dateTime";
 import System from "@/models/system";
 
 export default function DocumentSyncQueueRow({ queue }) {
@@ -24,12 +24,14 @@ export default function DocumentSyncQueueRow({ queue }) {
         <td scope="row" className="px-6 py-4 whitespace-nowrap">
           {stripUuidAndJsonFromString(queue.workspaceDoc.filename)}
         </td>
-        <td className="px-6 py-4">{moment(queue.lastSyncedAt).fromNow()}</td>
+        <td className="px-6 py-4">{formatRelativeTime(queue.lastSyncedAt)}</td>
         <td className="px-6 py-4">
-          {moment(queue.nextSyncAt).format("lll")}
-          <i className="text-xs px-2">({moment(queue.nextSyncAt).fromNow()})</i>
+          {formatDateTime(queue.nextSyncAt, "lll")}
+          <i className="text-xs px-2">
+            ({formatRelativeTime(queue.nextSyncAt)})
+          </i>
         </td>
-        <td className="px-6 py-4">{moment(queue.createdAt).format("lll")}</td>
+        <td className="px-6 py-4">{formatDateTime(queue.createdAt, "lll")}</td>
         <td className="px-6 py-4 flex items-center gap-x-6">
           <button
             onClick={handleDelete}

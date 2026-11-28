@@ -1,30 +1,27 @@
-import { memo, useState, useRef, useEffect, useContext } from "react";
-import debounce from "lodash.debounce";
 import {
-  ArrowUp,
-  At,
-  ChatCircleText,
-  Command,
-  Wrench,
-} from "@phosphor-icons/react";
+  memo,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type ClipboardEvent,
+  type FormEvent,
+  type KeyboardEvent,
+} from "react";
+import debounce from "lodash.debounce";
+import { useTranslation } from "react-i18next";
+import { useSearchParams } from "react-router-dom";
 import StopGenerationButton from "./StopGenerationButton";
-import { Tooltip } from "react-tooltip";
 import AttachmentManager from "./Attachments";
 import AttachItem from "./AttachItem";
-import {
-  ATTACHMENTS_PROCESSED_EVENT,
-  ATTACHMENTS_PROCESSING_EVENT,
-  PASTE_ATTACHMENT_EVENT,
-  DndUploaderContext,
-} from "../DnDWrapper";
+import { DndUploaderContext, PASTE_ATTACHMENT_EVENT } from "../DnDWrapper";
 import useTextSize from "@/hooks/useTextSize";
-import { useTranslation } from "react-i18next";
 import Appearance from "@/models/appearance";
 import usePromptInputStorage from "@/hooks/usePromptInputStorage";
 import ToolsMenu, { TOOLS_MENU_KEYBOARD_EVENT } from "./ToolsMenu";
 import QuickCommandsMenu from "./QuickCommandsMenu";
 import WorkspaceModelPicker from "../WorkspaceModelPicker";
-import { useSearchParams } from "react-router-dom";
 import { useIsAgentSessionActive } from "@/utils/chat/agent";
 import AgentSwitcher from "@/components/PredefinedAgents/AgentSwitcher";
 import AgentWizard from "@/components/PredefinedAgents/AgentWizard";
@@ -34,23 +31,43 @@ import {
   WORKSPACE_UPLOAD_COMPLETE,
   appendWorkspacePaths,
 } from "@/utils/workspaceUpload";
+import {
+  AgentSessionButton,
+  ExamplePromptShelf,
+  QuickCommandsButton,
+  SendPromptButton,
+  ToolsButton,
+  useIsDisabled,
+  type ExamplePromptItem,
+} from "./PromptToolbarButtons";
 
 export const PROMPT_INPUT_ID = "primary-prompt-input";
 export const PROMPT_INPUT_EVENT = "set_prompt_input";
 const MAX_EDIT_STACK_SIZE = 100;
 
-/**
- * @param {Workspace} props.workspace - workspace object
- * @param {function} props.submit - form submit handler
- * @param {boolean} props.isStreaming - disables input while streaming response
- * @param {function} props.sendCommand - handler for slash commands and agent mentions
- * @param {Array} [props.attachments] - file attachments array
- * @param {boolean} [props.centered] - renders in centered layout mode (for home page)
- * @param {string} [props.workspaceSlug] - workspace slug for home page context
- * @param {string} [props.threadSlug] - thread slug for home page context
- * @param {Array<string | {label: string, prompt: string}>} [props.examplePrompts] - selected Agent example inputs
- * @param {boolean} [props.agentSessionActive] - whether this conversation has an active Agent session
- */
+interface EditState {
+  value: string;
+  cursorPositionStart: number;
+  cursorPositionEnd: number;
+}
+
+interface PromptInputProps {
+  workspace?: {
+    slug?: string;
+    showAgentCommand?: boolean;
+    [key: string]: unknown;
+  };
+  submit: (event: FormEvent | KeyboardEvent) => void;
+  isStreaming: boolean;
+  sendCommand: (payload: { text: string; writeMode?: string }) => void;
+  attachments?: unknown[];
+  centered?: boolean;
+  workspaceSlug?: string | null;
+  threadSlug?: string | null;
+  examplePrompts?: ExamplePromptItem[];
+  agentSessionActive?: boolean;
+}
+
 function PromptInput({
   workspace = {},
   submit,
@@ -62,56 +79,63 @@ function PromptInput({
   threadSlug = null,
   examplePrompts = [],
   agentSessionActive: scopedAgentSessionActive,
-}) {
+}: PromptInputProps) {
   const { t } = useTranslation();
   const { user } = useUser();
   const { selectedAgent } = usePredefinedAgent();
   const { showAgentCommand = true } = workspace ?? {};
   const { isDisabled: attachmentsDisabled } = useIsDisabled();
-  const { uploading = 0 } = useContext(DndUploaderContext);
+  const { uploading = 0 } = useContext(DndUploaderContext) as {
+    uploading?: number;
+  };
   const isDisabled = attachmentsDisabled || uploading > 0;
   const globalAgentSessionActive = useIsAgentSessionActive();
   const agentSessionActive =
     scopedAgentSessionActive ?? globalAgentSessionActive;
   const [promptInput, setPromptInput] = useState("");
   useEffect(() => {
-    const appendUploads = ({ detail }) => {
+    const appendUploads = (event: Event) => {
+      const detail = (
+        event as CustomEvent<{
+          slug?: string;
+          threadSlug?: string | null;
+          paths?: string[];
+        }>
+      ).detail;
       if (
+        !detail ||
         detail.slug !== (workspaceSlug || workspace?.slug) ||
         (detail.threadSlug || null) !== (threadSlug || null)
       )
         return;
-      setPromptInput((current) => appendWorkspacePaths(current, detail.paths));
+      setPromptInput((current) =>
+        appendWorkspacePaths(current, detail.paths || [])
+      );
     };
     window.addEventListener(WORKSPACE_UPLOAD_COMPLETE, appendUploads);
     return () =>
       window.removeEventListener(WORKSPACE_UPLOAD_COMPLETE, appendUploads);
   }, [workspaceSlug, workspace?.slug, threadSlug]);
+
   const [showTools, setShowTools] = useState(false);
   const [showQuickCommands, setShowQuickCommands] = useState(false);
   const autoOpenedQuickCommandsRef = useRef(false);
   const toolsHighlightRef = useRef(-1);
   const quickCommandsHighlightRef = useRef(-1);
-  const formRef = useRef(null);
-  const textareaRef = useRef(null);
-  const [_, setFocused] = useState(false);
-  const undoStack = useRef([]);
-  const redoStack = useRef([]);
+  const formRef = useRef<HTMLButtonElement | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const [, setFocused] = useState(false);
+  const undoStack = useRef<EditState[]>([]);
+  const redoStack = useRef<EditState[]>([]);
   const { textSizeClass } = useTextSize();
   const [searchParams] = useSearchParams();
 
-  // Synchronizes prompt input value with localStorage, scoped to the current thread.
   usePromptInputStorage({
     promptInput,
     setPromptInput,
     storageKey: threadSlug ?? workspaceSlug ?? workspace?.slug,
   });
 
-  /*
-   * @checklist-item
-   * If the URL has the agent param, open the agent menu for the user
-   * automatically when the component mounts.
-   */
   useEffect(() => {
     if (searchParams.get("action") === "set-agent-chat") {
       sendCommand({ text: "@agent " });
@@ -119,22 +143,23 @@ function PromptInput({
     }
   }, [textareaRef.current]);
 
-  /**
-   * To prevent too many re-renders we remotely listen for updates from the parent
-   * via an event cycle. Otherwise, using message as a prop leads to a re-render every
-   * change on the input.
-   * @param {{detail: {messageContent: string, writeMode: 'replace' | 'append'}}} e
-   */
-  function handlePromptUpdate(e) {
-    const { messageContent, writeMode = "replace" } = e?.detail ?? {};
-    if (writeMode === "append") setPromptInput((prev) => prev + messageContent);
+  function handlePromptUpdate(e: Event) {
+    const { messageContent, writeMode = "replace" } =
+      (
+        e as CustomEvent<{
+          messageContent?: string;
+          writeMode?: "replace" | "append" | "prepend";
+        }>
+      )?.detail ?? {};
+    if (writeMode === "append")
+      setPromptInput((prev) => prev + (messageContent ?? ""));
     else if (writeMode === "prepend")
-      setPromptInput((prev) => messageContent + " " + prev);
+      setPromptInput((prev) => `${messageContent ?? ""} ${prev}`);
     else setPromptInput(messageContent ?? "");
   }
 
   useEffect(() => {
-    if (!!window)
+    if (typeof window !== "undefined")
       window.addEventListener(PROMPT_INPUT_EVENT, handlePromptUpdate);
     return () =>
       window?.removeEventListener(PROMPT_INPUT_EVENT, handlePromptUpdate);
@@ -145,11 +170,8 @@ function PromptInput({
     resetTextAreaHeight();
   }, [isStreaming]);
 
-  /**
-   * Save the current state before changes
-   * @param {number} adjustment
-   */
   function saveCurrentState(adjustment = 0) {
+    if (!textareaRef.current) return;
     if (undoStack.current.length >= MAX_EDIT_STACK_SIZE)
       undoStack.current.shift();
     undoStack.current.push({
@@ -160,8 +182,7 @@ function PromptInput({
   }
   const debouncedSaveState = debounce(saveCurrentState, 250);
 
-  function handleSubmit(e) {
-    // Ignore submits from portaled modals (slash command preset forms)
+  function handleSubmit(e: FormEvent<HTMLFormElement>) {
     if (e.target !== e.currentTarget) return;
     setFocused(false);
     setShowTools(false);
@@ -174,13 +195,7 @@ function PromptInput({
     textareaRef.current.style.height = "auto";
   }
 
-  /**
-   * Capture enter key press to handle submission, redo, or undo
-   * via keyboard shortcuts
-   * @param {KeyboardEvent} event
-   */
-  function captureEnterOrUndo(event) {
-    // Forward keyboard events to the active command/tool menu.
+  function captureEnterOrUndo(event: KeyboardEvent<HTMLTextAreaElement>) {
     if (showTools || showQuickCommands) {
       if (
         ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key)
@@ -193,8 +208,6 @@ function PromptInput({
         );
         return;
       }
-      // When an item is highlighted via arrow keys, Enter selects it.
-      // Otherwise, Enter falls through to submit the form normally.
       const highlightedIndex = showTools
         ? toolsHighlightRef.current
         : quickCommandsHighlightRef.current;
@@ -216,7 +229,6 @@ function PromptInput({
       }
     }
 
-    // "/" opens Quick Commands when the input is empty.
     if (
       event.key === "/" &&
       !event.ctrlKey &&
@@ -231,23 +243,22 @@ function PromptInput({
       return;
     }
 
-    // Is simple enter key press w/o shift key
     if (event.keyCode === 13 && !event.shiftKey) {
       event.preventDefault();
-      if (isStreaming || isDisabled) return; // Prevent submission if streaming or disabled
+      if (isStreaming || isDisabled) return;
       setShowTools(false);
       setShowQuickCommands(false);
-      return submit(event);
+      submit(event);
+      return;
     }
 
-    // Is undo with Ctrl+Z or Cmd+Z + Shift key = Redo
     if (
       (event.ctrlKey || event.metaKey) &&
       event.key === "z" &&
       event.shiftKey
     ) {
       event.preventDefault();
-      if (redoStack.current.length === 0) return;
+      if (redoStack.current.length === 0 || !textareaRef.current) return;
 
       const nextState = redoStack.current.pop();
       if (!nextState) return;
@@ -259,20 +270,19 @@ function PromptInput({
       });
       setPromptInput(nextState.value);
       setTimeout(() => {
-        textareaRef.current.setSelectionRange(
+        textareaRef.current?.setSelectionRange(
           nextState.cursorPositionStart,
           nextState.cursorPositionEnd
         );
       }, 0);
     }
 
-    // Undo with Ctrl+Z or Cmd+Z
     if (
       (event.ctrlKey || event.metaKey) &&
       event.key === "z" &&
       !event.shiftKey
     ) {
-      if (undoStack.current.length === 0) return;
+      if (undoStack.current.length === 0 || !textareaRef.current) return;
       const lastState = undoStack.current.pop();
       if (!lastState) return;
 
@@ -283,7 +293,7 @@ function PromptInput({
       });
       setPromptInput(lastState.value);
       setTimeout(() => {
-        textareaRef.current.setSelectionRange(
+        textareaRef.current?.setSelectionRange(
           lastState.cursorPositionStart,
           lastState.cursorPositionEnd
         );
@@ -291,42 +301,31 @@ function PromptInput({
     }
   }
 
-  function adjustTextArea(event) {
-    const element = event.target;
+  function adjustTextArea(element: HTMLTextAreaElement) {
     element.style.height = "auto";
     element.style.height = `${element.scrollHeight}px`;
   }
 
-  function handlePasteEvent(e) {
+  function handlePasteEvent(e: ClipboardEvent<HTMLTextAreaElement>) {
     e.preventDefault();
-    if (e.clipboardData.items.length === 0) return false;
+    if (e.clipboardData.items.length === 0) return;
 
-    // paste any clipboard items that are images.
     for (const item of e.clipboardData.items) {
-      if (item.type.startsWith("image/")) {
+      if (item.type.startsWith("image/") || item.kind === "file") {
         const file = item.getAsFile();
-        window.dispatchEvent(
-          new CustomEvent(PASTE_ATTACHMENT_EVENT, {
-            detail: { files: [file] },
-          })
-        );
-        continue;
-      }
-
-      // handle files specifically that are not images as uploads
-      if (item.kind === "file") {
-        const file = item.getAsFile();
-        window.dispatchEvent(
-          new CustomEvent(PASTE_ATTACHMENT_EVENT, {
-            detail: { files: [file] },
-          })
-        );
+        if (file) {
+          window.dispatchEvent(
+            new CustomEvent(PASTE_ATTACHMENT_EVENT, {
+              detail: { files: [file] },
+            })
+          );
+        }
         continue;
       }
     }
 
     const pasteText = e.clipboardData.getData("text/plain");
-    if (pasteText) {
+    if (pasteText && textareaRef.current) {
       const textarea = textareaRef.current;
       const start = textarea.selectionStart;
       const end = textarea.selectionEnd;
@@ -336,24 +335,20 @@ function PromptInput({
         promptInput.substring(end);
       setPromptInput(newPromptInput);
 
-      // Set the cursor position after the pasted text
-      // we need to use setTimeout to prevent the cursor from being set to the end of the text
       setTimeout(() => {
         textarea.selectionStart = textarea.selectionEnd =
           start + pasteText.length;
-        adjustTextArea({ target: textarea });
+        adjustTextArea(textarea);
       }, 0);
     }
-    return;
   }
 
-  function handleChange(e) {
+  function handleChange(e: ChangeEvent<HTMLTextAreaElement>) {
     debouncedSaveState(-1);
-    adjustTextArea(e);
+    adjustTextArea(e.target);
     const value = e.target.value;
     setPromptInput(value);
 
-    // Auto-dismiss Quick Commands after the opening slash is modified.
     if (
       autoOpenedQuickCommandsRef.current &&
       showQuickCommands &&
@@ -364,7 +359,7 @@ function PromptInput({
     }
   }
 
-  function selectExamplePrompt(prompt) {
+  function selectExamplePrompt(prompt: string) {
     saveCurrentState();
     setPromptInput(prompt);
     setShowTools(false);
@@ -417,20 +412,25 @@ function PromptInput({
               centered={centered}
               highlightedIndexRef={quickCommandsHighlightRef}
             />
-            {centered && selectedAgent?.wizard && (
-              <AgentWizard
-                key={`${selectedAgent.id}:${workspaceSlug}:${threadSlug}`}
-                agent={selectedAgent}
-                disabled={isDisabled || isStreaming || agentSessionActive}
-                onUse={(prompt) =>
-                  selectExamplePrompt(
-                    promptInput.trim() ? `${promptInput}\n\n${prompt}` : prompt
-                  )
-                }
-              />
-            )}
+            {centered &&
+              Boolean(
+                (selectedAgent as { wizard?: unknown } | null)?.wizard
+              ) && (
+                <AgentWizard
+                  key={`${selectedAgent?.id}:${workspaceSlug}:${threadSlug}`}
+                  agent={selectedAgent}
+                  disabled={isDisabled || isStreaming || agentSessionActive}
+                  onUse={(prompt: string) =>
+                    selectExamplePrompt(
+                      promptInput.trim()
+                        ? `${promptInput}\n\n${prompt}`
+                        : prompt
+                    )
+                  }
+                />
+              )}
             <div className="flex flex-col overflow-visible rounded-lg border border-theme-chat-input-border bg-theme-bg-chat-input px-4 transition-[border-color,box-shadow] duration-150 focus-within:ring-1 focus-within:ring-theme-button-primary">
-              <AttachmentManager attachments={attachments} />
+              <AttachmentManager attachments={attachments as never[]} />
               <div className="flex items-center">
                 <textarea
                   id={PROMPT_INPUT_ID}
@@ -445,10 +445,10 @@ function PromptInput({
                   onFocus={() => setFocused(true)}
                   onBlur={(e) => {
                     setFocused(false);
-                    adjustTextArea(e);
+                    adjustTextArea(e.target);
                   }}
                   value={promptInput}
-                  spellCheck={Appearance.get("enableSpellCheck")}
+                  spellCheck={Boolean(Appearance.get("enableSpellCheck"))}
                   className={`border-none cursor-text max-h-[50vh] md:max-h-[350px] md:min-h-[40px] pt-4 w-full leading-5 text-theme-text-primary bg-transparent placeholder:text-theme-text-placeholder resize-none active:outline-none focus:outline-none flex-grow pwa:!text-[16px] ${textSizeClass}`}
                   placeholder={t("chat_window.send_message")}
                 />
@@ -457,8 +457,8 @@ function PromptInput({
                 <div className="flex min-w-0 items-center gap-x-0.5">
                   <div className="flex items-center gap-x-1">
                     <AttachItem
-                      workspaceSlug={workspaceSlug}
-                      workspaceThreadSlug={threadSlug}
+                      workspaceSlug={workspaceSlug as never}
+                      workspaceThreadSlug={threadSlug as never}
                     />
                     <AgentSessionButton
                       sendCommand={sendCommand}
@@ -474,7 +474,8 @@ function PromptInput({
                     textareaRef={textareaRef}
                     autoOpenedRef={autoOpenedQuickCommandsRef}
                   />
-                  {(!user?.hasOwnProperty("role") || user.role === "admin") && (
+                  {(!Object.prototype.hasOwnProperty.call(user || {}, "role") ||
+                    user?.role === "admin") && (
                     <ToolsButton
                       showTools={showTools}
                       setShowTools={setShowTools}
@@ -486,7 +487,7 @@ function PromptInput({
                 </div>
                 <div className="flex min-w-0 items-center justify-end gap-x-1 md:gap-x-1.5">
                   <WorkspaceModelPicker
-                    workspaceSlug={workspaceSlug ?? workspace?.slug}
+                    workspaceSlug={(workspaceSlug ?? workspace?.slug) as never}
                   />
                   {isStreaming || agentSessionActive ? (
                     <StopGenerationButton />
@@ -511,219 +512,6 @@ function PromptInput({
       </form>
     </div>
   );
-}
-
-function ExamplePromptShelf({ prompts = [], onSelect }) {
-  const visiblePrompts = prompts
-    .map((item) => {
-      if (typeof item === "string") {
-        const prompt = item.trim();
-        return { label: prompt, prompt };
-      }
-      const prompt = String(item?.prompt || "").trim();
-      const label = String(item?.label || prompt).trim();
-      return { label, prompt };
-    })
-    .filter(({ label, prompt }) => label && prompt)
-    .slice(0, 6);
-  if (!visiblePrompts.length) return null;
-
-  return (
-    <div
-      className="flex w-full flex-wrap items-stretch gap-2 px-1 py-2"
-      aria-label="Agent example inputs"
-    >
-      {visiblePrompts.map(({ label, prompt }, index) => (
-        <button
-          key={`${label}-${index}`}
-          type="button"
-          onClick={() => onSelect(prompt)}
-          title={label}
-          className="group inline-flex min-h-8 min-w-0 max-w-full items-start gap-1.5 rounded-md border border-theme-sidebar-border bg-transparent px-3 py-2 text-left text-xs text-theme-text-secondary transition-colors duration-150 hover:bg-theme-sidebar-subitem-hover hover:text-theme-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-button-primary md:max-w-[620px]"
-        >
-          <ChatCircleText
-            size={13}
-            className="mt-px shrink-0 text-theme-text-secondary"
-          />
-          <span className="min-w-0 whitespace-normal break-words leading-4">
-            {label}
-          </span>
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function AgentSessionButton({
-  sendCommand,
-  promptInput,
-  textareaRef,
-  visible = true,
-}) {
-  const { t } = useTranslation();
-  if (!visible) return null;
-
-  function handleClick() {
-    try {
-      if (promptInput?.trim()?.startsWith("@agent")) return;
-      sendCommand({ text: "@agent", writeMode: "prepend" });
-    } finally {
-      textareaRef?.current?.focus();
-    }
-  }
-
-  return (
-    <>
-      <button
-        type="button"
-        onClick={handleClick}
-        data-tooltip-id="agent-session"
-        data-tooltip-content={t("chat_window.start_agent_session")}
-        aria-label={t("chat_window.start_agent_session")}
-        className="group relative flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border-none text-theme-text-secondary transition-colors hover:bg-theme-sidebar-subitem-hover hover:text-theme-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-button-primary"
-      >
-        <At size={18} className="pointer-events-none shrink-0 text-current" />
-      </button>
-      <Tooltip
-        id="agent-session"
-        place="bottom"
-        delayShow={300}
-        className="tooltip !text-xs z-99"
-      />
-    </>
-  );
-}
-
-function ToolsButton({
-  showTools,
-  setShowTools,
-  closeQuickCommands,
-  textareaRef,
-}) {
-  const { t } = useTranslation();
-
-  return (
-    <button
-      id="tools-btn"
-      type="button"
-      onClick={() => {
-        closeQuickCommands();
-        setShowTools(!showTools);
-        textareaRef.current?.focus();
-      }}
-      className={`group flex h-7 cursor-pointer items-center justify-center gap-x-1.5 rounded-md border-none px-2 text-theme-text-secondary transition-colors duration-150 hover:bg-theme-sidebar-subitem-hover hover:text-theme-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-button-primary ${
-        showTools
-          ? "bg-theme-sidebar-subitem-selected text-theme-text-primary"
-          : ""
-      }`}
-    >
-      <Wrench size={14} weight="bold" className="shrink-0" />
-      <span className="whitespace-nowrap text-xs font-medium">
-        {t("chat_window.tools")}
-      </span>
-    </button>
-  );
-}
-
-function QuickCommandsButton({
-  showing,
-  setShowing,
-  closeTools,
-  textareaRef,
-  autoOpenedRef,
-}) {
-  const { t } = useTranslation();
-
-  return (
-    <button
-      id="quick-commands-btn"
-      type="button"
-      onClick={() => {
-        autoOpenedRef.current = false;
-        closeTools();
-        setShowing(!showing);
-        textareaRef.current?.focus();
-      }}
-      aria-label={t("chat_window.slash_commands")}
-      className={`group flex h-7 cursor-pointer items-center justify-center gap-x-1.5 rounded-md border-none px-2 text-theme-text-secondary transition-colors duration-150 hover:bg-theme-sidebar-subitem-hover hover:text-theme-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-button-primary ${
-        showing
-          ? "bg-theme-sidebar-subitem-selected text-theme-text-primary"
-          : ""
-      }`}
-    >
-      <Command size={14} weight="bold" className="shrink-0" />
-      <span className="whitespace-nowrap text-xs font-medium">
-        {t("chat_window.slash_commands")}
-      </span>
-    </button>
-  );
-}
-
-function SendPromptButton({ formRef, promptInput, isDisabled }) {
-  const { t } = useTranslation();
-
-  return (
-    <>
-      <button
-        ref={formRef}
-        type="submit"
-        disabled={isDisabled || !promptInput.trim().length}
-        className={`flex h-8 w-8 items-center justify-center rounded-md border-none transition-[background-color,color,transform] duration-150 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-button-primary ${
-          promptInput.trim().length && !isDisabled
-            ? "cursor-pointer bg-theme-text-primary text-theme-bg-chat hover:opacity-90"
-            : "cursor-not-allowed bg-theme-sidebar-subitem-selected text-theme-text-secondary"
-        }`}
-        data-tooltip-id="send-prompt"
-        data-tooltip-content={
-          isDisabled
-            ? t("chat_window.attachments_processing")
-            : t("chat_window.send")
-        }
-        aria-label={t("chat_window.send")}
-      >
-        <ArrowUp
-          className="pointer-events-none h-[18px] w-[18px] text-current"
-          weight="bold"
-        />
-        <span className="sr-only">{t("chat_window.send")}</span>
-      </button>
-      <Tooltip
-        id="send-prompt"
-        place="bottom"
-        delayShow={300}
-        className="tooltip !text-xs z-99"
-      />
-    </>
-  );
-}
-
-/**
- * Handle event listeners to prevent the send button from being used
- * for whatever reason that may we may want to prevent the user from sending a message.
- */
-function useIsDisabled() {
-  const [isDisabled, setIsDisabled] = useState(false);
-
-  /**
-   * Handle attachments processing and processed events
-   * to prevent the send button from being clicked when attachments are processing
-   * or else the query may not have relevant context since RAG is not yet ready.
-   */
-  useEffect(() => {
-    if (!window) return;
-    const onProcessing = () => setIsDisabled(true);
-    const onProcessed = () => setIsDisabled(false);
-
-    window.addEventListener(ATTACHMENTS_PROCESSING_EVENT, onProcessing);
-    window.addEventListener(ATTACHMENTS_PROCESSED_EVENT, onProcessed);
-
-    return () => {
-      window.removeEventListener(ATTACHMENTS_PROCESSING_EVENT, onProcessing);
-      window.removeEventListener(ATTACHMENTS_PROCESSED_EVENT, onProcessed);
-    };
-  }, []);
-
-  return { isDisabled };
 }
 
 export default memo(PromptInput);

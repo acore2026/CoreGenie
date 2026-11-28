@@ -21,7 +21,7 @@ import renderMarkdown from "@/utils/chat/markdown";
 import CollapsibleSection from "./components/CollapsibleSection";
 import ToolCallCard from "./components/ToolCallCard";
 import GeneratedFileCard from "./components/GeneratedFileCard";
-import moment from "moment";
+import { formatDateTime } from "@/utils/dateTime";
 import { formatDuration, numberWithCommas } from "@/utils/numbers";
 import DOMPurify from "@/utils/chat/purify";
 import {
@@ -245,7 +245,7 @@ function RunHeader({
         <div className="flex items-center gap-2 text-xs">
           <span className={style}>{text}</span>
           <span className="text-zinc-400 light:text-slate-600">
-            {moment(run.startedAt).format("LTS")}
+            {formatDateTime(run.startedAt, "LTS")}
           </span>
           {result.duration && (
             <span className="text-zinc-400 light:text-slate-600">

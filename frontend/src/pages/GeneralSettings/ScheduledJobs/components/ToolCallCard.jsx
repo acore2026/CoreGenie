@@ -6,7 +6,7 @@ import { safeJsonParse } from "@/utils/request";
 import { useTheme } from "@/hooks/useTheme";
 import DOMPurify from "@/utils/chat/purify";
 import truncate from "truncate";
-import moment from "moment";
+import { formatDateTime } from "@/utils/dateTime";
 import { activityText } from "@/utils/userFacingError.mjs";
 
 const MAX_RESULT_LENGTH = 5000;
@@ -73,7 +73,7 @@ function ToolCallTimestamp({ toolCall }) {
   if (!toolCall.timestamp) return null;
   return (
     <span className="text-xs text-theme-text-secondary">
-      {moment(toolCall.timestamp).format("LTS")}
+      {formatDateTime(toolCall.timestamp, "LTS")}
     </span>
   );
 }
