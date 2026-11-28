@@ -1,5 +1,6 @@
 import { zipSync, strFromU8, strToU8 } from "fflate";
 import { LocalToolError } from "./proposalFill";
+import { addCrBulletList } from "./crBulletList";
 import { getDefaultCrTemplateBytes } from "./crTemplateData";
 import {
   W_NS,
@@ -810,6 +811,16 @@ function sortClauses(clauses: string[]): string[] {
   });
 }
 
+export function baselineMatchesDraft(
+  baseline: BaselineSpecData,
+  draft: ApiUpdateCrDraft
+): boolean {
+  return (
+    (!baseline.spec || baseline.spec === draft.spec) &&
+    (!baseline.release || baseline.release === draft.release)
+  );
+}
+
 /**
  * Apply uploaded baseline TS .docx / .yaml files onto parsed CR drafts.
  */
@@ -818,11 +829,9 @@ export function applyBaselinesToDrafts(
   baselines: BaselineSpecData[]
 ): ApiUpdateCrDraft[] {
   return drafts.map((draft) => {
-    const matchingBaselines = baselines.filter((b) => {
-      if (b.spec && b.spec !== draft.spec) return false;
-      if (b.release && b.release !== draft.release) return false;
-      return true;
-    });
+    const matchingBaselines = baselines.filter((b) =>
+      baselineMatchesDraft(b, draft)
+    );
     if (!matchingBaselines.length) return draft;
 
     const allBlocks = matchingBaselines.flatMap((b) => b.apis);
@@ -881,12 +890,19 @@ export function applyBaselinesToDrafts(
   });
 }
 
-/**
- * Build the Reason for change paragraphs following C3-265629.docx phrasing.
- */
-export function buildReasonForChangeParagraphs(
-  draft: ApiUpdateCrDraft
-): string[] {
+interface CoverRun {
+  text: string;
+  bold?: boolean;
+  underline?: boolean;
+}
+
+interface CoverParagraph {
+  runs: CoverRun[];
+  bullet?: boolean;
+  halfLineAfter?: boolean;
+}
+
+function reasonParagraphs(draft: ApiUpdateCrDraft): CoverParagraph[] {
   const apiNames = draft.apis.map((a) => a.apiName);
   const apiListText =
     apiNames.length <= 1
@@ -895,31 +911,72 @@ export function buildReasonForChangeParagraphs(
         ? `${apiNames[0]} and ${apiNames[1]} APIs`
         : `${apiNames.slice(0, -1).join(", ")} and ${apiNames[apiNames.length - 1]} APIs`;
 
-  const lines: string[] = [
-    `CRs modifying ${apiListText} have been agreed and the version number of the corresponding OpenAPI file thus needs to be incremented following the rules in TS 29.501, subclause 4.3.1.`,
+  const paragraphs: CoverParagraph[] = [
+    {
+      runs: [
+        {
+          text: `CRs modifying ${apiListText} have been agreed and the version number of the corresponding OpenAPI file thus needs to be incremented following the rules in TS 29.501, subclause 4.3.1.`,
+        },
+      ],
+    },
   ];
 
   for (const api of draft.apis) {
-    const clauseNote = api.clause ? ` in ${api.clause}` : "";
-    lines.push(
-      `The following agreed CRs update the OpenAPI file of the ${api.apiName} API${clauseNote} for the present release:`
+    paragraphs.push(
+      { runs: [] },
+      {
+        halfLineAfter: true,
+        runs: [
+          { text: "The following agreed CRs update the OpenAPI file of the " },
+          { text: `${api.apiName} API`, bold: true },
+          { text: " for the present release:" },
+        ],
+      }
     );
     for (const imp of api.impacts) {
       const crLabel = imp.sourceCr ? `CR#${imp.sourceCr}` : imp.tdoc;
-      lines.push(`${imp.sourceSpec} ${crLabel} introduces ${imp.impactPhrase}`);
+      paragraphs.push({
+        bullet: true,
+        runs: [
+          {
+            text: `${imp.sourceSpec} ${crLabel} introduces ${imp.impactPhrase}`,
+          },
+        ],
+      });
     }
     const oldVer = api.currentApiVersion || "x.y.z";
     const newVer = api.targetApiVersion || "x.y.z";
-    lines.push(
-      `The API version needs to be updated from ${oldVer} to ${newVer}.`
-    );
-    const targetVer = draft.targetTsVersion || "x.y.z";
-    lines.push(
-      `The "externalDocs" object description field also needs to be updated to "v${targetVer}" for this API.`
+    paragraphs.push(
+      {
+        halfLineAfter: true,
+        runs: [
+          {
+            text: `The API version needs to be updated from ${oldVer} to ${newVer}.`,
+            underline: true,
+          },
+        ],
+      },
+      {
+        runs: [
+          {
+            text: 'The "externalDocs" object description field also needs to be updated to "',
+          },
+          { text: `v${draft.targetTsVersion || "x.y.z"}`, bold: true },
+          { text: '" for this API.' },
+        ],
+      }
     );
   }
+  return paragraphs;
+}
 
-  return lines;
+export function buildReasonForChangeParagraphs(
+  draft: ApiUpdateCrDraft
+): string[] {
+  return reasonParagraphs(draft).map(
+    ({ runs, bullet }) =>
+      (bullet ? "- " : "") + runs.map((run) => run.text).join("")
+  );
 }
 
 export function buildSummaryOfChange(
@@ -1198,6 +1255,56 @@ function setCellLinesPreservingStyle(
   }
 }
 
+function setFormattedCoverCell(
+  doc: Document,
+  cell: Element,
+  paragraphs: CoverParagraph[],
+  numId: string
+): void {
+  const sample = wordChildren(cell, "p")[0];
+  const style = sample && elementsNS(sample, W_NS, "pStyle")[0];
+  for (const p of wordChildren(cell, "p")) p.remove();
+
+  const word = (name: string, attrs: Record<string, string> = {}) => {
+    const element = doc.createElementNS(W_NS, "w:" + name);
+    for (const [key, value] of Object.entries(attrs))
+      element.setAttributeNS(W_NS, "w:" + key, value);
+    return element;
+  };
+  for (const line of paragraphs) {
+    const p = word("p");
+    const props = word("pPr");
+    if (style) props.append(style.cloneNode(true));
+    if (line.bullet) {
+      const list = word("numPr");
+      list.append(word("ilvl", { val: "0" }), word("numId", { val: numId }));
+      props.append(list);
+    }
+    props.append(
+      word(
+        "spacing",
+        line.halfLineAfter ? { afterLines: "50" } : { after: "0" }
+      )
+    );
+    if (!line.bullet)
+      props.append(word("ind", { left: line.halfLineAfter ? "102" : "100" }));
+    p.append(props);
+    for (const run of line.runs) {
+      const r = word("r");
+      const rPr = word("rPr");
+      if (run.bold) rPr.append(word("b"));
+      if (run.underline) rPr.append(word("u", { val: "single" }));
+      if (rPr.childElementCount) r.append(rPr);
+      const t = word("t");
+      t.setAttributeNS(XML_NS, "xml:space", "preserve");
+      t.textContent = run.text;
+      r.append(t);
+      p.append(r);
+    }
+    cell.append(p);
+  }
+}
+
 function resolveTemplateStyleIds(entries: Record<string, FileBytes>): {
   headingStyleId: string;
   plStyleId: string;
@@ -1260,6 +1367,15 @@ export function generateApiUpdateCrDocx(
     const sampleRPr =
       (firstR ? wordChildren(firstR, "rPr")[0] : undefined) ||
       (pPr ? wordChildren(pPr, "rPr")[0] : undefined);
+    const headerRuns = wordChildren(p, "r");
+    const tabIndex = headerRuns.findIndex(
+      (r) => wordChildren(r, "tab").length > 0
+    );
+    const tdocRun =
+      tabIndex >= 0
+        ? headerRuns.slice(tabIndex + 1).find((r) => visibleWordText(r).trim())
+        : undefined;
+    const tdocRPr = (tdocRun && wordChildren(tdocRun, "rPr")[0]) || sampleRPr;
     for (const child of [...p.children]) {
       if (child !== pPr) child.remove();
     }
@@ -1278,7 +1394,7 @@ export function generateApiUpdateCrDocx(
 
     if (config.tdocPlaceholder) {
       const rTdoc = doc.createElementNS(W_NS, "w:r");
-      if (sampleRPr) rTdoc.append(sampleRPr.cloneNode(true));
+      if (tdocRPr) rTdoc.append(tdocRPr.cloneNode(true));
       const tTdoc = doc.createElementNS(W_NS, "w:t");
       tTdoc.textContent = config.tdocPlaceholder;
       rTdoc.append(tTdoc);
@@ -1292,25 +1408,37 @@ export function generateApiUpdateCrDocx(
     const sampleRPr =
       (firstR ? wordChildren(firstR, "rPr")[0] : undefined) ||
       (pPr ? wordChildren(pPr, "rPr")[0] : undefined);
+    const ordinalRun = wordChildren(p, "r").find((run) =>
+      elementsNS(run, W_NS, "vertAlign").some(
+        (prop) => prop.getAttributeNS(W_NS, "val") === "superscript"
+      )
+    );
+    const ordinalRPr = ordinalRun && wordChildren(ordinalRun, "rPr")[0];
     for (const child of [...p.children]) {
       if (child !== pPr) child.remove();
     }
-    if (config.meetingLocationDate) {
+    const date = config.meetingLocationDate || "";
+    const fragments = ordinalRPr
+      ? date.split(/(?<=\d)(st|nd|rd|th)\b/gi)
+      : [date];
+    fragments.forEach((fragment, index) => {
+      if (!fragment) return;
       const r = doc.createElementNS(W_NS, "w:r");
-      if (sampleRPr) r.append(sampleRPr.cloneNode(true));
+      const style = index % 2 ? ordinalRPr : sampleRPr;
+      if (style) r.append(style.cloneNode(true));
       const t = doc.createElementNS(W_NS, "w:t");
       t.setAttributeNS(XML_NS, "xml:space", "preserve");
-      t.textContent = config.meetingLocationDate;
+      t.textContent = fragment;
       r.append(t);
       p.append(r);
-    }
+    });
   }
 
   // 2. Update Table 1 (Spec, CR, rev, Current version) and Table 3 (Cover metadata)
   const tables = wordChildren(body, "tbl");
   let formUpdated = false;
   let coverUpdated = false;
-  const reasonParagraphs = buildReasonForChangeParagraphs(draft);
+  const bulletId = addCrBulletList(entries);
   const summaryText = buildSummaryOfChange(draft, config.copyrightYear);
   const consequencesText =
     'Incorrect API version number and incorrect TS version number in the "description" field of the "externalDocs" object.';
@@ -1380,9 +1508,19 @@ export function generateApiUpdateCrDocx(
             } else if (label === "release") {
               setCellLinesPreservingStyle(doc, cells[i + 1], [draft.release]);
             } else if (label === "reason for change") {
-              setCellLinesPreservingStyle(doc, cells[i + 1], reasonParagraphs);
+              setFormattedCoverCell(
+                doc,
+                cells[i + 1],
+                reasonParagraphs(draft),
+                bulletId
+              );
             } else if (label === "summary of change") {
-              setCellLinesPreservingStyle(doc, cells[i + 1], [summaryText]);
+              setFormattedCoverCell(
+                doc,
+                cells[i + 1],
+                [{ bullet: true, runs: [{ text: summaryText }] }],
+                bulletId
+              );
             } else if (label === "consequences if not approved") {
               setCellLinesPreservingStyle(doc, cells[i + 1], [
                 consequencesText,
@@ -1460,13 +1598,19 @@ export function generateApiUpdateCrDocx(
   };
 
   draft.apis.forEach((api, idx) => {
-    insertNode(
-      makeSeparatorP(
-        idx === 0
-          ? "==============First change=============="
-          : "==============Next change=============="
-      )
-    );
+    // Consecutive annex clauses form a single change in C3-265629.
+    const previous = draft.apis[idx - 1]?.clause.match(/^(.+)\.(\d+)$/);
+    const consecutive =
+      previous && api.clause === `${previous[1]}.${Number(previous[2]) + 1}`;
+    if (!consecutive) {
+      insertNode(
+        makeSeparatorP(
+          idx === 0
+            ? "==============First change=============="
+            : "==============Next change=============="
+        )
+      );
+    }
     const changeNodes = buildApiYamlChangeNodes(
       doc,
       api,

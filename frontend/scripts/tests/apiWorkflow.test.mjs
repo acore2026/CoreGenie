@@ -386,6 +386,117 @@ test("Full 3-step workflow engine: API_impacts -> CR docx -> Bulk TDoc Allocatio
   );
 });
 
+test("Word cover matches the C3-265629 paragraph and list formatting", async () => {
+  const file = await readFile(
+    path.join(artifacts, "C3-26xxxx_29.574_Rel-20.docx")
+  );
+  const layout = await page.evaluate(
+    async (bytes) => {
+      const { W_NS, parseXml, unpackZip, visibleWordText, wordChildren } =
+        await import("/src/utils/localTools/ooxml.ts");
+      const { addCrBulletList } =
+        await import("/src/utils/localTools/crBulletList.ts");
+      const parts = unpackZip(Uint8Array.from(bytes));
+      const doc = parseXml(parts["word/document.xml"]);
+      const get = (el, name) => [...el.getElementsByTagNameNS(W_NS, name)];
+      const val = (el) => el?.getAttributeNS(W_NS, "val");
+      const text = (el) => visibleWordText(el);
+      const cellParagraphs = (label) => {
+        const cell = get(doc, "tc").find((tc) => text(tc).trim() === label);
+        return wordChildren(cell.nextElementSibling, "p");
+      };
+      const describe = (p) => ({
+        text: text(p),
+        bold: wordChildren(p, "r")
+          .filter((r) => get(r, "b").length)
+          .map(text)
+          .join(""),
+        underline: wordChildren(p, "r")
+          .filter((r) => val(get(r, "u")[0]) === "single")
+          .map(text)
+          .join(""),
+        numId: val(get(p, "numId")[0]),
+        halfLine: get(p, "spacing")[0]?.getAttributeNS(W_NS, "afterLines"),
+      });
+      const paragraphs = cellParagraphs("Reason for change:").map(describe);
+      const summary = describe(cellParagraphs("Summary of change:")[0]);
+      const rels = parseXml(parts["word/_rels/document.xml.rels"]);
+      const rel = [...rels.documentElement.children].find((r) =>
+        r.getAttribute("Type")?.endsWith("/numbering")
+      );
+      const path = "word/" + rel.getAttribute("Target");
+      const types = parseXml(parts["[Content_Types].xml"]);
+      const type = [...types.documentElement.children].find(
+        (t) => t.getAttribute("PartName") === "/" + path
+      );
+      // A form with existing lists must retain their IDs and definitions.
+      const nextId = addCrBulletList(parts);
+      const numbering = parseXml(parts[path]);
+      const num = get(numbering, "num").find(
+        (n) => n.getAttributeNS(W_NS, "numId") === summary.numId
+      );
+      const abstractId = val(get(num, "abstractNumId")[0]);
+      const abstract = get(numbering, "abstractNum").find(
+        (n) => n.getAttributeNS(W_NS, "abstractNumId") === abstractId
+      );
+      const body = get(doc, "body")[0];
+      const [header, date] = wordChildren(body, "p");
+      return {
+        paragraphs,
+        summary,
+        nextId,
+        type: type.getAttribute("ContentType"),
+        marker: val(get(abstract, "lvlText")[0]),
+        format: val(get(abstract, "numFmt")[0]),
+        hanging: get(abstract, "ind")[0].getAttributeNS(W_NS, "hanging"),
+        headerSizes: wordChildren(header, "r")
+          .filter((r) => text(r).trim())
+          .map((r) => val(get(r, "sz")[0])),
+        superscripts: wordChildren(date, "r")
+          .filter((r) => val(get(r, "vertAlign")[0]) === "superscript")
+          .map(text),
+        nextChange: wordChildren(body, "p").some((p) =>
+          text(p).includes("Next change")
+        ),
+      };
+    },
+    [...file]
+  );
+  const { paragraphs, summary } = layout;
+  assert.equal(paragraphs.length, 13);
+  assert.deepEqual(
+    paragraphs.flatMap((p, i) => (p.text ? [] : [i])),
+    [1, 7]
+  );
+  for (const [start, name] of [
+    [2, "Ndccf_DataManagement"],
+    [8, "Ndccf_ContextManagement"],
+  ]) {
+    const [intro, cr1, cr2, version, external] = paragraphs.slice(
+      start,
+      start + 5
+    );
+    assert.equal(intro.bold, name + " API");
+    assert.equal(intro.halfLine, "50");
+    assert.equal(cr1.numId, summary.numId);
+    assert.equal(cr2.numId, summary.numId);
+    assert.match(cr1.text, /^29\./);
+    assert.match(cr2.text, /^29\./);
+    assert.equal(version.underline, version.text);
+    assert.equal(external.bold, "v20.2.0");
+  }
+  assert.equal(paragraphs.filter((p) => p.numId).length, 4);
+  assert.ok(summary.numId);
+  assert.notEqual(layout.nextId, summary.numId);
+  assert.equal(layout.format, "bullet");
+  assert.equal(layout.marker, "-");
+  assert.equal(layout.hanging, "360");
+  assert.match(layout.type, /numbering\+xml$/);
+  assert.deepEqual(layout.headerSizes, ["24", "28"]);
+  assert.deepEqual(layout.superscripts, ["th", "th"]);
+  assert.equal(layout.nextChange, false);
+});
+
 test("UI rendering & interaction across Catalog, API CR Generator, and TDoc Allocation (desktop + mobile)", async () => {
   // 1. Catalog renders all 4 standard tools and subtle contributor labels cleanly
   await page.setViewportSize({ width: 1440, height: 1000 });
@@ -401,8 +512,11 @@ test("UI rendering & interaction across Catalog, API CR Generator, and TDoc Allo
   const baselineContent = (
     await readFile(path.join(artifacts, "29574-k10.docx"))
   ).toString("base64");
-  await page.route("**/api/3gpp/baseline-spec**", (route) =>
-    route.fulfill({
+  const requestedBaselines = [];
+  await page.route("**/api/3gpp/baseline-spec**", (route) => {
+    const params = new URL(route.request().url()).searchParams;
+    requestedBaselines.push([params.get("spec"), params.get("release")]);
+    return route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
@@ -416,25 +530,78 @@ test("UI rendering & interaction across Catalog, API CR Generator, and TDoc Allo
         fetchedAt: "2026-11-28T00:00:00Z",
         content: baselineContent,
       }),
-    })
-  );
+    });
+  });
   await page.goto(`${baseURL}/tools/api-cr-generator`);
-  await page
-    .locator('input[aria-label="选择 API_impacts Excel"]')
-    .setInputFiles(path.join(artifacts, "API_impacts_TSGCT.xlsx"));
-  await page.getByText("整理出 2 篇待生成 CR").waitFor();
-
-  // Filter to 29.574 and fetch baseline directly via official archive button
-  await page
-    .getByPlaceholder("例如 29.574, 29.522 或 Ndccf")
-    .fill("29.574");
-  await page.getByText("显示 1 / 2 篇").waitFor();
-  await page
-    .getByRole("button", { name: /从 3GPP 官网拉取已选基线/ })
-    .click();
+  const step1 = page.getByRole("region", { name: "1. 上传 API_impacts 表格" });
+  const step2 = page.getByRole("region", {
+    name: "2. 获取规范基线文件（可选）",
+  });
+  const workbook = await page.evaluate(async () => {
+    const { buildSimpleXlsx } = await import("/src/utils/localTools/ooxml.ts");
+    const rows = Array.from({ length: 210 }, (_, i) => [
+      `C3-${260000 + i}`,
+      "29.522",
+      String(i + 1),
+      i % 2 ? "Rel-20" : "Rel-19",
+      "F",
+      i % 3
+        ? "TS29574_Ndccf_DataManagement.yaml"
+        : "TS29522_ServiceParameter.yaml",
+      "",
+      "",
+    ]);
+    return [
+      ...buildSimpleXlsx({
+        sheetName: "CT3_Impacts",
+        headers: [
+          "TDoc #",
+          "Spec #",
+          "CR #",
+          "Release",
+          "Cat",
+          "API impacts",
+          "Potentially missing impacts",
+          "Other comments",
+        ],
+        rows,
+      }),
+    ];
+  });
+  await step1.getByLabel("选择 API_impacts Excel").setInputFiles({
+    name: "API_impacts_TSGCT.xlsx",
+    mimeType:
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    buffer: Buffer.from(workbook),
+  });
+  await step1.getByText(/210 条源 CR 记录，整理出 4 篇/).waitFor();
+  const filter = step1.getByLabel(/按规范号或 API 筛选/);
+  const release = step1.getByLabel("按 Release 筛选");
+  const fetchButton = step2.getByRole("button", {
+    name: /从 3GPP 官网拉取已选基线/,
+  });
+  await filter.fill("Ndccf");
+  await step1.getByText("筛选后有 2 篇待生成 CR。").waitFor();
+  await release.selectOption("Rel-20");
+  await step1.getByText("筛选后有 1 篇待生成 CR。").waitFor();
+  await page.getByText("显示 1 / 4 篇").waitFor();
+  assert.match(await fetchButton.innerText(), /1 份/);
+  assert.equal(requestedBaselines.length, 0);
+  await fetchButton.click();
   await page.getByText("已从 3GPP 官方归档拉取并应用 1 份规范基线").waitFor();
-  await page.getByText("查看 3GPP 官方归档来源").waitFor();
-  await page.getByText("TS 29.574 · Rel-20").waitFor();
+  assert.deepEqual(requestedBaselines, [["29.574", "Rel-20"]]);
+  const source = step2.getByText("查看 3GPP 官方归档来源");
+  await source.waitFor();
+  await filter.fill("29.999");
+  await step1.getByText(/没有匹配的 CR/).waitFor();
+  assert.ok(await fetchButton.isDisabled());
+  assert.ok(await source.isHidden());
+  await filter.fill("29.574");
+  await release.selectOption("Rel-19");
+  await page.getByRole("heading", { name: "TS 29.574 · Rel-19" }).waitFor();
+  assert.ok(await source.isHidden());
+  await release.selectOption("Rel-20");
+  await source.waitFor();
 
   // Trigger ZIP export and verify download succeeds
   const [zipDownload] = await Promise.all([
@@ -445,6 +612,10 @@ test("UI rendering & interaction across Catalog, API CR Generator, and TDoc Allo
 
   // Check mobile layout overflow on Tool 1
   await page.setViewportSize({ width: 390, height: 844 });
+  assert.ok(await filter.isVisible());
+  const mobileFilter = await filter.boundingBox();
+  const mobileFetch = await fetchButton.boundingBox();
+  assert.ok(mobileFilter.y + mobileFilter.height <= mobileFetch.y);
   const overflow1 = await page.evaluate(
     () => document.documentElement.scrollWidth - window.innerWidth
   );

@@ -142,14 +142,14 @@ const TRANSLATIONS = {
       upload_section: "选择输入文件",
       step1_title: "1. 上传 API_impacts 表格",
       step1_hint:
-        "选择 3GPP 会后制作的 API_impacts_TSGCT.xlsx。工具会读取含 TDoc #、Spec #、CR #、Release、API impacts、Other comments 等列的工作表，按受影响的目标规范和 Release 分组。",
+        "上传 API_impacts_TSGCT.xlsx 后，可按规范号、API 名称或 Release 筛出这次要处理的 CR。",
       choose_impacts: "选择 API_impacts Excel",
       clear_impacts: "清空表格",
       impacts_loaded:
         "已读取工作表：{{sheets}}；共 {{rows}} 条源 CR 记录，整理出 {{crs}} 篇待生成 CR。",
       step2_title: "2. 获取规范基线文件（可选）",
       step2_hint:
-        "上传表格后可直接从 3GPP 正式归档一键拉取已选规范最新版，或手动上传本地规范 Word（.docx）/ YAML。工具会自动提取附录条款号、当前版本号和完整 YAML 并生成正文修订标记。",
+        "从 3GPP 官网获取第 1 步筛选范围内已勾选规范的基线，也可以上传本地 Word 或 YAML。工具会从基线中提取条款号、版本号和 YAML 正文。",
       choose_baselines: "上传本地 Word / YAML",
       fetch_official_selected: "从 3GPP 官网拉取已选基线（{{count}} 份）",
       fetch_official_single: "拉取官网基线",
@@ -197,6 +197,8 @@ const TRANSLATIONS = {
       filter_spec: "按规范号或 API 筛选（可填多个，用空格或逗号隔开）",
       filter_spec_placeholder: "例如 29.574, 29.522 或 Ndccf",
       filter_release: "按 Release 筛选",
+      filter_result: "筛选后有 {{count}} 篇待生成 CR。",
+      filter_no_results: "没有匹配的 CR，请调整规范号、API 名称或 Release。",
       all_releases: "全部 Release",
       cr_card_meta: "涉及 {{apis}} 个 API · 基线：{{baseline}}",
       no_baseline: "未匹配基线（可手动填写版本号）",
@@ -225,8 +227,7 @@ const TRANSLATIONS = {
       export_progress: "正在生成第 {{current}} / {{total}} 篇 CR…",
       export_single_done: "已生成并下载 {{name}}。",
       export_zip_done: "已生成 {{count}} 篇 CR 并打包下载。",
-      empty:
-        "上传 API_impacts_TSGCT.xlsx 后，在这里筛选规范、核对版本号并生成 CR。",
+      empty: "上传 API_impacts_TSGCT.xlsx 后，可以在这里核对版本号并生成 CR。",
       errors: {
         api_impacts_columns:
           "表格中未找到 API impacts 和 TDoc # / Spec # 列，请确认上传的是 API_impacts 表格。",

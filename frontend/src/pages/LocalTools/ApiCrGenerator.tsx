@@ -24,6 +24,7 @@ import {
 } from "@/utils/localTools/ooxml";
 import {
   applyBaselinesToDrafts,
+  baselineMatchesDraft,
   buildReasonForChangeParagraphs,
   computeNextApiVersion,
   computeNextTsVersion,
@@ -124,6 +125,17 @@ export default function ApiCrGenerator({
       return tokens.some((tok) => haystack.includes(tok));
     });
   }, [drafts, specFilter, releaseFilter]);
+
+  const filterActive = Boolean(specFilter.trim()) || releaseFilter !== "all";
+  const visibleBaselines = useMemo(
+    () =>
+      workbook && filterActive
+        ? baselines.filter((baseline) =>
+            visibleDrafts.some((draft) => baselineMatchesDraft(baseline, draft))
+          )
+        : baselines,
+    [baselines, visibleDrafts, workbook, filterActive]
+  );
 
   const selectedVisible = useMemo(
     () => visibleDrafts.filter((d) => d.selected),
@@ -503,8 +515,14 @@ export default function ApiCrGenerator({
             className="grid gap-4 md:grid-cols-2"
             aria-label={tr("upload_section")}
           >
-            <div className="rounded-xl border border-theme-sidebar-border p-5">
-              <h2 className="flex items-center gap-2 font-medium">
+            <section
+              aria-labelledby="api-cr-step-1"
+              className="rounded-xl border border-theme-sidebar-border p-5"
+            >
+              <h2
+                id="api-cr-step-1"
+                className="flex items-center gap-2 font-medium"
+              >
                 <FileXls size={21} />
                 {tr("step1_title")}
               </h2>
@@ -552,10 +570,57 @@ export default function ApiCrGenerator({
                   </p>
                 </div>
               )}
-            </div>
+              {workbook && (
+                <div className="mt-4 grid gap-3">
+                  <label className="block text-sm">
+                    {tr("filter_spec")}
+                    <input
+                      type="text"
+                      className={`${input} mt-1.5`}
+                      placeholder={tr("filter_spec_placeholder")}
+                      value={specFilter}
+                      disabled={locked}
+                      onChange={(e) => setSpecFilter(e.target.value)}
+                    />
+                  </label>
+                  <label className="block text-sm">
+                    {tr("filter_release")}
+                    <select
+                      className={`${input} mt-1.5`}
+                      value={releaseFilter}
+                      disabled={locked}
+                      onChange={(e) => setReleaseFilter(e.target.value)}
+                    >
+                      <option value="all">{tr("all_releases")}</option>
+                      {releases.map((rel) => (
+                        <option key={rel} value={rel}>
+                          {rel}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {filterActive && (
+                    <p
+                      role="status"
+                      className="text-xs text-theme-text-secondary"
+                    >
+                      {visibleDrafts.length
+                        ? tr("filter_result", { count: visibleDrafts.length })
+                        : tr("filter_no_results")}
+                    </p>
+                  )}
+                </div>
+              )}
+            </section>
 
-            <div className="rounded-xl border border-theme-sidebar-border p-5">
-              <h2 className="flex items-center gap-2 font-medium">
+            <section
+              aria-labelledby="api-cr-step-2"
+              className="rounded-xl border border-theme-sidebar-border p-5"
+            >
+              <h2
+                id="api-cr-step-2"
+                className="flex items-center gap-2 font-medium"
+              >
                 <FileDoc size={21} />
                 {tr("step2_title")}
               </h2>
@@ -601,9 +666,9 @@ export default function ApiCrGenerator({
                   {tr("choose_baselines")}
                 </button>
               </div>
-              {baselines.length > 0 && (
+              {visibleBaselines.length > 0 && (
                 <ul className="mt-3 space-y-2">
-                  {baselines.map((b) => (
+                  {visibleBaselines.map((b) => (
                     <li
                       key={b.id}
                       className="flex items-start justify-between gap-2 rounded-md border border-theme-sidebar-border p-2 text-xs"
@@ -647,7 +712,7 @@ export default function ApiCrGenerator({
                   ))}
                 </ul>
               )}
-            </div>
+            </section>
           </section>
 
           <section
@@ -892,34 +957,6 @@ export default function ApiCrGenerator({
                     {tr("deselect_all")}
                   </button>
                 </div>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-3">
-                <label className="block text-sm sm:col-span-2">
-                  {tr("filter_spec")}
-                  <input
-                    type="text"
-                    className={`${input} mt-1.5`}
-                    placeholder={tr("filter_spec_placeholder")}
-                    value={specFilter}
-                    onChange={(e) => setSpecFilter(e.target.value)}
-                  />
-                </label>
-                <label className="block text-sm">
-                  {tr("filter_release")}
-                  <select
-                    className={`${input} mt-1.5`}
-                    value={releaseFilter}
-                    onChange={(e) => setReleaseFilter(e.target.value)}
-                  >
-                    <option value="all">{tr("all_releases")}</option>
-                    {releases.map((rel) => (
-                      <option key={rel} value={rel}>
-                        {rel}
-                      </option>
-                    ))}
-                  </select>
-                </label>
               </div>
 
               {visibleDrafts.map((draft) => {
