@@ -12,6 +12,7 @@
     "build": "pnpm typecheck && vite build && node scripts/postbuild.js",
     "preview:local-tools": "node scripts/preview-local-tools.mjs",
     "test:proposal-fill": "node --test scripts/tests/proposalFill.test.mjs",
+    "test:api-workflow": "node --test scripts/tests/apiWorkflow.test.mjs",
     "test:network-auth": "vitest run src/utils/networkAuth.test.mjs",
     "lint:check": "eslint src",
     "lint": "eslint --fix src",

@@ -76,6 +76,12 @@ export default function LocalTools({
                 </p>
                 <p className="mt-1.5 text-xs leading-5 text-theme-text-secondary">
                   {tr("privacy")}
+                  <span className="ml-2 text-theme-text-secondary/70">
+                    ·{" "}
+                    {tr("contributor_label", {
+                      name: tr("contributors.proposal-fill"),
+                    })}
+                  </span>
                 </p>
               </div>
             </div>

@@ -27,6 +27,8 @@ export default {
   help: (tab) => (tab ? `/help?tab=${encodeURIComponent(tab)}` : "/help"),
   protocolFinder: () => "/tools/protocol-finder",
   tools: () => "/tools",
+  apiCrGenerator: () => "/tools/api-cr-generator",
+  tdocAllocation: () => "/tools/tdoc-allocation",
   proposalFill: () => "/tools/proposal-fill",
   login: (noTry = false) => {
     return `/login${noTry ? "?nt=1" : ""}`;

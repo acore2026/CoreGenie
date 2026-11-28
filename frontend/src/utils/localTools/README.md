@@ -3,8 +3,11 @@
 工具使用 TypeScript，Word 和 Excel 文件在浏览器中处理。官网下载由已登录的服务端从 3GPP 官方目录读取，不上传 Word。
 
 - `types.ts`：CR 和普通技术提案、会议清单、匹配结果、修改计划和导出文件的类型。
+- `ooxml.ts`：浏览器端 ZIP / OOXML 通用读写、简单 `.xlsx` 构建和下载辅助。
+- `apiImpactCr.ts`：解析 `API_impacts_TSGCT.xlsx` 与可选规范基线 `.docx`/`.yaml`，按 TS 29.501 规则计算版本号并生成 `CR-Form-v13.0.1` Word 文档。
+- `tdocAllocation.ts`：从 CR 与普通 Word 提案提取封面元数据，导出 21 列 `Template_Bulk_TDoc_Allocation.xlsx`。
 - `proposalFill.ts`：读取文件、匹配记录、生成修改计划和导出副本。
-- `../../pages/LocalTools/`：工具目录和操作页，使用 TSX。
+- `../../pages/LocalTools/`：工具目录和操作页（`ApiCrGenerator.tsx`、`TdocAllocation.tsx`、`index.tsx`、`ProtocolFinder.tsx`），使用 TSX。
 
 支持 CR-Form-v13.0.1，以及首页段落或表格标注 Title、Source 的普通提案。
 CR 更新 TDoc、CR、rev、Current version；普通提案只更新 TDoc，保留正文及版本号。

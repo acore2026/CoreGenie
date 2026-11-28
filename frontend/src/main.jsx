@@ -70,6 +70,22 @@ const router = createBrowserRouter([
         },
       },
       {
+        path: "/tools/api-cr-generator",
+        lazy: async () => {
+          const { default: ApiCrGenerator } =
+            await import("@/pages/LocalTools/ApiCrGenerator");
+          return { element: <PrivateRoute Component={ApiCrGenerator} /> };
+        },
+      },
+      {
+        path: "/tools/tdoc-allocation",
+        lazy: async () => {
+          const { default: TdocAllocation } =
+            await import("@/pages/LocalTools/TdocAllocation");
+          return { element: <PrivateRoute Component={TdocAllocation} /> };
+        },
+      },
+      {
         path: "/tools/proposal-fill",
         lazy: async () => {
           const { default: LocalTools } = await import("@/pages/LocalTools");

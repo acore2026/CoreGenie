@@ -505,6 +505,11 @@ export default function ProtocolFinder() {
               <p className="mt-1 text-sm text-theme-text-secondary">
                 {tr("description")}
               </p>
+              <p className="mt-1 text-xs text-theme-text-secondary/70">
+                {t("local_tools.contributor_label", {
+                  name: t("local_tools.contributors.protocol-finder"),
+                })}
+              </p>
             </div>
           </header>
           <form

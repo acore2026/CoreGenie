@@ -23,6 +23,20 @@ const tools: Array<{
     category: "local_tools.protocol.category",
   },
   {
+    id: "api-cr-generator",
+    path: paths.apiCrGenerator,
+    title: "local_tools.api_cr.title",
+    description: "local_tools.api_cr.summary",
+    category: "local_tools.api_cr.category",
+  },
+  {
+    id: "tdoc-allocation",
+    path: paths.tdocAllocation,
+    title: "local_tools.tdoc_alloc.title",
+    description: "local_tools.tdoc_alloc.summary",
+    category: "local_tools.tdoc_alloc.category",
+  },
+  {
     id: "proposal-fill",
     path: paths.proposalFill,
     title: "local_tools.title",
@@ -69,10 +83,17 @@ export default function ToolCatalog() {
                     <p className="mt-3 text-sm leading-6 text-theme-text-secondary">
                       {t(description)}
                     </p>
-                    <span className="mt-6 inline-flex items-center gap-2 text-sm font-medium">
-                      {t("local_tools.open_tool")}
-                      <ArrowRight size={16} />
-                    </span>
+                    <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-6">
+                      <span className="inline-flex items-center gap-2 text-sm font-medium">
+                        {t("local_tools.open_tool")}
+                        <ArrowRight size={16} />
+                      </span>
+                      <span className="text-xs text-theme-text-secondary/70">
+                        {t("local_tools.contributor_label", {
+                          name: t(`local_tools.contributors.${id}`),
+                        })}
+                      </span>
+                    </div>
                   </Link>
                 </li>
               ))}
