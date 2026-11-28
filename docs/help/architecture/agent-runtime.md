@@ -33,7 +33,7 @@ CoreGenie 的 Web 工作台对话**几乎全部运行在异步 Agent 模式下**
 
 ### 2.2 调度、租约与并发控制
 
-[AgentRunSupervisor](../../../server/agent-system/supervisor.js) 随主服务启动，在单进程内维护一个 `PQueue`（默认同时运行 8 个任务，可通过 `AGENT_RUN_CONCURRENCY` 调整）：
+[AgentRunSupervisor](../../../server/agent-system/supervisor.js) 随主服务启动，在单进程内维护一个 `PQueue`（默认同时运行 8 个任务，可通过 `AGENT_RUN_CONCURRENCY` 调整）。之所以在单进程队列之外仍要在数据库里维护租约与心跳，是因为**容器随时可能被强杀或重启，内存队列会丢失；靠数据库租约才能让新进程准确识别中断失联的任务并安全重领，同时避免重复执行仍在跑的任务**：
 
 1. **领取与租约（Lease）**：Worker 执行前通过 `AgentRun.claim` 在数据库中原子登记 `owner`（`hostname:pid:uuid`）和 **5 分钟有效租约**。
 2. **心跳续期**：执行期间每 **10 秒** 续期一次租约；即便某些同步预处理短暂阻塞事件循环，5 分钟窗口也避免被误判为失联而重复执行。
@@ -60,7 +60,7 @@ SSE 推送最常见的坑是“查历史事件”和“订阅实时事件”之�
 
 ## 3. 三种运行时与 `governed-agent` 状态机
 
-Executor 根据运行快照中的 `runtimeKey` 和版本，从 [运行时注册表](../../../server/agent-system/runtimes/registry.js) 加载对应实现：
+不同任务的复杂度差异很大：长文档分析需要拆分计划与复查结果，简单工具问答则希望减少规划开销。因此 Executor 根据运行快照中的 `runtimeKey` 和版本，从 [运行时注册表](../../../server/agent-system/runtimes/registry.js) 按需加载对应实现：
 
 | `runtimeKey` | 定位 | 角色模型支持 | 适用场景 |
 | --- | --- | --- | --- |

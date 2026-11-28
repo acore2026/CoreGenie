@@ -51,7 +51,7 @@ Agent 定义（PredefinedAgent） ── 指定 runtimeKey、允许的工具集�
 | 专题文档 | 对应视角 | 核心解答的问题 |
 | --- | --- | --- |
 | [Agent 运行时与任务调度](architecture/agent-runtime.md) | 进程与执行视图 | 一次任务如何从 `stream-chat` / `agent-runs` 入队、抢占租约、分步调度、通过 SSE 断线补发、以及服务重启后如何从检查点恢复？LLM / LangChain / LangGraph / CoreGenie 各自管什么？ |
-| [配置体系、Skill、工具与沙箱](architecture/config-skills-sandbox.md) | 开发与扩展视图 | `agent-config/` 如何同步到数据库？Skill 三级作用域和三阶段加载怎么工作？如何新增一个 Tool？沙箱 Broker 与一次性 Runner 怎样做到安全隔离？ |
+| [配置体系、Skill、工具与沙箱](architecture/config-skills-sandbox.md) | 开发与扩展视图 | `agent-config/` 为什么分种子与同步两种模式？前台/隐藏/停用几类预置助手除提示词外还有哪 5 项实质差异？Skill 三阶段、工具约束与沙箱隔离如何工作？ |
 | [文档解析、产物与数据存储](architecture/data-and-documents.md) | 数据与文档流视图 | 进程内 `@coregenie/collector` 与沙箱转换的分界在哪？以「3GPP 提案转 Markdown」为例，附件如何进入沙箱、产出如何登记为可下载产物？PostgreSQL、检查点、文件卷与向量库各存什么？ |
 | [部署拓扑、认证与网络边界](architecture/deployment-and-boundaries.md) | 部署与运行视图 | 容器如何编排？本地账号与华为 IDaaS OAuth 如何隔离？企业代理、私有 CA 和离线部署为什么要求服务端与沙箱分别配置？ |
 
