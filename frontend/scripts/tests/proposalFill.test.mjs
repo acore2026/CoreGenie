@@ -927,29 +927,45 @@ test("protocol lookup renders official PDF and missing versions on desktop and m
     });
     await mockAPI(context);
     const tool = await context.newPage();
-    await tool.route("**/3gpp/protocol-finder?**", route => {
+    await tool.route("**/3gpp/protocol-finder?**", route => route.fulfill({ json: {
+      source: "etsi", pdf: "https://www.etsi.org/deliver/etsi_ts/138400_138499/138413/18.06.00_60/ts_138413v180600p.pdf",
+    } }));
+    await tool.route("**/3gpp/doc-assistant/lookup?**", route => {
       const query = new URL(route.request().url()).searchParams;
-      return route.fulfill({ json: query.has("v") ? {
-        pdf: "https://www.etsi.org/deliver/etsi_ts/138400_138499/138413/18.06.00_60/ts_138413v180600p.pdf",
-      } : {
+      const specResult = {
         type: "TS", id: "38.413", title: "NG Application Protocol (NGAP)",
         dir: "https://www.etsi.org/deliver/etsi_ts/138400_138499/138413/",
         requested: query.get("q").includes("i70") ? "18.7.0" : "18.6.0",
-        index: { checked: "2026-11-24T00:00:00Z", entries: [{ version: "18.6.0", date: "11/01/2026" }] },
-      } });
+        index: { checked: "2026-11-24T00:00:00Z", entries: [{source:"etsi", version: "18.6.0", date: "11/01/2026" }] },
+      };
+      return route.fulfill({contentType:"application/x-ndjson", body:JSON.stringify({result:{kind:"spec",specResult}})+"\n"});
     });
     await tool.goto(`${baseURL}/tools/protocol-finder`);
-    await tool.getByLabel("规范编号或文件名").fill("38413-i60.zip");
+    await tool.getByLabel("文档编号或文件名").fill("38413-i60.zip");
     await tool.getByRole("button", { name: "查询", exact: true }).click();
     const pdf = tool.getByRole("link", { name: "打开 PDF ↗", exact: true });
     await pdf.waitFor();
     assert.match(await pdf.getAttribute("href"), /^https:\/\/www\.etsi\.org\/deliver\//);
     assert.equal(await tool.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
     await tool.screenshot({ path: path.join(artifacts, `protocol-${mobile ? "mobile" : "desktop"}.png`), fullPage: true });
-    await tool.getByLabel("规范编号或文件名").fill("38413-i70.zip");
+    await tool.getByLabel("文档编号或文件名").fill("38413-i70.zip");
     await tool.getByRole("button", { name: "查询", exact: true }).click();
     await tool.getByText("目录中没有这个版本。可选择其他版本，或刷新目录。").waitFor();
     assert.equal(await pdf.count(), 0);
+    await tool.getByRole("button", {name:"38413-i60.zip",exact:true}).click();
+    assert.equal(await tool.getByLabel("文档编号或文件名").inputValue(), "38413-i60.zip");
+    assert.equal(await pdf.count(), 0);
+    await tool.route("**/3gpp/doc-assistant/config", route => route.fulfill({json:{groups:["SA2"],maxBatchItems:50}}));
+    await tool.route("**/3gpp/doc-assistant/meetings?**", route => route.fulfill({json:{meetings:[]}}));
+    await tool.route("**/3gpp/doc-assistant/batch-list?**", route => route.fulfill({json:{files:[{name:"S2-2407853.zip",url:"https://www.3gpp.org/ftp/example.zip"}]}}));
+    await tool.getByRole("button",{name:"批量下载",exact:true}).click();
+    await tool.getByLabel("会议号",{exact:true}).fill("164");
+    await tool.getByRole("button",{name:"列出文件"}).click();
+    await tool.getByText("S2-2407853.zip",{exact:true}).waitFor();
+    assert.equal(await tool.getByRole("button",{name:"打包下载（0）"}).isDisabled(),true);
+    await tool.getByLabel("S2-2407853.zip").check();
+    assert.equal(await tool.getByRole("button",{name:"打包下载（1）"}).isEnabled(),true);
+    assert.equal(await tool.locator("main").evaluate(e=>e.scrollWidth>e.clientWidth),false);
     await context.close();
   }
 });

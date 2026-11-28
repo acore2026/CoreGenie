@@ -1,3 +1,4 @@
+import docAssistant from "./docAssistant.js";
 // Anything with "null" requires a translation. Contribute to translation via a PR!
 const TRANSLATIONS = {
   personal_skills: {
@@ -63,13 +64,14 @@ const TRANSLATIONS = {
     load_skill_error: "无法加载 Skill，请关闭后重试。",
   },
   local_tools: {
+    docAssistant,
     protocol: {
-      title: "3GPP 规范 PDF 查询",
+      title: "3GPP 文档速查",
       description:
-        "按规范编号或文件名查找 ETSI 官方 PDF；未在 ETSI 发布的 R20 和草案规范，可从 3GPP 官方归档按需转为 PDF 在浏览器中打开。",
-      category: "3GPP 规范",
-      label: "规范编号或文件名",
-      hint: "例如 38.413、23.501、23.801-01 或 38413-i60.zip",
+        "输入提案号、规范号、RFC 或 IETF Draft 名称即可查看原文。也可以按会议查找议程、纪要和 CR，勾选后批量下载。",
+      category: "3GPP 文档",
+      label: "文档编号或文件名",
+      hint: "例如 S2-2500105、23.501 或 RFC 2697",
       search: "查询",
       release: "Release",
       draft_release: "草案 (0.x–2.x)",
@@ -128,7 +130,7 @@ const TRANSLATIONS = {
     nav: "日常工具",
     title: "提案编号回填工具",
     catalog_description:
-      "按工作内容找工具。目前可以查 3GPP 规范、生成 API 版本更新 CR、导出文稿号申请表，以及回填提案编号。",
+      "按工作内容找工具。目前可以查 3GPP 文档、生成 API 版本更新 CR、导出文稿号申请表，以及回填提案编号。",
     api_cr: {
       title: "API 版本更新 CR 生成",
       category: "3GPP 提案 · 步骤 1",

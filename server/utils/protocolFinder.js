@@ -6,6 +6,17 @@ const exec = require("node:util").promisify(
   require("node:child_process").execFile
 );
 const pdfTools = require("./protocolFinderPdf");
+const {
+  parseSpecNumber,
+  matchSpecFilename,
+  RELEASE_LADDER,
+} = require("./threeGppClassifier");
+const {
+  PUBLIC_FTP_BASE,
+  getActiveSources,
+  listFromSource,
+  getMirrorConfig,
+} = require("./threeGppSources");
 
 const USER_AGENT = "Mozilla/5.0 AnythingLLM-Agent/1.0";
 
@@ -68,16 +79,9 @@ function compareVersionsDesc(a, b) {
 }
 
 function parseQuery(q, v) {
-  const match =
-    typeof q === "string" &&
-    q.length <= 100 &&
-    q
-      .trim()
-      .match(
-        /^(?:3GPP\s+)?(?:(TS|TR)\s*)?(\d{2})\.?(\d{3})(?:-(\d{1,2})(?=$|\s|-))?(?:-([\da-z]{3})|\s+v?(\d{1,2}\.\d{1,2}\.\d{1,2}))?(?:\.(?:zip|docx?))?$/i
-      );
   if (
-    !match ||
+    typeof q !== "string" ||
+    q.length > 100 ||
     (v !== undefined &&
       (typeof v !== "string" || !/^\d{1,2}\.\d{1,2}\.\d{1,2}$/.test(v)))
   )
@@ -85,19 +89,26 @@ function parseQuery(q, v) {
       "请输入有效的规范编号或文件名，例如 38.413-i60 或 23.801-01。"
     );
 
-  const [, kind, series, item, rawPart, code, dotted] = match;
-  const partNumeric = rawPart ? String(Number(rawPart)) : "";
-  const partPadded = rawPart ? rawPart.padStart(2, "0") : "";
-  const id = series + "." + item + (rawPart ? "-" + rawPart : "");
+  const parsed = parseSpecNumber(q);
+  if (!parsed)
+    throw invalid(
+      "请输入有效的规范编号或文件名，例如 38.413-i60 或 23.801-01。"
+    );
+
+  const { kind, series, num, requestedVersion } = parsed;
+  const numParts = num.split("-");
+  const item = numParts[0];
+  const rawPart = numParts.length > 1 ? numParts.slice(1).join("-") : "";
+  const isSinglePart = numParts.length === 2;
+  const partNumeric = isSinglePart ? String(Number(rawPart)) : rawPart;
+  const partPadded = isSinglePart ? rawPart.padStart(2, "0") : rawPart;
+  const id = series + "." + num;
   const etsiId = series + "." + item + (partNumeric ? "-" + partNumeric : "");
   const number = "1" + series + item;
-  const key = number + partPadded;
+  const key = number + (isSinglePart ? partPadded : "");
   const base = Math.floor(Number(number) / 100) * 100;
-  const requested = code
-    ? [...code.toLowerCase()].map((c) => parseInt(c, 36)).join(".")
-    : dotted?.split(".").map(Number).join(".");
 
-  const archiveIds = rawPart
+  const archiveIds = isSinglePart
     ? [
         ...new Set([
           `${series}.${item}-${rawPart}`,
@@ -105,13 +116,14 @@ function parseQuery(q, v) {
           `${series}.${item}-${partNumeric}`,
         ]),
       ]
-    : [`${series}.${item}`];
+    : [`${series}.${num}`];
 
   return {
-    kind: kind ? kind.toUpperCase() : null,
+    kind,
     series,
     item,
-    rawPart: rawPart || "",
+    num,
+    rawPart,
     partNumeric,
     partPadded,
     id,
@@ -119,16 +131,33 @@ function parseQuery(q, v) {
     number,
     key,
     base,
-    requested,
+    requested: requestedVersion,
+    ver: parsed.ver,
     archiveIds,
+    parsedSpec: parsed,
   };
 }
 
-async function directory(url) {
+async function directory(url, signal) {
   return (
-    await exec("curl", ["-fsS", "--max-time", "15", "-A", USER_AGENT, url], {
-      maxBuffer: 8 * 1024 * 1024,
-    })
+    await exec(
+      "curl",
+      [
+        "-fsS",
+        "--max-time",
+        "15",
+        "-A",
+        USER_AGENT,
+        ...(getMirrorConfig().proxyUrl
+          ? ["--proxy", getMirrorConfig().proxyUrl]
+          : []),
+        url,
+      ],
+      {
+        maxBuffer: 8 * 1024 * 1024,
+        signal,
+      }
+    )
   ).stdout;
 }
 
@@ -150,8 +179,13 @@ function formatArchiveSize(rawText) {
 
 function parseThreeGppArchiveHtml(html, baseUrl, spec) {
   const $ = load(html);
+  const partPattern = spec.rawPart
+    ? spec.rawPart.includes("-")
+      ? `-${spec.rawPart.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`
+      : `-0?${spec.partNumeric}`
+    : "";
   const pattern = new RegExp(
-    `^${spec.series}${spec.item}${spec.rawPart ? `-0?${spec.partNumeric}` : ""}-([0-9a-z]{3})\\.zip$`,
+    `^${spec.series}${spec.item}${partPattern}-([0-9a-z]{3})\\.zip$`,
     "i"
   );
   const byVersion = new Map();
@@ -232,7 +266,7 @@ function parseThreeGppArchiveHtml(html, baseUrl, spec) {
 
 const SERIES_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
-async function loadSeriesSubSpecs(spec, refresh, cache, kiMap) {
+async function loadSeriesSubSpecs(spec, refresh, cache, kiMap, signal) {
   if (spec.rawPart) return [];
   const seriesDir = `https://www.3gpp.org/ftp/Specs/archive/${spec.series}_series/`;
   const file = `3gpp-series-${spec.series}.json`;
@@ -246,7 +280,7 @@ async function loadSeriesSubSpecs(spec, refresh, cache, kiMap) {
 
   if (isStale) {
     try {
-      const html = await directory(seriesDir);
+      const html = await directory(seriesDir, signal);
       const $ = load(html);
       const dirs = new Set();
       $("a[href]").each((_, el) => {
@@ -276,6 +310,7 @@ async function loadSeriesSubSpecs(spec, refresh, cache, kiMap) {
       };
       await cache.save(file, seriesIndex);
     } catch {
+      signal?.throwIfAborted();
       if (!seriesIndex) {
         await cache.save(file, {
           dirs: [],
@@ -355,7 +390,8 @@ async function createCacheHelpers() {
   return { read, save };
 }
 
-async function loadEtsiIndex(spec, refresh, cache) {
+async function loadEtsiIndex(spec, refresh, cache, signal) {
+  if (spec.rawPart.includes("-")) return { found: false };
   const types = spec.kind
     ? [spec.kind]
     : Number(spec.item) >= 700
@@ -384,7 +420,9 @@ async function loadEtsiIndex(spec, refresh, cache) {
     if (!index || index.missing || refresh === "1") {
       try {
         const entries = [];
-        for (const row of (await directory(dir)).split(/<br\s*\/?\s*>/i)) {
+        for (const row of (await directory(dir, signal)).split(
+          /<br\s*\/?\s*>/i
+        )) {
           const folder = row.match(/>(\d+\.\d+\.\d+_\d+)\s*<\/a>/i)?.[1];
           if (folder) {
             entries.push({
@@ -403,6 +441,7 @@ async function loadEtsiIndex(spec, refresh, cache) {
         index = { entries, checked: new Date().toISOString() };
         await cache.save(file, index);
       } catch (error) {
+        signal?.throwIfAborted();
         if (!index && isHttpMissing(error)) {
           await cache.save(file, {
             entries: [],
@@ -434,11 +473,62 @@ async function loadEtsiIndex(spec, refresh, cache) {
   return { found: false, error: lastError };
 }
 
-async function loadThreeGppArchiveIndex(spec, refresh, cache) {
+async function loadThreeGppArchiveIndex(
+  spec,
+  refresh,
+  cache,
+  signal,
+  version,
+  release
+) {
   let lastError = null;
 
   for (const archiveId of spec.archiveIds) {
     const archiveDir = `https://www.3gpp.org/ftp/Specs/archive/${spec.series}_series/${archiveId}/`;
+    for (const source of getActiveSources().filter((s) => s.id !== "public")) {
+      const rel = `Specs/archive/${spec.series}_series/${archiveId}`;
+      try {
+        const files = await listFromSource(source, rel, {
+          refresh: refresh === "1",
+          signal,
+        });
+        const entries = files.flatMap((item) => {
+          const match = item.name.match(/^(.*)-([a-z0-9]{3})\.zip$/i);
+          if (!match || match[1] !== archiveId.replace(".", "") || item.isDir)
+            return [];
+          return [
+            {
+              source: "3gpp",
+              mirrored: true,
+              version: [...match[2]].map((c) => parseInt(c, 36)).join("."),
+              zipName: item.name,
+              zipUrl: item.url,
+              zipSize: item.size,
+              date: item.date,
+            },
+          ];
+        });
+        const wanted = version || spec.requested;
+        const wantedRelease = String(release || "").replace(/^rel-?/i, "");
+        if (
+          entries.some((e) =>
+            wanted
+              ? e.version === wanted
+              : !wantedRelease || e.version.split(".")[0] === wantedRelease
+          )
+        )
+          return {
+            found: true,
+            entries,
+            archiveId,
+            archiveDir,
+            checked: new Date().toISOString(),
+          };
+      } catch {
+        signal?.throwIfAborted();
+        /* Continue with the next source. */
+      }
+    }
     const file = `3gpp-${archiveId}.json`;
     let index = await cache.read(file);
     let warning = "";
@@ -447,7 +537,7 @@ async function loadThreeGppArchiveIndex(spec, refresh, cache) {
 
     if (!index || index.missing || refresh === "1") {
       try {
-        const html = await directory(archiveDir);
+        const html = await directory(archiveDir, signal);
         const entries = parseThreeGppArchiveHtml(html, archiveDir, spec);
         if (!entries.length) {
           await cache.save(file, {
@@ -467,6 +557,7 @@ async function loadThreeGppArchiveIndex(spec, refresh, cache) {
         };
         await cache.save(file, index);
       } catch (error) {
+        signal?.throwIfAborted();
         if (!index && isHttpMissing(error)) {
           await cache.save(file, {
             entries: [],
@@ -509,6 +600,7 @@ function mergeEntries(etsiEntries, archiveEntries) {
     const existing = byVersion.get(a.version);
     if (existing) {
       existing.zipUrl = a.zipUrl;
+      existing.mirrored = a.mirrored;
       existing.zipName = a.zipName;
       if (a.zipSize) existing.zipSize = a.zipSize;
     } else {
@@ -523,8 +615,10 @@ function mergeEntries(etsiEntries, archiveEntries) {
 async function loadZipManifest(archiveId, entry, refresh, cache) {
   const cacheFile = `3gpp-zip-${archiveId}-${entry.zipName}.json`;
   let manifest = refresh === "1" ? null : await cache.read(cacheFile);
-  if (!manifest) {
-    const inspected = await pdfTools.inspectRemoteZip(entry.zipUrl);
+  if (!manifest || manifest.zipUrl !== entry.zipUrl || entry.mirrored) {
+    const inspected = await pdfTools.inspectRemoteZip(entry.zipUrl, {
+      allowAnyFtp: !!entry.mirrored,
+    });
     manifest = {
       archiveId,
       zipName: entry.zipName,
@@ -534,7 +628,7 @@ async function loadZipManifest(archiveId, entry, refresh, cache) {
       entries: inspected.entries,
       checked: new Date().toISOString(),
     };
-    await cache.save(cacheFile, manifest);
+    if (!entry.mirrored) await cache.save(cacheFile, manifest);
   }
   return manifest;
 }
@@ -596,15 +690,117 @@ async function decorateZipMembers(archiveId, manifest) {
   return decorated;
 }
 
-async function resolveSpecIndexes({ q, v, refresh }) {
+async function loadThreeGppLatestFallback(spec, rel, signal) {
+  const parsedRel = Number(
+    String(rel || "")
+      .replace(/^rel-?/i, "")
+      .trim()
+  );
+  const candidates = [];
+  if (Number.isInteger(parsedRel) && parsedRel > 0 && parsedRel <= 30) {
+    if (parsedRel <= 2)
+      candidates.push(`${PUBLIC_FTP_BASE}Specs/latest-drafts/`);
+    candidates.push(
+      `${PUBLIC_FTP_BASE}Specs/latest/Rel-${parsedRel}/${spec.series}_series/`
+    );
+  } else {
+    candidates.push(`${PUBLIC_FTP_BASE}Specs/latest-drafts/`);
+    for (const r of RELEASE_LADDER) {
+      candidates.push(
+        `${PUBLIC_FTP_BASE}Specs/latest/Rel-${r}/${spec.series}_series/`
+      );
+    }
+  }
+
+  for (const source of getActiveSources()) {
+    for (const dirUrl of candidates) {
+      try {
+        const items = (
+          await listFromSource(source, dirUrl.slice(PUBLIC_FTP_BASE.length), {
+            signal,
+          })
+        ).filter((x) => !x.isDir);
+        const matchedName = matchSpecFilename(
+          items.map((x) => x.name),
+          spec.parsedSpec,
+          { strictWeb: true }
+        );
+        if (!matchedName) continue;
+        const item = items.find((x) => x.name === matchedName);
+        if (!item) continue;
+        const verMatch = matchedName.match(/-([0-9a-z]{3})\.(?:zip|rar)$/i);
+        const version = verMatch
+          ? [...verMatch[1].toLowerCase()].map((c) => parseInt(c, 36)).join(".")
+          : "0.0.0";
+        return {
+          found: true,
+          archiveId: spec.id,
+          archiveDir: dirUrl,
+          entries: [
+            {
+              version,
+              date: item.date,
+              source: "3gpp",
+              mirrored: source.id !== "public",
+              zipName: item.name,
+              zipUrl: item.url,
+              zipSize: formatArchiveSize(item.size),
+            },
+          ],
+          checked: new Date().toISOString(),
+          warning: "",
+        };
+      } catch {
+        signal?.throwIfAborted();
+        // Try next directory in ladder
+      }
+    }
+  }
+  return { found: false };
+}
+
+async function resolveSpecIndexes({ q, v, rel, refresh, signal }) {
   const spec = parseQuery(q, v);
   const cache = await createCacheHelpers();
   const kiMap = await loadOfficialKiMap();
-  const [etsi, archive, subSpecs] = await Promise.all([
-    loadEtsiIndex(spec, refresh, cache),
-    loadThreeGppArchiveIndex(spec, refresh, cache),
-    v === undefined ? loadSeriesSubSpecs(spec, refresh, cache, kiMap) : [],
+  const [etsi, archiveRaw, subSpecs] = await Promise.all([
+    loadEtsiIndex(spec, refresh, cache, signal),
+    loadThreeGppArchiveIndex(spec, refresh, cache, signal, v, rel),
+    v === undefined
+      ? loadSeriesSubSpecs(spec, refresh, cache, kiMap, signal)
+      : [],
   ]);
+
+  let archive = archiveRaw;
+  const targetVersion = v || spec.requested;
+  const targetRelease = String(rel || "").replace(/^rel-?/i, "");
+  const indexed = [...(etsi.entries || []), ...(archive.entries || [])];
+  if (
+    !indexed.length ||
+    (targetVersion && !indexed.some((e) => e.version === targetVersion)) ||
+    (targetRelease &&
+      !indexed.some((e) => e.version.split(".")[0] === targetRelease))
+  ) {
+    const versionCode =
+      targetVersion &&
+      targetVersion
+        .split(".")
+        .map((n) => Number(n).toString(36))
+        .join("");
+    const target = versionCode
+      ? { ...spec, parsedSpec: { ...spec.parsedSpec, ver: "-" + versionCode } }
+      : spec;
+    const fallback = await loadThreeGppLatestFallback(
+      target,
+      rel || targetVersion?.split(".")[0],
+      signal
+    );
+    if (fallback.found)
+      archive = {
+        ...fallback,
+        entries: [...(archive.entries || []), ...fallback.entries],
+      };
+  }
 
   if (!etsi.found && !archive.found) {
     if (subSpecs.length > 0 && v === undefined) {
@@ -645,6 +841,25 @@ async function resolveSpecIndexes({ q, v, refresh }) {
   const warnings = [etsi.warning, archive.warning].filter(Boolean);
   const study = kiMap.get(canonicalId);
 
+  let requested = spec.requested;
+  if (!requested && rel !== undefined && String(rel).trim()) {
+    const cleanRel = String(rel)
+      .trim()
+      .replace(/^rel-?/i, "");
+    const relNum = Number(cleanRel);
+    if (Number.isInteger(relNum) && relNum >= 0 && relNum <= 30) {
+      const hit = entries.find((e) => {
+        const major = Number(String(e.version || "").split(".")[0]);
+        return relNum <= 2 ? major <= 2 : major === relNum;
+      });
+      if (hit) requested = hit.version;
+      else
+        warnings.push(
+          `该规范暂无 Release ${relNum} 版本，已显示最新可用版本。`
+        );
+    }
+  }
+
   return {
     spec,
     cache,
@@ -657,13 +872,13 @@ async function resolveSpecIndexes({ q, v, refresh }) {
     entries,
     subSpecs,
     checked,
-    requested: spec.requested,
+    requested,
     warning: warnings.join(" "),
   };
 }
 
-async function resolveProtocol({ q, v, refresh }) {
-  const ctx = await resolveSpecIndexes({ q, v, refresh });
+async function resolveProtocol({ q, v, rel, refresh, signal }) {
+  const ctx = await resolveSpecIndexes({ q, v, rel, refresh, signal });
 
   if (v !== undefined) {
     const entry = ctx.entries.find((e) => e.version === v);
@@ -673,7 +888,7 @@ async function resolveProtocol({ q, v, refresh }) {
       const name = ctx.type + ctx.spec.key + "-" + entry.folder + ".json";
       let pdf = await ctx.cache.read(name);
       if (!pdf) {
-        const page = await directory(ctx.dir + entry.folder + "/");
+        const page = await directory(ctx.dir + entry.folder + "/", signal);
         const filename = page.match(/href="[^"]*\/([a-z0-9_-]+\.pdf)"/i)?.[1];
         if (!filename) throw invalid("此版本目录中没有 PDF。", 404);
         pdf = ctx.dir + entry.folder + "/" + filename;
@@ -731,6 +946,7 @@ async function resolveMemberTarget({ q, v, member }) {
     archiveId: ctx.id,
     zipName: manifest.zipName,
     zipUrl: manifest.zipUrl,
+    allowAnyFtp: !!entry.mirrored,
     entry: target,
   };
 }

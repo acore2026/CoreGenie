@@ -5,49 +5,39 @@ import { isMobile } from "react-device-detect";
 import Sidebar, { SidebarMobileHeader } from "@/components/Sidebar";
 import paths from "@/utils/paths";
 import { API_BASE } from "@/utils/constants";
-import { baseHeaders } from "@/utils/request";
 import ToolLogo from "./ToolLogo";
+import DocumentLists from "./docAssistant/DocumentLists";
+import {
+  FileActions,
+  ExternalDocResultView,
+  TdocResultView,
+} from "./docAssistant/TdocResultView";
+import {
+  authHeaders,
+  formatBytes,
+  isWorkingStatus,
+  type ConvertProgress,
+  type SpecResult,
+  lookupUnifiedDoc,
+  tr as docText,
+  type LookupResult,
+} from "./docAssistant/api";
+import { hintKind } from "@/utils/localTools/docClassifier";
 
-interface Entry {
-  version: string;
-  date?: string;
-  source?: "etsi" | "3gpp";
-  zipUrl?: string;
-  zipName?: string;
-  zipSize?: string;
-}
-
-interface SubSpec {
-  id: string;
-  type: string;
-  group?: string;
-  title?: string;
-  kiCount?: number;
-}
-
-interface Result {
-  type: string;
-  id: string;
-  title?: string;
-  dir?: string;
-  archiveDir?: string;
-  sources?: { etsi: boolean; threeGpp: boolean };
-  subSpecs?: SubSpec[];
-  requested?: string;
-  warning?: string;
-  index: { entries: Entry[]; checked: string };
-}
-
-interface ConvertProgress {
-  stage: "queued" | "downloading" | "converting" | "writing_pdf" | "finalizing";
-  queuePosition?: number;
-  elapsedMs: number;
-  stageElapsedMs?: number;
-  timeoutMs?: number;
-  wordBytes?: number;
-  downloadedBytes?: number;
-  downloadTotalBytes?: number;
-  pdfBytes?: number;
+type Tab = "lookup" | "agenda" | "cr" | "batch";
+type Recent = { q: string; hint: string };
+const historyKey = "coregenie.doc-assistant.recent";
+function recentQueries(): Recent[] {
+  try {
+    const saved: unknown = JSON.parse(localStorage.getItem(historyKey) || "[]");
+    return Array.isArray(saved)
+      ? saved
+          .filter((r) => typeof r?.q === "string" && typeof r.hint === "string")
+          .slice(0, 6)
+      : [];
+  } catch {
+    return [];
+  }
 }
 
 interface ZipMember {
@@ -93,15 +83,6 @@ const control =
 const primaryButton =
   "min-h-[40px] max-w-full rounded-md border border-primary-button bg-primary-button px-3 py-2 text-sm font-medium !text-white hover:opacity-90 focus-visible:ring-2 focus-visible:ring-primary-button disabled:opacity-50";
 
-function authHeaders(extra: Record<string, string> = {}) {
-  const base = Object.fromEntries(
-    Object.entries(baseHeaders()).filter(
-      (e): e is [string, string] => typeof e[1] === "string"
-    )
-  );
-  return { ...base, ...extra };
-}
-
 async function request(params: Record<string, string>, signal?: AbortSignal) {
   const response = await fetch(
     API_BASE + "/3gpp/protocol-finder?" + new URLSearchParams(params),
@@ -145,13 +126,6 @@ function releaseBucket(version: string) {
   return Number.isFinite(major) && major <= 2 ? "draft" : String(major);
 }
 
-function formatBytes(bytes: number) {
-  if (!Number.isFinite(bytes) || bytes <= 0) return "";
-  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`;
-  return `${bytes} B`;
-}
-
 function formatDuration(ms: number) {
   const sec = Math.max(0, Math.floor(ms / 1000));
   if (sec < 60) return `${sec} 秒`;
@@ -160,19 +134,21 @@ function formatDuration(ms: number) {
   return rem > 0 ? `${min} 分 ${rem} 秒` : `${min} 分钟`;
 }
 
-function isWorkingStatus(status: ZipMember["status"]) {
-  return (
-    status === "queued" || status === "downloading" || status === "converting"
-  );
-}
-
 export default function ProtocolFinder() {
   const { t } = useTranslation();
   const tr = (key: string, params?: Record<string, unknown>) =>
     String(t("local_tools.protocol." + key, params));
 
+  const [tab, setTab] = useState<Tab>("lookup");
+  const [hint, setHint] = useState("");
+  const [recent, setRecent] = useState(recentQueries);
+  const [other, setOther] = useState<Exclude<
+    LookupResult,
+    { kind: "spec" }
+  > | null>(null);
+  const [progress, setProgress] = useState("");
   const [input, setInput] = useState("");
-  const [result, show] = useState<Result | null>(null);
+  const [result, show] = useState<SpecResult | null>(null);
   const [version, select] = useState("");
   const [detail, setDetail] = useState<VersionDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -202,12 +178,14 @@ export default function ProtocolFinder() {
     };
   }, []);
 
-  async function load(q: string, refresh = false) {
+  async function load(q: string, refresh = false, queryHint = hint) {
     active.current?.abort();
     clearAllPolls();
     const controller = new AbortController();
     active.current = controller;
     loading(true);
+    setOther(null);
+    setProgress("");
     show(null);
     select("");
     setDetail(null);
@@ -216,13 +194,31 @@ export default function ProtocolFinder() {
     fail("");
     notify("");
     try {
-      const data: Result = await request(
-        { q, refresh: refresh ? "1" : "0" },
-        controller.signal
+      const value = await lookupUnifiedDoc(
+        {
+          q,
+          hint: hintKind(q) ? queryHint.trim() : "",
+          refresh: refresh ? "1" : "0",
+        },
+        controller.signal,
+        setProgress
       );
       if (controller.signal.aborted) return;
-      show(data);
-      select(data.requested || data.index.entries[0]?.version || "");
+      const next = [
+        { q, hint: queryHint },
+        ...recent.filter((r) => r.q !== q || r.hint !== queryHint),
+      ].slice(0, 6);
+      setRecent(next);
+      try {
+        localStorage.setItem(historyKey, JSON.stringify(next));
+      } catch {
+        /* Storage can be disabled. */
+      }
+      if (value.kind === "spec") {
+        const data = value.specResult;
+        show(data);
+        select(data.requested || data.index.entries[0]?.version || "");
+      } else setOther(value);
     } catch (e) {
       if (!controller.signal.aborted)
         fail(e instanceof Error ? e.message : tr("failed"));
@@ -512,434 +508,555 @@ export default function ProtocolFinder() {
               </p>
             </div>
           </header>
-          <form
-            className="flex flex-wrap items-end gap-3"
-            onSubmit={(e) => {
-              e.preventDefault();
-              load(input.trim());
-            }}
-          >
-            <label className="grid min-w-0 flex-1 gap-2">
-              {tr("label")}
-              <input
-                className={control}
-                placeholder={tr("hint")}
-                value={input}
-                maxLength={100}
-                onChange={(e) => setInput(e.target.value)}
-              />
-            </label>
-            <button className={control} disabled={!input.trim() || busy}>
-              {tr(busy ? "loading" : "search")}
-            </button>
-          </form>
-
-          {result && subSpecs.length > 0 && (
-            <section className="space-y-3 rounded-lg border border-primary-button/40 bg-theme-bg-secondary/30 p-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <h2 className="text-base font-semibold">
-                  {tr(
-                    entries.length === 0
-                      ? "sub_specs_only_title"
-                      : "sub_specs_related_title",
-                    { id: result.id, count: subSpecs.length }
-                  )}
-                </h2>
-                {subSpecs.length > 8 && (
+          <nav className="flex flex-wrap gap-2" aria-label={tr("title")}>
+            {(["lookup", "agenda", "cr", "batch"] as const).map((key) => (
+              <button
+                key={key}
+                type="button"
+                aria-pressed={tab === key}
+                className={tab === key ? primaryButton : control}
+                onClick={() => {
+                  if (tab === key) return;
+                  if (busy) {
+                    active.current?.abort();
+                    loading(false);
+                  }
+                  setTab(key);
+                }}
+              >
+                {docText(key)}
+              </button>
+            ))}
+          </nav>
+          {tab !== "lookup" ? (
+            <DocumentLists key={tab} mode={tab} />
+          ) : (
+            <>
+              <form
+                className="flex flex-wrap items-end gap-3"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  load(input.trim());
+                }}
+              >
+                <label className="grid min-w-[min(100%,16rem)] flex-1 gap-2">
+                  {tr("label")}
                   <input
-                    className={control + " w-full sm:w-72"}
-                    placeholder={tr("sub_specs_filter_placeholder")}
-                    value={subSpecFilter}
-                    onChange={(e) => setSubSpecFilter(e.target.value)}
+                    className={control}
+                    placeholder={tr("hint")}
+                    value={input}
+                    maxLength={160}
+                    onChange={(e) => {
+                      if (hintKind(e.target.value) !== hintKind(input))
+                        setHint("");
+                      setInput(e.target.value);
+                    }}
                   />
+                </label>
+                {hintKind(input) && (
+                  <label className="grid gap-2 text-sm">
+                    {docText(
+                      hintKind(input) === "release"
+                        ? "releaseHint"
+                        : "meetingHint"
+                    )}
+                    <input
+                      className={control + " w-36"}
+                      value={hint}
+                      placeholder={docText(
+                        hintKind(input) === "release"
+                          ? "releaseExample"
+                          : "meetingExample"
+                      )}
+                      maxLength={100}
+                      onChange={(e) => setHint(e.target.value)}
+                    />
+                  </label>
                 )}
-              </div>
-              {filteredSubSpecs.length === 0 ? (
-                <p className="text-sm text-theme-text-secondary">
-                  {tr("filter_empty")}
+                <button
+                  className={primaryButton}
+                  disabled={!input.trim() || busy}
+                >
+                  {tr(busy ? "loading" : "search")}
+                </button>
+                {busy && (
+                  <button
+                    type="button"
+                    className={control}
+                    onClick={() => {
+                      active.current?.abort();
+                      loading(false);
+                      notify(docText("cancelled"));
+                    }}
+                  >
+                    {docText("cancel")}
+                  </button>
+                )}
+              </form>
+              {busy && progress && (
+                <p role="status" className="text-sm">
+                  {progress}
                 </p>
-              ) : (
-                <div className="flex flex-wrap gap-2">
-                  {filteredSubSpecs.map((sub) => (
+              )}
+              {recent.length > 0 && (
+                <div className="flex flex-wrap items-center gap-2 text-sm">
+                  <span className="text-theme-text-secondary">
+                    {docText("recent")}
+                  </span>
+                  {recent.map((r) => (
                     <button
-                      key={sub.id}
+                      key={JSON.stringify(r)}
                       type="button"
-                      className={
-                        control + " flex flex-wrap items-center gap-2 text-left"
-                      }
+                      className={control}
                       onClick={() => {
-                        setInput(sub.id);
-                        load(sub.id);
+                        setInput(r.q);
+                        setHint(r.hint);
                       }}
                     >
-                      <span className="font-mono font-semibold">
-                        {sub.type} {sub.id}
-                      </span>
-                      {(sub.group || sub.title) && (
-                        <span className="text-theme-text-secondary">
-                          {[sub.group, sub.title].filter(Boolean).join(" · ")}
-                        </span>
-                      )}
-                      {sub.kiCount && (
-                        <span className="rounded border border-theme-sidebar-border px-1.5 py-0.5 text-xs text-theme-text-secondary">
-                          {tr("sub_specs_ki_badge", { count: sub.kiCount })}
-                        </span>
-                      )}
+                      {r.q}
+                      {r.hint ? " · " + r.hint : ""}
                     </button>
                   ))}
                 </div>
               )}
-              {entries.length === 0 && (
-                <div className="flex flex-wrap items-center gap-3 pt-1 text-sm text-theme-text-secondary">
-                  {result.archiveDir && (
-                    <a
-                      className={control}
-                      href={result.archiveDir}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      {tr("archive_directory")} ↗
-                    </a>
-                  )}
-                  <button
-                    type="button"
-                    className={control}
-                    onClick={() => load(result.id, true)}
-                  >
-                    {tr("refresh")}
-                  </button>
-                </div>
-              )}
-            </section>
-          )}
+              {other &&
+                (other.kind === "rfc" || other.kind === "ietf-draft" ? (
+                  <ExternalDocResultView result={other} />
+                ) : (
+                  <TdocResultView key={other.zipUrl} result={other} />
+                ))}
 
-          {result && entries.length > 0 && (
-            <section className="space-y-4 rounded-lg border border-theme-sidebar-border p-4">
-              <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-lg font-semibold">
-                  {result.type} {result.id}
-                  {result.title ? ` · ${result.title}` : ""}
-                </h2>
-                {entry && (
-                  <span className="rounded border border-theme-sidebar-border px-2 py-0.5 text-xs text-theme-text-secondary">
-                    {entry.source === "3gpp"
-                      ? tr("source_3gpp")
-                      : tr("source_etsi")}
-                  </span>
-                )}
-              </div>
-
-              <div className="flex flex-wrap gap-4">
-                <label className="flex items-center gap-2">
-                  {tr("release")}
-                  <select
-                    className={control}
-                    value={release}
-                    onChange={(e) => {
-                      const next = entries.find(
-                        (x) => releaseBucket(x.version) === e.target.value
-                      );
-                      if (next) pick(next.version);
-                    }}
-                  >
-                    {!releases.includes(release) && (
-                      <option value={release}>
-                        {release === "draft" ? tr("draft_release") : release}
-                      </option>
-                    )}
-                    {releases.map((r) => (
-                      <option key={r} value={r}>
-                        {r === "draft" ? tr("draft_release") : r}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label className="flex items-center gap-2">
-                  {tr("revision")}
-                  <select
-                    className={control}
-                    value={version}
-                    onChange={(e) => pick(e.target.value)}
-                  >
-                    {!entry && <option value={version}>{version}</option>}
-                    {entries
-                      .filter((e) => releaseBucket(e.version) === release)
-                      .map((e) => (
-                        <option key={e.version} value={e.version}>
-                          {e.version}
-                          {hasBothSources
-                            ? `（${e.source === "3gpp" ? tr("source_3gpp_short") : tr("source_etsi_short")}）`
-                            : ""}
-                        </option>
-                      ))}
-                  </select>
-                </label>
-              </div>
-
-              {entry ? (
-                <p className="text-sm text-theme-text-secondary">
-                  {tr("folder")} · {entry.date || "-"}
-                  {entry.zipSize ? ` · ${entry.zipSize}` : ""}
-                </p>
-              ) : (
-                <p>{tr("missing")}</p>
-              )}
-
-              {entry?.source === "3gpp" && (
-                <p className="rounded-md border border-theme-sidebar-border bg-theme-bg-secondary/40 px-3 py-2 text-xs text-theme-text-secondary">
-                  {tr("convert_notice")}
-                </p>
-              )}
-
-              <div className="flex flex-wrap items-center gap-2">
-                {detail?.source === "etsi" && detail.pdf && (
-                  <a
-                    className={primaryButton}
-                    href={detail.pdf}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    {tr("open")} ↗
-                  </a>
-                )}
-
-                {singleMember &&
-                  (singleMember.status === "ready" && singleMember.pdfPath ? (
-                    <a
-                      className={primaryButton}
-                      href={API_BASE + singleMember.pdfPath}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      {tr("open")} ↗
-                    </a>
-                  ) : singleMember.convertible ? (
-                    <button
-                      type="button"
-                      className={primaryButton}
-                      disabled={isWorkingStatus(singleMember.status)}
-                      onClick={() => startConvert(singleMember)}
-                    >
-                      {statusButtonLabel(singleMember.status)}
-                    </button>
-                  ) : null)}
-
-                {detailLoading && entry && !error && (
-                  <span
-                    className="text-sm text-theme-text-secondary"
-                    role="status"
-                  >
-                    {entry.source === "3gpp"
-                      ? tr("loading_members")
-                      : tr("loading")}
-                  </span>
-                )}
-
-                <button
-                  type="button"
-                  className={control}
-                  disabled={!citationUrl}
-                  onClick={copy}
-                >
-                  {tr("copy")}
-                </button>
-
-                {(detail?.zipUrl || entry?.zipUrl) && (
-                  <a
-                    className={control}
-                    href={detail?.zipUrl || entry?.zipUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    {tr("download_zip")} ↗
-                  </a>
-                )}
-
-                {result.dir && (
-                  <a
-                    className={control}
-                    href={result.dir}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    {tr("directory")} ↗
-                  </a>
-                )}
-
-                {result.archiveDir && (
-                  <a
-                    className={control}
-                    href={result.archiveDir}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    {tr("archive_directory")} ↗
-                  </a>
-                )}
-              </div>
-
-              {singleMember && (
-                <div className="text-sm">
-                  {renderProgress(singleMember)}
-                  {singleMember.status === "ready" && (
-                    <p className="text-theme-text-secondary" role="status">
-                      {singleMember.cached
-                        ? tr("status_cached")
-                        : tr("status_ready")}
-                      {singleMember.pdfSize
-                        ? ` · ${formatBytes(singleMember.pdfSize)}`
-                        : ""}
-                    </p>
-                  )}
-                  {singleMember.error && (
-                    <p className="text-red-400" role="alert">
-                      {singleMember.error}
-                    </p>
-                  )}
-                  {!singleMember.convertible && singleMember.reason && (
-                    <p className="text-theme-text-secondary">
-                      {singleMember.reason}
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {detail?.source === "3gpp" &&
-                members.length === 0 &&
-                !detailLoading && (
-                  <p className="text-sm text-theme-text-secondary">
-                    {tr("no_members")}
-                  </p>
-                )}
-
-              {detail?.source === "3gpp" && members.length > 1 && (
-                <div className="space-y-3 border-t border-theme-sidebar-border pt-4">
+              {result && subSpecs.length > 0 && (
+                <section className="space-y-3 rounded-lg border border-primary-button/40 bg-theme-bg-secondary/30 p-4">
                   <div className="flex flex-wrap items-center justify-between gap-3">
-                    <h3 className="text-sm font-medium">
-                      {tr(hasKiSplit ? "ki_members_count" : "members_count", {
-                        count: members.length,
-                      })}
-                    </h3>
-                    {members.length > 4 && (
+                    <h2 className="text-base font-semibold">
+                      {tr(
+                        entries.length === 0
+                          ? "sub_specs_only_title"
+                          : "sub_specs_related_title",
+                        { id: result.id, count: subSpecs.length }
+                      )}
+                    </h2>
+                    {subSpecs.length > 8 && (
                       <input
-                        className={control + " w-full sm:w-80"}
-                        placeholder={tr("filter_placeholder")}
-                        value={memberFilter}
-                        onChange={(e) => setMemberFilter(e.target.value)}
+                        className={control + " w-full sm:w-72"}
+                        placeholder={tr("sub_specs_filter_placeholder")}
+                        value={subSpecFilter}
+                        onChange={(e) => setSubSpecFilter(e.target.value)}
                       />
                     )}
                   </div>
-
-                  {filteredMembers.length === 0 ? (
+                  {filteredSubSpecs.length === 0 ? (
                     <p className="text-sm text-theme-text-secondary">
                       {tr("filter_empty")}
                     </p>
                   ) : (
-                    <ul className="divide-y divide-theme-sidebar-border rounded-md border border-theme-sidebar-border">
-                      {filteredMembers.map((m) => (
-                        <li
-                          key={m.name}
-                          className="flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:justify-between"
+                    <div className="flex flex-wrap gap-2">
+                      {filteredSubSpecs.map((sub) => (
+                        <button
+                          key={sub.id}
+                          type="button"
+                          className={
+                            control +
+                            " flex flex-wrap items-center gap-2 text-left"
+                          }
+                          onClick={() => {
+                            setInput(sub.id);
+                            load(sub.id);
+                          }}
                         >
-                          <div className="min-w-0 space-y-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                              {m.label ? (
-                                <span className="text-sm font-medium">
-                                  {m.label}
-                                </span>
-                              ) : (
-                                <span className="break-all font-mono text-sm font-medium">
-                                  {m.name}
-                                </span>
-                              )}
-                              <span className="text-xs text-theme-text-secondary">
-                                {formatBytes(m.size)}
-                              </span>
-                              {m.status === "ready" && (
-                                <span className="rounded border border-theme-sidebar-border px-1.5 py-0.5 text-xs text-theme-text-secondary">
-                                  {tr("status_cached")}
-                                </span>
-                              )}
-                            </div>
-                            {m.label && (
-                              <p className="break-all font-mono text-xs text-theme-text-secondary">
-                                {m.name}
-                              </p>
-                            )}
-                            {!m.convertible && m.reason && (
-                              <p className="text-xs text-theme-text-secondary">
-                                {m.reason}
-                              </p>
-                            )}
-                            {m.error && (
-                              <p className="text-xs text-red-400" role="alert">
-                                {m.error}
-                              </p>
-                            )}
-                            {renderProgress(m)}
-                          </div>
-
-                          <div className="flex shrink-0 items-center gap-2">
-                            {m.status === "ready" && m.pdfPath ? (
-                              <a
-                                className={primaryButton}
-                                href={API_BASE + m.pdfPath}
-                                target="_blank"
-                                rel="noreferrer"
-                              >
-                                {tr("open")} ↗
-                              </a>
-                            ) : m.convertible ? (
-                              <button
-                                type="button"
-                                className={control}
-                                disabled={isWorkingStatus(m.status)}
-                                onClick={() => startConvert(m)}
-                              >
-                                {statusButtonLabel(m.status)}
-                              </button>
-                            ) : (
-                              detail.zipUrl && (
-                                <a
-                                  className={control}
-                                  href={detail.zipUrl}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                >
-                                  {tr("download_zip")} ↗
-                                </a>
-                              )
-                            )}
-                          </div>
-                        </li>
+                          <span className="font-mono font-semibold">
+                            {sub.type} {sub.id}
+                          </span>
+                          {(sub.group || sub.title) && (
+                            <span className="text-theme-text-secondary">
+                              {[sub.group, sub.title]
+                                .filter(Boolean)
+                                .join(" · ")}
+                            </span>
+                          )}
+                          {sub.kiCount && (
+                            <span className="rounded border border-theme-sidebar-border px-1.5 py-0.5 text-xs text-theme-text-secondary">
+                              {tr("sub_specs_ki_badge", { count: sub.kiCount })}
+                            </span>
+                          )}
+                        </button>
                       ))}
-                    </ul>
+                    </div>
                   )}
-                </div>
+                  {entries.length === 0 && (
+                    <div className="flex flex-wrap items-center gap-3 pt-1 text-sm text-theme-text-secondary">
+                      {result.archiveDir && (
+                        <a
+                          className={control}
+                          href={result.archiveDir}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          {tr("archive_directory")} ↗
+                        </a>
+                      )}
+                      <button
+                        type="button"
+                        className={control}
+                        onClick={() => load(result.id, true)}
+                      >
+                        {tr("refresh")}
+                      </button>
+                    </div>
+                  )}
+                </section>
               )}
 
-              <div className="flex flex-wrap items-center gap-3 text-sm text-theme-text-secondary">
-                {tr("checked")} ·{" "}
-                {new Date(result.index.checked).toLocaleString("zh-CN")}
-                <button
-                  type="button"
-                  className={control}
-                  onClick={() =>
-                    load(result.type + " " + result.id + " V" + version, true)
-                  }
-                >
-                  {tr("refresh")}
-                </button>
-              </div>
-              {result.warning && <p role="status">{result.warning}</p>}
-            </section>
-          )}
-          {error && <p role="alert">{error}</p>}
-          {message && (
-            <p className="break-all" role="status">
-              {message}
-            </p>
+              {result && entries.length > 0 && (
+                <section className="space-y-4 rounded-lg border border-theme-sidebar-border p-4">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="text-lg font-semibold">
+                      {result.type} {result.id}
+                      {result.title ? ` · ${result.title}` : ""}
+                    </h2>
+                    {entry && (
+                      <span className="rounded border border-theme-sidebar-border px-2 py-0.5 text-xs text-theme-text-secondary">
+                        {entry.source === "3gpp"
+                          ? tr("source_3gpp")
+                          : tr("source_etsi")}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex flex-wrap gap-4">
+                    <label className="flex items-center gap-2">
+                      {tr("release")}
+                      <select
+                        className={control}
+                        value={release}
+                        onChange={(e) => {
+                          const next = entries.find(
+                            (x) => releaseBucket(x.version) === e.target.value
+                          );
+                          if (next) pick(next.version);
+                        }}
+                      >
+                        {!releases.includes(release) && (
+                          <option value={release}>
+                            {release === "draft"
+                              ? tr("draft_release")
+                              : release}
+                          </option>
+                        )}
+                        {releases.map((r) => (
+                          <option key={r} value={r}>
+                            {r === "draft" ? tr("draft_release") : r}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label className="flex items-center gap-2">
+                      {tr("revision")}
+                      <select
+                        className={control}
+                        value={version}
+                        onChange={(e) => pick(e.target.value)}
+                      >
+                        {!entry && <option value={version}>{version}</option>}
+                        {entries
+                          .filter((e) => releaseBucket(e.version) === release)
+                          .map((e) => (
+                            <option key={e.version} value={e.version}>
+                              {e.version}
+                              {hasBothSources
+                                ? `（${e.source === "3gpp" ? tr("source_3gpp_short") : tr("source_etsi_short")}）`
+                                : ""}
+                            </option>
+                          ))}
+                      </select>
+                    </label>
+                  </div>
+
+                  {entry ? (
+                    <p className="text-sm text-theme-text-secondary">
+                      {tr("folder")} · {entry.date || "-"}
+                      {entry.zipSize ? ` · ${entry.zipSize}` : ""}
+                    </p>
+                  ) : (
+                    <p>{tr("missing")}</p>
+                  )}
+
+                  {entry?.source === "3gpp" && (
+                    <p className="rounded-md border border-theme-sidebar-border bg-theme-bg-secondary/40 px-3 py-2 text-xs text-theme-text-secondary">
+                      {tr("convert_notice")}
+                    </p>
+                  )}
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    {detail?.source === "etsi" && detail.pdf && (
+                      <a
+                        className={primaryButton}
+                        href={detail.pdf}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        {tr("open")} ↗
+                      </a>
+                    )}
+
+                    {singleMember &&
+                      (singleMember.status === "ready" &&
+                      singleMember.pdfPath ? (
+                        <a
+                          className={primaryButton}
+                          href={API_BASE + singleMember.pdfPath}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          {tr("open")} ↗
+                        </a>
+                      ) : singleMember.convertible ? (
+                        <button
+                          type="button"
+                          className={primaryButton}
+                          disabled={isWorkingStatus(singleMember.status)}
+                          onClick={() => startConvert(singleMember)}
+                        >
+                          {statusButtonLabel(singleMember.status)}
+                        </button>
+                      ) : null)}
+
+                    {detailLoading && entry && !error && (
+                      <span
+                        className="text-sm text-theme-text-secondary"
+                        role="status"
+                      >
+                        {entry.source === "3gpp"
+                          ? tr("loading_members")
+                          : tr("loading")}
+                      </span>
+                    )}
+
+                    <button
+                      type="button"
+                      className={control}
+                      disabled={!citationUrl}
+                      onClick={copy}
+                    >
+                      {tr("copy")}
+                    </button>
+
+                    {entry?.mirrored && entry.zipUrl ? (
+                      <FileActions
+                        url={entry.zipUrl}
+                        name={entry.zipName || result.id + ".zip"}
+                        mirrored
+                      />
+                    ) : (
+                      (detail?.zipUrl || entry?.zipUrl) && (
+                        <a
+                          className={control}
+                          href={detail?.zipUrl || entry?.zipUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          {tr("download_zip")} ↗
+                        </a>
+                      )
+                    )}
+
+                    {result.dir && (
+                      <a
+                        className={control}
+                        href={result.dir}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        {tr("directory")} ↗
+                      </a>
+                    )}
+
+                    {result.archiveDir && (
+                      <a
+                        className={control}
+                        href={result.archiveDir}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        {tr("archive_directory")} ↗
+                      </a>
+                    )}
+                  </div>
+
+                  {singleMember && (
+                    <div className="text-sm">
+                      {renderProgress(singleMember)}
+                      {singleMember.status === "ready" && (
+                        <p className="text-theme-text-secondary" role="status">
+                          {singleMember.cached
+                            ? tr("status_cached")
+                            : tr("status_ready")}
+                          {singleMember.pdfSize
+                            ? ` · ${formatBytes(singleMember.pdfSize)}`
+                            : ""}
+                        </p>
+                      )}
+                      {singleMember.error && (
+                        <p className="text-red-400" role="alert">
+                          {singleMember.error}
+                        </p>
+                      )}
+                      {!singleMember.convertible && singleMember.reason && (
+                        <p className="text-theme-text-secondary">
+                          {singleMember.reason}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {detail?.source === "3gpp" &&
+                    members.length === 0 &&
+                    !detailLoading && (
+                      <p className="text-sm text-theme-text-secondary">
+                        {tr("no_members")}
+                      </p>
+                    )}
+
+                  {detail?.source === "3gpp" && members.length > 1 && (
+                    <div className="space-y-3 border-t border-theme-sidebar-border pt-4">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <h3 className="text-sm font-medium">
+                          {tr(
+                            hasKiSplit ? "ki_members_count" : "members_count",
+                            {
+                              count: members.length,
+                            }
+                          )}
+                        </h3>
+                        {members.length > 4 && (
+                          <input
+                            className={control + " w-full sm:w-80"}
+                            placeholder={tr("filter_placeholder")}
+                            value={memberFilter}
+                            onChange={(e) => setMemberFilter(e.target.value)}
+                          />
+                        )}
+                      </div>
+
+                      {filteredMembers.length === 0 ? (
+                        <p className="text-sm text-theme-text-secondary">
+                          {tr("filter_empty")}
+                        </p>
+                      ) : (
+                        <ul className="divide-y divide-theme-sidebar-border rounded-md border border-theme-sidebar-border">
+                          {filteredMembers.map((m) => (
+                            <li
+                              key={m.name}
+                              className="flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:justify-between"
+                            >
+                              <div className="min-w-0 space-y-1">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  {m.label ? (
+                                    <span className="text-sm font-medium">
+                                      {m.label}
+                                    </span>
+                                  ) : (
+                                    <span className="break-all font-mono text-sm font-medium">
+                                      {m.name}
+                                    </span>
+                                  )}
+                                  <span className="text-xs text-theme-text-secondary">
+                                    {formatBytes(m.size)}
+                                  </span>
+                                  {m.status === "ready" && (
+                                    <span className="rounded border border-theme-sidebar-border px-1.5 py-0.5 text-xs text-theme-text-secondary">
+                                      {tr("status_cached")}
+                                    </span>
+                                  )}
+                                </div>
+                                {m.label && (
+                                  <p className="break-all font-mono text-xs text-theme-text-secondary">
+                                    {m.name}
+                                  </p>
+                                )}
+                                {!m.convertible && m.reason && (
+                                  <p className="text-xs text-theme-text-secondary">
+                                    {m.reason}
+                                  </p>
+                                )}
+                                {m.error && (
+                                  <p
+                                    className="text-xs text-red-400"
+                                    role="alert"
+                                  >
+                                    {m.error}
+                                  </p>
+                                )}
+                                {renderProgress(m)}
+                              </div>
+
+                              <div className="flex shrink-0 items-center gap-2">
+                                {m.status === "ready" && m.pdfPath ? (
+                                  <a
+                                    className={primaryButton}
+                                    href={API_BASE + m.pdfPath}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                  >
+                                    {tr("open")} ↗
+                                  </a>
+                                ) : m.convertible ? (
+                                  <button
+                                    type="button"
+                                    className={control}
+                                    disabled={isWorkingStatus(m.status)}
+                                    onClick={() => startConvert(m)}
+                                  >
+                                    {statusButtonLabel(m.status)}
+                                  </button>
+                                ) : (
+                                  detail.zipUrl && (
+                                    <a
+                                      className={control}
+                                      href={detail.zipUrl}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                    >
+                                      {tr("download_zip")} ↗
+                                    </a>
+                                  )
+                                )}
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="flex flex-wrap items-center gap-3 text-sm text-theme-text-secondary">
+                    {tr("checked")} ·{" "}
+                    {new Date(result.index.checked).toLocaleString("zh-CN")}
+                    <button
+                      type="button"
+                      className={control}
+                      onClick={() =>
+                        load(
+                          result.type + " " + result.id + " V" + version,
+                          true
+                        )
+                      }
+                    >
+                      {tr("refresh")}
+                    </button>
+                  </div>
+                  {result.warning && <p role="status">{result.warning}</p>}
+                </section>
+              )}
+              {error && <p role="alert">{error}</p>}
+              {message && (
+                <p className="break-all" role="status">
+                  {message}
+                </p>
+              )}
+            </>
           )}
         </div>
       </main>
