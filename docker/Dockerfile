@@ -55,8 +55,8 @@ COPY ./docker/docker-healthcheck.sh /usr/local/bin/
 COPY --chown=anythingllm:anythingllm ./docker/.env.example /app/server/.env
 
 # Ensure the scripts are executable
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh && \
-    chmod +x /usr/local/bin/docker-healthcheck.sh
+RUN chmod 0755 /usr/local/bin/docker-entrypoint.sh && \
+    chmod 0755 /usr/local/bin/docker-healthcheck.sh
 
 #############################################
 
@@ -111,8 +111,8 @@ COPY ./docker/docker-healthcheck.sh /usr/local/bin/
 COPY --chown=anythingllm:anythingllm ./docker/.env.example /app/server/.env
 
 # Ensure the scripts are executable
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh && \
-    chmod +x /usr/local/bin/docker-healthcheck.sh
+RUN chmod 0755 /usr/local/bin/docker-entrypoint.sh && \
+    chmod 0755 /usr/local/bin/docker-healthcheck.sh
 
 #############################################
 # COMMON BUILD FLOW FOR ALL ARCHS
@@ -136,8 +136,13 @@ RUN corepack enable && corepack prepare pnpm@12.4.2 --activate
 COPY ./package.json ./pnpm-workspace.yaml ./pnpm-lock.yaml ./.npmrc ./
 COPY ./packages/contracts/package.json ./packages/contracts/
 COPY ./frontend/package.json ./frontend/
-RUN pnpm config set registry "${NPM_REGISTRY}" && \
-    pnpm --filter anything-llm-frontend... install --frozen-lockfile
+RUN --mount=type=cache,id=pnpm-store-frontend,target=/pnpm/store \
+    pnpm --filter anything-llm-frontend... install \
+      --frozen-lockfile \
+      --trust-lockfile \
+      --prefer-offline \
+      --registry="${NPM_REGISTRY}" \
+      --store-dir=/pnpm/store
 ENV VITE_API_BASE=/api
 COPY ./packages/contracts/ ./packages/contracts/
 COPY ./server/contracts/ ./server/contracts/
@@ -168,10 +173,15 @@ RUN case "$TARGETARCH" in \
     curl -fsSL --retry 4 --retry-all-errors \
       "https://github.com/microsoft/ripgrep-prebuilt/releases/download/${ripgrep_release}/${ripgrep_asset}" \
       -o "$ripgrep_cache/$ripgrep_asset"
-RUN pnpm config set registry "${NPM_REGISTRY}" && \
-    pnpm --filter anything-llm-server... install --prod --frozen-lockfile && \
-    node -e "require('./server/node_modules/@lancedb/lancedb')" && \
-    pnpm store prune
+RUN --mount=type=cache,id=pnpm-store-backend,target=/pnpm/store,uid=1000,gid=1000 \
+    pnpm --filter anything-llm-server... install \
+      --prod \
+      --frozen-lockfile \
+      --trust-lockfile \
+      --prefer-offline \
+      --registry="${NPM_REGISTRY}" \
+      --store-dir=/pnpm/store && \
+    node -e "require('./server/node_modules/@lancedb/lancedb')"
 
 # Source-only layers come after all dependency layers.
 COPY --chown=anythingllm:anythingllm ./packages/contracts/ /app/packages/contracts/

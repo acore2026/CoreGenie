@@ -332,7 +332,7 @@ fi
 
 if [[ "$APP_REBUILD" == "true" ]]; then
   echo "Building AnythingLLM image '$ANYTHINGLLM_IMAGE'..."
-  docker build \
+  DOCKER_BUILDKIT=1 docker build \
     --tag "$ANYTHINGLLM_IMAGE" \
     --file "$SCRIPT_DIR/docker/Dockerfile" \
     "$SCRIPT_DIR"

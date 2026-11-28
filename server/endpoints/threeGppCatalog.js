@@ -11,9 +11,20 @@ const {
 const catalog = require("../utils/threeGppCatalog");
 const { downloadMeetingList } = require("../utils/threeGppMeetingList");
 const { createCatalog } = require("../utils/globalReferenceCatalog");
+const { reqBody } = require("../utils/http");
 
 function threeGppCatalogEndpoints(app) {
-  const { resolveProtocol } = require("../utils/protocolFinder");
+  const {
+    resolveProtocol,
+    convertProtocolMember,
+    getProtocolMemberStatus,
+  } = require("../utils/protocolFinder");
+  const {
+    verifySignedPdf,
+    startCacheMaintenance,
+  } = require("../utils/protocolFinderPdf");
+  startCacheMaintenance();
+
   app.get(
     "/3gpp/protocol-finder",
     [validatedRequest, flexUserRoleValid(ROLES.all)],
@@ -24,11 +35,78 @@ function threeGppCatalogEndpoints(app) {
           .json(await resolveProtocol(req.query));
       } catch (error) {
         res.status(error.status || 502).json({
-          error: error.publicMessage || "暂时无法读取 ETSI 目录，请稍后重试。",
+          error:
+            error.publicMessage ||
+            "暂时无法读取 ETSI 或 3GPP 目录，请稍后重试。",
         });
       }
     }
   );
+
+  app.post(
+    "/3gpp/protocol-finder/convert",
+    [validatedRequest, flexUserRoleValid(ROLES.all)],
+    async (req, res) => {
+      try {
+        const body = reqBody(req);
+        const params =
+          body && typeof body === "object" && Object.keys(body).length
+            ? body
+            : req.query;
+        res
+          .set("Cache-Control", "no-store")
+          .json(await convertProtocolMember(params));
+      } catch (error) {
+        res.status(error.status || 502).json({
+          error:
+            error.publicMessage ||
+            "暂时无法启动 Word 转 PDF 任务，请稍后重试。",
+        });
+      }
+    }
+  );
+
+  app.get(
+    "/3gpp/protocol-finder/convert",
+    [validatedRequest, flexUserRoleValid(ROLES.all)],
+    async (req, res) => {
+      try {
+        res
+          .set("Cache-Control", "no-store")
+          .json(await getProtocolMemberStatus(req.query));
+      } catch (error) {
+        res.status(error.status || 502).json({
+          error: error.publicMessage || "暂时无法查询转换进度，请稍后重试。",
+        });
+      }
+    }
+  );
+
+  app.get("/3gpp/protocol-finder/pdf/:hash", async (req, res) => {
+    try {
+      const { filePath, filename } = await verifySignedPdf({
+        hash: req.params.hash,
+        name: req.query.name,
+        exp: req.query.exp,
+        sig: req.query.sig,
+      });
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader(
+        "Content-Disposition",
+        `inline; filename="${filename}"; filename*=UTF-8''${encodeURIComponent(filename)}`
+      );
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      res.setHeader("Cache-Control", "private, max-age=1800");
+      return res.sendFile(filePath);
+    } catch (error) {
+      return res
+        .status(error.status || 404)
+        .type("text/plain; charset=utf-8")
+        .send(
+          error.publicMessage || "PDF 预览链接已失效，请返回页面重新打开。"
+        );
+    }
+  });
   for (const path of ["/3gpp/meeting-lists", "/3gpp/meeting-list"]) {
     app.get(
       path,
