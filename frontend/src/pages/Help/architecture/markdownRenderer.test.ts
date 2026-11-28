@@ -13,8 +13,8 @@ import {
 } from "./markdownRenderer";
 
 describe("architecture documentation renderer", () => {
-  it("loads all 5 tiered docs with non-empty markdown and headings", () => {
-    expect(ARCHITECTURE_DOCS).toHaveLength(5);
+  it("loads all 6 tiered docs with non-empty markdown and headings", () => {
+    expect(ARCHITECTURE_DOCS).toHaveLength(6);
     expect(findArchitectureDoc(null).id).toBe("overview");
     expect(findArchitectureDoc("unknown").id).toBe("overview");
     expect(findArchitectureDoc("agent-runtime").layer).toBe("L2");
@@ -88,7 +88,13 @@ describe("architecture documentation renderer", () => {
   });
 
   it("maps every diagram SVG asset cleanly", () => {
-    expect(Object.keys(DIAGRAM_ASSETS)).toHaveLength(6);
+    expect(Object.keys(DIAGRAM_ASSETS)).toHaveLength(7);
+    expect(
+      resolveDiagramAsset(
+        "docs/help/architecture/open-source-stack.md",
+        "../diagrams/open-source-stack.svg"
+      )
+    ).toBe(DIAGRAM_ASSETS["docs/help/diagrams/open-source-stack.svg"]);
     expect(
       resolveDiagramAsset("docs/help/architecture.md", "diagrams/workbench.svg")
     ).toBe(DIAGRAM_ASSETS["docs/help/diagrams/workbench.svg"]);

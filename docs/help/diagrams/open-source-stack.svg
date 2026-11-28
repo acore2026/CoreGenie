@@ -1,0 +1,138 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 560" role="img" aria-labelledby="title">
+  <title id="title">CoreGenie 开源成分与分层技术栈地图</title>
+  <defs>
+    <pattern id="dots" width="16" height="16" patternUnits="userSpaceOnUse">
+      <circle cx="3" cy="4" r=".85" fill="#d7d0bd"/>
+    </pattern>
+    <style>
+      .t { font-family: "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", "WenQuanYi Zen Hei", sans-serif; fill: #1e293b; }
+      .m { font-family: "JetBrains Mono", "SFMono-Regular", Menlo, Consolas, monospace; fill: #334155; }
+      .h { font-size: 14px; font-weight: 700; }
+      .s { font-size: 11.5px; fill: #475569; }
+      .chip { font-size: 11px; font-weight: 600; fill: #1e293b; }
+      .badge { font-size: 10.5px; font-weight: 700; fill: #ffffff; }
+    </style>
+  </defs>
+
+  <rect width="100%" height="100%" rx="16" fill="#fdfcf8"/>
+  <rect width="100%" height="100%" rx="16" fill="url(#dots)"/>
+
+  <!-- Top Banner: Upstream Base -->
+  <g transform="translate(24 18)">
+    <rect width="852" height="54" rx="12" fill="#dbeefa" stroke="#37444a" stroke-width="2"/>
+    <rect x="14" y="16" width="84" height="22" rx="6" fill="#0369a1"/>
+    <text x="56" y="31" text-anchor="middle" class="t badge">上游底座</text>
+    <text x="112" y="26" class="t h">AnythingLLM（MIT，基于 v1.15.0 深度改造与大幅裁剪）</text>
+    <text x="112" y="44" class="t s">保留工作区、知识库、基础权限与文档抽取骨架；裁剪未用模型/向量库/旧 aibitat 框架（删减约 10 万行）</text>
+  </g>
+
+  <!-- Left 5 Horizontal Stack Layers (width 622) -->
+  <!-- Layer 1: Frontend -->
+  <g transform="translate(24 88)">
+    <rect width="626" height="80" rx="11" fill="#ffffff" fill-opacity="0.88" stroke="#37444a" stroke-width="1.8"/>
+    <rect width="124" height="80" rx="10" fill="#e1efdb" stroke="#37444a" stroke-width="1.8"/>
+    <text x="62" y="34" text-anchor="middle" class="t h">前端工作台</text>
+    <text x="62" y="54" text-anchor="middle" class="m" font-size="10.5">frontend/</text>
+    <text x="62" y="70" text-anchor="middle" class="m" font-size="10">contracts/</text>
+
+    <text x="140" y="25" class="t chip">UI 与构建：React 18 · Vite 8 · TypeScript 5.9 · Tailwind CSS · i18next · Zod</text>
+    <text x="140" y="47" class="t s">内容与流式：markdown-it · DOMPurify · highlight.js · KaTeX · fetch-event-source</text>
+    <text x="140" y="67" class="t s">纯浏览器本地工具：fflate（浏览器内直接读写 DOCX/XLSX，正文不上传）</text>
+  </g>
+
+  <!-- Layer 2: Server & Agent -->
+  <g transform="translate(24 180)">
+    <rect width="626" height="80" rx="11" fill="#ffffff" fill-opacity="0.88" stroke="#37444a" stroke-width="1.8"/>
+    <rect width="124" height="80" rx="10" fill="#faeaba" stroke="#37444a" stroke-width="1.8"/>
+    <text x="62" y="34" text-anchor="middle" class="t h">服务端与编排</text>
+    <text x="62" y="54" text-anchor="middle" class="m" font-size="10.5">server/</text>
+    <text x="62" y="70" text-anchor="middle" class="m" font-size="10">Node 24</text>
+
+    <text x="140" y="25" class="t chip">Web 与数据：Express 4 · Prisma 5 · p-queue · @mintplex-labs/bree（定时）</text>
+    <text x="140" y="47" class="t s">Agent 框架：LangChain · LangGraph · checkpoint-postgres · MCP SDK · openai</text>
+    <text x="140" y="67" class="t s">本地向量与安全：@xenova/transformers · bcryptjs · jsonwebtoken · Swagger UI</text>
+  </g>
+
+  <!-- Layer 3: Parsing & Storage -->
+  <g transform="translate(24 272)">
+    <rect width="626" height="80" rx="11" fill="#ffffff" fill-opacity="0.88" stroke="#37444a" stroke-width="1.8"/>
+    <rect width="124" height="80" rx="10" fill="#eae4f8" stroke="#37444a" stroke-width="1.8"/>
+    <text x="62" y="34" text-anchor="middle" class="t h">解析与存储</text>
+    <text x="62" y="54" text-anchor="middle" class="m" font-size="10.5">collector/</text>
+    <text x="62" y="70" text-anchor="middle" class="m" font-size="10">PG · Vector</text>
+
+    <text x="140" y="25" class="t chip">关系与向量库：PostgreSQL 17 · LanceDB（默认内置）· pgvector（可选）</text>
+    <text x="140" y="47" class="t s">通用解析：pdf-parse · mammoth · node-xlsx · officeparser · tesseract.js · turndown</text>
+    <text x="140" y="67" class="t s">服务端文档生成：docx · exceljs · pptxgenjs · pdf-lib · sharp · archiver</text>
+  </g>
+
+  <!-- Layer 4: Sandbox -->
+  <g transform="translate(24 364)">
+    <rect width="626" height="82" rx="11" fill="#ffffff" fill-opacity="0.88" stroke="#37444a" stroke-width="1.8"/>
+    <rect width="124" height="82" rx="10" fill="#f9e0d1" stroke="#37444a" stroke-width="1.8"/>
+    <text x="62" y="34" text-anchor="middle" class="t h">沙箱与工具链</text>
+    <text x="62" y="54" text-anchor="middle" class="m" font-size="10.5">sandbox/</text>
+    <text x="62" y="70" text-anchor="middle" class="m" font-size="10">Python 3.12</text>
+
+    <text x="140" y="25" class="t chip">容器隔离与包管理：Docker（namespaces/cgroups）· Python 3.12 · uv</text>
+    <text x="140" y="47" class="t s">文档与数据库：python-docx · python-pptx · lxml · pandas · Pillow · pypdf · httpx</text>
+    <text x="140" y="68" class="t s">系统工具：LibreOffice（DOC/PPT 渲染）· poppler-utils · Noto CJK · pandoc · ripgrep</text>
+  </g>
+
+  <!-- Layer 5: Engineering, Observability & Eval -->
+  <g transform="translate(24 458)">
+    <rect width="626" height="82" rx="11" fill="#ffffff" fill-opacity="0.88" stroke="#37444a" stroke-width="1.8"/>
+    <rect width="124" height="82" rx="10" fill="#f1f5f9" stroke="#37444a" stroke-width="1.8"/>
+    <text x="62" y="34" text-anchor="middle" class="t h">观测与工程</text>
+    <text x="62" y="54" text-anchor="middle" class="m" font-size="10.5">evals/ · CI</text>
+    <text x="62" y="70" text-anchor="middle" class="m" font-size="10">pnpm · uv</text>
+
+    <text x="140" y="25" class="t chip">追踪与评测：Langfuse + OpenTelemetry（链路追踪）· Promptfoo（在线 Agent 评测）</text>
+    <text x="140" y="47" class="t s">测试框架：Jest + PGlite（服务端单测）· Vitest 5 + Playwright（前端测试）· unittest</text>
+    <text x="140" y="68" class="t s">工程质量：pnpm 12 workspace · ESLint 9 · Prettier · TypeScript · Pyright (strict)</text>
+  </g>
+
+  <!-- Right Vertical Pillar: CoreGenie Custom Code -->
+  <g transform="translate(668 88)">
+    <rect width="208" height="452" rx="12" fill="#ecfeff" stroke="#0e7490" stroke-width="2"/>
+    <rect width="208" height="44" rx="11" fill="#0e7490"/>
+    <text x="104" y="27" text-anchor="middle" class="t" font-size="14.5" font-weight="700" style="fill: #ffffff">CoreGenie 自研核心</text>
+
+    <g transform="translate(12 58)">
+      <rect width="184" height="62" rx="8" fill="#ffffff" stroke="#0891b2" stroke-width="1.2"/>
+      <text x="92" y="22" text-anchor="middle" class="t" font-size="12.5" font-weight="700">Agent 调度与恢复</text>
+      <text x="92" y="40" text-anchor="middle" class="t s">Supervisor 租约 · SSE 续传</text>
+      <text x="92" y="55" text-anchor="middle" class="t s">governed 状态机 · 产物登记</text>
+    </g>
+
+    <g transform="translate(12 132)">
+      <rect width="184" height="62" rx="8" fill="#ffffff" stroke="#0891b2" stroke-width="1.2"/>
+      <text x="92" y="22" text-anchor="middle" class="t" font-size="12.5" font-weight="700">配置与 Skill 体系</text>
+      <text x="92" y="40" text-anchor="middle" class="t s">agent-config 单一源</text>
+      <text x="92" y="55" text-anchor="middle" class="t s">双向同步 · 三级 Skill 加载</text>
+    </g>
+
+    <g transform="translate(12 206)">
+      <rect width="184" height="62" rx="8" fill="#ffffff" stroke="#0891b2" stroke-width="1.2"/>
+      <text x="92" y="22" text-anchor="middle" class="t" font-size="12.5" font-weight="700">三层沙箱 Broker</text>
+      <text x="92" y="40" text-anchor="middle" class="t s">纯标准库 sandbox_broker</text>
+      <text x="92" y="55" text-anchor="middle" class="t s">Unix Socket · CA 绑定挂载</text>
+    </g>
+
+    <g transform="translate(12 278)">
+      <rect width="184" height="75" rx="8" fill="#ffffff" stroke="#0891b2" stroke-width="1.2"/>
+      <text x="92" y="21" text-anchor="middle" class="t" font-size="12.5" font-weight="700">3GPP 领域工具链</text>
+      <text x="92" y="38" text-anchor="middle" class="t s">提案高保真转 MD / 拆分</text>
+      <text x="92" y="53" text-anchor="middle" class="t s">立场对比 · PPT 审阅 · 回填</text>
+      <text x="92" y="67" text-anchor="middle" class="t" font-size="10.5" style="fill: #64748b">协议检索（纯前端/服务端）</text>
+    </g>
+
+    <g transform="translate(12 365)">
+      <rect width="184" height="75" rx="8" fill="#ffffff" stroke="#0891b2" stroke-width="1.2"/>
+      <text x="92" y="21" text-anchor="middle" class="t" font-size="12.5" font-weight="700">企业部署与安全隔离</text>
+      <text x="92" y="38" text-anchor="middle" class="t s">Local / IDaaS 认证隔离</text>
+      <text x="92" y="53" text-anchor="middle" class="t s">防中断更新 · 前端轻量镜像</text>
+      <text x="92" y="67" text-anchor="middle" class="t" font-size="10.5" style="fill: #64748b">离线打包 · 企业代理/CA</text>
+    </g>
+  </g>
+</svg>

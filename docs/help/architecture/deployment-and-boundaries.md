@@ -66,4 +66,4 @@ CoreGenie 同一套代码支持两种部署形态：
 
 ---
 
-**上一篇**：[← 文档解析、产物与数据存储](data-and-documents.md) ｜ **回到起点**：[架构总览](../architecture.md)
+**上一篇**：[← 文档解析、产物与数据存储](data-and-documents.md) ｜ **下一篇**：[开源成分与技术栈清单 →](open-source-stack.md)

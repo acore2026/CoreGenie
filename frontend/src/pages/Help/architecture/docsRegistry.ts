@@ -3,6 +3,7 @@ import agentRuntimeMd from "@help-docs/architecture/agent-runtime.md?raw";
 import configSkillsSandboxMd from "@help-docs/architecture/config-skills-sandbox.md?raw";
 import dataAndDocumentsMd from "@help-docs/architecture/data-and-documents.md?raw";
 import deploymentAndBoundariesMd from "@help-docs/architecture/deployment-and-boundaries.md?raw";
+import openSourceStackMd from "@help-docs/architecture/open-source-stack.md?raw";
 
 import workbenchSvg from "@help-docs/diagrams/workbench.svg";
 import agentLifecycleSvg from "@help-docs/diagrams/agent-lifecycle.svg";
@@ -10,13 +11,15 @@ import agentRunSvg from "@help-docs/diagrams/agent-run.svg";
 import sandboxSkillSvg from "@help-docs/diagrams/sandbox-skill.svg";
 import dataFlowSvg from "@help-docs/diagrams/data-flow.svg";
 import deploymentTopologySvg from "@help-docs/diagrams/deployment-topology.svg";
+import openSourceStackSvg from "@help-docs/diagrams/open-source-stack.svg";
 
 export type ArchitectureDocId =
   | "overview"
   | "agent-runtime"
   | "config-skills-sandbox"
   | "data-and-documents"
-  | "deployment-and-boundaries";
+  | "deployment-and-boundaries"
+  | "open-source-stack";
 
 export interface ArchitectureDoc {
   id: ArchitectureDocId;
@@ -82,6 +85,16 @@ export const ARCHITECTURE_DOCS: readonly ArchitectureDoc[] = [
     sourcePath: "docs/help/architecture/deployment-and-boundaries.md",
     markdown: deploymentAndBoundariesMd,
   },
+  {
+    id: "open-source-stack",
+    layer: "L2",
+    title: "开源成分与技术栈清单",
+    shortTitle: "开源成分与技术栈",
+    viewLabel: "成分与依赖",
+    summary: "上游 AnythingLLM 继承与裁剪边界、各层开源组件与协议盘点",
+    sourcePath: "docs/help/architecture/open-source-stack.md",
+    markdown: openSourceStackMd,
+  },
 ];
 
 export const DIAGRAM_ASSETS: Readonly<Record<string, string>> = {
@@ -91,6 +104,7 @@ export const DIAGRAM_ASSETS: Readonly<Record<string, string>> = {
   "docs/help/diagrams/sandbox-skill.svg": sandboxSkillSvg,
   "docs/help/diagrams/data-flow.svg": dataFlowSvg,
   "docs/help/diagrams/deployment-topology.svg": deploymentTopologySvg,
+  "docs/help/diagrams/open-source-stack.svg": openSourceStackSvg,
 };
 
 export const DOC_BY_SOURCE_PATH: Readonly<Record<string, ArchitectureDoc>> =
