@@ -152,6 +152,20 @@ COPY ./frontend/ ./frontend/
 RUN pnpm --filter anything-llm-frontend build
 WORKDIR /app
 
+# Compile the collector for the runtime stage without shipping the compiler.
+FROM --platform=$BUILDPLATFORM node:24-slim AS collector-build
+WORKDIR /app
+ARG NPM_REGISTRY=https://registry.npmmirror.com
+RUN corepack enable && corepack prepare pnpm@12.4.2 --activate
+COPY ./package.json ./pnpm-workspace.yaml ./pnpm-lock.yaml ./.npmrc ./
+COPY ./collector/package.json ./collector/
+RUN --mount=type=cache,id=pnpm-store-collector,target=/pnpm/store \
+    pnpm --filter @coregenie/collector install --ignore-scripts --frozen-lockfile --trust-lockfile \
+      --prefer-offline --registry="${NPM_REGISTRY}" --store-dir=/pnpm/store
+COPY ./tsconfig.base.json ./
+COPY ./collector/ ./collector/
+RUN pnpm --filter @coregenie/collector build
+
 # Install server + in-process collector dependencies before copying source.
 FROM build AS backend-build
 WORKDIR /app
@@ -188,7 +202,8 @@ RUN --mount=type=cache,id=pnpm-store-backend,target=/pnpm/store,uid=1000,gid=100
 # Source-only layers come after all dependency layers.
 COPY --chown=anythingllm:anythingllm ./packages/contracts/ /app/packages/contracts/
 COPY --chown=anythingllm:anythingllm ./server/ /app/server/
-COPY --chown=anythingllm:anythingllm ./collector/ /app/collector/
+RUN mkdir -p /app/collector/hotdir /app/collector/storage/tmp
+COPY --from=collector-build --chown=anythingllm:anythingllm /app/collector/dist/ /app/collector/dist/
 COPY --chown=anythingllm:anythingllm ./agent-config/ /app/agent-config/
 
 WORKDIR /app

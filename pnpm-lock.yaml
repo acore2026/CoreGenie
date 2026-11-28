@@ -183,13 +183,10 @@ importers:
     dependencies:
       '@langchain/community':
         specifier: ^0.2.23
-        version: 0.2.33(@browserbasehq/sdk@2.29.0)(@langchain/langgraph@1.4.13(@langchain/core@1.2.9(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.221.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))(openai@4.95.1(ws@8.23.0)(zod@3.25.76))(ws@8.23.0))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.25.76))(@xenova/transformers@2.17.2(bare-buffer@3.7.3))(axios@1.20.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))(cheerio@1.0.0)(epub2@3.0.2(ts-toolbelt@9.6.0))(handlebars@4.7.10)(html-to-text@9.0.5)(ignore@5.3.2)(jsdom@26.1.0(canvas@3.2.3)(supports-color@8.1.1))(jsonwebtoken@9.0.3)(lodash@4.18.1)(mammoth@1.13.0)(mysql2@3.24.6(@types/node@26.6.11))(officeparser@4.2.0)(openai@4.95.1(ws@8.23.0)(zod@3.25.76))(pdf-parse@1.1.4)(pg@8.23.1)(playwright@1.65.1)(ws@8.23.0)
+        version: 0.2.33(@browserbasehq/sdk@2.29.0)(@langchain/langgraph@1.4.13(@langchain/core@1.2.9(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.221.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))(openai@4.95.1(ws@8.23.0)(zod@3.25.76))(ws@8.23.0))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.25.76))(@xenova/transformers@2.17.2(bare-buffer@3.7.3))(axios@1.20.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))(cheerio@1.0.0)(epub2@3.0.2(ts-toolbelt@9.6.0))(handlebars@4.7.10)(html-to-text@9.0.5)(ignore@5.3.2)(jsdom@26.1.0(canvas@3.2.3)(supports-color@8.1.1))(jsonwebtoken@9.0.3)(lodash@4.18.1)(mammoth@1.13.0)(mysql2@3.24.6(@types/node@22.20.7))(officeparser@4.2.0)(openai@4.95.1(ws@8.23.0)(zod@3.25.76))(pdf-parse@1.1.4)(pg@8.23.1)(playwright@1.65.1)(ws@8.23.0)
       epub2:
         specifier: ^3.0.2
         version: 3.0.2(ts-toolbelt@9.6.0)
-      fix-path:
-        specifier: ^4.0.0
-        version: 4.0.0
       html-to-text:
         specifier: ^9.0.5
         version: 9.0.5
@@ -208,9 +205,6 @@ importers:
       mime:
         specifier: ^3.0.0
         version: 3.0.0
-      moment:
-        specifier: ^2.29.4
-        version: 2.31.0
       node-html-parser:
         specifier: ^6.1.13
         version: 6.1.13
@@ -229,9 +223,6 @@ importers:
       slugify:
         specifier: ^1.6.6
         version: 1.6.9
-      strip-ansi:
-        specifier: ^7.1.2
-        version: 7.2.0
       tesseract.js:
         specifier: ^6.0.0
         version: 6.0.1
@@ -241,16 +232,22 @@ importers:
       url-pattern:
         specifier: ^1.0.3
         version: 1.0.3
-      uuid:
-        specifier: ^9.0.0
-        version: 9.0.1
-      winston:
-        specifier: ^3.13.0
-        version: 3.19.0
     devDependencies:
       '@eslint/js':
         specifier: ^9.0.0
         version: 9.39.5
+      '@types/html-to-text':
+        specifier: ^9.0.4
+        version: 9.0.4
+      '@types/mime':
+        specifier: ^3.0.4
+        version: 3.0.4
+      '@types/node':
+        specifier: 22.20.7
+        version: 22.20.7
+      '@types/turndown':
+        specifier: ^5.0.6
+        version: 5.0.6
       eslint:
         specifier: ^9.0.0
         version: 9.39.5(jiti@1.21.7)(supports-color@8.1.1)
@@ -269,9 +266,15 @@ importers:
       prettier:
         specifier: ^2.4.1
         version: 2.8.8
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
       typescript-eslint:
         specifier: 8.46.4
         version: 8.46.4(eslint@9.39.5(jiti@1.21.7)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@5.9.3)
+      vitest:
+        specifier: 5.1.2
+        version: 5.1.2(@opentelemetry/api@1.9.1)(@types/node@22.20.7)(jsdom@26.1.0(canvas@3.2.3)(supports-color@8.1.1))(vite@8.4.0(@types/node@22.20.7)(jiti@1.21.7)(yaml@2.9.1))
 
   frontend:
     dependencies:
@@ -4004,6 +4007,9 @@ packages:
   '@types/history@4.7.11':
     resolution: {integrity: sha512-qjDJRrmvBMiTx+jyLxvLfJU7UznFuokDv4f3WRuriHKERccVpFU+8XMQUAbDzoiJCsmexxRExQeMwwCdamSKDA==}
 
+  '@types/html-to-text@9.0.4':
+    resolution: {integrity: sha512-pUY3cKH/Nm2yYrEmDlPR1mR7yszjGx4DrwPjQ702C4/D5CwHuZTgZdIdwPkRbcuhs7BAh2L5rg3CL5cbRiGTCQ==}
+
   '@types/istanbul-lib-coverage@2.0.6':
     resolution: {integrity: sha512-2QF/t/auWm0lsy8XtKVPG19v3sSOQlJe/YHZgfjb/KBBHOGSV+J2q/S671rcq9uTBrLAXmZpqJiaQbMT+zNU1w==}
 
@@ -4042,6 +4048,9 @@ packages:
 
   '@types/mdx@2.0.14':
     resolution: {integrity: sha512-T48PeuJtvLosNTPVhfnIp3i/n3a4g4Bad7YCq5k64D4u7NwDrAotikQ+5+sjtUvBmxCMlbo3dVL+C2dP0rWHzg==}
+
+  '@types/mime@3.0.4':
+    resolution: {integrity: sha512-iJt33IQnVRkqeqC7PzBHPTC6fDlRNRW8vjrgqtScAhrmMwe8c4Eo7+fUGTa+XdWrpEgpyKWMYmi2dIwMAYRzPw==}
 
   '@types/ms@2.1.0':
     resolution: {integrity: sha512-GsCCIZDE/p3i96vtEqx+7dBUGXrc7zeSK3wwPHIaRThS+9OhWIXRqzs4d6k1SVU8g91DrNRWxWUGhp5KXQb2VA==}
@@ -4104,6 +4113,9 @@ packages:
 
   '@types/trusted-types@2.0.7':
     resolution: {integrity: sha512-ScaPdn1dQczgbl0QFTeTOmVHFULt394XJgOQNoyVhZ6r2vLnMLJfBPd53SB52T/3G36VI1/g2MZaX0cwDuXsfw==}
+
+  '@types/turndown@5.0.6':
+    resolution: {integrity: sha512-ru00MoyeeouE5BX4gRL+6m/BsDfbRayOskWqUvh7CLGW+UXxHQItqALa38kKnOiZPqJrtzJUgAC2+F0rL1S4Pg==}
 
   '@types/unist@2.0.11':
     resolution: {integrity: sha512-CmBKiL6NNo/OqgmMn95Fk9Whlp2mtvIv+KNpQKN2F4SjvrEesubTRWGYSg+BnWZOnlCaSTU1sMpsBOzgbYhnsA==}
@@ -11797,7 +11809,7 @@ snapshots:
       - undici
       - ws
 
-  '@langchain/community@0.2.33(@browserbasehq/sdk@2.29.0)(@langchain/langgraph@1.4.13(@langchain/core@1.2.9(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.221.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))(openai@4.95.1(ws@8.23.0)(zod@3.25.76))(ws@8.23.0))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.25.76))(@xenova/transformers@2.17.2(bare-buffer@3.7.3))(axios@1.20.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))(cheerio@1.0.0)(epub2@3.0.2(ts-toolbelt@9.6.0))(handlebars@4.7.10)(html-to-text@9.0.5)(ignore@5.3.2)(jsdom@26.1.0(canvas@3.2.3)(supports-color@8.1.1))(jsonwebtoken@9.0.3)(lodash@4.18.1)(mammoth@1.13.0)(mysql2@3.24.6(@types/node@26.6.11))(officeparser@4.2.0)(openai@4.95.1(ws@8.23.0)(zod@3.25.76))(pdf-parse@1.1.4)(pg@8.23.1)(playwright@1.65.1)(ws@8.23.0)':
+  '@langchain/community@0.2.33(@browserbasehq/sdk@2.29.0)(@langchain/langgraph@1.4.13(@langchain/core@1.2.9(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.221.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))(openai@4.95.1(ws@8.23.0)(zod@3.25.76))(ws@8.23.0))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.25.76))(@xenova/transformers@2.17.2(bare-buffer@3.7.3))(axios@1.20.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))(cheerio@1.0.0)(epub2@3.0.2(ts-toolbelt@9.6.0))(handlebars@4.7.10)(html-to-text@9.0.5)(ignore@5.3.2)(jsdom@26.1.0(canvas@3.2.3)(supports-color@8.1.1))(jsonwebtoken@9.0.3)(lodash@4.18.1)(mammoth@1.13.0)(mysql2@3.24.6(@types/node@22.20.7))(officeparser@4.2.0)(openai@4.95.1(ws@8.23.0)(zod@3.25.76))(pdf-parse@1.1.4)(pg@8.23.1)(playwright@1.65.1)(ws@8.23.0)':
     dependencies:
       '@langchain/core': 0.2.36(openai@4.95.1(ws@8.23.0)(zod@3.25.76))
       '@langchain/openai': 0.2.11(ws@8.23.0)
@@ -11822,7 +11834,7 @@ snapshots:
       jsonwebtoken: 9.0.3
       lodash: 4.18.1
       mammoth: 1.13.0
-      mysql2: 3.24.6(@types/node@26.6.11)
+      mysql2: 3.24.6(@types/node@22.20.7)
       officeparser: 4.2.0
       pdf-parse: 1.1.4
       pg: 8.23.1
@@ -13600,6 +13612,8 @@ snapshots:
 
   '@types/history@4.7.11': {}
 
+  '@types/html-to-text@9.0.4': {}
+
   '@types/istanbul-lib-coverage@2.0.6': {}
 
   '@types/istanbul-lib-report@3.0.3':
@@ -13637,6 +13651,8 @@ snapshots:
   '@types/mdurl@1.0.5': {}
 
   '@types/mdx@2.0.14': {}
+
+  '@types/mime@3.0.4': {}
 
   '@types/ms@2.1.0': {}
 
@@ -13706,6 +13722,8 @@ snapshots:
   '@types/triple-beam@1.3.5': {}
 
   '@types/trusted-types@2.0.7': {}
+
+  '@types/turndown@5.0.6': {}
 
   '@types/unist@2.0.11': {}
 
@@ -13916,6 +13934,15 @@ snapshots:
   '@vitejs/plugin-react@6.3.0(vite@8.4.0(@types/node@22.20.7)(jiti@1.21.7)(yaml@2.9.1))':
     dependencies:
       '@rolldown/pluginutils': 1.1.1
+      vite: 8.4.0(@types/node@22.20.7)(jiti@1.21.7)(yaml@2.9.1)
+
+  '@vitest/mocker@5.1.2(vite@8.4.0(@types/node@22.20.7)(jiti@1.21.7)(yaml@2.9.1))':
+    dependencies:
+      '@jridgewell/trace-mapping': 0.3.31
+      '@vitest/spy': 5.1.2
+      estree-walker: 3.0.3
+      magic-string: 1.4.5
+    optionalDependencies:
       vite: 8.4.0(@types/node@22.20.7)(jiti@1.21.7)(yaml@2.9.1)
 
   '@vitest/mocker@5.1.2(vite@8.4.0(@types/node@26.6.11)(jiti@1.21.7)(yaml@2.9.1))':
@@ -18648,18 +18675,6 @@ snapshots:
       named-placeholders: 1.1.6
       sql-escaper: 1.9.1
 
-  mysql2@3.24.6(@types/node@26.6.11):
-    dependencies:
-      '@types/node': 26.6.11
-      aws-ssl-profiles: 1.1.2
-      generate-function: 2.3.1
-      iconv-lite: 0.7.3
-      long: 5.3.2
-      lru.min: 1.1.5
-      named-placeholders: 1.1.6
-      sql-escaper: 1.9.1
-    optional: true
-
   mz@2.7.0:
     dependencies:
       any-promise: 1.3.0
@@ -21246,6 +21261,29 @@ snapshots:
       jiti: 1.21.7
       napi-windows-process-start-time: 0.1.0
       yaml: 2.9.1
+
+  vitest@5.1.2(@opentelemetry/api@1.9.1)(@types/node@22.20.7)(jsdom@26.1.0(canvas@3.2.3)(supports-color@8.1.1))(vite@8.4.0(@types/node@22.20.7)(jiti@1.21.7)(yaml@2.9.1)):
+    dependencies:
+      '@types/chai': 5.2.3
+      '@vitest/mocker': 5.1.2(vite@8.4.0(@types/node@22.20.7)(jiti@1.21.7)(yaml@2.9.1))
+      chai: 6.3.0
+      es-module-lexer: 2.3.2
+      expect-type: 1.4.0
+      magic-string: 1.4.5
+      obug: 3.0.0
+      picomatch: 4.0.7
+      std-env: 4.3.0
+      tinybench: 6.2.5
+      tinyexec: 1.4.0
+      tinyglobby: 0.2.17
+      vite: 8.4.0(@types/node@22.20.7)(jiti@1.21.7)(yaml@2.9.1)
+      why-is-node-running: 3.2.1
+    optionalDependencies:
+      '@opentelemetry/api': 1.9.1
+      '@types/node': 22.20.7
+      jsdom: 26.1.0(canvas@3.2.3)(supports-color@8.1.1)
+    transitivePeerDependencies:
+      - msw
 
   vitest@5.1.2(@opentelemetry/api@1.9.1)(@types/node@26.6.11)(jsdom@26.1.0(canvas@3.2.3)(supports-color@8.1.1))(vite@8.4.0(@types/node@26.6.11)(jiti@1.21.7)(yaml@2.9.1)):
     dependencies:

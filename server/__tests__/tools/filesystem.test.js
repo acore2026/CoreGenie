@@ -7,6 +7,7 @@ const mockManager = {
   searchFilesWithGlob: jest.fn(),
 };
 
+jest.mock("../../utils/prisma", () => ({}));
 jest.mock("fs/promises", () => ({
   appendFile: jest.fn(),
   readdir: jest.fn(),

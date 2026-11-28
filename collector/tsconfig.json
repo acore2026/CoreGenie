@@ -2,19 +2,12 @@
   "extends": "../tsconfig.base.json",
   "compilerOptions": {
     "module": "NodeNext",
-    "allowJs": true,
-    "noEmit": true,
     "rootDir": ".",
-    "outDir": "dist"
+    "outDir": "dist",
+    "allowJs": false,
+    "noEmit": true,
+    "types": ["node"]
   },
-  "include": [
-    "**/*.js",
-    "**/*.ts"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "hotdir",
-    "outputs"
-  ]
+  "include": ["**/*.ts"],
+  "exclude": ["dist", "node_modules"]
 }

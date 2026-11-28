@@ -19,7 +19,7 @@
     "node": ">=24 <25"
   },
   "scripts": {
-    "test": "NODE_OPTIONS=--experimental-vm-modules jest",
+    "test": "pnpm test:contracts && pnpm test:frontend && pnpm test:collector && pnpm --filter @coregenie/collector build && NODE_OPTIONS=--experimental-vm-modules jest",
     "test:contracts": "pnpm --filter @coregenie/contracts test",
     "test:frontend": "pnpm --filter anything-llm-frontend test:unit",
     "typecheck": "node scripts/typecheck.ts",
@@ -27,7 +27,7 @@
     "lint:ci": "node scripts/check-source-extensions.ts && pnpm --filter anything-llm-server lint:check && pnpm --filter anything-llm-frontend lint:check && pnpm --filter @coregenie/collector lint:check",
     "setup": "pnpm install && pnpm setup:envs && pnpm prisma:setup && echo \"Please run pnpm dev:server and pnpm dev:frontend in separate terminal tabs.\"",
     "setup:envs": "cp -n ./frontend/.env.example ./frontend/.env; cp -n ./server/.env.example ./server/.env.development; cp -n ./docker/.env.example ./docker/.env; echo \"All ENV files copied!\\n\"",
-    "dev:server": "pnpm --filter anything-llm-server dev",
+    "dev:server": "pnpm --filter @coregenie/collector build && pnpm --filter anything-llm-server dev",
     "dev:frontend": "pnpm --filter anything-llm-frontend dev",
     "dev": "concurrently \"pnpm dev:server\" \"pnpm dev:frontend\"",
     "prisma:generate": "pnpm --filter anything-llm-server exec prisma generate",
@@ -38,7 +38,8 @@
     "offline:global:import": "cd server && node scripts/offline/global-data.js import",
     "offline:package": "bash scripts/create-offline-package.sh",
     "prod:server": "pnpm --filter anything-llm-server start",
-    "prod:frontend": "pnpm --filter anything-llm-frontend build"
+    "prod:frontend": "pnpm --filter anything-llm-frontend build",
+    "test:collector": "pnpm --filter @coregenie/collector test"
   },
   "private": true,
   "devDependencies": {

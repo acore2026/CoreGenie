@@ -21,7 +21,8 @@ module.exports = {
   process(source, filename) {
     return {
       code: ts.transpileModule(source, {
-        fileName: filename,
+        // Jest 29 loads required .mts contracts in its CommonJS VM.
+        fileName: filename.replace(/\.mts$/, ".ts"),
         compilerOptions: {
           target: ts.ScriptTarget.ES2022,
           module: ts.ModuleKind.CommonJS,

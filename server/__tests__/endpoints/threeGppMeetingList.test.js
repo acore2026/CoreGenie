@@ -21,6 +21,7 @@ const { downloadMeetingList } = require("../../utils/threeGppMeetingList");
 const { threeGppCatalogEndpoints } = require("../../endpoints/threeGppCatalog");
 const routes = {};
 threeGppCatalogEndpoints({
+  post: jest.fn(),
   get: (path, middleware, handler) => {
     routes[path] = { middleware, handler };
   },

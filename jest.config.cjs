@@ -7,6 +7,9 @@ module.exports = {
   moduleFileExtensions: ["js", "mjs", "cjs", "ts", "mts", "cts", "json"],
   testPathIgnorePatterns: [
     "/node_modules/",
+    "<rootDir>/collector/",
+    "<rootDir>/frontend/",
+    "<rootDir>/packages/contracts/",
     "/.codex-tmp/",
     "/__tests__/helpers/",
   ],

@@ -10,6 +10,7 @@ jest.mock("../../models/agentToolExecution", () => ({
   AgentToolExecution: {},
 }));
 
+jest.mock("../../utils/prisma", () => ({}));
 jest.mock("fs/promises", () => ({ stat: jest.fn(), readFile: jest.fn() }));
 jest.mock("image-size", () => ({ imageSize: mockImageSize }));
 jest.mock("../../services/workspaceFiles", () => ({

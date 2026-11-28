@@ -7,3 +7,5 @@ scripts
 .env.development
 .env.production
 .env.test
+
+dist/

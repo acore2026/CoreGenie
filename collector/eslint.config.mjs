@@ -7,9 +7,9 @@ import configPrettier from "eslint-config-prettier";
 import unusedImports from "eslint-plugin-unused-imports";
 
 export default defineConfig([
-  { ignores: ["dist/**", "__tests__/**"] },
+  { ignores: ["dist/**"] },
   {
-    files: ["**/*.{js,mjs,cjs,ts,mts,cts}"],
+    files: ["**/*.{mjs,ts}"],
     plugins: { js, prettier: pluginPrettier, "unused-imports": unusedImports },
     extends: ["js/recommended"],
     languageOptions: { globals: { ...globals.node, ...globals.browser } },
@@ -53,5 +53,4 @@ export default defineConfig([
       "unused-imports/no-unused-vars": "off",
     },
   },
-  { files: ["**/*.js"], languageOptions: { sourceType: "commonjs" } },
 ]);

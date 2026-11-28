@@ -167,7 +167,7 @@ bash deploy-image.sh install
 ### 环境要求
 
 - Node.js 24.x
-- Yarn 1.x
+- pnpm 12.4.2
 - Git
 - Python 3（运行 3GPP 辅助脚本时需要）
 - `curl`、`unzip`、`zip`、Pandoc
@@ -180,29 +180,27 @@ LibreOffice 和 `pdftoppm` 仅在需要生成部分嵌入图形预览时使用�
 ```bash
 git clone https://github.com/acore2026/CoreGenie.git
 cd CoreGenie
-yarn setup
+pnpm setup
 ```
 
-`yarn setup` 会安装 `server`、`collector` 和 `frontend` 的依赖，复制环境变量示例，生成 Prisma 客户端并初始化数据库。
+`pnpm setup` 会安装 `server`、`collector` 和 `frontend` 的依赖，复制环境变量示例，生成 Prisma 客户端并初始化数据库。
 
 首次运行前请检查：
 
 - `server/.env.development`
-- `collector/.env`
 - `frontend/.env`
 
 ### 启动开发环境
 
 ```bash
-yarn dev
+pnpm dev
 ```
 
 也可以分别启动，方便查看日志：
 
 ```bash
-yarn dev:server
-yarn dev:collector
-yarn dev:frontend
+pnpm dev:server
+pnpm dev:frontend
 ```
 
 默认端口：
@@ -211,7 +209,8 @@ yarn dev:frontend
 | --------- | ----------------------- |
 | 前端      | `http://localhost:3000` |
 | 服务端    | `http://localhost:3001` |
-| Collector | `http://localhost:8888` |
+
+采集包随服务端启动。修改采集代码后，重新运行 `pnpm dev:server` 即可编译并加载。
 
 ## 项目结构
 

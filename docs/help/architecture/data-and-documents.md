@@ -12,7 +12,7 @@ CoreGenie 里存在多种“处理文档”的能力，排查“为什么图表�
 
 | 处理路径 | 执行位置 | 典型用途 | 数据保真度与特点 |
 | --- | --- | --- | --- |
-| **通用解析（`@coregenie/collector`）** | 主服务进程内模块 [collector/service.js](../../../collector/service.js)（`processDocument`、`parseDocument`、`processLinkDocument`） | 知识库文档入库、向量化检索、`attachmentMode: "parsed"` 的普通附件文本提取 | 目标是产出可检索纯文本与分块；不保证保留 Word 修订标记、复杂嵌套图或嵌入对象 |
+| **通用解析（`@coregenie/collector`）** | 主服务进程内模块 [collector/service.ts](../../../collector/service.ts)（`processDocument`、`parseDocument`、`processLinkDocument`） | 知识库文档入库、向量化检索、`attachmentMode: "parsed"` 的普通附件文本提取 | 目标是产出可检索纯文本与分块；不保证保留 Word 修订标记、复杂嵌套图或嵌入对象 |
 | **工作区原文件 + 沙箱专用转换** | 主服务保留原文件，沙箱 Runner 运行 Skill 打包脚本（如 [threeGpp.js](../../../server/tools/threeGpp.js)） | 3GPP 提案转 Markdown、提案拆分、PPT 生成与逐页渲染审阅 | `attachmentMode: "workspace_file"` 保留原始 DOCX 及二进制部件；脚本保留原图、嵌入对象和修订信息 |
 | **纯浏览器本地工具** | 前端 TypeScript 模块（[localTools/README.md](../../../frontend/src/utils/localTools/README.md)） | 提案编号回填（Word/Excel）、协议 PDF 本地检索 | 文档正文在浏览器内存处理，**不上传服务器**；仅获取 3GPP 官方会议清单时通过已登录服务端代拉目录 |
 
@@ -21,13 +21,13 @@ CoreGenie 里存在多种“处理文档”的能力，排查“为什么图表�
 初次阅读代码时，很容易疑惑为什么除了沙箱脚本之外还有一套 `collector/` 模块。简言之，**大模型和向量库不能直接读取 `.pdf`、`.docx`、`.xlsx`、`.pptx` 或 HTML，只认纯文本**；`@coregenie/collector` 就是继承自 AnythingLLM 的通用纯文本抽取包：
 
 - **不是从零自研的解析器**：底层直接调用社区成熟库（[collector/package.json](../../../collector/package.json) 中的 `pdf-parse`、`mammoth`、`node-xlsx`、`officeparser`、`html-to-text`、`turndown`、`tesseract.js`）。CoreGenie 在原版基础上裁剪了未使用的第三方数据源、音频转写与旧版 `langchain@0.1.36`。
-- **已合并进主服务进程**：早期上游把它拆成独立 Express HTTP 服务；重构后已改为 pnpm workspace 内部包 `@coregenie/collector`（[collector/service.js](../../../collector/service.js)），主服务通过函数直接调用，省去本机 HTTP 转发、额外端口和双进程管理，同时仍把解析依赖隔离在 `collector/` 包中。
+- **已合并进主服务进程**：早期上游把它拆成独立 Express HTTP 服务；重构后已改为 pnpm workspace 内部包 `@coregenie/collector`（[collector/service.ts](../../../collector/service.ts)），主服务通过函数直接调用，省去本机 HTTP 转发、额外端口和双进程管理，同时仍把解析依赖隔离在 `collector/` 包中。
 - **具体在哪些操作时触发**：
   1. 向工作区或公共知识库上传文档（`processDocument`）——抽出纯文本后交回主服务分块、算向量、写入向量库。
   2. 向知识库提交网页 URL 或定时刷新监控文档（`processLinkDocument`，见 [sync-watched-documents.js](../../../server/jobs/sync-watched-documents.js)）——抓网页并剥离 HTML 标签提取正文。
   3. 聊天框直接附带普通文档提问（`parseDocument`，见 [workspacesParsedFiles.js](../../../server/endpoints/workspacesParsedFiles.js)）——临时抽文本拼进当轮模型上下文。
   4. Agent 调用知识库入库工具（[tools/knowledge.js](../../../server/tools/knowledge.js)、[tools/globalKnowledge.js](../../../server/tools/globalKnowledge.js)）。
-- **能力边界与扩展思路**：对于 3GPP 提案这类必须保留 Word 修订痕迹、嵌入 OLE/Visio 对象和原图位置的场景，通用纯文本抽取无法满足要求，因此单独走沙箱专用脚本。如果后续遇到双栏 PDF、复杂表格或扫描件入库质量不足，可保留 `collector/service.js` 接口不变，仅将 `.pdf` 等特定分支委托给独立部署的专业解析服务（如 Docling）。
+- **能力边界与扩展思路**：对于 3GPP 提案这类必须保留 Word 修订痕迹、嵌入 OLE/Visio 对象和原图位置的场景，通用纯文本抽取无法满足要求，因此单独走沙箱专用脚本。如果后续遇到双栏 PDF、复杂表格或扫描件入库质量不足，可保留 `collector/service.ts` 接口不变，仅将 `.pdf` 等特定分支委托给独立部署的专业解析服务（如 Docling）。
 
 ## 2. 端到端追踪：把一份 3GPP 提案转成 Markdown
 

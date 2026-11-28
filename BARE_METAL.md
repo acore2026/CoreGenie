@@ -12,21 +12,22 @@ Here you can find the scripts and known working process to run AnythingLLM outsi
 > You should aim for at least 2GB of RAM. Disk storage is proportional to however much data
 > you will be storing (documents, vectors, models, etc). Minimum 10GB recommended.
 
-- NodeJS v18
-- Yarn
+- Node.js 24.x
+- pnpm 12.4.2
 
 
 ## Getting started
 
 1. Clone the repo into your server as the user who the application will run as.
-`git clone git@github.com:Mintplex-Labs/anything-llm.git`
+`git clone https://github.com/acore2026/CoreGenie.git`
 
-2. `cd anything-llm` and run `yarn setup`. This will install all dependencies to run in production as well as debug the application.
+2. `cd CoreGenie` and run `pnpm install --frozen-lockfile`. This will install all dependencies to run in production as well as debug the application.
 
 3. `cp server/.env.example server/.env` to create the basic ENV file for where instance settings will be read from on service start.
 
 4. Ensure that the `server/.env` file has _at least_ these keys to start. These values will persist and this file will be automatically written and managed after your first successful boot.
 ```
+DATABASE_URL="postgresql://USER:PASSWORD@localhost:5432/coregenie"
 STORAGE_DIR="/your/absolute/path/to/server/storage"
 ```
 
@@ -39,78 +40,23 @@ VITE_API_BASE='/api' # Use this URL deploying on non-localhost address OR in doc
 
 ## To start the application
 
-AnythingLLM is comprised of three main sections. The `frontend`, `server`, and `collector`. When running in production you will be running `server` and `collector` on two different processes, with a build step for compilation of the frontend.
+Run these commands from the repository root. The server loads the compiled collector in the same process and serves the frontend from `server/public`.
 
-1. Build the frontend application.
-`cd frontend && yarn build` - this will produce a `frontend/dist` folder that will be used later.
-
-2. Copy `frontend/dist` to `server/public` - `cp -R frontend/dist server/public`.
-This should create a folder in `server` named `public` which contains a top level `index.html` file and various other files/folders.
-
-3. Migrate and prepare your database file.
-```
-cd server && npx prisma generate --schema=./prisma/schema.prisma
-cd server && npx prisma migrate deploy --schema=./prisma/schema.prisma
+```bash
+pnpm --filter @coregenie/collector build
+pnpm --filter anything-llm-frontend build
+mkdir -p server/public
+cp -R frontend/dist/. server/public/
+pnpm prisma:generate
+pnpm prisma:migrate
+pnpm prod:server
 ```
 
-4. Boot the server in production
-`cd server && NODE_ENV=production node index.js &`
+CoreGenie listens on `http://localhost:3001` by default.
 
-5. Boot the collection in another process
-`cd collector && NODE_ENV=production node index.js &`
+## Updating CoreGenie
 
-AnythingLLM should now be running on `http://localhost:3001`!
-
-## Updating AnythingLLM
-
-To update AnythingLLM with future updates you can `git pull origin master` to pull in the latest code and then repeat steps 2 - 5 to deploy with all changes fully.
-
-_note_ You should ensure that each folder runs `yarn` again to ensure packages are up to date in case any dependencies were added, changed, or removed.
-
-_note_ You should `pkill node` before running an update so that you are not running multiple AnythingLLM processes on the same instance as this can cause conflicts.
-
-
-### Example update script
-
-```shell
-#!/bin/bash
-
-cd $HOME/anything-llm &&\
-git checkout . &&\
-git pull origin master &&\
-echo "HEAD pulled to commit $(git log -1 --pretty=format:"%h" | tail -n 1)"
-
-echo "Freezing current ENVs"
-curl -I "http://localhost:3001/api/env-dump" | head -n 1|cut -d$' ' -f2
-
-echo "Rebuilding Frontend"
-cd $HOME/anything-llm/frontend && yarn && yarn build && cd $HOME/anything-llm
-
-echo "Copying to Server Public"
-rm -rf server/public
-cp -r frontend/dist server/public
-
-echo "Killing node processes"
-pkill node
-
-echo "Installing collector dependencies"
-cd $HOME/anything-llm/collector && yarn
-
-echo "Installing server dependencies & running migrations"
-cd $HOME/anything-llm/server && yarn
-cd $HOME/anything-llm/server && npx prisma migrate deploy --schema=./prisma/schema.prisma
-cd $HOME/anything-llm/server && npx prisma generate
-
-echo "Booting up services."
-truncate -s 0 /logs/server.log # Or any other log file location.
-truncate -s 0 /logs/collector.log
-
-cd $HOME/anything-llm/server
-(NODE_ENV=production node index.js) &> /logs/server.log &
-
-cd $HOME/anything-llm/collector
-(NODE_ENV=production node index.js) &> /logs/collector.log &
-```
+Stop the CoreGenie server using the process manager that started it. Update the checkout with `git pull --ff-only origin master`, run `pnpm install --frozen-lockfile`, then repeat the build, migration and startup steps above.
 
 ## Using Nginx?
 
