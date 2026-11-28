@@ -6,6 +6,7 @@ import Sidebar, { SidebarMobileHeader } from "@/components/Sidebar";
 import paths from "@/utils/paths";
 import { API_BASE } from "@/utils/constants";
 import { baseHeaders } from "@/utils/request";
+import ToolLogo from "./ToolLogo";
 
 interface Entry {
   version: string;
@@ -37,6 +38,18 @@ interface Result {
   index: { entries: Entry[]; checked: string };
 }
 
+interface ConvertProgress {
+  stage: "queued" | "downloading" | "converting" | "writing_pdf" | "finalizing";
+  queuePosition?: number;
+  elapsedMs: number;
+  stageElapsedMs?: number;
+  timeoutMs?: number;
+  wordBytes?: number;
+  downloadedBytes?: number;
+  downloadTotalBytes?: number;
+  pdfBytes?: number;
+}
+
 interface ZipMember {
   name: string;
   label?: string;
@@ -59,6 +72,7 @@ interface ZipMember {
   cached: boolean;
   pdfPath?: string;
   pdfSize?: number;
+  progress?: ConvertProgress;
   error?: string;
 }
 
@@ -136,6 +150,14 @@ function formatBytes(bytes: number) {
   if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`;
   return `${bytes} B`;
+}
+
+function formatDuration(ms: number) {
+  const sec = Math.max(0, Math.floor(ms / 1000));
+  if (sec < 60) return `${sec} 秒`;
+  const min = Math.floor(sec / 60);
+  const rem = sec % 60;
+  return rem > 0 ? `${min} 分 ${rem} 秒` : `${min} 分钟`;
 }
 
 function isWorkingStatus(status: ZipMember["status"]) {
@@ -282,6 +304,7 @@ export default function ProtocolFinder() {
           pdfPath: data.pdfPath,
           pdfSize: data.size,
           cached: Boolean(data.cached),
+          progress: data.progress,
           error: data.error,
         });
         if (isWorkingStatus(data.status)) {
@@ -317,6 +340,7 @@ export default function ProtocolFinder() {
         pdfPath: data.pdfPath,
         pdfSize: data.size,
         cached: Boolean(data.cached),
+        progress: data.progress,
         error: data.error,
       });
       if (isWorkingStatus(data.status)) {
@@ -366,6 +390,79 @@ export default function ProtocolFinder() {
     return tr("generate_pdf");
   }
 
+  function renderProgress(member: ZipMember) {
+    if (!isWorkingStatus(member.status)) return null;
+    const p = member.progress;
+    const stage = p?.stage || member.status;
+    const wordBytes = p?.wordBytes || member.size || 0;
+
+    let label = tr("status_converting");
+    let determinatePercent: number | null = null;
+
+    if (stage === "queued") {
+      label =
+        p?.queuePosition && p.queuePosition > 1
+          ? tr("progress_queued_pos", { count: p.queuePosition - 1 })
+          : tr("progress_queued");
+    } else if (stage === "downloading") {
+      const loaded = p?.downloadedBytes || 0;
+      const total = p?.downloadTotalBytes || member.compressedSize || 0;
+      if (total > 0) {
+        const pct = Math.min(100, Math.round((loaded / total) * 100));
+        determinatePercent = pct;
+        label = tr("progress_downloading", {
+          loaded: formatBytes(loaded) || "0 KB",
+          total: formatBytes(total),
+          percent: pct,
+        });
+      } else {
+        label = tr("progress_downloading_simple");
+      }
+    } else if (stage === "writing_pdf" && p?.pdfBytes) {
+      label = tr("progress_writing_pdf", { size: formatBytes(p.pdfBytes) });
+    } else if (stage === "finalizing") {
+      label = tr("progress_finalizing");
+      determinatePercent = 98;
+    } else {
+      label = tr("progress_converting");
+    }
+
+    const elapsedText =
+      p && p.elapsedMs >= 1000
+        ? tr("progress_elapsed", { time: formatDuration(p.elapsedMs) })
+        : "";
+    const showLargeHint =
+      (stage === "converting" || stage === "writing_pdf") &&
+      wordBytes >= 8 * 1024 * 1024;
+
+    return (
+      <div
+        className="mt-2 space-y-1.5 rounded-md border border-theme-sidebar-border bg-theme-bg-secondary/30 px-3 py-2 text-xs text-theme-text-secondary"
+        role="status"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span>{label}</span>
+          {elapsedText && <span className="font-mono">{elapsedText}</span>}
+        </div>
+        <div className="h-1.5 w-full overflow-hidden rounded-full bg-theme-sidebar-border/60">
+          {determinatePercent !== null ? (
+            <div
+              className="h-full rounded-full bg-primary-button transition-all duration-300"
+              style={{ width: `${Math.max(4, determinatePercent)}%` }}
+            />
+          ) : (
+            <div className="h-full w-2/5 animate-pulse rounded-full bg-primary-button/80" />
+          )}
+        </div>
+        {showLargeHint && (
+          <p className="text-[11px] leading-relaxed">
+            {tr("progress_large_hint", { size: formatBytes(wordBytes) })}
+          </p>
+        )}
+      </div>
+    );
+  }
+
   const members = detail?.members || [];
   const hasKiSplit = members.some((m) => Boolean(m.label?.startsWith("KI#")));
   const subSpecs = result?.subSpecs || [];
@@ -401,10 +498,15 @@ export default function ProtocolFinder() {
           <Link className={control + " inline-block"} to={paths.tools()}>
             ← {t("local_tools.back_to_tools")}
           </Link>
-          <h1 className="text-2xl font-semibold">{tr("title")}</h1>
-          <p className="text-sm text-theme-text-secondary">
-            {tr("description")}
-          </p>
+          <header className="flex items-start gap-3.5">
+            <ToolLogo tool="protocol-finder" size="md" />
+            <div className="min-w-0">
+              <h1 className="text-2xl font-semibold">{tr("title")}</h1>
+              <p className="mt-1 text-sm text-theme-text-secondary">
+                {tr("description")}
+              </p>
+            </div>
+          </header>
           <form
             className="flex flex-wrap items-end gap-3"
             onSubmit={(e) => {
@@ -674,6 +776,7 @@ export default function ProtocolFinder() {
 
               {singleMember && (
                 <div className="text-sm">
+                  {renderProgress(singleMember)}
                   {singleMember.status === "ready" && (
                     <p className="text-theme-text-secondary" role="status">
                       {singleMember.cached
@@ -769,6 +872,7 @@ export default function ProtocolFinder() {
                                 {m.error}
                               </p>
                             )}
+                            {renderProgress(m)}
                           </div>
 
                           <div className="flex shrink-0 items-center gap-2">

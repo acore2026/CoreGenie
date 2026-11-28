@@ -15,6 +15,7 @@ import Sidebar, { SidebarMobileHeader } from "@/components/Sidebar";
 import ProposalMatch from "./ProposalMatch";
 import { useProposalFill } from "./useProposalFill";
 import { control, primary, input } from "./proposalControls";
+import ToolLogo from "./ToolLogo";
 
 export default function LocalTools({
   standalone = false,
@@ -66,13 +67,18 @@ export default function LocalTools({
                 {tr("back_to_tools")}
               </Link>
             )}
-            <h1 className="mt-4 text-2xl font-semibold">{tr("title")}</h1>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-theme-text-secondary">
-              {tr("description")}
-            </p>
-            <p className="mt-2 text-xs leading-5 text-theme-text-secondary">
-              {tr("privacy")}
-            </p>
+            <div className="mt-4 flex items-start gap-3.5">
+              <ToolLogo tool="proposal-fill" size="md" />
+              <div className="min-w-0">
+                <h1 className="text-2xl font-semibold">{tr("title")}</h1>
+                <p className="mt-1.5 max-w-3xl text-sm leading-6 text-theme-text-secondary">
+                  {tr("description")}
+                </p>
+                <p className="mt-1.5 text-xs leading-5 text-theme-text-secondary">
+                  {tr("privacy")}
+                </p>
+              </div>
+            </div>
           </header>
 
           <section

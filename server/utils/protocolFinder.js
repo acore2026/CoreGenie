@@ -582,6 +582,7 @@ async function decorateZipMembers(archiveId, manifest) {
       cached: Boolean(view.cached),
       pdfPath: view.pdfPath,
       pdfSize: view.size,
+      progress: view.progress,
       error: view.error,
     });
   }

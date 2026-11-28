@@ -48,7 +48,7 @@ function getConfig() {
   );
   const convertTimeoutMs = positiveNumber(
     process.env.PROTOCOL_FINDER_CONVERT_TIMEOUT_MS,
-    120000,
+    300000,
     5000
   );
   const maxConcurrency = Math.min(
@@ -523,7 +523,31 @@ async function inspectRemoteZip(zipUrl) {
   }
 }
 
-async function extractRemoteZipEntry(zipUrl, entry, outputPath, tmpDir) {
+function watchFileSize(filePath, intervalMs, onSize) {
+  let active = true;
+  const timer = setInterval(async () => {
+    if (!active) return;
+    try {
+      const st = await fs.stat(filePath);
+      if (active && st.isFile()) onSize(st.size);
+    } catch {
+      // File may not exist yet.
+    }
+  }, intervalMs);
+  if (typeof timer.unref === "function") timer.unref();
+  return () => {
+    active = false;
+    clearInterval(timer);
+  };
+}
+
+async function extractRemoteZipEntry(
+  zipUrl,
+  entry,
+  outputPath,
+  tmpDir,
+  onProgress
+) {
   const safeUrl = assertOfficialZipUrl(zipUrl);
   const { wordMaxBytes } = getConfig();
   if (entry.uncompressedSize > wordMaxBytes)
@@ -548,6 +572,15 @@ async function extractRemoteZipEntry(zipUrl, entry, outputPath, tmpDir) {
       const start = entry.localHeaderOffset;
       const end = start + span - 1;
       const slicePath = path.join(tmpDir, "slice.bin");
+      const stopWatch =
+        typeof onProgress === "function"
+          ? watchFileSize(slicePath, 400, (bytes) =>
+              onProgress({
+                downloadedBytes: Math.min(bytes, entry.compressedSize),
+                downloadTotalBytes: entry.compressedSize,
+              })
+            )
+          : null;
       try {
         await execFileAsync(
           "curl",
@@ -571,8 +604,16 @@ async function extractRemoteZipEntry(zipUrl, entry, outputPath, tmpDir) {
           ],
           { maxBuffer: 1024 * 1024 }
         );
+        if (typeof onProgress === "function") {
+          onProgress({
+            downloadedBytes: entry.compressedSize,
+            downloadTotalBytes: entry.compressedSize,
+          });
+        }
       } catch (err) {
         throw classifyCurlError(err, "下载该 Word 文档");
+      } finally {
+        if (stopWatch) stopWatch();
       }
       return fs.readFile(slicePath);
     };
@@ -693,11 +734,22 @@ async function moveFileAtomic(source, target) {
   }
 }
 
-async function convertWordToPdf(inputPath, outDir, profileDir) {
+async function convertWordToPdf(inputPath, outDir, profileDir, onProgress) {
   const { convertTimeoutMs, sofficeBin } = getConfig();
   await fs.mkdir(outDir, { recursive: true });
   await fs.mkdir(profileDir, { recursive: true });
   const profileUri = `file://${profileDir.replace(/\\/g, "/")}`;
+  const expectedPdf = path.join(
+    outDir,
+    `${path.basename(inputPath, path.extname(inputPath))}.pdf`
+  );
+
+  const stopWatch =
+    typeof onProgress === "function"
+      ? watchFileSize(expectedPdf, 500, (bytes) => {
+          if (bytes > 0) onProgress({ stage: "writing_pdf", pdfBytes: bytes });
+        })
+      : null;
 
   let result;
   try {
@@ -738,12 +790,10 @@ async function convertWordToPdf(inputPath, outDir, profileDir) {
         : "Word 转 PDF 失败，请稍后重试或直接下载 3GPP 原包。",
       500
     );
+  } finally {
+    if (stopWatch) stopWatch();
   }
 
-  const expectedPdf = path.join(
-    outDir,
-    `${path.basename(inputPath, path.extname(inputPath))}.pdf`
-  );
   let stat;
   try {
     stat = await fs.stat(expectedPdf);
@@ -885,24 +935,76 @@ function pumpQueue() {
   }
 }
 
+function buildProgressSnapshot(job, now = Date.now()) {
+  if (!job?.progress) return undefined;
+  const p = job.progress;
+  const queueIndex =
+    job.status === "queued"
+      ? queue.findIndex((item) => item.hash === job.hash)
+      : -1;
+  return {
+    stage: p.stage,
+    queuePosition: queueIndex >= 0 ? queueIndex + 1 : 0,
+    elapsedMs: Math.max(0, now - job.startedAt),
+    stageElapsedMs: Math.max(0, now - (p.stageStartedAt || job.startedAt)),
+    timeoutMs: p.timeoutMs,
+    wordBytes: p.wordBytes,
+    downloadedBytes: p.downloadedBytes || 0,
+    downloadTotalBytes: p.downloadTotalBytes || 0,
+    pdfBytes: p.pdfBytes || 0,
+  };
+}
+
 async function runJob({ hash, zipUrl, entry }) {
   const job = jobs.get(hash);
   if (!job) return;
   let tmpDir = null;
   try {
+    const dlStart = Date.now();
     job.status = "downloading";
-    job.updatedAt = Date.now();
+    job.updatedAt = dlStart;
+    job.progress.stage = "downloading";
+    job.progress.stageStartedAt = dlStart;
+    job.progress.downloadedBytes = 0;
+    job.progress.downloadTotalBytes =
+      entry.compressedSize || entry.uncompressedSize || 0;
+
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), TEMP_PREFIX));
     const ext = path.posix.extname(entry.name).toLowerCase() || ".docx";
     const inputPath = path.join(tmpDir, `source${ext}`);
-    await extractRemoteZipEntry(zipUrl, entry, inputPath, tmpDir);
+    await extractRemoteZipEntry(zipUrl, entry, inputPath, tmpDir, (dl) => {
+      job.progress.downloadedBytes = dl.downloadedBytes;
+      job.progress.downloadTotalBytes = dl.downloadTotalBytes;
+      job.updatedAt = Date.now();
+    });
 
+    const convStart = Date.now();
     job.status = "converting";
-    job.updatedAt = Date.now();
+    job.updatedAt = convStart;
+    job.progress.stage = "converting";
+    job.progress.stageStartedAt = convStart;
+    job.progress.pdfBytes = 0;
+
     const outDir = path.join(tmpDir, "out");
     const profileDir = path.join(tmpDir, "profile");
-    const generatedPdf = await convertWordToPdf(inputPath, outDir, profileDir);
+    const generatedPdf = await convertWordToPdf(
+      inputPath,
+      outDir,
+      profileDir,
+      (conv) => {
+        if (conv.stage && job.progress.stage !== conv.stage) {
+          job.progress.stage = conv.stage;
+          job.progress.stageStartedAt = Date.now();
+        }
+        if (typeof conv.pdfBytes === "number") {
+          job.progress.pdfBytes = conv.pdfBytes;
+        }
+        job.updatedAt = Date.now();
+      }
+    );
 
+    job.progress.stage = "finalizing";
+    job.progress.stageStartedAt = Date.now();
     const targetPath = path.join(pdfCacheDir(), `${hash}.pdf`);
     await moveFileAtomic(generatedPdf, targetPath);
     const stat = await fs.stat(targetPath);
@@ -968,6 +1070,7 @@ async function getJobView(hash, filename) {
     hash,
     filename: job.filename,
     error: job.error || undefined,
+    progress: buildProgressSnapshot(job),
     cached: false,
   };
 }
@@ -975,7 +1078,7 @@ async function getJobView(hash, filename) {
 async function startConversion({ archiveId, zipName, zipUrl, entry }) {
   pruneOldJobRecords();
   const safeUrl = assertOfficialZipUrl(zipUrl);
-  const { wordMaxBytes } = getConfig();
+  const { wordMaxBytes, convertTimeoutMs } = getConfig();
   if (!/\.(docx?|rtf)$/i.test(entry.name))
     throw invalid("该文件不是 Word 文档，请直接下载 3GPP 原包。", 422);
   if (entry.uncompressedSize > wordMaxBytes)
@@ -1012,18 +1115,29 @@ async function startConversion({ archiveId, zipName, zipUrl, entry }) {
       status: existing.status,
       hash,
       filename: existing.filename,
+      progress: buildProgressSnapshot(existing),
       cached: false,
     };
   }
 
+  const startedAt = Date.now();
   const job = {
     status: "queued",
     hash,
     filename,
     error: null,
     size: 0,
-    startedAt: Date.now(),
-    updatedAt: Date.now(),
+    startedAt,
+    updatedAt: startedAt,
+    progress: {
+      stage: "queued",
+      stageStartedAt: startedAt,
+      timeoutMs: convertTimeoutMs,
+      wordBytes: entry.uncompressedSize || 0,
+      downloadedBytes: 0,
+      downloadTotalBytes: entry.compressedSize || entry.uncompressedSize || 0,
+      pdfBytes: 0,
+    },
   };
   jobs.set(hash, job);
   queue.push({ hash, filename, zipUrl: safeUrl, entry });
@@ -1033,6 +1147,7 @@ async function startConversion({ archiveId, zipName, zipUrl, entry }) {
     status: job.status,
     hash,
     filename,
+    progress: buildProgressSnapshot(job),
     cached: false,
   };
 }

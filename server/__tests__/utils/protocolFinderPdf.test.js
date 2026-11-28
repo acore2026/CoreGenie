@@ -225,6 +225,10 @@ test("extracts a single docx via HTTP Range, converts via soffice, deduplicates 
     }),
   ]);
   expect(first.hash).toBe(second.hash);
+  expect(first.progress).toMatchObject({
+    wordBytes: docxBytes.length,
+    timeoutMs: 300000,
+  });
 
   // Wait for background job to finish
   let view;

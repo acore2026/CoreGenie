@@ -1,20 +1,26 @@
 import { Link } from "react-router-dom";
-import { ArrowRight, FileDoc, MagnifyingGlass } from "@phosphor-icons/react";
+import { ArrowRight } from "@phosphor-icons/react";
 import { isMobile } from "react-device-detect";
 import { useTranslation } from "react-i18next";
 import Sidebar, { SidebarMobileHeader } from "@/components/Sidebar";
 import paths from "@/utils/paths";
 import PlannedToolSketch from "./PlannedToolSketch";
+import ToolLogo, { type LocalToolId } from "./ToolLogo";
 
 // Each tool has its own route and catalog entry; the catalog owns no tool state.
-const tools = [
+const tools: Array<{
+  id: LocalToolId;
+  path: () => string;
+  title: string;
+  description: string;
+  category: string;
+}> = [
   {
     id: "protocol-finder",
     path: paths.protocolFinder,
     title: "local_tools.protocol.title",
     description: "local_tools.protocol.description",
     category: "local_tools.protocol.category",
-    Icon: MagnifyingGlass,
   },
   {
     id: "proposal-fill",
@@ -22,7 +28,6 @@ const tools = [
     title: "local_tools.title",
     description: "local_tools.tool_summary",
     category: "local_tools.category",
-    Icon: FileDoc,
   },
 ];
 
@@ -44,18 +49,24 @@ export default function ToolCatalog() {
               {t("local_tools.catalog.standards")}
             </h2>
             <ul className="mt-3 grid gap-4 md:grid-cols-2">
-              {tools.map(({ id, path, title, description, category, Icon }) => (
+              {tools.map(({ id, path, title, description, category }) => (
                 <li key={id}>
                   <Link
                     to={path()}
                     className="group flex h-full flex-col rounded-xl border border-theme-sidebar-border border-l-[3px] border-l-cyan-500 p-5 transition-colors hover:bg-theme-sidebar-item-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-button"
                   >
-                    <div className="flex items-center gap-2 text-xs text-theme-text-secondary">
-                      <Icon size={20} />
-                      {t(category)}
+                    <div className="flex items-center gap-3">
+                      <ToolLogo tool={id} size="sm" />
+                      <div className="min-w-0">
+                        <div className="text-xs text-theme-text-secondary">
+                          {t(category)}
+                        </div>
+                        <h3 className="mt-0.5 text-lg font-semibold">
+                          {t(title)}
+                        </h3>
+                      </div>
                     </div>
-                    <h3 className="mt-4 text-lg font-semibold">{t(title)}</h3>
-                    <p className="mt-2 text-sm leading-6 text-theme-text-secondary">
+                    <p className="mt-3 text-sm leading-6 text-theme-text-secondary">
                       {t(description)}
                     </p>
                     <span className="mt-6 inline-flex items-center gap-2 text-sm font-medium">

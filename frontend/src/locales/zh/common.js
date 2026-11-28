@@ -112,6 +112,17 @@ const TRANSLATIONS = {
       status_queued: "排队中…",
       status_downloading: "正在下载 Word…",
       status_converting: "正在转换为 PDF…",
+      progress_queued: "正在排队等待转换…",
+      progress_queued_pos: "排队中，前方还有 {{count}} 个转换任务…",
+      progress_downloading:
+        "1/2 正在从 3GPP 下载 Word（{{loaded}} / {{total}}，{{percent}}%）",
+      progress_downloading_simple: "1/2 正在从 3GPP 下载 Word…",
+      progress_converting: "2/2 正在用 LibreOffice 排版并生成 PDF…",
+      progress_writing_pdf: "2/2 正在写入 PDF 文件（已生成 {{size}}）…",
+      progress_finalizing: "正在保存 PDF 缓存…",
+      progress_elapsed: "已耗时 {{time}}",
+      progress_large_hint:
+        "该文档较大（{{size}}），图表较多时通常需要 1～4 分钟；完成后会自动缓存，下次可直接打开。",
       no_members: "压缩包内未找到可读取的文档，请直接下载 3GPP 原包。",
     },
     nav: "日常工具",
