@@ -1,7 +1,12 @@
+import type { SystemKeys } from "@/models/system";
 import { useState, useEffect } from "react";
-import System from "@/models/system";
+import System, { type AvailableModel } from "@/models/system";
 
-export default function GenericOpenAiOptions({ settings }) {
+export default function GenericOpenAiOptions({
+  settings,
+}: {
+  settings: SystemKeys | null;
+}) {
   const [genericOpenAiBasePath, setGenericOpenAiBasePath] = useState(
     settings?.GenericOpenAiBasePath
   );
@@ -66,7 +71,7 @@ export default function GenericOpenAiOptions({ settings }) {
             className="border-none bg-theme-settings-input-bg text-white placeholder:text-theme-settings-input-placeholder text-sm rounded-lg focus:outline-primary-button active:outline-primary-button outline-none block w-full p-2.5"
             placeholder="Content window limit (eg: 4096)"
             min={1}
-            onScroll={(e) => e.target.blur()}
+            onScroll={(e) => e.currentTarget.blur()}
             defaultValue={settings?.GenericOpenAiTokenLimit}
             required={true}
             autoComplete="off"
@@ -98,8 +103,14 @@ function GenericOpenAiModelSelection({
   apiKey = null,
   genericOpenAiModelPref,
   setGenericOpenAiModelPref,
+}: {
+  settings: SystemKeys | null;
+  basePath?: string | null;
+  apiKey?: string | boolean | null;
+  genericOpenAiModelPref?: string;
+  setGenericOpenAiModelPref: (value: string | undefined) => void;
 }) {
-  const [customModels, setCustomModels] = useState([]);
+  const [customModels, setCustomModels] = useState<AvailableModel[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -113,7 +124,7 @@ function GenericOpenAiModelSelection({
       try {
         const { models } = await System.customModels(
           "generic-openai",
-          apiKey,
+          typeof apiKey === "string" ? apiKey : null,
           basePath
         );
         setCustomModels(models || []);
@@ -187,7 +198,7 @@ function GenericOpenAiModelSelection({
                 <option
                   key={model.id}
                   value={model.id}
-                  selected={settings.GenericOpenAiModelPref === model.id}
+                  selected={settings?.GenericOpenAiModelPref === model.id}
                 >
                   {model.id}
                 </option>

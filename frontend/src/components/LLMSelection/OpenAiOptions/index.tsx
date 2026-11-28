@@ -1,7 +1,12 @@
+import type { SystemKeys } from "@/models/system";
 import { useState, useEffect } from "react";
-import System from "@/models/system";
+import System, { type AvailableModel } from "@/models/system";
 
-export default function OpenAiOptions({ settings }) {
+export default function OpenAiOptions({
+  settings,
+}: {
+  settings: SystemKeys | null;
+}) {
   const [inputValue, setInputValue] = useState(settings?.OpenAiKey);
   const [openAIKey, setOpenAIKey] = useState(settings?.OpenAiKey);
 
@@ -31,8 +36,16 @@ export default function OpenAiOptions({ settings }) {
   );
 }
 
-function OpenAIModelSelection({ apiKey, settings }) {
-  const [groupedModels, setGroupedModels] = useState({});
+function OpenAIModelSelection({
+  apiKey,
+  settings,
+}: {
+  apiKey?: string | boolean;
+  settings: SystemKeys | null;
+}) {
+  const [groupedModels, setGroupedModels] = useState<
+    Record<string, AvailableModel[]>
+  >({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -44,9 +57,12 @@ function OpenAIModelSelection({ apiKey, settings }) {
       );
 
       if (models?.length > 0) {
-        const modelsByOrganization = models.reduce((acc, model) => {
-          acc[model.organization] = acc[model.organization] || [];
-          acc[model.organization].push(model);
+        const modelsByOrganization = models.reduce<
+          Record<string, AvailableModel[]>
+        >((acc, model) => {
+          const organization = model.organization || "other";
+          acc[organization] = acc[organization] || [];
+          acc[organization].push(model);
           return acc;
         }, {});
         setGroupedModels(modelsByOrganization);

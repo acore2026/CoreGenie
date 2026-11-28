@@ -20,7 +20,7 @@ import Snowflake from "@lobehub/icons/es/Snowflake/components/Mono";
 import Liquid from "@lobehub/icons/es/Liquid/components/Mono";
 
 // Direct provider key -> icon mapping for exact matches
-const providerIcons = {
+const providerIcons: Record<string, typeof OpenAI> = {
   openai: OpenAI,
   anthropic: Anthropic,
   google: Google,
@@ -74,7 +74,7 @@ const modelPatterns = [
  * @param {string} modelName - The model name to match
  * @returns {React.ComponentType|null}
  */
-function findIconByModelName(modelName) {
+function findIconByModelName(modelName?: string) {
   if (!modelName) return null;
   const match = modelPatterns.find(({ pattern }) => pattern.test(modelName));
   return match?.icon || null;
@@ -95,10 +95,16 @@ export default function MonoProviderIcon({
   size = 24,
   className = "",
   fallbackIconKey = null,
+}: {
+  provider?: string;
+  match?: "exact" | "pattern";
+  size?: number;
+  className?: string;
+  fallbackIconKey?: string | null;
 }) {
   let Icon = null;
 
-  if (match === "exact") Icon = providerIcons[provider?.toLowerCase()];
+  if (match === "exact") Icon = providerIcons[provider?.toLowerCase() ?? ""];
   else if (match === "pattern") Icon = findIconByModelName(provider);
   if (!Icon && fallbackIconKey && providerIcons[fallbackIconKey])
     Icon = providerIcons[fallbackIconKey];

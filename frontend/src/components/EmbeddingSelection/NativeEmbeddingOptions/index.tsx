@@ -1,14 +1,21 @@
+import type { SystemKeys } from "@/models/system";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import System from "@/models/system";
+import System, { type AvailableModel } from "@/models/system";
 
-export default function NativeEmbeddingOptions({ settings }) {
+export default function NativeEmbeddingOptions({
+  settings,
+}: {
+  settings: SystemKeys | null;
+}) {
   const [loading, setLoading] = useState(true);
-  const [availableModels, setAvailableModels] = useState([]);
+  const [availableModels, setAvailableModels] = useState<AvailableModel[]>([]);
   const [selectedModel, setSelectedModel] = useState(
     settings?.EmbeddingModelPref
   );
-  const [selectedModelInfo, setSelectedModelInfo] = useState();
+  const selectedModelInfo = availableModels.find(
+    (model) => model.id === selectedModel
+  );
 
   useEffect(() => {
     System.customModels("native-embedder")
@@ -19,20 +26,12 @@ export default function NativeEmbeddingOptions({ settings }) {
             models.find((model) => model.id === settings?.EmbeddingModelPref) ??
             models[0];
           setSelectedModel(_selectedModel.id);
-          setSelectedModelInfo(_selectedModel);
         }
       })
       .finally(() => {
         setLoading(false);
       });
   }, []);
-
-  useEffect(() => {
-    if (!availableModels?.length || !selectedModel) return;
-    setSelectedModelInfo(
-      availableModels.find((model) => model.id === selectedModel)
-    );
-  }, [selectedModel, availableModels]);
 
   return (
     <div className="w-full flex flex-col gap-y-4">
@@ -84,14 +83,16 @@ export default function NativeEmbeddingOptions({ settings }) {
             <p className="text-theme-text-secondary text-xs font-normal block">
               Download Size: {selectedModelInfo?.size}
             </p>
-            <Link
-              to={selectedModelInfo?.modelCard}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-theme-text-secondary text-xs font-normal block underline hover:text-theme-text-primary"
-            >
-              View model card on Hugging Face &rarr;
-            </Link>
+            {selectedModelInfo?.modelCard && (
+              <Link
+                to={selectedModelInfo.modelCard}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-theme-text-secondary text-xs font-normal block underline hover:text-theme-text-primary"
+              >
+                View model card on Hugging Face &rarr;
+              </Link>
+            )}
           </div>
         )}
       </div>

@@ -11,7 +11,12 @@ export default function ModelTableLayout({
   searchQuery = "",
   setSearchQuery = () => {},
   loading = false,
-}) {
+}: React.PropsWithChildren<{
+  fetchModels?: (() => void | Promise<void>) | null;
+  searchQuery?: string;
+  setSearchQuery?: (query: string) => void;
+  loading?: boolean;
+}>) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   async function refreshModels() {
     setIsRefreshing(true);

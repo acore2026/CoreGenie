@@ -1,4 +1,9 @@
-export default function OpenAiOptions({ settings }) {
+import type { SystemKeys } from "@/models/system";
+export default function OpenAiOptions({
+  settings,
+}: {
+  settings: SystemKeys | null;
+}) {
   return (
     <div className="w-full flex flex-col gap-y-4">
       <div className="w-full flex items-center gap-[36px] mt-1.5">

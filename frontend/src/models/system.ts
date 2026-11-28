@@ -16,9 +16,39 @@ export type SlashPresetInput = {
 };
 export type SlashPreset = SlashPresetInput & { id: number };
 
+export interface AvailableModel {
+  id: string;
+  name: string;
+  organization?: string;
+  description?: string;
+  downloaded?: boolean;
+  lang?: string;
+  size?: string | number;
+  modelCard?: string;
+}
 export interface SystemKeys extends Record<string, unknown> {
   LLMProvider?: string | null;
   LLMModel?: string | null;
+  VectorDB?: string;
+  EmbeddingEngine?: string;
+  EmbeddingBasePath?: string;
+  EmbeddingModelPref?: string;
+  GenericOpenAiBasePath?: string;
+  GenericOpenAiEmbeddingPassagePrefix?: string;
+  GenericOpenAiEmbeddingQueryPrefix?: string;
+  GenericOpenAiModelPref?: string;
+  OpenAiModelPref?: string;
+  PGVectorTableName?: string;
+  EmbeddingModelMaxChunkLength?: string | number;
+  GenericOpenAiEmbeddingMaxConcurrentChunks?: string | number;
+  GenericOpenAiMaxTokens?: string | number;
+  GenericOpenAiTokenLimit?: string | number;
+  OpenAiKey?: string | boolean;
+  GenericOpenAiKey?: string | boolean;
+  GenericOpenAiApiKey?: string | boolean;
+  GenericOpenAiEmbeddingApiKey?: string | boolean;
+  PGVectorConnectionString?: string | boolean;
+  credentialsOnly?: boolean;
   DisableViewChatHistory?: boolean;
 }
 
@@ -652,7 +682,7 @@ const System = {
     basePath: string | null = null,
     timeout: number | null = null,
     options: AnyRecord = {}
-  ): Promise<{ models: unknown[]; error?: string | null }> {
+  ): Promise<{ models: AvailableModel[]; error?: string | null }> {
     const controller = new AbortController();
     const timer = timeout
       ? setTimeout(() => {
@@ -661,7 +691,10 @@ const System = {
       : null;
 
     try {
-      return await api.post<{ models: unknown[]; error?: string | null }>(
+      return await api.post<{
+        models: AvailableModel[];
+        error?: string | null;
+      }>(
         "/system/custom-models",
         {
           provider,

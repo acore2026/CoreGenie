@@ -1,3 +1,4 @@
+import type { ProviderPolicy } from "./constants";
 import { useState, useEffect } from "react";
 import System from "@/models/system";
 import { PROVIDER_PRIVACY_MAP } from "./constants";
@@ -6,7 +7,7 @@ import AnythingLLMIcon from "@/media/logo/coregenie-mark.svg";
 import { Link } from "react-router-dom";
 import { titleCase, sentenceCase } from "text-case";
 
-function defaultProvider(providerString) {
+function defaultProvider(providerString?: string | null) {
   return {
     name: providerString
       ? titleCase(sentenceCase(String(providerString)))
@@ -20,23 +21,23 @@ function defaultProvider(providerString) {
 
 export default function ProviderPrivacy() {
   const [loading, setLoading] = useState(true);
-  const [providers, setProviders] = useState({
-    llmProvider: null,
-    embeddingEngine: null,
-    vectorDb: null,
-  });
-
+  const [providers, setProviders] = useState<{
+    llmProvider: ProviderPolicy;
+    embeddingEngine: ProviderPolicy;
+    vectorDb: ProviderPolicy;
+  } | null>(null);
   useEffect(() => {
     async function fetchProviders() {
       const _settings = await System.keys();
       const providerDefinition =
-        PROVIDER_PRIVACY_MAP.llm[_settings?.LLMProvider] ||
+        PROVIDER_PRIVACY_MAP.llm[_settings?.LLMProvider ?? ""] ||
         defaultProvider(_settings?.LLMProvider);
       const embeddingEngineDefinition =
-        PROVIDER_PRIVACY_MAP.embeddingEngine[_settings?.EmbeddingEngine] ||
-        defaultProvider(_settings?.EmbeddingEngine);
+        PROVIDER_PRIVACY_MAP.embeddingEngine[
+          _settings?.EmbeddingEngine ?? ""
+        ] || defaultProvider(_settings?.EmbeddingEngine);
       const vectorDbDefinition =
-        PROVIDER_PRIVACY_MAP.vectorDb[_settings?.VectorDB] ||
+        PROVIDER_PRIVACY_MAP.vectorDb[_settings?.VectorDB ?? ""] ||
         defaultProvider(_settings?.VectorDB);
 
       setProviders({
@@ -49,7 +50,7 @@ export default function ProviderPrivacy() {
     fetchProviders();
   }, []);
 
-  if (loading) return null;
+  if (loading || !providers) return null;
   return (
     <div className="flex flex-col gap-8 w-full max-w-2xl">
       <ProviderPrivacyItem
@@ -71,7 +72,15 @@ export default function ProviderPrivacy() {
   );
 }
 
-function ProviderPrivacyItem({ title, provider, altText }) {
+function ProviderPrivacyItem({
+  title,
+  provider,
+  altText,
+}: {
+  title: string;
+  provider: ProviderPolicy;
+  altText: string;
+}) {
   return (
     <div className="flex flex-col items-start gap-y-3 pb-4 border-b border-theme-sidebar-border">
       <div className="text-theme-text-primary text-base font-bold">{title}</div>

@@ -1,8 +1,13 @@
-import React, { useState } from "react";
+import type { SystemKeys } from "@/models/system";
+import { useState } from "react";
 import { CaretDown, CaretUp, Info } from "@phosphor-icons/react";
 import { Tooltip } from "react-tooltip";
 
-export default function GenericOpenAiEmbeddingOptions({ settings }) {
+export default function GenericOpenAiEmbeddingOptions({
+  settings,
+}: {
+  settings: SystemKeys | null;
+}) {
   const [showAdvancedControls, setShowAdvancedControls] = useState(false);
   return (
     <div className="w-full flex flex-col gap-y-7">
@@ -66,7 +71,7 @@ export default function GenericOpenAiEmbeddingOptions({ settings }) {
             className="border-none bg-theme-settings-input-bg text-white placeholder:text-theme-settings-input-placeholder text-sm rounded-lg focus:outline-primary-button active:outline-primary-button outline-none block w-full p-2.5"
             placeholder="8192"
             min={1}
-            onScroll={(e) => e.target.blur()}
+            onScroll={(e) => e.currentTarget.blur()}
             defaultValue={settings?.EmbeddingModelMaxChunkLength}
             required={false}
             autoComplete="off"
@@ -124,7 +129,7 @@ export default function GenericOpenAiEmbeddingOptions({ settings }) {
               className="border-none bg-theme-settings-input-bg text-white placeholder:text-theme-settings-input-placeholder text-sm rounded-lg focus:outline-primary-button active:outline-primary-button outline-none block w-full p-2.5"
               placeholder="500"
               min={1}
-              onScroll={(e) => e.target.blur()}
+              onScroll={(e) => e.currentTarget.blur()}
               defaultValue={settings?.GenericOpenAiEmbeddingMaxConcurrentChunks}
               required={false}
               autoComplete="off"

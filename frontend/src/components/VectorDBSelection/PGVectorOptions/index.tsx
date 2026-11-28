@@ -1,7 +1,12 @@
+import type { SystemKeys } from "@/models/system";
 import { Info } from "@phosphor-icons/react";
 import { Tooltip } from "react-tooltip";
 
-export default function PGVectorOptions({ settings }) {
+export default function PGVectorOptions({
+  settings,
+}: {
+  settings: SystemKeys | null;
+}) {
   return (
     <div className="w-full flex flex-col gap-y-7">
       <div className="w-full flex items-center gap-[36px] mt-1.5">

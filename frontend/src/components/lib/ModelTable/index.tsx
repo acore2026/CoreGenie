@@ -8,31 +8,32 @@ import {
   CloudArrowDown,
   CircleNotch,
 } from "@phosphor-icons/react";
-import pluralize from "pluralize";
+
 import { titleCase } from "text-case";
 import { humanFileSize } from "@/utils/numbers";
 import MonoProviderIcon from "../MonoProviderIcon";
 
-/**
- * @typedef {Object} ModelDefinition
- * @property {string} id - The ID of the model.
- * @property {'CPU' | 'GPU' | 'NPU'} deviceType - The device type of the model.
- * @property {number} modelSize - The size of the model in megabytes.
- * @property {boolean} downloaded - Whether the model is downloaded.
- */
-
-/**
- * @param {object} props - The props of the component.
- * @param {string} props.alias - The alias of the model.
- * @param {Array<ModelDefinition>} props.models - The models to display.
- * @param {(model: string, progressCallback: (percentage: number) => void) => void} props.downloadModel - The function to download the model.
- * @param {(model: string) => void} props.uninstallModel - The function to uninstall the model.
- * @param {(model: string) => void} props.setActiveModel - The function to set the active model.
- * @param {string} props.selectedModelId - The ID of the selected model.
- * @param {object} props.ui - The UI configuration.
- * @param {boolean} props.ui.showRuntime - Whether to show the runtime.
- * @returns {React.ReactNode}
- */
+interface ModelDefinition {
+  id: string;
+  name: string;
+  organization?: string;
+  downloaded?: boolean;
+  deviceType?: string;
+  size?: number | string;
+}
+interface ModelControls {
+  downloadModel?:
+    | ((
+        id: string,
+        fileSize: string,
+        onProgress: (percent: number) => void
+      ) => void | Promise<void>)
+    | null;
+  uninstallModel?: ((id: string) => void | Promise<void>) | null;
+  setActiveModel?: (id: string) => void;
+  selectedModelId?: string;
+  ui?: { showRuntime: boolean };
+}
 export default function ModelTable({
   alias = "",
   models = [],
@@ -43,7 +44,7 @@ export default function ModelTable({
   ui = {
     showRuntime: true,
   },
-}) {
+}: ModelControls & { alias?: string; models?: ModelDefinition[] }) {
   const [showAll, setShowAll] = useState(
     models.some((model) => model.downloaded)
   );
@@ -79,7 +80,7 @@ export default function ModelTable({
           <p className="flex items-center gap-x-1 text-theme-text-primary text-base font-bold">
             {titleCase(alias)}
             <span className="text-theme-text-secondary font-normal text-sm">
-              ({totalModels} {pluralize("Model", totalModels)})
+              ({totalModels} {totalModels === 1 ? "Model" : "Models"})
             </span>
           </p>
         </div>
@@ -104,7 +105,15 @@ export default function ModelTable({
   );
 }
 
-function DeviceTypeTagWrapper({ text, bgClass, textClass }) {
+function DeviceTypeTagWrapper({
+  text,
+  bgClass,
+  textClass,
+}: {
+  text: string;
+  bgClass: string;
+  textClass: string;
+}) {
   return (
     <div
       className={
@@ -117,11 +126,7 @@ function DeviceTypeTagWrapper({ text, bgClass, textClass }) {
   );
 }
 
-/**
- * @param {{deviceType: ModelDefinition["deviceType"]}} deviceType
- * @returns {React.ReactNode}
- */
-function DeviceTypeTag({ deviceType }) {
+function DeviceTypeTag({ deviceType }: { deviceType?: string }) {
   switch (deviceType?.toLowerCase()) {
     case "cpu":
       return (
@@ -158,17 +163,6 @@ function DeviceTypeTag({ deviceType }) {
   }
 }
 
-/**
- * @param {object} props - The props of the component.
- * @param {ModelDefinition} props.model - The model to display.
- * @param {(model: string, progressCallback: (percentage: number) => void) => Promise<void>} props.downloadModel - The function to download the model.
- * @param {(model: string) => Promise<void>} props.uninstallModel - The function to uninstall the model.
- * @param {(model: string) => void} props.setActiveModel - The function to set the active model.
- * @param {string} props.selectedModelId - The ID of the selected model.
- * @param {object} props.ui - The UI configuration.
- * @param {boolean} props.ui.showRuntime - Whether to show the runtime.
- * @returns {React.ReactNode}
- */
 function ModelRow({
   alias,
   model,
@@ -179,8 +173,12 @@ function ModelRow({
   ui = {
     showRuntime: true,
   },
-}) {
-  const modelRowRef = useRef(null);
+}: Pick<ModelControls, "downloadModel" | "uninstallModel"> &
+  Required<Pick<ModelControls, "ui" | "selectedModelId" | "setActiveModel">> & {
+    alias: string;
+    model: ModelDefinition;
+  }) {
+  const modelRowRef = useRef<HTMLDivElement>(null);
   const [showOptions, setShowOptions] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [downloadPercentage, setDownloadPercentage] = useState(0);
@@ -223,9 +221,9 @@ function ModelRow({
   useEffect(() => {
     if (selectedModelId === model.id) {
       setIsActiveModel(true);
-      modelRowRef.current.classList.add("!bg-gray-200/10");
+      modelRowRef.current?.classList.add("!bg-gray-200/10");
       setTimeout(
-        () => modelRowRef.current.classList.remove("!bg-gray-200/10"),
+        () => modelRowRef.current?.classList.remove("!bg-gray-200/10"),
         800
       );
     } else {
@@ -330,7 +328,13 @@ function ModelRow({
   );
 }
 
-function RenderStatus({ model, isActiveModel }) {
+function RenderStatus({
+  model,
+  isActiveModel,
+}: {
+  model: ModelDefinition;
+  isActiveModel: boolean;
+}) {
   if (isActiveModel) {
     return (
       <div className="flex items-center justify-center gap-x-[10px] whitespace-nowrap">

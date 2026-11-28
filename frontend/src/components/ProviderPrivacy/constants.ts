@@ -4,7 +4,13 @@ import GenericOpenAiLogo from "@/media/llmprovider/generic-openai.png";
 import LanceDbLogo from "@/media/vectordbs/lancedb.png";
 import PGVectorLogo from "@/media/vectordbs/pgvector.png";
 
-const LLM_PROVIDER_PRIVACY_MAP = {
+export interface ProviderPolicy {
+  name: string;
+  policyUrl?: string;
+  logo: string;
+  description?: string[];
+}
+const LLM_PROVIDER_PRIVACY_MAP: Record<string, ProviderPolicy> = {
   openai: {
     name: "OpenAI",
     policyUrl: "https://openai.com/policies/privacy-policy/",
@@ -17,7 +23,7 @@ const LLM_PROVIDER_PRIVACY_MAP = {
   },
 };
 
-const VECTOR_DB_PROVIDER_PRIVACY_MAP = {
+const VECTOR_DB_PROVIDER_PRIVACY_MAP: Record<string, ProviderPolicy> = {
   lancedb: {
     name: "LanceDB",
     description: ["向量和文档片段保存在当前实例本地存储中。"],
@@ -30,7 +36,7 @@ const VECTOR_DB_PROVIDER_PRIVACY_MAP = {
   },
 };
 
-const EMBEDDING_ENGINE_PROVIDER_PRIVACY_MAP = {
+const EMBEDDING_ENGINE_PROVIDER_PRIVACY_MAP: Record<string, ProviderPolicy> = {
   native: {
     name: "内置本地嵌入模型",
     description: ["文档文本在当前实例本地完成向量化，不发送到外部服务。"],
