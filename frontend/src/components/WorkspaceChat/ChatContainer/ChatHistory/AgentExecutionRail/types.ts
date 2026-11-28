@@ -30,59 +30,21 @@ export interface StatusMeta {
   tone: string;
 }
 
-export interface AgentActivity {
-  id?: string;
-  phase?: string;
-  summary?: string;
-  summaryKey?: string;
-  summaryArgs?: Record<string, unknown>;
-}
-
-export interface AgentToolExecution {
-  id?: string | number;
-  call_id?: string;
-  task_id?: string;
-  tool_id?: string;
-  status?: string;
-  [key: string]: unknown;
-}
-
-export interface AgentEvidenceItem {
-  id?: string | number;
-  task_id?: string;
-  [key: string]: unknown;
-}
-
-export interface AgentTaskItem {
-  id: string;
-  title?: string;
-  objective?: string;
-  progress?: string;
-  resultSummary?: string;
-  status: string;
-  error?: unknown;
-  attempt?: number;
-  agent?: { name?: string; [key: string]: unknown };
-}
-
-export interface AgentRunState {
-  runId?: string;
-  status: string;
-  phase?: string;
-  summary?: string;
-  summaryKey?: string;
-  summaryArgs?: Record<string, unknown>;
-  agent?: { name?: string; [key: string]: unknown };
-  runtimeKey?: string;
-  startedAt?: string;
-  completedAt?: string;
-  tasks?: AgentTaskItem[];
-  evidence?: AgentEvidenceItem[];
-  toolExecutions?: AgentToolExecution[];
-  activities?: AgentActivity[];
-  resourceTraces?: Array<{ id: string; [key: string]: unknown }>;
-  messageParts?: unknown[];
-}
+export type {
+  Activity as AgentActivity,
+  Task as AgentTaskItem,
+  ToolExecution as AgentToolExecution,
+  Evidence as AgentEvidenceItem,
+} from "@/utils/chat/agentRunTypes";
+import type {
+  Activity as AgentActivity,
+  AgentRunState as RunState,
+  AgentRunEvent,
+  Task as AgentTaskItem,
+  Evidence as AgentEvidenceItem,
+  ToolExecution as AgentToolExecution,
+} from "@/utils/chat/agentRunTypes";
+export type AgentRunState = Partial<RunState>;
 
 export interface AgentRunSnapshot {
   run?: {
@@ -90,12 +52,13 @@ export interface AgentRunSnapshot {
     status: string;
     phase?: string;
     runtimeKey?: string;
+    error?: string;
     runtimeSnapshot?: { agent?: { name?: string; [key: string]: unknown } };
     startedAt?: string;
     createdAt?: string;
     completedAt?: string;
   };
-  events?: unknown[];
+  events?: AgentRunEvent[];
   tasks?: AgentTaskItem[];
   evidence?: AgentEvidenceItem[];
   toolExecutions?: AgentToolExecution[];
@@ -175,7 +138,7 @@ export function metaFor(status?: string): StatusMeta {
 
 export function elapsed(
   startedAt: string | undefined,
-  completedAt: string | undefined,
+  completedAt: string | null | undefined,
   now: number
 ): string | null {
   if (!startedAt) return null;
@@ -195,7 +158,7 @@ export function toolName(toolId?: string): string {
 }
 
 export function localizedActivity(
-  activity: AgentActivity | undefined,
+  activity: Partial<AgentActivity> | undefined,
   t: TranslateFn
 ): string | null {
   if (!activity) return "";
@@ -245,11 +208,8 @@ export function stateFromSnapshot(
       ? "run_completed"
       : `run_${snapshot.run.status}`
     : "restoring";
-  const replayed = (snapshot.events || []).reduce(
-    reduceAgentRunState as unknown as (
-      acc: AgentRunState,
-      evt: unknown
-    ) => AgentRunState,
+  const replayed = (snapshot.events || []).reduce<AgentRunState>(
+    reduceAgentRunState,
     {
       runId: snapshot.run.id,
       status: snapshot.run.status,

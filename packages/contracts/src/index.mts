@@ -4,3 +4,4 @@ export * from "./meetingLists.mts";
 export * from "./memory.mts";
 export * from "./predefinedAgents.mts";
 export * from "./workspace.mts";
+export * from "./chat.mts";

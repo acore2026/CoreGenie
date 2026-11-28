@@ -1,3 +1,4 @@
+import { cleanHeaders } from "@/utils/apiClient";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -27,9 +28,9 @@ import {
 } from "./types";
 
 interface AgentExecutionRailProps {
-  runId?: string;
+  runId?: string | null;
   runState?: AgentRunState | null;
-  transport?: WebSocket | null;
+  transport?: Pick<WebSocket, "send" | "readyState"> | null;
 }
 
 export default function AgentExecutionRail({
@@ -39,7 +40,7 @@ export default function AgentExecutionRail({
 }: AgentExecutionRailProps) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(() =>
-    Boolean(runState && !TERMINAL.has(runState.status))
+    Boolean(runState && !TERMINAL.has(runState.status ?? ""))
   );
   const [expansionWasChosen, setExpansionWasChosen] = useState(false);
   const [contextTraceExpanded, setContextTraceExpanded] = useState(false);
@@ -53,7 +54,7 @@ export default function AgentExecutionRail({
       const response = await fetch(
         `${API_BASE}/agent-runs/${runId}/snapshot?view=rail`,
         {
-          headers: baseHeaders() as unknown as HeadersInit,
+          headers: cleanHeaders({ ...baseHeaders() }),
           signal,
         }
       );
@@ -66,13 +67,13 @@ export default function AgentExecutionRail({
   const state = runState || snapshotState;
 
   useEffect(() => {
-    if (!state || TERMINAL.has(state.status)) return;
+    if (!state || TERMINAL.has(state.status ?? "")) return;
     const timer = setInterval(() => setNow(Date.now()), 1_000);
     return () => clearInterval(timer);
   }, [state]);
 
   useEffect(() => {
-    if (!expansionWasChosen && state && !TERMINAL.has(state.status)) {
+    if (!expansionWasChosen && state && !TERMINAL.has(state.status ?? "")) {
       setExpanded(true);
     }
   }, [expansionWasChosen, state]);
@@ -93,7 +94,7 @@ export default function AgentExecutionRail({
     (tool) => !ACTIVE_TOOL_STATUSES.has(tool.status || "requested")
   );
   const completed = tasks.filter((task) => task.status === "completed").length;
-  const runActive = state ? !TERMINAL.has(state.status) : false;
+  const runActive = state ? !TERMINAL.has(state.status ?? "") : false;
   const meta = metaFor(state?.status || "running");
   const MetaIcon = meta.Icon;
   const duration = elapsed(state?.startedAt, state?.completedAt, now);
@@ -117,7 +118,7 @@ export default function AgentExecutionRail({
     () =>
       [...tasks]
         .reverse()
-        .find((task) => ["running", "retrying"].includes(task.status)),
+        .find((task) => ["running", "retrying"].includes(task.status ?? "")),
     [tasks]
   );
 

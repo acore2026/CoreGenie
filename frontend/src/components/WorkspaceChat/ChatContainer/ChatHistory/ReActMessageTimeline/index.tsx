@@ -1,3 +1,6 @@
+import type { AgentRunSnapshot } from "../AgentExecutionRail/types";
+import type { MessagePart, AgentRunState } from "@/utils/chat/agentRunTypes";
+import { cleanHeaders } from "@/utils/apiClient";
 import { useEffect, useId, useMemo, useState } from "react";
 import { CaretRight, CheckCircle } from "@phosphor-icons/react";
 import { useTranslation } from "react-i18next";
@@ -13,8 +16,8 @@ import { useChatSidebar } from "../../ChatSidebar";
 
 const TERMINAL = new Set(["completed", "partial", "failed", "cancelled"]);
 
-function mergeAdjacentToolGroups(parts = []) {
-  return parts.reduce((merged, part) => {
+function mergeAdjacentToolGroups(parts: MessagePart[] = []) {
+  return parts.reduce<MessagePart[]>((merged, part) => {
     if (part.type === "text" && !String(part.text || "").trim()) return merged;
     const previous = merged.at(-1);
     if (part.type === "toolGroup" && previous?.type === "toolGroup") {
@@ -37,24 +40,30 @@ export default function ReActMessageTimeline({
   parts = [],
   fallbackText = "",
   messageId,
+}: {
+  runId?: string | null;
+  runState?: Partial<AgentRunState> | null;
+  parts?: MessagePart[];
+  fallbackText?: string;
+  messageId?: string;
 }) {
-  const [snapshot, setSnapshot] = useState(null);
+  const [snapshot, setSnapshot] = useState<AgentRunSnapshot | null>(null);
   const { t } = useTranslation();
   const historyId = useId();
-  const [expandedRun, setExpandedRun] = useState(null);
+  const [expandedRun, setExpandedRun] = useState<string | null>(null);
   const sidebar = useChatSidebar();
 
   useEffect(() => {
     if (runState || !runId) return;
     const controller = new AbortController();
-    let timer;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     setSnapshot(null);
     const refresh = async () => {
       try {
         const response = await fetch(
           `${API_BASE}/agent-runs/${runId}/snapshot?view=rail`,
           {
-            headers: baseHeaders(),
+            headers: cleanHeaders({ ...baseHeaders() }),
             signal: controller.signal,
           }
         );
@@ -63,7 +72,7 @@ export default function ReActMessageTimeline({
             timer = setTimeout(refresh, 4000);
           return;
         }
-        const next = await response.json();
+        const next: AgentRunSnapshot = await response.json();
         if (controller.signal.aborted) return;
         setSnapshot(next);
         if (next?.run && !TERMINAL.has(next.run.status))
@@ -112,7 +121,7 @@ export default function ReActMessageTimeline({
     setExpandedRun(null);
   }, [runId, status]);
 
-  const renderPart = (part) => {
+  const renderPart = (part: MessagePart) => {
     if (part.type === "toolGroup") {
       const calls = (part.callIds || []).filter(
         (id) =>
@@ -148,7 +157,7 @@ export default function ReActMessageTimeline({
             type="button"
             aria-expanded={expanded}
             aria-controls={historyId}
-            onClick={() => setExpandedRun(expanded ? null : runId)}
+            onClick={() => setExpandedRun(expanded ? null : (runId ?? null))}
             className="flex min-h-12 w-full flex-wrap items-center gap-x-3 gap-y-1 rounded-lg px-3 py-3 text-left hover:bg-theme-sidebar-subitem-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-button"
           >
             <CheckCircle
@@ -197,7 +206,7 @@ export default function ReActMessageTimeline({
 
   return (
     <div className="space-y-3">
-      {["failed", "partial"].includes(status) && (
+      {["failed", "partial"].includes(status ?? "") && (
         <p role="status" className="text-sm text-theme-text-secondary">
           {status === "partial"
             ? t("task_plan.run_status.partial")

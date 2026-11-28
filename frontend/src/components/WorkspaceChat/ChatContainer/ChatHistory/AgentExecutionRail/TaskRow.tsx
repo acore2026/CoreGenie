@@ -42,7 +42,7 @@ export function TaskRow({
   const taskEvidence = evidence.filter((item) => item.task_id === task.id);
   const taskTools = tools.filter((item) => item.task_id === task.id);
   const canStop =
-    runActive && ["pending", "running", "retrying"].includes(task.status);
+    runActive && ["pending", "running", "retrying"].includes(task.status ?? "");
 
   return (
     <li className="relative pl-6 before:absolute before:bottom-[-8px] before:left-[7px] before:top-5 before:w-px before:bg-white/[0.07] last:before:hidden light:before:bg-slate-200">

@@ -9,7 +9,7 @@ async (page) => {
     const ReactDOMModule=await import('/node_modules/.vite/deps/react-dom.js');
     const ReactDOM=ReactDOMModule.default;
     await import('/src/i18n.ts');await import('/src/index.css');
-    const {default:Timeline}=await import('/src/components/WorkspaceChat/ChatContainer/ChatHistory/ReActMessageTimeline/index.jsx');
+    const {default:Timeline}=await import('/src/components/WorkspaceChat/ChatContainer/ChatHistory/ReActMessageTimeline/index.tsx');
     const root=ReactDOM.createRoot(document.getElementById('root'));
     window.renderPlan=(state)=>root.render(React.createElement('div',{style:{maxWidth:920,margin:'48px auto',padding:20}},React.createElement(Timeline,{runId:'preview',runState:state,messageId:'preview',fallbackText:'正在整理提案中的技术差异。'})));
     window.planReady=true;
@@ -22,13 +22,15 @@ async (page) => {
     await page.setViewportSize({width,height:960});
     await page.evaluate(({theme,state})=>{document.documentElement.dataset.theme=theme;document.documentElement.className=theme;document.body.style.background='var(--theme-bg-primary)';window.renderPlan(state);},{theme,state});
     await page.getByRole("region",{name:"任务计划"}).waitFor();
-    if (await page.locator(".dsh-task-number").allTextContents().then(x=>x.join(',')) !== '1,2,3,4,5') throw new Error('Missing ordered task numbers');
+    const rows = page.getByRole('region', {name:'任务计划'}).getByRole('listitem');
+    if (JSON.stringify(await rows.locator('p').allTextContents()) !== JSON.stringify(tasks.map(task=>task.title))) throw new Error('Incorrect task order');
+    if (await rows.last().locator('[aria-hidden=true]').innerText() !== '5') throw new Error('Missing pending task number');
     if (await page.locator('[data-agent-working]').count() !== 1) throw new Error('Missing persistent spinner');
     if (!await page.locator('[data-agent-working] svg').evaluate(el=>getComputedStyle(el).animationName.includes('spin'))) throw new Error('Spinner is not animated');
     if (await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth)) throw new Error('Horizontal overflow');
     await page.screenshot({path:`/tmp/react-plan-${width}-${theme}.png`});
     await page.getByRole('button',{name:/任务计划/}).click();
-    if (await page.locator('.dsh-task-number').count()) throw new Error('Collapse failed');
+    if (await rows.count()) throw new Error('Collapse failed');
     await page.getByRole('button',{name:/任务计划/}).click();
   }
   await page.getByRole('button',{name:/调用详情/}).click();
@@ -42,7 +44,8 @@ async (page) => {
   await page.getByRole('button',{name:/调用详情/}).click();
   if (await page.locator('.dsh-tool-group [class*="text-red"]').count()) throw new Error('Tool attempt highlighted in red');
   if (/失败|需留意|未完成/.test(await page.locator('.dsh-tool-group').innerText())) throw new Error('Failure label shown');
-  await page.getByText('无法读取文档，请检查文件是否可用。').waitFor();
+  await page.locator('.dsh-tool-entry').getByText('读取文件').waitFor();
+  if (await page.getByText('无法读取文档，请检查文件是否可用。').count()) throw new Error('Tool diagnostics shown in chat history');
   await page.screenshot({path:'/tmp/react-tools-failed-mobile.png'});
   await page.evaluate(state=>window.renderPlan({...state,toolExecutions:[{...state.toolExecutions[0],status:'completed'}]}),state);
   await page.locator('.dsh-tool-group[data-status="stopped"]').waitFor();

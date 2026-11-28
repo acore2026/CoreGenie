@@ -422,7 +422,8 @@ export function reduceAgentRunState(
         (typeof payload.task === "string" && payload.task) ||
         payload.agent?.name ||
         "Delegated Agent task",
-      objective: payload.task,
+      objective:
+        typeof payload.task === "string" ? payload.task : payload.task?.title,
       agent: payload.agent,
       status: type.slice("subagent.".length),
       resultSummary: payload.response,

@@ -1,4 +1,7 @@
+import type { Question, Answer } from "@coregenie/contracts";
 export interface Task {
+  objective?: string;
+  resultSummary?: string;
   budget?: { planOrder?: number };
   id: string;
   status?: string;
@@ -16,11 +19,13 @@ export interface MessagePart {
   text?: string;
   callIds?: string[];
 }
-interface Evidence {
+export interface Evidence {
   id: string;
   task_id?: string | null;
 }
-interface ToolExecution {
+export interface ToolExecution {
+  id?: string | number;
+  createdAt?: string;
   call_id: string;
   status: string;
   startedAt?: string;
@@ -48,6 +53,7 @@ export interface ResourceTrace {
   createdAt?: string;
 }
 export interface AgentRunState {
+  error?: string;
   runId?: string;
   status: string;
   phase: string;
@@ -128,8 +134,8 @@ interface EventFields {
   >;
   input: {
     requestId?: string;
-    questions?: unknown[];
-    answers?: unknown[];
+    questions?: Question[];
+    answers?: Answer[];
     skipped?: boolean;
     allowSkip?: boolean;
     timeoutMs?: number;

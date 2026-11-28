@@ -1,33 +1,16 @@
-export interface Question {
-  kind: "choice" | "input";
-  question: string;
-  inputType?: string;
-  placeholder?: string;
-  options?: string[];
-  multiSelect?: boolean;
-  allowOther?: boolean;
-  optionDescriptions?: string[];
-}
+import type { Question, Answer } from "@coregenie/contracts";
+export type {
+  Question,
+  Answer,
+  SurveyResult,
+  Survey,
+} from "@coregenie/contracts";
 export interface Draft {
   skipped: boolean;
   value?: string;
   selected?: string | string[] | null;
   otherSelected?: boolean;
   otherText?: string;
-}
-export interface Answer {
-  skipped?: boolean;
-  answer?: string | string[] | null;
-}
-export interface SurveyResult {
-  timedOut?: boolean;
-  resolved?: boolean;
-  skipped?: boolean;
-  answers?: Answer[];
-}
-export interface Survey {
-  questions?: Question[];
-  result?: SurveyResult;
 }
 export type UpdateDraft = (patch: Partial<Draft>) => void;
 /**

@@ -20,7 +20,10 @@ export const AGENT_SESSION_END = "agentSessionEnd";
 // uuid. On a thread's first message the empty->chat transition remounts the chat and
 // replays the send, so the citations event can land before its message exists in history.
 // Buffer by uuid (module scope survives the remount) and attach when the message appears.
-const bufferedCitations = new Map<string, unknown[]>();
+const bufferedCitations = new Map<
+  string,
+  import("./messages").CitationChunk[]
+>();
 function takeBufferedCitations(uuid?: string) {
   if (!uuid || !bufferedCitations.has(uuid)) return [];
   const citations = bufferedCitations.get(uuid);

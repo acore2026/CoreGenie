@@ -34,6 +34,7 @@ export interface WorkspaceRecord {
   openAiTemp?: number | null;
   openAiHistory?: number;
   chatMode?: string;
+  queryRefusalResponse?: string | null;
   chatProvider?: string | null;
   chatModel?: string | null;
   suggestedMessages?: { heading?: string; message?: string }[];

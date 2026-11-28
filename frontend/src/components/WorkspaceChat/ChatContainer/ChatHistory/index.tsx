@@ -31,19 +31,25 @@ import useChatHistoryScrollHandle from "@/hooks/useChatHistoryScrollHandle";
 import { ThoughtExpansionProvider } from "./ThoughtContainer";
 import { MessageActionsProvider } from "./MessageActionsContext";
 
-/**
- * @param {{
- *   history?: import("@/utils/chat/messages").ChatMessage[],
- *   workspace: import("@coregenie/contracts").WorkspaceRecord,
- *   sendCommand: (command: import("@/utils/chat/messages").ChatCommand) => void,
- *   updateHistory: (messages: import("@/utils/chat/messages").ChatMessage[]) => void,
- *   regenerateAssistantMessage: (id: number) => void,
- *   websocket?: ReturnType<typeof import("@/utils/chat/agent").createAgentSSETransport> | null,
- *   readOnly?: boolean
- * }} props
- * @param {import("react").ForwardedRef<import("@/hooks/useChatHistoryScrollHandle").ChatScrollHandle>} ref
- */
-function ChatHistory(
+import type { WorkspaceRecord } from "@coregenie/contracts";
+import type {
+  ChatMessage,
+  ChatCommand,
+  EditChatMessage,
+} from "@/utils/chat/messages";
+import type { createAgentSSETransport } from "@/utils/chat/agent";
+import type { ChatScrollHandle } from "@/hooks/useChatHistoryScrollHandle";
+
+interface HistoryProps {
+  history?: ChatMessage[];
+  workspace: WorkspaceRecord;
+  sendCommand: (command: ChatCommand) => void;
+  updateHistory: (messages: ChatMessage[]) => void;
+  regenerateAssistantMessage: (chatId: number) => void;
+  websocket?: ReturnType<typeof createAgentSSETransport> | null;
+  readOnly?: boolean;
+}
+export default forwardRef<ChatScrollHandle, HistoryProps>(function ChatHistory(
   {
     history = [],
     workspace,
@@ -56,15 +62,15 @@ function ChatHistory(
   ref
 ) {
   const lastScrollTopRef = useRef(0);
-  const lastTouchYRef = useRef(null);
-  const chatHistoryRef = useRef(null);
+  const lastTouchYRef = useRef<number | null>(null);
+  const chatHistoryRef = useRef<HTMLDivElement>(null);
   const isProgrammaticScroll = useRef(false);
   const { threadSlug = null } = useParams();
   const navigate = useNavigate();
   const { showing, hideModal } = useManageWorkspaceModal();
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [isUserScrolling, setIsUserScrolling] = useState(false);
-  const isStreaming = history[history.length - 1]?.animate;
+  const isStreaming = Boolean(history.at(-1)?.animate);
   const { showScrollbar } = Appearance.getSettings();
   const { textSizeClass } = useTextSize();
 
@@ -74,8 +80,8 @@ function ChatHistory(
     }
   }, [history, isAtBottom, isStreaming, isUserScrolling]);
 
-  const handleScroll = useCallback((e) => {
-    const { scrollTop, scrollHeight, clientHeight } = e.target;
+  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
     const isBottom = scrollHeight - scrollTop - clientHeight < 2;
     const scrollDelta = scrollTop - lastScrollTopRef.current;
 
@@ -95,18 +101,18 @@ function ChatHistory(
   }, []);
 
   const handleWheel = useCallback(
-    (event) => {
+    (event: React.WheelEvent) => {
       if (event.deltaY < 0) pauseAutoFollow();
     },
     [pauseAutoFollow]
   );
 
-  const handleTouchStart = useCallback((event) => {
+  const handleTouchStart = useCallback((event: React.TouchEvent) => {
     lastTouchYRef.current = event.touches[0]?.clientY ?? null;
   }, []);
 
   const handleTouchMove = useCallback(
-    (event) => {
+    (event: React.TouchEvent) => {
       const touchY = event.touches[0]?.clientY;
       if (touchY == null || lastTouchYRef.current == null) return;
       // A downward finger movement scrolls the chat toward older messages.
@@ -144,7 +150,7 @@ function ChatHistory(
       role,
       attachments = [],
       saveOnly = false,
-    }) => {
+    }: EditChatMessage) => {
       if (!editedMessage) return;
       const currentHistory = historyRef.current;
 
@@ -154,11 +160,14 @@ function ChatHistory(
           (msg) => msg.chatId === chatId
         );
         if (targetIdx < 0) return;
-        updatedHistory[targetIdx].content = editedMessage;
+        updatedHistory[targetIdx] = {
+          ...updatedHistory[targetIdx],
+          content: editedMessage,
+        };
         updateHistory(updatedHistory);
         await Workspace.updateChat(
           workspace.slug,
-          threadSlug,
+          threadSlug ?? undefined,
           chatId,
           editedMessage,
           "user"
@@ -171,8 +180,16 @@ function ChatHistory(
           0,
           currentHistory.findIndex((msg) => msg.chatId === chatId) + 1
         );
-        updatedHistory[updatedHistory.length - 1].content = editedMessage;
-        await Workspace.deleteEditedChats(workspace.slug, threadSlug, chatId);
+        if (!updatedHistory.length) return;
+        updatedHistory[updatedHistory.length - 1] = {
+          ...updatedHistory[updatedHistory.length - 1],
+          content: editedMessage,
+        };
+        await Workspace.deleteEditedChats(
+          workspace.slug,
+          threadSlug ?? undefined,
+          chatId
+        );
         sendCommandRef.current({
           text: editedMessage,
           autoSubmit: true,
@@ -188,11 +205,14 @@ function ChatHistory(
           (msg) => msg.chatId === chatId && msg.role === role
         );
         if (targetIdx < 0) return;
-        updatedHistory[targetIdx].content = editedMessage;
+        updatedHistory[targetIdx] = {
+          ...updatedHistory[targetIdx],
+          content: editedMessage,
+        };
         updateHistory(updatedHistory);
         await Workspace.updateChat(
           workspace.slug,
-          threadSlug,
+          threadSlug ?? undefined,
           chatId,
           editedMessage
         );
@@ -203,13 +223,14 @@ function ChatHistory(
   );
 
   const forkThread = useCallback(
-    async (chatId) => {
+    async (chatId: number) => {
       const newThreadSlug = await Workspace.forkThread(
         workspace.slug,
         threadSlug,
         chatId
       );
-      navigate(paths.workspace.thread(workspace.slug, newThreadSlug));
+      if (newThreadSlug)
+        navigate(paths.workspace.thread(workspace.slug, newThreadSlug));
     },
     [workspace.slug, threadSlug, navigate]
   );
@@ -273,9 +294,7 @@ function ChatHistory(
       </ThoughtExpansionProvider>
     </MessageActionsProvider>
   );
-}
-
-export default forwardRef(ChatHistory);
+});
 
 /**
  * Builds the history of messages for the chat.
@@ -301,11 +320,22 @@ function buildMessages({
   forkThread,
   websocket,
   readOnly,
+}: Pick<
+  HistoryProps,
+  "workspace" | "regenerateAssistantMessage" | "websocket" | "readOnly"
+> & {
+  history: ChatMessage[];
+  saveEditedMessage: (edit: EditChatMessage) => void;
+  forkThread: (chatId: number) => void;
 }) {
-  const lastBotReplyIndex = history.findLastIndex(
-    (message) => message.role === "assistant" && message.type !== "agentStatus"
-  );
-  const messages = history.reduce((acc, props, index) => {
+  let lastBotReplyIndex = history.length - 1;
+  while (
+    lastBotReplyIndex >= 0 &&
+    (history[lastBotReplyIndex].role !== "assistant" ||
+      history[lastBotReplyIndex].type === "agentStatus")
+  )
+    lastBotReplyIndex--;
+  const messages = history.reduce<React.ReactElement[]>((acc, props, index) => {
     const isLastBotReply =
       index === lastBotReplyIndex && props.role === "assistant";
     const relatedExecution = props.agentRunId
@@ -327,7 +357,7 @@ function buildMessages({
     // The execution rail is the single surface for live Agent activity. These
     // legacy lifecycle records remain in the stream for compatibility, but
     // rendering them would create a second "Agent working" box.
-    if (["statusResponse", "agentStatus"].includes(props?.type)) {
+    if (["statusResponse", "agentStatus"].includes(props.type ?? "")) {
       return acc;
     }
 
@@ -459,11 +489,10 @@ function buildMessages({
         <PromptReply
           key={`prompt-reply-${props.uuid || index}`}
           uuid={props.uuid}
-          reply={props.content}
+          reply={typeof props.content === "string" ? props.content : ""}
           pending={props.pending}
           sources={props.sources}
           error={props.error}
-          closed={props.closed}
           agentStatus={agentRunState?.status}
         />
       );
@@ -475,7 +504,7 @@ function buildMessages({
         <HistoricalMessage
           key={index}
           uuid={props.uuid}
-          message={props.content}
+          message={typeof props.content === "string" ? props.content : ""}
           role={props.role}
           workspace={workspace}
           sources={props.sources}

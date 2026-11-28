@@ -86,7 +86,15 @@ export function SourceTypeCircle({
 
 export function combineLikeSources(sources: CitationChunk[]): CitationGroup[] {
   const groups = new Map<string, CitationGroup>();
-  for (const { title, id, text, chunkSource = "", score = null } of sources) {
+  for (const {
+    title: sourceTitle,
+    sourceDocument,
+    id,
+    text,
+    chunkSource = "",
+    score = null,
+  } of sources) {
+    const title = sourceTitle ?? sourceDocument ?? "";
     const group = groups.get(title) ?? { title, chunks: [], references: 0 };
     group.chunks.push({ id, text, chunkSource, score });
     group.references++;
@@ -161,7 +169,7 @@ export default function Citations({
   );
 }
 
-export function omitChunkHeader(text: string) {
+export function omitChunkHeader(text = "") {
   if (!text.includes("<document_metadata>")) return text;
   return text.split("</document_metadata>")[1]?.trim() ?? text;
 }

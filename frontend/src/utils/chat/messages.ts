@@ -1,4 +1,17 @@
-import type { AgentRunEvent, AgentRunState, RunPayload } from "./agentRunTypes";
+import type {
+  Question,
+  Answer,
+  SurveyResult,
+  Survey,
+  ChatFeedback,
+  ChatMetrics,
+} from "@coregenie/contracts";
+import type {
+  AgentRunEvent,
+  AgentRunState,
+  RunPayload,
+  MessagePart,
+} from "./agentRunTypes";
 
 export interface EditChatMessage {
   chatId: number;
@@ -17,8 +30,9 @@ export interface ChatCommand {
 
 export interface CitationChunk {
   id?: string | number;
-  title: string;
-  text: string;
+  title?: string;
+  text?: string;
+  sourceDocument?: string;
   chunkSource?: string;
   score?: number | null;
 }
@@ -28,6 +42,7 @@ export interface CitationGroup {
   references: number;
 }
 export interface SubagentState {
+  id?: string;
   task?: string;
   status?: string;
   depth?: number;
@@ -49,6 +64,17 @@ export interface ContextTrace {
   title?: string;
 }
 export interface ChatMessage {
+  questions?: Question[];
+  allowSkip?: boolean;
+  timeoutMs?: number | null;
+  resolved?: boolean;
+  resolution?: SurveyResult | null;
+  responseEvaluation?: ChatFeedback | null;
+  metrics?: ChatMetrics;
+  routedTo?: ModelRoute | null;
+  clarifyingQuestions?: Survey[];
+  agentTrace?: { phase: string; summary?: string; content?: string }[];
+  subagentRuns?: SubagentState[];
   uuid?: string;
   type?: string;
   role?: string;
@@ -56,12 +82,12 @@ export interface ChatMessage {
   animate?: boolean;
   chatId?: number | null;
   outputs?: unknown[];
-  messageParts?: unknown[];
+  messageParts?: MessagePart[];
   runtime?: { key: string } | null;
   subagentRun?: SubagentState;
   userMessage?: string;
   attachments?: unknown[];
-  sources?: unknown[];
+  sources?: CitationChunk[];
   pending?: boolean;
   agentRunState?: Partial<AgentRunState>;
   agentRunId?: string | null;
@@ -76,24 +102,24 @@ export interface ChatResult {
   uuid?: string;
   textResponse?: string | null;
   type: string;
-  sources?: unknown[];
+  sources?: CitationChunk[];
   error?: unknown;
   close?: boolean;
   animate?: boolean;
   chatId?: number | null;
   action?: string | null;
-  metrics?: unknown;
-  routedTo?: unknown;
+  metrics?: ChatMetrics;
+  routedTo?: ModelRoute | null;
   websocketUUID?: string;
   thread?: { slug?: string; name?: string };
 }
 
 export type LifecycleEvent = AgentRunEvent & {
   payload?: RunPayload & {
-    questions?: unknown[];
+    questions?: Question[];
     allowSkip?: boolean;
     skipped?: boolean;
-    answers?: unknown[];
+    answers?: Answer[];
     timeoutMs?: number;
   };
 };
@@ -104,7 +130,7 @@ interface StreamContent {
   content?: unknown;
   agentRunId?: string;
   agentRunEvent?: LifecycleEvent;
-  routedTo?: unknown;
+  routedTo?: ModelRoute | null;
   run?: {
     task?: string;
     agent?: { name?: string };
@@ -112,17 +138,17 @@ interface StreamContent {
     error?: string;
   };
   trace?: ContextTrace;
-  citations?: unknown[];
-  metrics?: unknown;
+  citations?: CitationChunk[];
+  metrics?: ChatMetrics;
   chatId?: number;
   outputs?: unknown[];
-  parts?: unknown[];
+  parts?: MessagePart[];
 }
 type Frame<Type extends string, Content> = {
   type: Type;
   content: Content;
   animate?: boolean;
-  metrics?: unknown;
+  metrics?: ChatMetrics;
 };
 export type SocketFrame =
   | Frame<"agentRunEvent", { runId?: string; event?: LifecycleEvent }>
@@ -134,7 +160,7 @@ export type SocketFrame =
   | Frame<"reportStreamEvent", StreamContent>
   | (Frame<"clarificationRequest", unknown> & {
       requestId?: string;
-      questions?: unknown[];
+      questions?: Question[];
       allowSkip?: boolean;
       timeoutMs?: number;
     })
@@ -162,5 +188,5 @@ export type SocketFrame =
       type?: undefined;
       content?: unknown;
       animate?: boolean;
-      metrics?: unknown;
+      metrics?: ChatMetrics;
     };

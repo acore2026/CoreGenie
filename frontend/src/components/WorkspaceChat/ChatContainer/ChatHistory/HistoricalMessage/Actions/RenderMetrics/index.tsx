@@ -2,12 +2,7 @@ import { formatDateTimeAsMoment } from "@/utils/directories";
 import { formatDuration, numberWithCommas } from "@/utils/numbers";
 import React, { useEffect, useState, useContext } from "react";
 import { isMobile } from "react-device-detect";
-interface Metrics {
-  duration?: number;
-  outputTps?: number;
-  model?: string;
-  timestamp?: number;
-}
+import type { ChatMetrics as Metrics } from "@coregenie/contracts";
 const MetricsContext = React.createContext<{
   showMetricsAutomatically: boolean;
   setShowMetricsAutomatically: (show: boolean) => void;

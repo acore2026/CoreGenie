@@ -13,6 +13,7 @@ import { EmbeddingProgressProvider } from "@/EmbeddingProgressContext";
 import { WorkspaceFilesPanel } from "@/components/WorkspaceChat/ChatContainer/WorkspaceFilesSidebar";
 
 const noop = () => {};
+/** @param {{hideModal?: () => void, providedSlug?: string | null, initialTab?: string}} props */
 const ManageWorkspace = ({
   hideModal = noop,
   providedSlug = null,

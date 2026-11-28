@@ -1,3 +1,5 @@
+import type { ToolExecution } from "@/utils/chat/agentRunTypes";
+import type { TFunction } from "i18next";
 import { useEffect, useId, useState } from "react";
 import {
   CaretDown,
@@ -15,7 +17,7 @@ import { toolActivityText } from "@/utils/userFacingError.ts";
 const ACTIVE = new Set(["requested", "running", "started", "retrying"]);
 const FINISHED = new Set(["completed", "failed", "cancelled", "skipped"]);
 
-function toolPresentation(tool, t) {
+function toolPresentation(tool: Pick<ToolExecution, "tool_id">, t: TFunction) {
   const id = String(tool.tool_id || "");
   const key = id.replace(/[.-]/g, "_");
   const name = t(`tool_activity.names.${key}`, {
@@ -35,11 +37,11 @@ function toolPresentation(tool, t) {
   return { name, Icon };
 }
 
-function duration(tool, now, t) {
-  const start = Date.parse(tool.startedAt || tool.createdAt);
+function duration(tool: Partial<ToolExecution>, now: number, t: TFunction) {
+  const start = Date.parse(tool.startedAt || tool.createdAt || "");
   const end = tool.completedAt
-    ? Date.parse(tool.completedAt)
-    : ACTIVE.has(tool.status)
+    ? Date.parse(tool.completedAt ?? "")
+    : ACTIVE.has(tool.status ?? "")
       ? now
       : NaN;
   if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
@@ -52,36 +54,45 @@ function duration(tool, now, t) {
       });
 }
 
-export default function ToolCallGroup({ callIds, tools, runActive }) {
+export default function ToolCallGroup({
+  callIds,
+  tools,
+  runActive,
+}: {
+  callIds: string[];
+  tools: ToolExecution[];
+  runActive: boolean;
+}) {
   const { t } = useTranslation();
   const contentId = useId();
   const [expanded, setExpanded] = useState(false);
   const [now, setNow] = useState(Date.now);
-  const executions = callIds.map(
+  const executions = callIds.map<ToolExecution>(
     (callId) =>
       tools.find((tool) => tool.call_id === callId) || {
         call_id: callId,
         status: runActive ? "requested" : "unknown",
       }
   );
-  const active = executions.some((tool) => ACTIVE.has(tool.status));
+  const active = executions.some((tool) => ACTIVE.has(tool.status ?? ""));
   const current =
-    executions.find((tool) => ACTIVE.has(tool.status)) || executions.at(-1);
+    executions.find((tool) => ACTIVE.has(tool.status ?? "")) ||
+    executions.at(-1);
   const { name, Icon } = toolPresentation(current || {}, t);
   const status = active ? "running" : "stopped";
   const StatusIcon = active ? CircleNotch : Wrench;
   const times = executions
-    .map((tool) => Date.parse(tool.startedAt || tool.createdAt))
+    .map((tool) => Date.parse(tool.startedAt || tool.createdAt || ""))
     .filter(Number.isFinite);
   const ends = executions
-    .map((tool) => Date.parse(tool.completedAt))
+    .map((tool) => Date.parse(tool.completedAt ?? ""))
     .filter(Number.isFinite);
   const elapsed = duration(
     {
       status: active ? "running" : "completed",
       startedAt: times.length
         ? new Date(Math.min(...times)).toISOString()
-        : null,
+        : undefined,
       completedAt:
         !active &&
         executions.every((tool) => FINISHED.has(tool.status)) &&
@@ -185,7 +196,7 @@ export default function ToolCallGroup({ callIds, tools, runActive }) {
                         <span className="tabular-nums">{toolDuration}</span>
                       )}
                       {t(
-                        `tool_activity.status.${ACTIVE.has(tool.status) ? "running" : FINISHED.has(tool.status) ? "stopped" : "unknown"}`
+                        `tool_activity.status.${ACTIVE.has(tool.status ?? "") ? "running" : FINISHED.has(tool.status) ? "stopped" : "unknown"}`
                       )}
                     </span>
                   </div>

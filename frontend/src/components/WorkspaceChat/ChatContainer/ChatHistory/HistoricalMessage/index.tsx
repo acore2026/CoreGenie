@@ -1,3 +1,14 @@
+import type { WorkspaceRecord } from "@coregenie/contracts";
+import type {
+  ChatMessage,
+  EditChatMessage,
+  CitationChunk,
+  SubagentState,
+  ContextTrace as Trace,
+} from "@/utils/chat/messages";
+import type { MessagePart } from "@/utils/chat/agentRunTypes";
+import type { Survey } from "../ClarifyingQuestion/utils";
+import { isRecord } from "@/utils/types";
 import React, { memo, useLayoutEffect, useRef, useState } from "react";
 import { FileDoc, Info, Warning } from "@phosphor-icons/react";
 import Actions from "./Actions";
@@ -25,7 +36,7 @@ import { userFacingErrorKey } from "@/utils/userFacingError.ts";
 const HistoricalMessage = ({
   uuid: uuidProp,
   message,
-  role,
+  role = "assistant",
   workspace,
   sources = [],
   attachments = [],
@@ -47,6 +58,31 @@ const HistoricalMessage = ({
   messageParts = [],
   agentRunState = null,
   readOnly = false,
+}: {
+  uuid?: string;
+  message: string;
+  role?: string;
+  workspace: WorkspaceRecord;
+  sources?: CitationChunk[];
+  attachments?: unknown[];
+  error?: unknown;
+  responseEvaluation?: import("@coregenie/contracts").ChatFeedback | null;
+  chatId?: number | null;
+  isLastMessage?: boolean;
+  regenerateMessage: (id: number) => void;
+  saveEditedMessage: (edit: EditChatMessage) => void;
+  forkThread: (id: number) => void;
+  metrics?: React.ComponentProps<typeof Actions>["metrics"];
+  outputs?: unknown[];
+  clarifyingQuestions?: Survey[];
+  agentTrace?: { phase: string; summary?: string; content?: string }[];
+  subagentRuns?: SubagentState[];
+  contextTraces?: Trace[];
+  agentRunId?: string | null;
+  runtime?: ChatMessage["runtime"];
+  messageParts?: MessagePart[];
+  agentRunState?: ChatMessage["agentRunState"] | null;
+  readOnly?: boolean;
 }) => {
   // Freeze uuid on first render. User messages arrive without a uuid and this value
   // is used as the wrapper div's `key` — a default param fallback would regenerate
@@ -61,7 +97,7 @@ const HistoricalMessage = ({
     chatId,
     role,
   });
-  const adjustTextArea = (event) => {
+  const adjustTextArea = (event: { target: HTMLTextAreaElement }) => {
     const element = event.target;
     element.style.height = "auto";
     element.style.height = element.scrollHeight + "px";
@@ -288,15 +324,21 @@ export default memo(
  * Currently only renders image attachments as clickable thumbnails that open in the lightbox.
  * Other attachment types may be supported here in the future.
  */
-function ChatAttachments({ attachments = [] }) {
+function ChatAttachments({ attachments = [] }: { attachments?: unknown[] }) {
   const { t } = useTranslation();
-  const images = attachments.filter(
+  const files = attachments.filter(isRecord).map((item) => ({
+    name: typeof item.name === "string" ? item.name : "",
+    mime: typeof item.mime === "string" ? item.mime : "",
+    contentString:
+      typeof item.contentString === "string" ? item.contentString : "",
+  }));
+  const images = files.filter(
     (item) =>
-      String(item?.mime || "").startsWith("image/") ||
-      String(item?.contentString || "").startsWith("data:image/")
+      item.mime.startsWith("image/") ||
+      item.contentString.startsWith("data:image/")
   );
-  const workspaceFiles = attachments.filter(
-    (item) => item?.mime === "application/anythingllm-workspace-file"
+  const workspaceFiles = files.filter(
+    (item) => item.mime === "application/anythingllm-workspace-file"
   );
   if (!images.length && !workspaceFiles.length) return null;
   return (
@@ -335,8 +377,8 @@ function ChatAttachments({ attachments = [] }) {
   );
 }
 
-function TruncatableContent({ children }) {
-  const contentRef = useRef(null);
+function TruncatableContent({ children }: React.PropsWithChildren) {
+  const contentRef = useRef<HTMLDivElement>(null);
   const [isExpanded, setIsExpanded] = useState(false);
   const [isOverflowing, setIsOverflowing] = useState(false);
   const { t } = useTranslation();
