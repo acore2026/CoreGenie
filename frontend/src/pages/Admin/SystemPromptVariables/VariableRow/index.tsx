@@ -1,3 +1,4 @@
+import type { SystemPromptVariableRecord } from "@coregenie/contracts";
 import { useRef } from "react";
 import System from "@/models/system";
 import showToast from "@/utils/toast";
@@ -14,8 +15,14 @@ import { Trash } from "@phosphor-icons/react";
  * @param {Function} onRefresh - A function to call when the variable is refreshed
  * @returns {JSX.Element} A JSX element for displaying the variable
  */
-export default function VariableRow({ variable, onRefresh }) {
-  const rowRef = useRef(null);
+export default function VariableRow({
+  variable,
+  onRefresh,
+}: {
+  variable: SystemPromptVariableRecord;
+  onRefresh: () => void;
+}) {
+  const rowRef = useRef<HTMLTableRowElement>(null);
   const { isOpen, openModal, closeModal } = useModal();
 
   const handleDelete = async () => {
@@ -28,7 +35,8 @@ export default function VariableRow({ variable, onRefresh }) {
       return false;
 
     try {
-      await System.promptVariables.delete(variable.id);
+      const result = await System.promptVariables.delete(variable.id);
+      if (!result.success) throw result.error;
       rowRef?.current?.remove();
       showToast("Variable deleted successfully", "success", { clear: true });
       if (onRefresh) onRefresh();
@@ -38,7 +46,7 @@ export default function VariableRow({ variable, onRefresh }) {
     }
   };
 
-  const getTypeColorTheme = (type) => {
+  const getTypeColorTheme = (type?: string) => {
     switch (type) {
       case "system":
         return {
@@ -74,11 +82,7 @@ export default function VariableRow({ variable, onRefresh }) {
         <th scope="row" className="px-4 py-2 whitespace-nowrap">
           {variable.key}
         </th>
-        <td className="px-4 py-2">
-          {typeof variable.value === "function"
-            ? variable.value()
-            : truncate(variable.value, 50)}
-        </td>
+        <td className="px-4 py-2">{truncate(variable.value, 50)}</td>
         <td className="px-4 py-2">
           {truncate(variable.description || "-", 50)}
         </td>

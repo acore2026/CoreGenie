@@ -1,35 +1,42 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { X } from "@phosphor-icons/react";
-import System from "@/models/system";
-import showToast from "@/utils/toast";
+import Admin from "@/models/admin";
+import { userFromStorage } from "@/utils/request";
+import { MessageLimitInput, RoleHintDisplay } from "..";
+import { useTranslation } from "react-i18next";
+import {
+  USERNAME_MIN_LENGTH,
+  USERNAME_MAX_LENGTH,
+  USERNAME_PATTERN,
+} from "@/utils/username";
 
-export default function EditVariableModal({ variable, closeModal, onRefresh }) {
-  const [error, setError] = useState(null);
+export default function NewUserModal({
+  closeModal,
+}: {
+  closeModal: () => void;
+}) {
+  const [error, setError] = useState<string | null>(null);
+  const [role, setRole] = useState("default");
+  const [messageLimit, setMessageLimit] = useState({
+    enabled: false,
+    limit: 10,
+  });
+  const { t } = useTranslation();
 
-  const handleUpdate = async (e) => {
-    if (!variable.id) return;
-    e.preventDefault();
+  const handleCreate = async (e: React.FormEvent<HTMLFormElement>) => {
     setError(null);
-    const formData = new FormData(e.target);
-    const updatedVariable = {};
-    for (const [key, value] of formData.entries())
-      updatedVariable[key] = value.trim();
+    e.preventDefault();
+    const data = {
+      ...Object.fromEntries(new FormData(e.currentTarget)),
+      dailyMessageLimit: messageLimit.enabled ? messageLimit.limit : null,
+    };
 
-    if (!updatedVariable.key || !updatedVariable.value) {
-      setError("Key and value are required");
-      return;
-    }
-
-    try {
-      await System.promptVariables.update(variable.id, updatedVariable);
-      showToast("Variable updated successfully", "success", { clear: true });
-      if (onRefresh) onRefresh();
-      closeModal();
-    } catch (error) {
-      console.error("Error updating variable:", error);
-      setError("Failed to update variable");
-    }
+    const { user, error } = await Admin.newUser(data);
+    if (!!user) window.location.reload();
+    setError(error ?? null);
   };
+
+  const user = userFromStorage();
 
   return (
     <div className="fixed inset-0 z-50 overflow-auto bg-black bg-opacity-50 flex items-center justify-center">
@@ -37,7 +44,7 @@ export default function EditVariableModal({ variable, closeModal, onRefresh }) {
         <div className="relative p-6 border-b rounded-t border-theme-modal-border">
           <div className="w-full flex gap-x-2 items-center">
             <h3 className="text-xl font-semibold text-white overflow-hidden overflow-ellipsis whitespace-nowrap">
-              Edit {variable.key}
+              Add user to instance
             </h3>
           </div>
           <button
@@ -49,66 +56,98 @@ export default function EditVariableModal({ variable, closeModal, onRefresh }) {
           </button>
         </div>
         <div className="p-6">
-          <form onSubmit={handleUpdate}>
+          <form onSubmit={handleCreate}>
             <div className="space-y-4">
               <div>
                 <label
-                  htmlFor="key"
+                  htmlFor="username"
                   className="block mb-2 text-sm font-medium text-white"
                 >
-                  Key
+                  Username
                 </label>
                 <input
-                  name="key"
-                  minLength={3}
-                  maxLength={255}
+                  name="username"
                   type="text"
                   className="border-none bg-theme-settings-input-bg w-full text-white placeholder:text-theme-settings-input-placeholder text-sm rounded-lg focus:outline-primary-button active:outline-primary-button outline-none block w-full p-2.5"
-                  placeholder="e.g., company_name"
-                  defaultValue={variable.key}
+                  placeholder="User's username"
+                  minLength={USERNAME_MIN_LENGTH}
+                  maxLength={USERNAME_MAX_LENGTH}
+                  pattern={USERNAME_PATTERN}
                   required={true}
                   autoComplete="off"
-                  pattern="^[a-zA-Z0-9_]+$"
                 />
                 <p className="mt-2 text-xs text-white/60">
-                  Key must be unique and will be used in prompts as {"{key}"}.
-                  Only letters, numbers and underscores are allowed.
+                  {t("common.username_requirements")}
                 </p>
               </div>
               <div>
                 <label
-                  htmlFor="value"
+                  htmlFor="password"
                   className="block mb-2 text-sm font-medium text-white"
                 >
-                  Value
+                  Password
                 </label>
                 <input
-                  name="value"
+                  name="password"
                   type="text"
                   className="border-none bg-theme-settings-input-bg w-full text-white placeholder:text-theme-settings-input-placeholder text-sm rounded-lg focus:outline-primary-button active:outline-primary-button outline-none block w-full p-2.5"
-                  placeholder="e.g., Acme Corp"
-                  defaultValue={variable.value}
+                  placeholder="User's initial password"
                   required={true}
                   autoComplete="off"
+                  minLength={8}
+                />
+                <p className="mt-2 text-xs text-white/60">
+                  Password must be at least 8 characters long
+                </p>
+              </div>
+              <div>
+                <label
+                  htmlFor="bio"
+                  className="block mb-2 text-sm font-medium text-white"
+                >
+                  Bio
+                </label>
+                <textarea
+                  name="bio"
+                  className="border-none bg-theme-settings-input-bg w-full text-white placeholder:text-theme-settings-input-placeholder text-sm rounded-lg focus:outline-primary-button active:outline-primary-button outline-none block w-full p-2.5"
+                  placeholder="User's bio"
+                  autoComplete="off"
+                  rows={3}
                 />
               </div>
               <div>
                 <label
-                  htmlFor="description"
+                  htmlFor="role"
                   className="block mb-2 text-sm font-medium text-white"
                 >
-                  Description
+                  Role
                 </label>
-                <input
-                  name="description"
-                  type="text"
+                <select
+                  name="role"
+                  required={true}
+                  defaultValue={"default"}
+                  onChange={(e) => setRole(e.target.value)}
                   className="border-none bg-theme-settings-input-bg w-full text-white placeholder:text-theme-settings-input-placeholder text-sm rounded-lg focus:outline-primary-button active:outline-primary-button outline-none block w-full p-2.5"
-                  placeholder="Optional description"
-                  defaultValue={variable.description}
-                  autoComplete="off"
-                />
+                >
+                  <option value="default">Default</option>
+                  <option value="manager">Manager</option>
+                  {user?.role === "admin" && (
+                    <option value="admin">Administrator</option>
+                  )}
+                </select>
+                <RoleHintDisplay role={role} />
               </div>
+              <MessageLimitInput
+                role={role}
+                enabled={messageLimit.enabled}
+                limit={messageLimit.limit}
+                updateState={setMessageLimit}
+              />
               {error && <p className="text-red-400 text-sm">Error: {error}</p>}
+              <p className="text-white text-xs md:text-sm">
+                After creating a user they will need to login with their initial
+                login to get access.
+              </p>
             </div>
             <div className="flex justify-between items-center mt-6 pt-6 border-t border-theme-modal-border">
               <button
@@ -122,7 +161,7 @@ export default function EditVariableModal({ variable, closeModal, onRefresh }) {
                 type="submit"
                 className="transition-all duration-300 bg-white text-black hover:opacity-60 px-4 py-2 rounded-lg text-sm"
               >
-                Update variable
+                Add user
               </button>
             </div>
           </form>

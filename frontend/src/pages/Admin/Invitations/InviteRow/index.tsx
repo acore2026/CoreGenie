@@ -1,12 +1,12 @@
-import { useEffect, useRef, useState } from "react";
+import type { AdminInvite } from "@/models/admin";
+import { useEffect, useState } from "react";
 import { titleCase } from "text-case";
 import Admin from "@/models/admin";
 import { Trash } from "@phosphor-icons/react";
 import { copyTextToClipboard } from "@/utils/clipboard";
 import showToast from "@/utils/toast";
 
-export default function InviteRow({ invite }) {
-  const rowRef = useRef(null);
+export default function InviteRow({ invite }: { invite: AdminInvite }) {
   const [status, setStatus] = useState(invite.status);
   const [copied, setCopied] = useState(false);
   const handleDelete = async () => {
@@ -16,11 +16,9 @@ export default function InviteRow({ invite }) {
       )
     )
       return false;
-    if (rowRef?.current) {
-      rowRef.current.children[0].innerText = "Disabled";
-    }
-    setStatus("disabled");
-    await Admin.disableInvite(invite.id);
+    const { success, error } = await Admin.disableInvite(invite.id);
+    if (success) setStatus("disabled");
+    else showToast(error || "停用邀请失败", "error");
   };
   const copyInviteLink = async () => {
     if (!invite) return false;
@@ -50,10 +48,7 @@ export default function InviteRow({ invite }) {
 
   return (
     <>
-      <tr
-        ref={rowRef}
-        className="bg-transparent text-white text-opacity-80 text-xs font-medium border-b border-white/10 h-10"
-      >
+      <tr className="bg-transparent text-white text-opacity-80 text-xs font-medium border-b border-white/10 h-10">
         <td scope="row" className="px-6 whitespace-nowrap">
           {titleCase(status)}
         </td>

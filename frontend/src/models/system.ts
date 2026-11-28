@@ -32,6 +32,13 @@ export function footerIcons(data: unknown): FooterIcon[] {
       typeof item.icon === "string"
   );
 }
+export interface EventLog {
+  id: number;
+  event: string;
+  user: { username: string } | null;
+  metadata?: string | null;
+  occurredAt: string;
+}
 type AnyRecord = Record<string, unknown>;
 
 export type SlashPresetInput = {
@@ -778,12 +785,17 @@ const System = {
     }
   },
 
-  eventLogs: async (offset = 0): Promise<AnyRecord | unknown[]> => {
+  eventLogs: async (
+    offset = 0
+  ): Promise<{ logs: EventLog[]; hasPages: boolean }> => {
     try {
-      return await api.post<AnyRecord>("/system/event-logs", { offset });
+      return await api.post<{ logs: EventLog[]; hasPages: boolean }>(
+        "/system/event-logs",
+        { offset }
+      );
     } catch (e) {
       console.error(e);
-      return [];
+      return { logs: [], hasPages: false };
     }
   },
 

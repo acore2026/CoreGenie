@@ -2,7 +2,15 @@ import { api } from "@/utils/api";
 
 export interface LiveSyncQueue {
   id: number;
-  status: string;
+  status?: string;
+  lastSyncedAt: string | null;
+  nextSyncAt: string;
+  createdAt: string;
+  workspaceDoc: {
+    filename: string;
+    docpath: string;
+    workspace: { slug: string };
+  };
   [key: string]: unknown;
 }
 

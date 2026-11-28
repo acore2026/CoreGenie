@@ -6,6 +6,7 @@ export interface Announcement {
   expiresAt?: string | null;
   createdAt?: string;
   updatedAt?: string;
+  status?: "scheduled" | "active" | "expired";
   read?: boolean;
   readAt?: string | null;
 }

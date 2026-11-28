@@ -1,3 +1,4 @@
+import type { EventLog } from "@/models/system";
 import Sidebar from "@/components/SettingsSidebar";
 import useQuery from "@/hooks/useQuery";
 import System from "@/models/system";
@@ -12,7 +13,7 @@ import { useTranslation } from "react-i18next";
 export default function AdminLogs() {
   const query = useQuery();
   const [loading, setLoading] = useState(true);
-  const [logs, setLogs] = useState([]);
+  const [logs, setLogs] = useState<EventLog[]>([]);
   const [offset, setOffset] = useState(Number(query.get("offset") || 0));
   const [canNext, setCanNext] = useState(false);
   const { t } = useTranslation();
@@ -102,6 +103,13 @@ function LogsContainer({
   canNext,
   handleNext,
   handlePrevious,
+}: {
+  loading: boolean;
+  logs: EventLog[];
+  offset: number;
+  canNext: boolean;
+  handleNext: () => void;
+  handlePrevious: () => void;
 }) {
   const { t } = useTranslation();
   if (loading) {

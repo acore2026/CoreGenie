@@ -1,18 +1,26 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { X } from "@phosphor-icons/react";
 import System from "@/models/system";
 import showToast from "@/utils/toast";
 
-export default function AddVariableModal({ closeModal, onRefresh }) {
-  const [error, setError] = useState(null);
+export default function AddVariableModal({
+  closeModal,
+  onRefresh,
+}: {
+  closeModal: () => void;
+  onRefresh: () => void;
+}) {
+  const [error, setError] = useState<string | null>(null);
 
-  const handleCreate = async (e) => {
+  const handleCreate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
-    const formData = new FormData(e.target);
-    const newVariable = {};
-    for (const [key, value] of formData.entries())
-      newVariable[key] = value.trim();
+    const formData = new FormData(e.currentTarget);
+    const newVariable = {
+      key: String(formData.get("key") ?? "").trim(),
+      value: String(formData.get("value") ?? "").trim(),
+      description: String(formData.get("description") ?? "").trim(),
+    };
 
     if (!newVariable.key || !newVariable.value) {
       setError("Key and value are required");
@@ -20,7 +28,8 @@ export default function AddVariableModal({ closeModal, onRefresh }) {
     }
 
     try {
-      await System.promptVariables.create(newVariable);
+      const result = await System.promptVariables.create(newVariable);
+      if (!result.success) throw result.error;
       showToast("Variable created successfully", "success", { clear: true });
       if (onRefresh) onRefresh();
       closeModal();

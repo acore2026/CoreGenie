@@ -7,7 +7,13 @@ import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import Toggle from "@/components/lib/Toggle";
 
-export default function LiveSyncToggle({ enabled = false, onToggle }) {
+export default function LiveSyncToggle({
+  enabled = false,
+  onToggle,
+}: {
+  enabled?: boolean;
+  onToggle: () => void;
+}) {
   const { t } = useTranslation();
   const [status, setStatus] = useState(enabled);
 

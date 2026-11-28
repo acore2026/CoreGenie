@@ -11,6 +11,18 @@ export interface AdminUser {
   employeeNumber?: string | null;
   role: string;
   lastUpdatedAt?: string;
+  createdAt?: string;
+  authProvider?: string;
+  bio?: string | null;
+  suspended?: number;
+  dailyMessageLimit?: number | null;
+}
+export interface AdminInvite {
+  id: number;
+  code: string;
+  status: string;
+  createdAt: string;
+  createdBy?: { username: string } | null;
 }
 export type AdminWorkspace = WorkspaceRecord & {
   userIds?: (number | string)[];
@@ -31,9 +43,9 @@ const Admin = {
 
   newUser: async (
     data: AnyRecord
-  ): Promise<{ user: AnyRecord | null; error?: string | null }> => {
+  ): Promise<{ user: AdminUser | null; error?: string | null }> => {
     try {
-      return await api.post<{ user: AnyRecord | null; error?: string | null }>(
+      return await api.post<{ user: AdminUser | null; error?: string | null }>(
         "/admin/users/new",
         data
       );
@@ -71,9 +83,9 @@ const Admin = {
     }
   },
 
-  invites: async (): Promise<AnyRecord[]> => {
+  invites: async (): Promise<AdminInvite[]> => {
     try {
-      const res = await api.get<{ invites?: AnyRecord[] }>("/admin/invites");
+      const res = await api.get<{ invites?: AdminInvite[] }>("/admin/invites");
       return res?.invites || [];
     } catch (e) {
       console.error(e);
@@ -87,10 +99,10 @@ const Admin = {
   }: {
     role?: string | null;
     workspaceIds?: number[] | null;
-  } = {}): Promise<{ invite: AnyRecord | null; error?: string | null }> => {
+  } = {}): Promise<{ invite: AdminInvite | null; error?: string | null }> => {
     try {
       return await api.post<{
-        invite: AnyRecord | null;
+        invite: AdminInvite | null;
         error?: string | null;
       }>("/admin/invite/new", { role, workspaceIds });
     } catch (e) {
@@ -140,10 +152,10 @@ const Admin = {
 
   newWorkspace: async (
     name: string
-  ): Promise<{ workspace: AnyRecord | null; error?: string | null }> => {
+  ): Promise<{ workspace: AdminWorkspace | null; error?: string | null }> => {
     try {
       return await api.post<{
-        workspace: AnyRecord | null;
+        workspace: AdminWorkspace | null;
         error?: string | null;
       }>("/admin/workspaces/new", { name });
     } catch (e) {
@@ -182,11 +194,15 @@ const Admin = {
 
   systemPreferencesByFields: async (
     labels: string[] = []
-  ): Promise<{ settings: AnyRecord; error?: string | null } | null> => {
+  ): Promise<{
+    settings: AnyRecord & { feature_flags?: Record<string, boolean> };
+    error?: string | null;
+  } | null> => {
     try {
-      return await api.get<{ settings: AnyRecord; error?: string | null }>(
-        `/admin/system-preferences-for?labels=${labels.join(",")}`
-      );
+      return await api.get<{
+        settings: AnyRecord & { feature_flags?: Record<string, boolean> };
+        error?: string | null;
+      }>(`/admin/system-preferences-for?labels=${labels.join(",")}`);
     } catch (e) {
       console.error(e);
       return null;

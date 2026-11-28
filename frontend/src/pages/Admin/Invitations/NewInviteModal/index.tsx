@@ -1,18 +1,28 @@
-import React, { useEffect, useState } from "react";
+import type { WorkspaceRecord } from "@coregenie/contracts";
+import type { AdminInvite } from "@/models/admin";
+import { useEffect, useState } from "react";
 import { X, Copy, Check } from "@phosphor-icons/react";
 import Admin from "@/models/admin";
 import Workspace from "@/models/workspace";
 import showToast from "@/utils/toast";
 import { copyTextToClipboard } from "@/utils/clipboard";
 
-export default function NewInviteModal({ closeModal, onSuccess }) {
-  const [invite, setInvite] = useState(null);
-  const [error, setError] = useState(null);
+export default function NewInviteModal({
+  closeModal,
+  onSuccess,
+}: {
+  closeModal: () => void;
+  onSuccess: () => void;
+}) {
+  const [invite, setInvite] = useState<AdminInvite | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [workspaces, setWorkspaces] = useState([]);
-  const [selectedWorkspaceIds, setSelectedWorkspaceIds] = useState([]);
+  const [workspaces, setWorkspaces] = useState<WorkspaceRecord[]>([]);
+  const [selectedWorkspaceIds, setSelectedWorkspaceIds] = useState<number[]>(
+    []
+  );
 
-  const handleCreate = async (e) => {
+  const handleCreate = async (e: React.FormEvent<HTMLFormElement>) => {
     setError(null);
     e.preventDefault();
 
@@ -24,7 +34,7 @@ export default function NewInviteModal({ closeModal, onSuccess }) {
       setInvite(newInvite);
       onSuccess();
     }
-    setError(error);
+    setError(error ?? null);
   };
 
   const copyInviteLink = async () => {
@@ -45,7 +55,7 @@ export default function NewInviteModal({ closeModal, onSuccess }) {
     }
   };
 
-  const handleWorkspaceSelection = (workspaceId) => {
+  const handleWorkspaceSelection = (workspaceId: number) => {
     if (selectedWorkspaceIds.includes(workspaceId)) {
       const updated = selectedWorkspaceIds.filter((id) => id !== workspaceId);
       setSelectedWorkspaceIds(updated);
@@ -194,7 +204,15 @@ export default function NewInviteModal({ closeModal, onSuccess }) {
   );
 }
 
-function WorkspaceOption({ workspace, selected, toggleSelection }) {
+function WorkspaceOption({
+  workspace,
+  selected,
+  toggleSelection,
+}: {
+  workspace: WorkspaceRecord;
+  selected: boolean;
+  toggleSelection: (id: number) => void;
+}) {
   return (
     <button
       type="button"

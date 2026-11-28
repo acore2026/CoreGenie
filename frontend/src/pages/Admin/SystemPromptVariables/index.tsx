@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+import type { SystemPromptVariableRecord } from "@coregenie/contracts";
+import { useState, useEffect } from "react";
 import System from "@/models/system";
 import showToast from "@/utils/toast";
 import { Plus } from "@phosphor-icons/react";
@@ -13,7 +14,7 @@ import * as Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
 
 export default function SystemPromptVariables() {
-  const [variables, setVariables] = useState([]);
+  const [variables, setVariables] = useState<SystemPromptVariableRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const { isOpen, openModal, closeModal } = useModal();
 

@@ -1,3 +1,4 @@
+import type { AdminUser } from "@/models/admin";
 import { useEffect, useState } from "react";
 import Sidebar from "@/components/SettingsSidebar";
 import { isMobile } from "react-device-detect";
@@ -59,7 +60,7 @@ export default function AdminUsers() {
 function UsersContainer() {
   const { user: currUser } = useUser();
   const [loading, setLoading] = useState(true);
-  const [users, setUsers] = useState([]);
+  const [users, setUsers] = useState<AdminUser[]>([]);
 
   useEffect(() => {
     async function fetchUsers() {
@@ -111,7 +112,7 @@ function UsersContainer() {
   );
 }
 
-const ROLE_HINT = {
+const ROLE_HINT: Record<string, string[]> = {
   default: [
     "Can only send chats with workspaces they are added to by admin or managers.",
     "Cannot modify any settings at all.",
@@ -127,12 +128,12 @@ const ROLE_HINT = {
   ],
 };
 
-export function RoleHintDisplay({ role }) {
+export function RoleHintDisplay({ role }: { role: string }) {
   return (
     <div className="flex flex-col gap-y-1 py-1 pb-4">
       <p className="text-sm font-medium text-theme-text-primary">Permissions</p>
       <ul className="flex flex-col gap-y-1 list-disc px-4">
-        {ROLE_HINT[role ?? "default"].map((hints, i) => {
+        {(ROLE_HINT[role] ?? ROLE_HINT.default).map((hints, i) => {
           return (
             <li key={i} className="text-xs text-theme-text-secondary">
               {hints}
@@ -144,7 +145,16 @@ export function RoleHintDisplay({ role }) {
   );
 }
 
-export function MessageLimitInput({ enabled, limit, updateState, role }) {
+type MessageLimit = { enabled: boolean; limit: number };
+export function MessageLimitInput({
+  enabled,
+  limit,
+  updateState,
+  role,
+}: MessageLimit & {
+  role: string;
+  updateState: React.Dispatch<React.SetStateAction<MessageLimit>>;
+}) {
   if (role === "admin") return null;
   return (
     <div className="mt-4 mb-8">
@@ -169,7 +179,7 @@ export function MessageLimitInput({ enabled, limit, updateState, role }) {
           <div className="relative mt-2">
             <input
               type="number"
-              onScroll={(e) => e.target.blur()}
+              onScroll={(e) => e.currentTarget.blur()}
               onChange={(e) => {
                 updateState({
                   enabled: true,

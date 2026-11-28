@@ -1,4 +1,6 @@
-import React, { useState } from "react";
+import type { StoredUser } from "@/utils/request";
+import type { AdminUser } from "@/models/admin";
+import { useState } from "react";
 import { X } from "@phosphor-icons/react";
 import Admin from "@/models/admin";
 import { MessageLimitInput, RoleHintDisplay } from "../..";
@@ -10,43 +12,54 @@ import {
   USERNAME_PATTERN,
 } from "@/utils/username";
 
-export default function EditUserModal({ currentUser, user, closeModal }) {
+export default function EditUserModal({
+  currentUser,
+  user,
+  closeModal,
+}: {
+  currentUser: StoredUser | null;
+  user: AdminUser;
+  closeModal: () => void;
+}) {
   const [role, setRole] = useState(user.role);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
   const [messageLimit, setMessageLimit] = useState({
-    enabled: user.dailyMessageLimit !== null,
+    enabled: user.dailyMessageLimit != null,
     limit: user.dailyMessageLimit || 10,
   });
   const { t } = useTranslation();
 
-  const handleUpdate = async (e) => {
+  const handleUpdate = async (e: React.FormEvent<HTMLFormElement>) => {
     setError(null);
     e.preventDefault();
-    const data = {};
-    const form = new FormData(e.target);
-    for (var [key, value] of form.entries()) {
-      if (!value || value === null) continue;
-      data[key] = value;
-    }
-    if (messageLimit.enabled) {
-      data.dailyMessageLimit = messageLimit.limit;
-    } else {
-      data.dailyMessageLimit = null;
-    }
-
+    const fields = Object.fromEntries(
+      Array.from(new FormData(e.currentTarget), ([key, value]) => [
+        key,
+        String(value),
+      ]).filter(([, value]) => value)
+    );
+    const data = {
+      ...fields,
+      dailyMessageLimit: messageLimit.enabled ? messageLimit.limit : null,
+    };
     const { success, error } = await Admin.updateUser(user.id, data);
     if (success) {
       // Update local storage if we're editing our own user
       if (currentUser && currentUser.id === user.id) {
-        if (data.username !== undefined) currentUser.username = data.username;
-        currentUser.bio = data.bio;
-        currentUser.role = data.role;
-        localStorage.setItem(AUTH_USER, JSON.stringify(currentUser));
+        localStorage.setItem(
+          AUTH_USER,
+          JSON.stringify({
+            ...currentUser,
+            username: fields.username ?? currentUser.username,
+            bio: fields.bio ?? currentUser.bio,
+            role: fields.role ?? currentUser.role,
+          })
+        );
       }
 
       window.location.reload();
     }
-    setError(error);
+    setError(error ?? null);
   };
 
   return (
@@ -136,7 +149,7 @@ export default function EditUserModal({ currentUser, user, closeModal }) {
                   name="bio"
                   className="border-none bg-theme-settings-input-bg w-full text-white placeholder:text-theme-settings-input-placeholder text-sm rounded-lg focus:outline-primary-button active:outline-primary-button outline-none block w-full p-2.5"
                   placeholder="User's bio"
-                  defaultValue={user.bio}
+                  defaultValue={user.bio ?? ""}
                   autoComplete="off"
                   rows={3}
                 />

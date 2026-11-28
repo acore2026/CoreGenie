@@ -1,20 +1,13 @@
+import type { LiveSyncQueue } from "@/models/experimental/liveSync";
 import { useEffect, useState } from "react";
-import Sidebar from "@/components/SettingsSidebar";
+import Sidebar from "@/components/Sidebar";
 import { isMobile } from "react-device-detect";
 import * as Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
-import { BookOpen } from "@phosphor-icons/react";
-import Admin from "@/models/admin";
 import System from "@/models/system";
-import WorkspaceRow from "./WorkspaceRow";
-import NewWorkspaceModal from "./NewWorkspaceModal";
-import { useModal } from "@/hooks/useModal";
-import ModalWrapper from "@/components/ModalWrapper";
-import CTAButton from "@/components/lib/CTAButton";
+import DocumentSyncQueueRow from "./DocumentSyncQueueRow";
 
-export default function AdminWorkspaces() {
-  const { isOpen, openModal, closeModal } = useModal();
-
+export default function LiveDocumentSyncManager() {
   return (
     <div className="w-screen h-screen overflow-hidden bg-theme-bg-container flex">
       <Sidebar />
@@ -26,50 +19,32 @@ export default function AdminWorkspaces() {
           <div className="w-full flex flex-col gap-y-1 pb-6 border-white/10 border-b-2">
             <div className="items-center flex gap-x-4">
               <p className="text-lg leading-6 font-bold text-theme-text-primary">
-                Instance Workspaces
+                Watched documents
               </p>
             </div>
             <p className="text-xs leading-[18px] font-base text-theme-text-secondary">
-              These are all the workspaces that exist on this instance. Removing
-              a workspace will delete all of its associated chats and settings.
+              These are all the documents that are currently being watched in
+              your instance. The content of these documents will be periodically
+              synced.
             </p>
           </div>
-          <div className="w-full justify-end flex">
-            <CTAButton
-              onClick={openModal}
-              className="mt-3 mr-0 mb-4 md:-mb-14 z-10"
-            >
-              <BookOpen className="h-4 w-4" weight="bold" /> New Workspace
-            </CTAButton>
-          </div>
           <div className="overflow-x-auto">
-            <WorkspacesContainer />
+            <WatchedDocumentsContainer />
           </div>
         </div>
-        <ModalWrapper isOpen={isOpen}>
-          <NewWorkspaceModal closeModal={closeModal} />
-        </ModalWrapper>
       </div>
     </div>
   );
 }
 
-function WorkspacesContainer() {
+function WatchedDocumentsContainer() {
   const [loading, setLoading] = useState(true);
-  const [users, setUsers] = useState([]);
-  const [workspaces, setWorkspaces] = useState([]);
-  const [deletionProtected, setDeletionProtected] = useState(false);
+  const [queues, setQueues] = useState<LiveSyncQueue[]>([]);
 
   useEffect(() => {
     async function fetchData() {
-      const [_users, _workspaces, _settings] = await Promise.all([
-        Admin.users(),
-        Admin.workspaces(),
-        System.keys(),
-      ]);
-      setUsers(_users);
-      setWorkspaces(_workspaces);
-      setDeletionProtected(_settings?.WorkspaceDeletionProtection === true);
+      const _queues = await System.experimentalFeatures.liveSync.queues();
+      setQueues(_queues);
       setLoading(false);
     }
     fetchData();
@@ -90,17 +65,17 @@ function WorkspacesContainer() {
   }
 
   return (
-    <table className="w-full text-xs text-left rounded-lg mt-6 min-w-[640px] border-spacing-0">
+    <table className="w-full text-sm text-left rounded-lg mt-6 min-w-[640px]">
       <thead className="text-theme-text-secondary text-xs leading-[18px] font-bold uppercase border-white/10 border-b">
         <tr>
           <th scope="col" className="px-6 py-3 rounded-tl-lg">
-            Name
+            Document Name
           </th>
           <th scope="col" className="px-6 py-3">
-            Link
+            Last Synced
           </th>
           <th scope="col" className="px-6 py-3">
-            Users
+            Time until next refresh
           </th>
           <th scope="col" className="px-6 py-3">
             Created On
@@ -111,13 +86,8 @@ function WorkspacesContainer() {
         </tr>
       </thead>
       <tbody>
-        {workspaces.map((workspace) => (
-          <WorkspaceRow
-            key={workspace.id}
-            workspace={workspace}
-            users={users}
-            deletionProtected={deletionProtected}
-          />
+        {queues.map((queue) => (
+          <DocumentSyncQueueRow key={queue.id} queue={queue} />
         ))}
       </tbody>
     </table>

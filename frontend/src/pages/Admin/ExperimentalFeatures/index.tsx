@@ -1,16 +1,17 @@
+import paths from "@/utils/paths";
 import { useEffect, useState } from "react";
 import Sidebar from "@/components/SettingsSidebar";
 import { isMobile } from "react-device-detect";
 import Admin from "@/models/admin";
 import { ContentLoader } from "@/components/Preloader";
 import { CaretRight, Flask } from "@phosphor-icons/react";
-import { configurableFeatures } from "./features";
+import { configurableFeatures, type Feature } from "./features";
 import ModalWrapper from "@/components/ModalWrapper";
-import paths from "@/utils/paths";
+
 import showToast from "@/utils/toast";
 
 export default function ExperimentalFeatures() {
-  const [featureFlags, setFeatureFlags] = useState({});
+  const [featureFlags, setFeatureFlags] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [selectedFeature, setSelectedFeature] = useState(
     "experimental_live_file_sync"
@@ -19,20 +20,16 @@ export default function ExperimentalFeatures() {
   useEffect(() => {
     async function fetchSettings() {
       setLoading(true);
-      const { settings } = await Admin.systemPreferencesByFields([
-        "feature_flags",
-      ]);
-      setFeatureFlags(settings?.feature_flags ?? {});
+      const result = await Admin.systemPreferencesByFields(["feature_flags"]);
+      setFeatureFlags(result?.settings?.feature_flags ?? {});
       setLoading(false);
     }
     fetchSettings();
   }, []);
 
   const refresh = async () => {
-    const { settings } = await Admin.systemPreferencesByFields([
-      "feature_flags",
-    ]);
-    setFeatureFlags(settings?.feature_flags ?? {});
+    const result = await Admin.systemPreferencesByFields(["feature_flags"]);
+    setFeatureFlags(result?.settings?.feature_flags ?? {});
   };
 
   if (loading) {
@@ -101,7 +98,7 @@ export default function ExperimentalFeatures() {
   );
 }
 
-function FeatureLayout({ children }) {
+function FeatureLayout({ children }: React.PropsWithChildren) {
   return (
     <div
       id="workspace-feature-settings-container"
@@ -119,11 +116,17 @@ function FeatureLayout({ children }) {
 }
 
 function FeatureItem({
-  feature = {},
+  feature,
   isSelected = false,
   isActive = false,
-  handleClick = () => {},
+  handleClick,
   borderClass = "border-b border-white/10",
+}: {
+  feature: Feature;
+  isSelected?: boolean;
+  isActive?: boolean;
+  handleClick: (key: string) => void;
+  borderClass?: string;
 }) {
   return (
     <div
@@ -132,7 +135,7 @@ function FeatureItem({
         isSelected ? "bg-white/10 light:bg-theme-bg-sidebar" : ""
       }`}
       onClick={() => {
-        if (feature?.href) window.location = feature.href;
+        if (feature?.href) window.location.href = feature.href;
         else handleClick?.(feature.key);
       }}
     >
@@ -162,22 +165,30 @@ function FeatureItem({
   );
 }
 
-function SelectedFeatureComponent({ feature, settings, refresh }) {
+function SelectedFeatureComponent({
+  feature,
+  settings,
+  refresh,
+}: {
+  feature: Feature;
+  settings: Record<string, boolean>;
+  refresh: () => void;
+}) {
   const Component = feature?.component;
   return Component ? (
     <Component
       enabled={settings[feature.key]}
-      feature={feature.key}
+
       onToggle={refresh}
     />
   ) : null;
 }
 
-function FeatureVerification({ children }) {
+function FeatureVerification({ children }: React.PropsWithChildren) {
   if (
     !window.localStorage.getItem("anythingllm_tos_experimental_feature_set")
   ) {
-    function acceptTos(e) {
+    function acceptTos(e: React.FormEvent<HTMLFormElement>) {
       e.preventDefault();
 
       window.localStorage.setItem(

@@ -1,3 +1,4 @@
+import type { Announcement } from "@coregenie/contracts/announcements.mts";
 import { useEffect, useState } from "react";
 import {
   Plus,
@@ -18,7 +19,7 @@ import AnnouncementModal, {
 import showToast from "@/utils/toast";
 import AnnouncementMarkdown from "@/components/Announcements/Markdown";
 
-function localDate(value) {
+function localDate(value?: string) {
   const date = value ? new Date(value) : new Date();
   return new Date(date.getTime() - date.getTimezoneOffset() * 60000)
     .toISOString()
@@ -27,23 +28,23 @@ function localDate(value) {
 
 export default function AdminAnnouncements() {
   const { t } = useTranslation();
-  const [items, setItems] = useState([]);
+  const [items, setItems] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
-  const [editing, setEditing] = useState(null);
-  const [viewing, setViewing] = useState(null);
-  const [deleting, setDeleting] = useState(null);
+  const [editing, setEditing] = useState<Partial<Announcement> | null>(null);
+  const [viewing, setViewing] = useState<Announcement | null>(null);
+  const [deleting, setDeleting] = useState<Announcement | null>(null);
   const [busy, setBusy] = useState(false);
   const [deleteError, setDeleteError] = useState("");
   async function load() {
     setLoading(true);
     setError("");
     try {
-      setItems((await Announcements.list(true)).announcements);
+      setItems((await Announcements.list(true)).announcements ?? []);
     } catch (e) {
-      setError(e.message);
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
     }
@@ -59,6 +60,7 @@ export default function AdminAnnouncements() {
         .includes(search.trim().toLocaleLowerCase())
   );
   async function remove() {
+    if (!deleting || busy) return;
     setBusy(true);
     setDeleteError("");
     try {
@@ -67,7 +69,7 @@ export default function AdminAnnouncements() {
       showToast(t("announcements.deleted"), "success");
       await load();
     } catch (e) {
-      setDeleteError(e.message);
+      setDeleteError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }
@@ -246,7 +248,15 @@ export default function AdminAnnouncements() {
   );
 }
 
-function Editor({ item, onClose, onSaved }) {
+function Editor({
+  item,
+  onClose,
+  onSaved,
+}: {
+  item: Partial<Announcement>;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
   const { t } = useTranslation();
   const [title, setTitle] = useState(item.title || "");
   const [content, setContent] = useState(item.content || "");
@@ -256,7 +266,7 @@ function Editor({ item, onClose, onSaved }) {
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  async function submit(event) {
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy) return;
     if (end && new Date(end) <= new Date(start)) {
@@ -275,7 +285,7 @@ function Editor({ item, onClose, onSaved }) {
       showToast(t("announcements.saved"), "success");
       onSaved();
     } catch (e) {
-      setError(e.message);
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }

@@ -1,3 +1,5 @@
+import type { StoredUser } from "@/utils/request";
+import type { AdminUser } from "@/models/admin";
 import { useRef, useState } from "react";
 import { titleCase } from "text-case";
 import Admin from "@/models/admin";
@@ -6,15 +8,21 @@ import showToast from "@/utils/toast";
 import { useModal } from "@/hooks/useModal";
 import ModalWrapper from "@/components/ModalWrapper";
 
-const ModMap = {
+const ModMap: Record<string, string[]> = {
   admin: ["admin", "manager", "default"],
   manager: ["manager", "default"],
   default: [],
 };
 
-export default function UserRow({ currUser, user }) {
-  const rowRef = useRef(null);
-  const canModify = ModMap[currUser?.role || "default"].includes(user.role);
+export default function UserRow({
+  currUser,
+  user,
+}: {
+  currUser: StoredUser | null;
+  user: AdminUser;
+}) {
+  const rowRef = useRef<HTMLTableRowElement>(null);
+  const canModify = ModMap[currUser?.role || "default"]?.includes(user.role);
   const [suspended, setSuspended] = useState(user.suspended === 1);
   const { isOpen, openModal, closeModal } = useModal();
   const handleSuspend = async () => {
@@ -28,7 +36,7 @@ export default function UserRow({ currUser, user }) {
     const { success, error } = await Admin.updateUser(user.id, {
       suspended: suspended ? 0 : 1,
     });
-    if (!success) showToast(error, "error", { clear: true });
+    if (!success) showToast(error ?? "", "error", { clear: true });
     if (success) {
       showToast(
         `User ${!suspended ? "has been suspended" : "is no longer suspended"}.`,
@@ -46,7 +54,7 @@ export default function UserRow({ currUser, user }) {
     )
       return false;
     const { success, error } = await Admin.deleteUser(user.id);
-    if (!success) showToast(error, "error", { clear: true });
+    if (!success) showToast(error ?? "", "error", { clear: true });
     if (success) {
       rowRef?.current?.remove();
       showToast("User deleted from system.", "success", { clear: true });

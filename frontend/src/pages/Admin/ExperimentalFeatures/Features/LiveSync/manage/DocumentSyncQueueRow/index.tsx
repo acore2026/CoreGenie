@@ -1,18 +1,24 @@
+import type { LiveSyncQueue } from "@/models/experimental/liveSync";
 import { useRef } from "react";
 import { Trash } from "@phosphor-icons/react";
 import { stripUuidAndJsonFromString } from "@/components/Modals/ManageWorkspace/Documents/Directory/utils";
 import { formatDateTime, formatRelativeTime } from "@/utils/dateTime";
 import System from "@/models/system";
 
-export default function DocumentSyncQueueRow({ queue }) {
-  const rowRef = useRef(null);
+export default function DocumentSyncQueueRow({
+  queue,
+}: {
+  queue: LiveSyncQueue;
+}) {
+  const rowRef = useRef<HTMLTableRowElement>(null);
   const handleDelete = async () => {
-    rowRef?.current?.remove();
-    await System.experimentalFeatures.liveSync.setWatchStatusForDocument(
-      queue.workspaceDoc.workspace.slug,
-      queue.workspaceDoc.docpath,
-      false
-    );
+    const updated =
+      await System.experimentalFeatures.liveSync.setWatchStatusForDocument(
+        queue.workspaceDoc.workspace.slug,
+        queue.workspaceDoc.docpath,
+        false
+      );
+    if (updated) rowRef.current?.remove();
   };
 
   return (

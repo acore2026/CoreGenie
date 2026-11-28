@@ -1,18 +1,24 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { X } from "@phosphor-icons/react";
 import Admin from "@/models/admin";
 import { useTranslation } from "react-i18next";
 
-export default function NewWorkspaceModal({ closeModal }) {
-  const [error, setError] = useState(null);
+export default function NewWorkspaceModal({
+  closeModal,
+}: {
+  closeModal: () => void;
+}) {
+  const [error, setError] = useState<string | null>(null);
   const { t } = useTranslation();
-  const handleCreate = async (e) => {
+  const handleCreate = async (e: React.FormEvent<HTMLFormElement>) => {
     setError(null);
     e.preventDefault();
-    const form = new FormData(e.target);
-    const { workspace, error } = await Admin.newWorkspace(form.get("name"));
+    const form = new FormData(e.currentTarget);
+    const { workspace, error } = await Admin.newWorkspace(
+      String(form.get("name") ?? "")
+    );
     if (!!workspace) window.location.reload();
-    setError(error);
+    setError(error ?? null);
   };
 
   return (

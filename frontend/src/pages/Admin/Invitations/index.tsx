@@ -1,3 +1,4 @@
+import type { AdminInvite } from "@/models/admin";
 import { useEffect, useState } from "react";
 import Sidebar from "@/components/SettingsSidebar";
 import { isMobile } from "react-device-detect";
@@ -14,7 +15,7 @@ import CTAButton from "@/components/lib/CTAButton";
 export default function AdminInvites() {
   const { isOpen, openModal, closeModal } = useModal();
   const [loading, setLoading] = useState(true);
-  const [invites, setInvites] = useState([]);
+  const [invites, setInvites] = useState<AdminInvite[]>([]);
 
   const fetchInvites = async () => {
     const _invites = await Admin.invites();
@@ -87,7 +88,7 @@ export default function AdminInvites() {
                 <tbody>
                   {invites.length === 0 ? (
                     <tr className="bg-transparent text-theme-text-secondary text-sm font-medium">
-                      <td colSpan="4" className="px-6 py-4 text-center">
+                      <td colSpan={4} className="px-6 py-4 text-center">
                         No invitations found
                       </td>
                     </tr>

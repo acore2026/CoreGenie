@@ -1,23 +1,18 @@
+import type { EventLog } from "@/models/system";
 import { CaretDown, CaretUp } from "@phosphor-icons/react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { safeJsonParse } from "@/utils/request";
 
-export default function LogRow({ log }) {
+export default function LogRow({ log }: { log: EventLog }) {
   const [expanded, setExpanded] = useState(false);
-  const [metadata, setMetadata] = useState(null);
-  const [hasMetadata, setHasMetadata] = useState(false);
-
-  useEffect(() => {
-    function parseAndSetMetadata() {
-      const data = safeJsonParse(log.metadata, {});
-      setHasMetadata(Object.keys(data)?.length > 0);
-      setMetadata(data);
-    }
-    parseAndSetMetadata();
-  }, [log.metadata]);
+  const metadata = safeJsonParse<unknown>(log.metadata, null);
+  const hasMetadata =
+    !!metadata &&
+    typeof metadata === "object" &&
+    Object.keys(metadata).length > 0;
 
   const handleRowClick = () => {
-    if (log.metadata !== "{}") {
+    if (hasMetadata) {
       setExpanded(!expanded);
     }
   };
@@ -32,13 +27,13 @@ export default function LogRow({ log }) {
       >
         <EventBadge event={log.event} />
         <td className="px-6 border-transparent transform transition-transform duration-200">
-          {log.user.username}
+          {log.user?.username}
         </td>
         <td className="px-6 border-transparent transform transition-transform duration-200">
           {log.occurredAt}
         </td>
         {hasMetadata && (
-          <div className="mt-1">
+          <>
             {expanded ? (
               <td
                 className={`px-2 gap-x-1 flex items-center justify-center transform transition-transform duration-200`}
@@ -54,7 +49,7 @@ export default function LogRow({ log }) {
                 <p className="text-xs text-white/50 w-[20px]">show</p>
               </td>
             )}
-          </div>
+          </>
         )}
       </tr>
       <EventMetadata metadata={metadata} expanded={expanded} />
@@ -62,17 +57,23 @@ export default function LogRow({ log }) {
   );
 }
 
-const EventMetadata = ({ metadata, expanded = false }) => {
+const EventMetadata = ({
+  metadata,
+  expanded = false,
+}: {
+  metadata: unknown;
+  expanded?: boolean;
+}) => {
   if (!metadata || !expanded) return null;
   return (
     <tr className="bg-theme-bg-primary">
       <td
-        colSpan="2"
+        colSpan={2}
         className="px-6 py-4 font-medium text-theme-text-primary rounded-l-2xl"
       >
         Event Metadata
       </td>
-      <td colSpan="4" className="px-6 py-4 rounded-r-2xl">
+      <td colSpan={4} className="px-6 py-4 rounded-r-2xl">
         <div className="w-full rounded-lg bg-theme-bg-secondary p-2 text-white shadow-sm border-white/10 border bg-opacity-10">
           <pre className="overflow-scroll">
             {JSON.stringify(metadata, null, 2)}
@@ -83,7 +84,7 @@ const EventMetadata = ({ metadata, expanded = false }) => {
   );
 };
 
-const EventBadge = ({ event }) => {
+const EventBadge = ({ event }: { event: string }) => {
   let colorTheme = {
     bg: "bg-sky-600/20",
     text: "text-sky-400 light:text-sky-800",

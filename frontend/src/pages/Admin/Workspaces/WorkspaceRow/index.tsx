@@ -1,14 +1,19 @@
-import { useRef } from "react";
+import showToast from "@/utils/toast";
+import type { AdminWorkspace } from "@/models/admin";
+import { useState } from "react";
 import Admin from "@/models/admin";
 import paths from "@/utils/paths";
 import { LinkSimple, Trash } from "@phosphor-icons/react";
 
 export default function WorkspaceRow({
   workspace,
-  users: _users,
+
   deletionProtected = false,
+}: {
+  workspace: AdminWorkspace;
+  deletionProtected?: boolean;
 }) {
-  const rowRef = useRef(null);
+  const [removed, setRemoved] = useState(false);
   const handleDelete = async () => {
     if (
       !window.confirm(
@@ -16,16 +21,15 @@ export default function WorkspaceRow({
       )
     )
       return false;
-    rowRef?.current?.remove();
-    await Admin.deleteWorkspace(workspace.id);
+    const { success, error } = await Admin.deleteWorkspace(workspace.id);
+    if (success) setRemoved(true);
+    else showToast(error || "删除工作区失败", "error");
   };
 
+  if (removed) return null;
   return (
     <>
-      <tr
-        ref={rowRef}
-        className="bg-transparent text-white text-opacity-80 text-xs font-medium border-b border-white/10 h-10"
-      >
+      <tr className="bg-transparent text-white text-opacity-80 text-xs font-medium border-b border-white/10 h-10">
         <th scope="row" className="px-6 whitespace-nowrap">
           {workspace.name}
         </th>
