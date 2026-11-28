@@ -61,7 +61,7 @@ const PredefinedAgent = {
       };
       const agents = await prisma.predefined_agents.findMany({
         where: Object.keys(where).length ? where : undefined,
-        orderBy: [{ name: "asc" }, { id: "asc" }],
+        orderBy: [{ isBuiltinDefault: "desc" }, { name: "asc" }, { id: "asc" }],
       });
       return await resolveQuickTasks(
         await DisplayOrder.apply("agents", agents.map(normalizeAgent))
@@ -204,12 +204,18 @@ const PredefinedAgent = {
         null
       )
     );
-    if (!Number.isInteger(value) || value < 1) return null;
-    const agent = await this.get(value, {
-      enabledOnly: true,
-      rosterOnly: true,
+    if (Number.isInteger(value) && value >= 1) {
+      const agent = await this.get(value, {
+        enabledOnly: true,
+        rosterOnly: true,
+      });
+      if (agent?.id) return agent.id;
+    }
+    const builtin = await prisma.predefined_agents.findFirst({
+      where: { isBuiltinDefault: true, enabled: true, showInRoster: true },
+      select: { id: true },
     });
-    return agent?.id || null;
+    return builtin?.id || null;
   },
 
   setDefault: async function (id) {

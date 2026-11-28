@@ -3,7 +3,7 @@ const prisma = require("../utils/prisma");
 
 // Replaces the three independent 3GPP seed versions. Bump this when changing
 // bundled definitions for installations that do not use repository sync.
-const SEED_SETTING = "agent_config_seed_v19";
+const SEED_SETTING = "agent_config_seed_v20";
 const CONFIG_ROOT = path.resolve(__dirname, "../../agent-config");
 const LEGACY_NAMES = {
   "skills/3gpp-review": ["3gpp-tdocs"],
@@ -122,6 +122,12 @@ async function seedRepositoryConfig() {
           state
         );
         state.entries[key] = { id };
+        if (key === "agents/general-assistant") {
+          await client.predefined_agents.update({
+            where: { id },
+            data: { isBuiltinDefault: true },
+          });
+        }
         if (key.startsWith("agents/") && ids[key]) {
           const existing = records.agents.find(
             (agent) => agent.id === ids[key]
@@ -141,6 +147,25 @@ async function seedRepositoryConfig() {
         }
       }
       await require("../models/predefinedQuickTask").migrateLegacy(client);
+      const generalAssistantId = state.entries["agents/general-assistant"]?.id;
+      if (generalAssistantId) {
+        const existingDefault = await client.system_settings.findUnique({
+          where: { label: "default_predefined_agent_id" },
+        });
+        if (!existingDefault?.value) {
+          await client.system_settings.upsert({
+            where: { label: "default_predefined_agent_id" },
+            create: {
+              label: "default_predefined_agent_id",
+              value: String(generalAssistantId),
+            },
+            update: {
+              value: String(generalAssistantId),
+              lastUpdatedAt: new Date(),
+            },
+          });
+        }
+      }
       await client.system_settings.upsert({
         where: { label: SEED_SETTING },
         create: { label: SEED_SETTING, value: "complete" },

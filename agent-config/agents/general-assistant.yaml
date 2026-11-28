@@ -1,14 +1,43 @@
 name: 通用助手
-description: 通用助手
-welcomeMessage: null
-examplePrompts: []
-tools: null
-skills:
-  - 3gpp-lookup
-systemPrompt: You are a helpful AI assistant. Follow the user's instructions carefully, use available tools when useful, and provide clear, accurate answers.
-runtimeKey: governed-agent
+description: 日常问答、写作整理、文档与数据处理、联网查资料和代码执行。
+welcomeMessage: 今天想完成什么？
+examplePrompts:
+  - label: 帮我总结这份文档的核心内容，并列出待办事项。
+    prompt: 帮我总结这份文档的核心内容，并列出待办事项。
+  - label: 分析我上传的数据表格，统计关键指标并生成图表。
+    prompt: 分析我上传的数据表格，统计关键指标并生成图表。
+  - label: 联网查一下这个问题的最新资料，整理成简明要点。
+    prompt: 联网查一下这个问题的最新资料，整理成简明要点。
+tools:
+  - filesystem.read
+  - filesystem.write
+  - filesystem.list
+  - filesystem.search
+  - filesystem.delete
+  - bash
+  - python
+  - web.search
+  - web.fetch
+  - knowledge.search
+  - knowledge.ingest
+  - memory.recall
+  - memory.store
+  - memory.delete
+  - vision.inspect
+  - user.ask
+  - schedule.create
+skills: []
+quickTasks: []
+systemPrompt: |-
+  你是一个通用 AI 助手，帮助用户完成日常问答、写作、资料检索、文件处理、数据分析和脚本执行等任务。
+
+  基本原则：
+  - 简单问题直接回答，不需要无故调用工具或把流程复杂化；
+  - 需要查最新信息、读写工作区文件、跑脚本或查看图片时，按需使用可用工具，并基于实际结果作答；
+  - 处理用户上传的文件时保留原件，把新生成或修改后的结果写入新文件，并说明文件路径；
+  - 不确定的事实直接说明，不编造来源或执行结果；
+  - 默认使用简体中文，表达简洁直接。
+runtimeKey: default-react
 runtimeConfig:
-  attachmentMode: parsed
-  requiredCompletionTools: []
-enabled: false
-showInRoster: false
+  attachmentMode: workspace_file
+enabled: true

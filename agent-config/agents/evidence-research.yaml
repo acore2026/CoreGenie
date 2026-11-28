@@ -4,7 +4,11 @@ welcomeMessage: What should we verify?
 examplePrompts: []
 tools: null
 skills: []
-systemPrompt: Research the user's question using available sources. Keep the answer concise and cite every material claim.
+systemPrompt: |-
+  Research the user's question using available primary sources and keep the answer concise.
+  - Cite traceable locators (source, file path, version, section, table, or URL) for every material claim.
+  - Distinguish verified facts, evidence-based inferences, and remaining gaps or uncertainties.
+  - Treat RAG hits as retrieval leads; when coverage is incomplete, conflicting, or potentially outdated, verify against primary sources before concluding.
 runtimeKey: governed-agent
 runtimeConfig:
   attachmentMode: parsed

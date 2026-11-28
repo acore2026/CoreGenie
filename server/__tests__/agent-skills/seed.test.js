@@ -47,7 +47,7 @@ describe("single-source repository seeds", () => {
   });
 
   it("seeds exactly the canonical prompts, settings, bindings and complete packages", async () => {
-    expect(SEED_SETTING).toBe("agent_config_seed_v19");
+    expect(SEED_SETTING).toBe("agent_config_seed_v20");
     await seedRepositoryConfig();
     expect(await mockPrisma.predefined_agents.count()).toBe(10);
     expect(await mockPrisma.predefined_agent_skills.count()).toBe(9);
@@ -64,6 +64,26 @@ describe("single-source repository seeds", () => {
       expect(disk[key].error).toBeUndefined();
       expect(hash(database[key].value)).toBe(hash(disk[key].value));
     }
+    const defaultAssistant = await mockPrisma.predefined_agents.findFirst({
+      where: { name: "通用助手" },
+    });
+    expect(defaultAssistant).toMatchObject({
+      isBuiltinDefault: true,
+      enabled: true,
+      showInRoster: true,
+      runtimeKey: "default-react",
+    });
+    expect(JSON.parse(defaultAssistant.skillIds)).toEqual([]);
+    expect(JSON.parse(defaultAssistant.tools)).not.toEqual(
+      expect.arrayContaining([expect.stringMatching(/^3gpp\./)])
+    );
+    expect(
+      (
+        await mockPrisma.system_settings.findUnique({
+          where: { label: "default_predefined_agent_id" },
+        })
+      ).value
+    ).toBe(String(defaultAssistant.id));
     const experimental = await mockPrisma.predefined_agents.findFirst({
       where: { name: disk["agents/3gpp-review-experimental"].value.name },
     });
@@ -143,7 +163,9 @@ describe("single-source repository seeds", () => {
     ).toMatchObject({
       isBuiltinDefault: true,
       iconFilename: "keep.png",
-      enabled: false,
+      enabled: true,
+      showInRoster: true,
+      runtimeKey: "default-react",
     });
     expect(
       (

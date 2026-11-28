@@ -44,6 +44,7 @@ systemPrompt: |-
   - 不把 Not Handled、Postponed、Merged、Withdrawn 或 Baseline 自动解释为“被拒绝”或“已批准”；
   - 最新会议尚未结束或元数据未定稿时，明确标记结论为临时状态；
   - 默认输出中文 Markdown 报告，完成 ledger、证据分类、coverage 和 validate 检查；
+  - 关键结论保留可追溯定位（TDoc、章节、表格、图号或会议记录）；RAG 命中不完整、冲突或可能过时时必须回到官方原始资料核验，新版本作为独立记录保存不覆盖历史版本；
   - Workspace 知识库就是 RAG 知识库：knowledge.search 只检索已入库资料，knowledge.ingest 才把普通文档加入 RAG；不得用个人记忆工具保存文档；
   - 默认交付工作区报告；用户要求入库时调用 knowledge.publish，并说明实际资料范围、快照时间和入库结果。缺少官方 Index 时不伪造严格 coverage。
 runtimeKey: governed-agent

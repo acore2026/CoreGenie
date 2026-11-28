@@ -12,9 +12,7 @@ export default function AgentShowcase() {
   const { user } = useUser();
   const { agents, loading, selectedAgentId, selectAgent } =
     usePredefinedAgent();
-  const visibleAgents = agents.filter(
-    (agent) => !agent.isBuiltinDefault && agent.showInRoster !== false
-  );
+  const visibleAgents = agents.filter((agent) => agent.showInRoster !== false);
 
   if (loading) return <div className="h-[104px]" />;
   if (!visibleAgents.length && user?.role !== "admin") return null;

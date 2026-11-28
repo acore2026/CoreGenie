@@ -149,6 +149,22 @@ describe("predefined Agent availability", () => {
       })
     );
   });
+
+  it("falls back to the enabled built-in default agent when no valid default setting exists", async () => {
+    const prisma = require("../../utils/prisma");
+    const { SystemSettings } = require("../../models/systemSettings");
+    jest.spyOn(SystemSettings, "getValueOrFallback").mockResolvedValue("99");
+    jest.spyOn(PredefinedAgent, "get").mockResolvedValue(null);
+    jest
+      .spyOn(prisma.predefined_agents, "findFirst")
+      .mockResolvedValue({ id: 7 });
+
+    await expect(PredefinedAgent.defaultId()).resolves.toBe(7);
+    expect(prisma.predefined_agents.findFirst).toHaveBeenCalledWith({
+      where: { isBuiltinDefault: true, enabled: true, showInRoster: true },
+      select: { id: true },
+    });
+  });
 });
 
 describe("predefined Agent runtime selection", () => {
