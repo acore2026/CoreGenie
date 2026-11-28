@@ -1,6 +1,13 @@
+import type { WorkspaceRecord } from "@/models/workspace";
 import { useTranslation } from "react-i18next";
 
-export default function WorkspaceName({ workspace, setHasChanges }) {
+export default function WorkspaceName({
+  workspace,
+  setHasChanges,
+}: {
+  workspace: WorkspaceRecord;
+  setHasChanges: (value: boolean) => void;
+}) {
   const { t } = useTranslation();
   return (
     <div className="flex flex-col gap-y-[8px]">

@@ -1,12 +1,14 @@
 import PreLoader from "@/components/Preloader";
-import Workspace from "@/models/workspace";
+import Workspace, { type WorkspaceRecord } from "@/models/workspace";
 import showToast from "@/utils/toast";
 import { useEffect, useState } from "react";
 import { Plus, X } from "@phosphor-icons/react";
 import { useTranslation } from "react-i18next";
 
-export default function SuggestedChatMessages({ slug }) {
-  const [suggestedMessages, setSuggestedMessages] = useState([]);
+export default function SuggestedChatMessages({ slug }: { slug: string }) {
+  const [suggestedMessages, setSuggestedMessages] = useState<
+    NonNullable<WorkspaceRecord["suggestedMessages"]>
+  >([]);
   const [editingIndex, setEditingIndex] = useState(-1);
   const [newMessage, setNewMessage] = useState({ heading: "", message: "" });
   const [hasChanges, setHasChanges] = useState(false);
@@ -16,15 +18,15 @@ export default function SuggestedChatMessages({ slug }) {
     async function fetchWorkspace() {
       if (!slug) return;
       const suggestedMessages = await Workspace.getSuggestedMessages(slug);
-      setSuggestedMessages(suggestedMessages);
+      setSuggestedMessages(suggestedMessages ?? []);
       setLoading(false);
     }
     fetchWorkspace();
   }, [slug]);
 
   const handleSaveSuggestedMessages = async () => {
-    const validMessages = suggestedMessages.filter(
-      (msg) => msg?.message?.trim()?.length > 0
+    const validMessages = suggestedMessages.filter((msg) =>
+      Boolean(msg.message?.trim())
     );
     const { success, error } = await Workspace.setSuggestedMessages(
       slug,
@@ -54,14 +56,14 @@ export default function SuggestedChatMessages({ slug }) {
     setHasChanges(true);
   };
 
-  const removeMessage = (index) => {
+  const removeMessage = (index: number) => {
     const messages = [...suggestedMessages];
     messages.splice(index, 1);
     setSuggestedMessages(messages);
     setHasChanges(true);
   };
 
-  const startEditing = (e, index) => {
+  const startEditing = (e: React.MouseEvent, index: number) => {
     e.preventDefault();
     setEditingIndex(index);
     const suggestion = suggestedMessages[index];
@@ -77,16 +79,19 @@ export default function SuggestedChatMessages({ slug }) {
         suggestedMessages.map((msg, i) => (i === index ? merged : msg))
       );
     } else {
-      setNewMessage({ ...suggestion });
+      setNewMessage({
+        heading: suggestion.heading ?? "",
+        message: suggestion.message ?? "",
+      });
     }
   };
 
-  const handleRemoveMessage = (index) => {
+  const handleRemoveMessage = (index: number) => {
     removeMessage(index);
     setEditingIndex(-1);
   };
 
-  const onEditChange = (e) => {
+  const onEditChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const updatedNewMessage = {
       ...newMessage,
       [e.target.name]: e.target.value,

@@ -1,6 +1,11 @@
+import type { WorkspaceRecord } from "@/models/workspace";
 import { useTranslation } from "react-i18next";
 
-export default function VectorDBIdentifier({ workspace }) {
+export default function VectorDBIdentifier({
+  workspace,
+}: {
+  workspace: WorkspaceRecord;
+}) {
   const { t } = useTranslation();
   return (
     <div>

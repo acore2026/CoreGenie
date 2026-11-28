@@ -1,3 +1,4 @@
+import type { WorkspaceRecord } from "@/models/workspace";
 import { useState } from "react";
 import { useParams } from "react-router-dom";
 import Workspace from "@/models/workspace";
@@ -5,7 +6,13 @@ import paths from "@/utils/paths";
 import { useTranslation } from "react-i18next";
 import showToast from "@/utils/toast";
 
-export default function DeleteWorkspace({ workspace, visible = true }) {
+export default function DeleteWorkspace({
+  workspace,
+  visible = true,
+}: {
+  workspace: WorkspaceRecord;
+  visible?: boolean;
+}) {
   const { slug } = useParams();
   const [deleting, setDeleting] = useState(false);
   const { t } = useTranslation();
@@ -29,7 +36,7 @@ export default function DeleteWorkspace({ workspace, visible = true }) {
     }
 
     workspace.slug === slug
-      ? (window.location = paths.home())
+      ? window.location.assign(paths.home())
       : window.location.reload();
   };
 

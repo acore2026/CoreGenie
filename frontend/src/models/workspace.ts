@@ -550,15 +550,14 @@ const Workspace = {
 
   getSuggestedMessages: async function (
     slug: string
-  ): Promise<unknown[] | null> {
+  ): Promise<WorkspaceRecord["suggestedMessages"] | null> {
     try {
-      const res = await api.get<{ suggestedMessages?: unknown[] }>(
-        `/workspace/${slug}/suggested-messages`,
-        {
-          cache: "no-cache",
-          defaultError: "Could not fetch suggested messages.",
-        }
-      );
+      const res = await api.get<{
+        suggestedMessages?: WorkspaceRecord["suggestedMessages"];
+      }>(`/workspace/${slug}/suggested-messages`, {
+        cache: "no-cache",
+        defaultError: "Could not fetch suggested messages.",
+      });
       return res.suggestedMessages ?? null;
     } catch (e) {
       console.error(e);
@@ -568,7 +567,7 @@ const Workspace = {
 
   setSuggestedMessages: async function (
     slug: string,
-    messages: unknown[]
+    messages: NonNullable<WorkspaceRecord["suggestedMessages"]>
   ): Promise<{ success: boolean; error?: string; [key: string]: unknown }> {
     try {
       const data = await api.post<AnyRecord>(

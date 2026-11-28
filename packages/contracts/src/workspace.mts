@@ -35,6 +35,13 @@ export interface WorkspaceRecord {
   createdAt?: string;
   lastUpdatedAt?: string;
   documents?: { docpath: string }[];
+  accessMode?: string;
+  vectorDB?: string;
+  vectorSearchMode?: string | null;
+  similarityThreshold?: number | null;
+  topN?: number | null;
+  agentProvider?: string | null;
+  agentModel?: string | null;
   openAiTemp?: number | null;
   openAiHistory?: number;
   chatMode?: string;

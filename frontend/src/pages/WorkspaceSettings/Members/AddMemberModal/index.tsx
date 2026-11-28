@@ -1,13 +1,23 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { MagnifyingGlass, X } from "@phosphor-icons/react";
-import Admin from "@/models/admin";
+import Admin, { type AdminUser, type AdminWorkspace } from "@/models/admin";
 import showToast from "@/utils/toast";
 
-export default function AddMemberModal({ closeModal, workspace, users }) {
+export default function AddMemberModal({
+  closeModal,
+  workspace,
+  users,
+}: {
+  closeModal: () => void;
+  workspace: AdminWorkspace;
+  users: AdminUser[];
+}) {
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedUsers, setSelectedUsers] = useState(workspace?.userIds || []);
+  const [selectedUsers, setSelectedUsers] = useState(() =>
+    (workspace.userIds ?? []).map(Number).filter(Number.isInteger)
+  );
 
-  const handleUpdate = async (e) => {
+  const handleUpdate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const { success, error } = await Admin.updateUsersInWorkspace(
       workspace.id,
@@ -18,11 +28,10 @@ export default function AddMemberModal({ closeModal, workspace, users }) {
       setTimeout(() => {
         window.location.reload();
       }, 1000);
-    }
-    showToast(error, "error");
+    } else if (error) showToast(error, "error");
   };
 
-  const handleUserSelect = (userId) => {
+  const handleUserSelect = (userId: number) => {
     setSelectedUsers((prevSelectedUsers) => {
       if (prevSelectedUsers.includes(userId)) {
         return prevSelectedUsers.filter((id) => id !== userId);
@@ -44,11 +53,11 @@ export default function AddMemberModal({ closeModal, workspace, users }) {
     setSelectedUsers([]);
   };
 
-  const isUserSelected = (userId) => {
+  const isUserSelected = (userId: number) => {
     return selectedUsers.includes(userId);
   };
 
-  const handleSearch = (event) => {
+  const handleSearch = (event: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(event.target.value);
   };
 

@@ -1,9 +1,14 @@
+import type { WorkspaceRecord } from "@/models/workspace";
 import { useState } from "react";
 import Workspace from "@/models/workspace";
 import showToast from "@/utils/toast";
 import { useTranslation } from "react-i18next";
 
-export default function ResetDatabase({ workspace }) {
+export default function ResetDatabase({
+  workspace,
+}: {
+  workspace: WorkspaceRecord;
+}) {
   const [deleting, setDeleting] = useState(false);
   const { t } = useTranslation();
   const resetVectorDatabase = async () => {
@@ -12,24 +17,16 @@ export default function ResetDatabase({ workspace }) {
     setDeleting(true);
     const success = await Workspace.wipeVectorDb(workspace.slug);
     if (!success) {
-      showToast(
-        t("vector-workspace.reset.error"),
-        t("vector-workspace.common.error"),
-        {
-          clear: true,
-        }
-      );
+      showToast(t("vector-workspace.reset.error"), "error", {
+        clear: true,
+      });
       setDeleting(false);
       return;
     }
 
-    showToast(
-      t("vector-workspace.reset.success"),
-      t("vector-workspace.common.success"),
-      {
-        clear: true,
-      }
-    );
+    showToast(t("vector-workspace.reset.success"), "success", {
+      clear: true,
+    });
     setDeleting(false);
   };
 

@@ -1,10 +1,17 @@
+import type { WorkspaceRecord } from "@/models/workspace";
 import PreLoader from "@/components/Preloader";
 import System from "@/models/system";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-export default function VectorCount({ reload, workspace }) {
-  const [totalVectors, setTotalVectors] = useState(null);
+export default function VectorCount({
+  reload,
+  workspace,
+}: {
+  workspace: WorkspaceRecord;
+  reload: boolean;
+}) {
+  const [totalVectors, setTotalVectors] = useState<number | null>(null);
   const { t } = useTranslation();
 
   useEffect(() => {

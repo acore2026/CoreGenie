@@ -1,7 +1,7 @@
-import Workspace from "@/models/workspace";
+import Workspace, { type WorkspaceRecord } from "@/models/workspace";
 import showToast from "@/utils/toast";
-import { castToType } from "@/utils/types";
-import { useRef, useState } from "react";
+import { workspaceSettingsFromForm } from "@/utils/types";
+import { useState } from "react";
 import VectorDBIdentifier from "./VectorDBIdentifier";
 import MaxContextSnippets from "./MaxContextSnippets";
 import DocumentSimilarityThreshold from "./DocumentSimilarityThreshold";
@@ -10,17 +10,18 @@ import VectorCount from "./VectorCount";
 import VectorSearchMode from "./VectorSearchMode";
 import CTAButton from "@/components/lib/CTAButton";
 
-export default function VectorDatabase({ workspace }) {
+export default function VectorDatabase({
+  workspace,
+}: {
+  workspace: WorkspaceRecord;
+}) {
   const [hasChanges, setHasChanges] = useState(false);
   const [saving, setSaving] = useState(false);
-  const formEl = useRef(null);
 
-  const handleUpdate = async (e) => {
+  const handleUpdate = async (e: React.FormEvent<HTMLFormElement>) => {
     setSaving(true);
     e.preventDefault();
-    const data = {};
-    const form = new FormData(formEl.current);
-    for (var [key, value] of form.entries()) data[key] = castToType(key, value);
+    const data = workspaceSettingsFromForm(e.currentTarget);
     const { workspace: updatedWorkspace, message } = await Workspace.update(
       workspace.slug,
       data
@@ -31,14 +32,13 @@ export default function VectorDatabase({ workspace }) {
       showToast(`Error: ${message}`, "error", { clear: true });
     }
     setSaving(false);
-    setHasChanges(false);
+    setHasChanges(!updatedWorkspace);
   };
 
   if (!workspace) return null;
   return (
     <div className="w-full relative">
       <form
-        ref={formEl}
         onSubmit={handleUpdate}
         className="flex w-full max-w-2xl flex-col gap-y-8"
       >

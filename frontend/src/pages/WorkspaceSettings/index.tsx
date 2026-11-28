@@ -1,6 +1,6 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
-import Workspace from "@/models/workspace";
+import Workspace, { type WorkspaceRecord } from "@/models/workspace";
 import PasswordModal, { usePasswordModal } from "@/components/Modals/Password";
 import { ContentLoader } from "@/components/Preloader";
 import {
@@ -12,7 +12,7 @@ import {
   X,
 } from "@phosphor-icons/react";
 import paths from "@/utils/paths";
-import { Link, NavLink, useNavigate } from "react-router-dom";
+import { Link, NavLink, Navigate, useNavigate } from "react-router-dom";
 import GeneralAppearance from "./GeneralAppearance";
 import ChatSettings from "./ChatSettings";
 import VectorDatabase from "./VectorDatabase";
@@ -27,7 +27,14 @@ import {
 } from "@/components/SettingsModal";
 import { getSettingsReturnPath } from "@/utils/settingsModal";
 
-const TABS = {
+const TABS: Record<
+  string,
+  React.ComponentType<{
+    workspace: WorkspaceRecord;
+    deletionProtected: boolean;
+    onSaved: (updated: WorkspaceRecord) => void;
+  }>
+> = {
   "general-appearance": GeneralAppearance,
   "chat-settings": ChatSettings,
   "vector-database": VectorDatabase,
@@ -51,8 +58,8 @@ function ShowWorkspaceChat() {
   const { slug, tab } = useParams();
   const { user } = useUser();
   const navigate = useNavigate();
-  const dialogRef = useRef(null);
-  const [workspace, setWorkspace] = useState(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const [workspace, setWorkspace] = useState<WorkspaceRecord | null>(null);
   const [deletionProtected, setDeletionProtected] = useState(false);
   const [loading, setLoading] = useState(true);
   const returnPath = getSettingsReturnPath();
@@ -70,30 +77,42 @@ function ShowWorkspaceChat() {
   });
 
   useEffect(() => {
+    let active = true;
+    setLoading(true);
     async function getWorkspace() {
-      if (!slug) return;
+      if (!slug) {
+        setWorkspace(null);
+        setLoading(false);
+        return;
+      }
       const _workspace = await Workspace.bySlug(slug);
+      if (!active) return;
       if (!_workspace) {
+        setWorkspace(null);
         setLoading(false);
         return;
       }
 
       const _settings = await System.keys();
-      const suggestedMessages = await Workspace.getSuggestedMessages(slug);
+      if (!active) return;
       setWorkspace({
         ..._workspace,
         vectorDB: _settings?.VectorDB,
-        suggestedMessages,
       });
       setDeletionProtected(_settings?.WorkspaceDeletionProtection === true);
       setLoading(false);
     }
-    getWorkspace();
+    void getWorkspace();
+    return () => {
+      active = false;
+    };
   }, [slug]);
 
   if (loading) return <WorkspaceSettingsLoadingShell />;
 
-  const TabContent = TABS[tab];
+  if (!workspace || !slug) return <Navigate to={returnPath} replace />;
+  const TabContent =
+    tab && Object.hasOwn(TABS, tab) ? TABS[tab] : GeneralAppearance;
   return (
     <div
       ref={dialogRef}
@@ -139,7 +158,7 @@ function ShowWorkspaceChat() {
               title={t("workspaces—settings.members")}
               icon={<User size={18} />}
               to={paths.workspace.settings.members(slug)}
-              visible={["admin", "manager"].includes(user?.role)}
+              visible={["admin", "manager"].includes(user?.role ?? "")}
             />
             <TabItem
               title={t("workspaces—settings.agent")}
@@ -163,8 +182,10 @@ function ShowWorkspaceChat() {
           </header>
           <div className="workspace-settings-content sidebar-scrollbar min-h-0 flex-1 overflow-y-auto px-6 pb-8 md:px-8">
             <TabContent
-              slug={slug}
               workspace={workspace}
+              onSaved={(updated) =>
+                setWorkspace((current) => ({ ...current, ...updated }))
+              }
               deletionProtected={deletionProtected}
             />
           </div>
@@ -204,7 +225,17 @@ function WorkspaceSettingsLoadingShell() {
   );
 }
 
-function TabItem({ title, icon, to, visible = true }) {
+function TabItem({
+  title,
+  icon,
+  to,
+  visible = true,
+}: {
+  title: string;
+  icon: React.ReactNode;
+  to: string;
+  visible?: boolean;
+}) {
   if (!visible) return null;
   return (
     <NavLink

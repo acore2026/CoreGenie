@@ -1,9 +1,10 @@
+import type { WorkspaceRecord } from "@/models/workspace";
 import { useState } from "react";
 
 // We dont support all vectorDBs yet for reranking due to complexities of how each provider
 // returns information. We need to normalize the response data so Reranker can be used for each provider.
 const supportedVectorDBs = ["lancedb"];
-const hint = {
+const hint: Record<string, { title: string; description: string }> = {
   default: {
     title: "Default",
     description:
@@ -16,7 +17,13 @@ const hint = {
   },
 };
 
-export default function VectorSearchMode({ workspace, setHasChanges }) {
+export default function VectorSearchMode({
+  workspace,
+  setHasChanges,
+}: {
+  workspace: WorkspaceRecord;
+  setHasChanges: (value: boolean) => void;
+}) {
   const [selection, setSelection] = useState(
     workspace?.vectorSearchMode ?? "default"
   );

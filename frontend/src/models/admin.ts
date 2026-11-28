@@ -4,16 +4,24 @@ import { clearSystemKeysCache } from "./system";
 
 type AnyRecord = Record<string, unknown>;
 
-type AdminWorkspace = WorkspaceRecord & {
+export interface AdminUser {
+  id: number;
+  username: string;
+  displayName?: string | null;
+  employeeNumber?: string | null;
+  role: string;
+  lastUpdatedAt?: string;
+}
+export type AdminWorkspace = WorkspaceRecord & {
   userIds?: (number | string)[];
   accessMode?: string;
   viewerRelation?: string;
 };
 
 const Admin = {
-  users: async (): Promise<AnyRecord[]> => {
+  users: async (): Promise<AdminUser[]> => {
     try {
-      const res = await api.get<{ users?: AnyRecord[] }>("/admin/users");
+      const res = await api.get<{ users?: AdminUser[] }>("/admin/users");
       return res?.users || [];
     } catch (e) {
       console.error(e);
@@ -118,9 +126,9 @@ const Admin = {
 
   workspaceUsers: async (
     workspaceId: number | string
-  ): Promise<AnyRecord[]> => {
+  ): Promise<AdminUser[]> => {
     try {
-      const res = await api.get<{ users?: AnyRecord[] }>(
+      const res = await api.get<{ users?: AdminUser[] }>(
         `/admin/workspaces/${workspaceId}/users`
       );
       return res?.users || [];

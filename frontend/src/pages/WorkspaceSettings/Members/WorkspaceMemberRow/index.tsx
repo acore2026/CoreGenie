@@ -1,6 +1,7 @@
+import type { AdminUser } from "@/models/admin";
 import { titleCase } from "text-case";
 
-export default function WorkspaceMemberRow({ user }) {
+export default function WorkspaceMemberRow({ user }: { user: AdminUser }) {
   return (
     <>
       <tr className="bg-transparent text-theme-text-primary text-sm font-medium">

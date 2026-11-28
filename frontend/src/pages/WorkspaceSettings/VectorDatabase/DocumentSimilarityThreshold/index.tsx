@@ -1,8 +1,12 @@
+import type { WorkspaceRecord } from "@/models/workspace";
 import { useTranslation } from "react-i18next";
 
 export default function DocumentSimilarityThreshold({
   workspace,
   setHasChanges,
+}: {
+  workspace: WorkspaceRecord;
+  setHasChanges: (value: boolean) => void;
 }) {
   const { t } = useTranslation();
   return (

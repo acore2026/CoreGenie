@@ -1,3 +1,4 @@
+import type { WorkspaceRecord } from "@/models/workspace";
 import { Buildings, Eye, LockKey } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -8,7 +9,13 @@ const OPTIONS = [
   { value: "public_collaborative", icon: Buildings },
 ];
 
-export default function WorkspaceAccess({ workspace, setHasChanges }) {
+export default function WorkspaceAccess({
+  workspace,
+  setHasChanges,
+}: {
+  workspace: WorkspaceRecord;
+  setHasChanges: (value: boolean) => void;
+}) {
   const { t } = useTranslation();
   const [current, setCurrent] = useState(workspace.accessMode || "private");
 
@@ -44,7 +51,6 @@ export default function WorkspaceAccess({ workspace, setHasChanges }) {
                 value={value}
                 checked={selected}
                 onChange={(event) => {
-                  workspace.accessMode = event.target.value;
                   setCurrent(event.target.value);
                   setHasChanges(true);
                 }}

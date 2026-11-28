@@ -27,3 +27,14 @@ export function castToType(key: string, value: unknown) {
   if (!definitions.hasOwnProperty(key)) return value;
   return definitions[key].cast(value);
 }
+
+export function workspaceSettingsFromForm(
+  form: HTMLFormElement
+): Record<string, unknown> {
+  return Object.fromEntries(
+    Array.from(new FormData(form), ([key, value]) => [
+      key,
+      castToType(key, value),
+    ])
+  );
+}
