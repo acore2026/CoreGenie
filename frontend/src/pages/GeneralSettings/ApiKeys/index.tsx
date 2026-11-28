@@ -9,7 +9,7 @@ import ApiKeyRow from "./ApiKeyRow";
 import NewApiKeyModal from "./NewApiKeyModal";
 import paths from "@/utils/paths";
 import { userFromStorage } from "@/utils/request";
-import System from "@/models/system";
+import System, { type ApiKeyRecord } from "@/models/system";
 import ModalWrapper from "@/components/ModalWrapper";
 import { useModal } from "@/hooks/useModal";
 import CTAButton from "@/components/lib/CTAButton";
@@ -19,13 +19,13 @@ export default function AdminApiKeys() {
   const { isOpen, openModal, closeModal } = useModal();
   const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
-  const [apiKeys, setApiKeys] = useState([]);
+  const [apiKeys, setApiKeys] = useState<ApiKeyRecord[]>([]);
 
   const fetchExistingKeys = async () => {
     const user = userFromStorage();
     const Model = !!user ? Admin : System;
     const { apiKeys: foundKeys } = await Model.getApiKeys();
-    setApiKeys(foundKeys);
+    setApiKeys(foundKeys ?? []);
     setLoading(false);
   };
 
@@ -33,7 +33,7 @@ export default function AdminApiKeys() {
     fetchExistingKeys();
   }, []);
 
-  const removeApiKey = (id) => {
+  const removeApiKey = (id: number) => {
     setApiKeys((prevKeys) => prevKeys.filter((apiKey) => apiKey.id !== id));
   };
 
@@ -107,7 +107,7 @@ export default function AdminApiKeys() {
                 <tbody>
                   {apiKeys.length === 0 ? (
                     <tr className="bg-transparent text-theme-text-secondary text-sm font-medium">
-                      <td colSpan="5" className="px-6 py-4 text-center">
+                      <td colSpan={5} className="px-6 py-4 text-center">
                         {t("api.empty")}
                       </td>
                     </tr>

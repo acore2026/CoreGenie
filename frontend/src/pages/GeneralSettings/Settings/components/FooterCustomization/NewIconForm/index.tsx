@@ -2,12 +2,22 @@ import { ICON_COMPONENTS } from "@/components/Footer";
 import React, { useEffect, useRef, useState } from "react";
 import { Plus, X } from "@phosphor-icons/react";
 
-export default function NewIconForm({ icon, url, onSave, onRemove }) {
+export default function NewIconForm({
+  icon,
+  url,
+  onSave,
+  onRemove,
+}: {
+  icon?: string;
+  url?: string;
+  onSave: (icon: string, url: string) => void;
+  onRemove: () => void;
+}) {
   const [selectedIcon, setSelectedIcon] = useState(icon || "Plus");
   const [selectedUrl, setSelectedUrl] = useState(url || "");
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isEdited, setIsEdited] = useState(false);
-  const dropdownRef = useRef(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setSelectedIcon(icon || "Plus");
@@ -16,8 +26,12 @@ export default function NewIconForm({ icon, url, onSave, onRemove }) {
   }, [icon, url]);
 
   useEffect(() => {
-    function handleClickOutside(event) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        event.target instanceof Node &&
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target)
+      ) {
         setIsDropdownOpen(false);
       }
     }
@@ -26,7 +40,7 @@ export default function NewIconForm({ icon, url, onSave, onRemove }) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [dropdownRef]);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (selectedIcon !== "Plus" && selectedUrl) {
       onSave(selectedIcon, selectedUrl);
@@ -41,13 +55,13 @@ export default function NewIconForm({ icon, url, onSave, onRemove }) {
     setIsEdited(false);
   };
 
-  const handleIconChange = (iconName) => {
+  const handleIconChange = (iconName: string) => {
     setSelectedIcon(iconName);
     setIsDropdownOpen(false);
     setIsEdited(true);
   };
 
-  const handleUrlChange = (e) => {
+  const handleUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSelectedUrl(e.target.value);
     setIsEdited(true);
   };

@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import Sidebar from "@/components/SettingsSidebar";
 import { isMobile } from "react-device-detect";
-import System from "@/models/system";
+import System, { type SystemKeys } from "@/models/system";
 import showToast from "@/utils/toast";
 import { useModal } from "@/hooks/useModal";
 import CTAButton from "@/components/lib/CTAButton";
@@ -23,7 +23,7 @@ const VECTOR_DBS = [
     name: "LanceDB",
     value: "lancedb",
     logo: LanceDbLogo,
-    options: (_) => <LanceDBOptions />,
+    options: () => <LanceDBOptions />,
     description:
       "100% local vector DB that runs on the same instance as AnythingLLM.",
   },
@@ -31,7 +31,9 @@ const VECTOR_DBS = [
     name: "PGVector",
     value: "pgvector",
     logo: PGVectorLogo,
-    options: (settings) => <PGVectorOptions settings={settings} />,
+    options: (settings: SystemKeys | null) => (
+      <PGVectorOptions settings={settings} />
+    ),
     description: "Vector search powered by PostgreSQL.",
   },
 ];
@@ -40,17 +42,16 @@ export default function GeneralVectorDatabase() {
   const [saving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [hasEmbeddings, setHasEmbeddings] = useState(false);
-  const [settings, setSettings] = useState({});
+  const [settings, setSettings] = useState<SystemKeys | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [filteredVDBs, setFilteredVDBs] = useState([]);
-  const [selectedVDB, setSelectedVDB] = useState(null);
+  const [selectedVDB, setSelectedVDB] = useState<string>("lancedb");
   const [searchMenuOpen, setSearchMenuOpen] = useState(false);
-  const searchInputRef = useRef(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const { isOpen, openModal, closeModal } = useModal();
   const { t } = useTranslation();
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (selectedVDB !== settings?.VectorDB && hasChanges && hasEmbeddings) {
       openModal();
@@ -61,11 +62,15 @@ export default function GeneralVectorDatabase() {
 
   const handleSaveSettings = async () => {
     setSaving(true);
-    const form = document.getElementById("vectordb-form");
-    const settingsData = {};
+    const form = document.querySelector<HTMLFormElement>("#vectordb-form");
+    if (!form) {
+      setSaving(false);
+      return;
+    }
+    const settingsData: Record<string, unknown> = {};
     const formData = new FormData(form);
     settingsData.VectorDB = selectedVDB;
-    for (var [key, value] of formData.entries()) settingsData[key] = value;
+    for (const [key, value] of formData.entries()) settingsData[key] = value;
 
     const { error } = await System.updateSystem(settingsData);
     if (error) {
@@ -79,7 +84,7 @@ export default function GeneralVectorDatabase() {
     closeModal();
   };
 
-  const updateVectorChoice = (selection) => {
+  const updateVectorChoice = (selection: string) => {
     setSearchQuery("");
     setSelectedVDB(selection);
     setSearchMenuOpen(false);
@@ -106,12 +111,9 @@ export default function GeneralVectorDatabase() {
     fetchKeys();
   }, []);
 
-  useEffect(() => {
-    const filtered = VECTOR_DBS.filter((vdb) =>
-      vdb.name.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-    setFilteredVDBs(filtered);
-  }, [searchQuery, selectedVDB]);
+  const filteredVDBs = VECTOR_DBS.filter((vdb) =>
+    vdb.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   const selectedVDBObject =
     VECTOR_DBS.find((vdb) => vdb.value === selectedVDB) ?? VECTOR_DBS[0];
@@ -152,7 +154,8 @@ export default function GeneralVectorDatabase() {
               <div className="w-full justify-end flex">
                 {hasChanges && (
                   <CTAButton
-                    onClick={() => handleSubmit()}
+                    type="submit"
+                    disabled={saving}
                     className="mt-3 mr-0 -mb-14 z-10"
                   >
                     {saving ? t("common.saving") : t("common.save")}
@@ -220,16 +223,16 @@ export default function GeneralVectorDatabase() {
                   >
                     <div className="flex gap-x-4 items-center">
                       <img
-                        src={selectedVDBObject.logo}
-                        alt={`${selectedVDBObject.name} logo`}
+                        src={selectedVDBObject?.logo}
+                        alt={`${selectedVDBObject?.name} logo`}
                         className="w-10 h-10 rounded-md"
                       />
                       <div className="flex flex-col text-left">
                         <div className="text-sm font-semibold text-white">
-                          {selectedVDBObject.name}
+                          {selectedVDBObject?.name}
                         </div>
                         <div className="mt-1 text-xs text-description">
-                          {selectedVDBObject.description}
+                          {selectedVDBObject?.description}
                         </div>
                       </div>
                     </div>

@@ -10,19 +10,21 @@ export default function CustomLogo() {
   const { logo: _initLogo, setLogo: _setLogo } = useLogo();
   const [logo, setLogo] = useState("");
   const [isDefaultLogo, setIsDefaultLogo] = useState(true);
-  const fileInputRef = useRef(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     async function logoInit() {
       setLogo(_initLogo || "");
       const _isDefaultLogo = await System.isDefaultLogo();
-      setIsDefaultLogo(_isDefaultLogo);
+      setIsDefaultLogo(_isDefaultLogo ?? true);
     }
     logoInit();
   }, [_initLogo]);
 
-  const handleFileUpload = async (event) => {
-    const file = event.target.files[0];
+  const handleFileUpload = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.currentTarget.files?.[0];
     if (!file) return false;
 
     const objectURL = URL.createObjectURL(file);
@@ -38,7 +40,7 @@ export default function CustomLogo() {
     }
 
     const { logoURL } = await System.fetchLogo();
-    _setLogo(logoURL);
+    _setLogo(logoURL ?? "");
 
     showToast("Image uploaded successfully.", "success");
     setIsDefaultLogo(false);
@@ -53,13 +55,13 @@ export default function CustomLogo() {
       console.error("Failed to remove logo:", error);
       showToast(`Failed to remove logo: ${error}`, "error");
       const { logoURL } = await System.fetchLogo();
-      setLogo(logoURL);
+      setLogo(logoURL ?? "");
       setIsDefaultLogo(false);
       return;
     }
 
     const { logoURL } = await System.fetchLogo();
-    _setLogo(logoURL);
+    _setLogo(logoURL ?? "");
 
     showToast("Image successfully removed.", "success");
   };
@@ -81,6 +83,7 @@ export default function CustomLogo() {
           <div className="flex flex-row gap-x-8">
             <label
               className="mt-3 transition-all duration-300 hover:opacity-60"
+              htmlFor="logo-upload"
               hidden={!isDefaultLogo}
             >
               <input
@@ -90,10 +93,7 @@ export default function CustomLogo() {
                 className="hidden"
                 onChange={handleFileUpload}
               />
-              <div
-                className="w-80 py-4 bg-theme-settings-input-bg rounded-2xl border-2 border-dashed border-theme-text-secondary border-opacity-60 justify-center items-center inline-flex cursor-pointer"
-                htmlFor="logo-upload"
-              >
+              <div className="w-80 py-4 bg-theme-settings-input-bg rounded-2xl border-2 border-dashed border-theme-text-secondary border-opacity-60 justify-center items-center inline-flex cursor-pointer">
                 <div className="flex flex-col items-center justify-center">
                   <div className="rounded-full bg-white/40">
                     <Plus className="w-6 h-6 text-black/80 m-2" />

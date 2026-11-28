@@ -2,10 +2,16 @@ import { useEffect, useState } from "react";
 import Admin from "@/models/admin";
 import { Trash } from "@phosphor-icons/react";
 import { userFromStorage } from "@/utils/request";
-import System from "@/models/system";
+import System, { type ApiKeyRecord } from "@/models/system";
 import { useTranslation } from "react-i18next";
 
-export default function ApiKeyRow({ apiKey, removeApiKey }) {
+export default function ApiKeyRow({
+  apiKey,
+  removeApiKey,
+}: {
+  apiKey: ApiKeyRecord;
+  removeApiKey: (id: number) => void;
+}) {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
   const handleDelete = async () => {
@@ -13,8 +19,7 @@ export default function ApiKeyRow({ apiKey, removeApiKey }) {
 
     const user = userFromStorage();
     const Model = !!user ? Admin : System;
-    await Model.deleteApiKey(apiKey.id);
-    removeApiKey(apiKey.id);
+    if (await Model.deleteApiKey(apiKey.id)) removeApiKey(apiKey.id);
   };
 
   const copyApiKey = () => {

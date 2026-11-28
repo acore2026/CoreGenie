@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import Appearance from "@/models/appearance";
 import { useTranslation } from "react-i18next";
 import Toggle from "@/components/lib/Toggle";
@@ -8,7 +8,7 @@ export default function ChatRenderHTML() {
   const [saving, setSaving] = useState(false);
   const [renderHTML, setRenderHTML] = useState(false);
 
-  const handleChange = async (checked) => {
+  const handleChange = async (checked: boolean) => {
     setRenderHTML(checked);
     setSaving(true);
     try {

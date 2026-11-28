@@ -1,6 +1,6 @@
 import type { WorkspaceRecord } from "@coregenie/contracts";
 import { api } from "@/utils/api";
-import { clearSystemKeysCache } from "./system";
+import { type ApiKeyRecord, clearSystemKeysCache } from "./system";
 
 type AnyRecord = Record<string, unknown>;
 
@@ -249,11 +249,11 @@ const Admin = {
   },
 
   getApiKeys: async function (): Promise<{
-    apiKeys: AnyRecord[];
+    apiKeys: ApiKeyRecord[];
     error?: string | null;
   }> {
     try {
-      return await api.get<{ apiKeys: AnyRecord[]; error?: string | null }>(
+      return await api.get<{ apiKeys: ApiKeyRecord[]; error?: string | null }>(
         "/admin/api-keys",
         { defaultError: "Error fetching api keys." }
       );
@@ -265,10 +265,10 @@ const Admin = {
 
   generateApiKey: async function (
     data: AnyRecord = {}
-  ): Promise<{ apiKey: AnyRecord | null; error?: string | null }> {
+  ): Promise<{ apiKey: ApiKeyRecord | null; error?: string | null }> {
     try {
       return await api.post<{
-        apiKey: AnyRecord | null;
+        apiKey: ApiKeyRecord | null;
         error?: string | null;
       }>("/admin/generate-api-key", data, {
         defaultError: "Error generating api key.",

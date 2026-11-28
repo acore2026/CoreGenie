@@ -20,7 +20,7 @@ export interface FooterIcon {
   url: string;
   icon: string;
 }
-function footerIcons(data: unknown): FooterIcon[] {
+export function footerIcons(data: unknown): FooterIcon[] {
   if (!Array.isArray(data)) return [];
   return data.filter(
     (item: unknown): item is FooterIcon =>
@@ -51,6 +51,25 @@ export interface AvailableModel {
   size?: string | number;
   modelCard?: string;
 }
+export interface ApiKeyRecord {
+  id: number;
+  name?: string | null;
+  secret: string;
+  createdBy?: { username: string } | null;
+  createdAt: string;
+}
+export interface ChatLogEntry {
+  id: number;
+  user?: { username: string } | null;
+  workspace?: { name: string } | null;
+  prompt: string;
+  response: string;
+  createdAt: string;
+}
+interface ChatLogPage {
+  chats: ChatLogEntry[];
+  hasPages: boolean;
+}
 export interface SystemKeys extends Record<string, unknown> {
   LLMProvider?: string | null;
   LLMModel?: string | null;
@@ -75,6 +94,8 @@ export interface SystemKeys extends Record<string, unknown> {
   PGVectorConnectionString?: string | boolean;
   credentialsOnly?: boolean;
   MultiUserMode?: boolean;
+  HasExistingEmbeddings?: boolean;
+  HasCachedEmbeddings?: boolean;
   RequiresAuth?: boolean;
   DisableViewChatHistory?: boolean;
 }
@@ -665,14 +686,14 @@ const System = {
   },
 
   getApiKeys: async function (): Promise<{
-    apiKeys?: AnyRecord[];
-    apiKey?: AnyRecord | null;
+    apiKeys?: ApiKeyRecord[];
+    apiKey?: ApiKeyRecord | null;
     error?: string | null;
   }> {
     try {
       return await api.get<{
-        apiKeys?: AnyRecord[];
-        apiKey?: AnyRecord | null;
+        apiKeys?: ApiKeyRecord[];
+        apiKey?: ApiKeyRecord | null;
         error?: string | null;
       }>("/system/api-keys", { defaultError: "Error fetching api key." });
     } catch (e) {
@@ -683,10 +704,10 @@ const System = {
 
   generateApiKey: async function (
     data: AnyRecord = {}
-  ): Promise<{ apiKey: AnyRecord | null; error?: string | null }> {
+  ): Promise<{ apiKey: ApiKeyRecord | null; error?: string | null }> {
     try {
       return await api.post<{
-        apiKey: AnyRecord | null;
+        apiKey: ApiKeyRecord | null;
         error?: string | null;
       }>("/system/generate-api-key", data, {
         defaultError: "Error generating api key.",
@@ -748,12 +769,12 @@ const System = {
     }
   },
 
-  chats: async (offset = 0): Promise<AnyRecord | unknown[]> => {
+  chats: async (offset = 0): Promise<ChatLogPage> => {
     try {
-      return await api.post<AnyRecord>("/system/workspace-chats", { offset });
+      return await api.post<ChatLogPage>("/system/workspace-chats", { offset });
     } catch (e) {
       console.error(e);
-      return [];
+      return { chats: [], hasPages: false };
     }
   },
 

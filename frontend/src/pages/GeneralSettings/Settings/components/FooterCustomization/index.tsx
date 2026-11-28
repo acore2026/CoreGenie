@@ -1,24 +1,33 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import showToast from "@/utils/toast";
 import { safeJsonParse } from "@/utils/request";
 import NewIconForm from "./NewIconForm";
 import Admin from "@/models/admin";
-import System from "@/models/system";
+import System, {
+  footerIcons as parseIcons,
+  type FooterIcon,
+} from "@/models/system";
 import { useTranslation } from "react-i18next";
 
 export default function FooterCustomization() {
-  const [footerIcons, setFooterIcons] = useState(Array(3).fill(null));
+  const [footerIcons, setFooterIcons] = useState<(FooterIcon | null)[]>([
+    null,
+    null,
+    null,
+  ]);
   const { t } = useTranslation();
 
   useEffect(() => {
     async function fetchFooterIcons() {
-      const { settings } = await Admin.systemPreferencesByFields([
-        "footer_data",
-      ]);
+      const result = await Admin.systemPreferencesByFields(["footer_data"]);
 
-      const footerData = settings?.footer_data;
+      const footerData = result?.settings.footer_data;
       if (footerData) {
-        const parsedIcons = safeJsonParse(footerData, []);
+        const parsedIcons = parseIcons(
+          typeof footerData === "string"
+            ? safeJsonParse<unknown>(footerData, [])
+            : footerData
+        );
         setFooterIcons((prevIcons) => {
           const updatedIcons = [...prevIcons];
           parsedIcons.forEach((icon, index) => {
@@ -31,7 +40,7 @@ export default function FooterCustomization() {
     fetchFooterIcons();
   }, []);
 
-  const updateFooterIcons = async (updatedIcons) => {
+  const updateFooterIcons = async (updatedIcons: (FooterIcon | null)[]) => {
     const { success, error } = await Admin.updateSystemPreferences({
       footer_data: JSON.stringify(updatedIcons.filter((icon) => icon !== null)),
     });
@@ -48,7 +57,7 @@ export default function FooterCustomization() {
     showToast("Successfully updated footer icons.", "success", { clear: true });
   };
 
-  const handleRemoveIcon = (index) => {
+  const handleRemoveIcon = (index: number) => {
     const updatedIcons = [...footerIcons];
     updatedIcons[index] = null;
     updateFooterIcons(updatedIcons);

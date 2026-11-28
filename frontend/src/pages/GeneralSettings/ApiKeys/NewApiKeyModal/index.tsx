@@ -1,19 +1,25 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { X, Copy, Check } from "@phosphor-icons/react";
 import Admin from "@/models/admin";
 import paths from "@/utils/paths";
 import { userFromStorage } from "@/utils/request";
-import System from "@/models/system";
+import System, { type ApiKeyRecord } from "@/models/system";
 import { useTranslation } from "react-i18next";
 
-export default function NewApiKeyModal({ closeModal, onSuccess }) {
+export default function NewApiKeyModal({
+  closeModal,
+  onSuccess,
+}: {
+  closeModal: () => void;
+  onSuccess: () => void;
+}) {
   const { t } = useTranslation();
-  const [apiKey, setApiKey] = useState(null);
+  const [apiKey, setApiKey] = useState<ApiKeyRecord | null>(null);
   const [name, setName] = useState("");
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  const handleCreate = async (e) => {
+  const handleCreate = async (e: React.FormEvent<HTMLFormElement>) => {
     setError(null);
     e.preventDefault();
     const user = userFromStorage();
@@ -26,11 +32,12 @@ export default function NewApiKeyModal({ closeModal, onSuccess }) {
       setApiKey(newApiKey);
       onSuccess();
     }
-    setError(error);
+    setError(error ?? t("common.error"));
   };
 
   const copyApiKey = () => {
     if (!apiKey) return false;
+    if (!apiKey) return;
     window.navigator.clipboard.writeText(apiKey.secret);
     setCopied(true);
   };

@@ -16,7 +16,11 @@ export default function ThemePreference() {
       <div className="flex items-center gap-x-4">
         <select
           value={theme}
-          onChange={(e) => setTheme(e.target.value)}
+          onChange={(e) => {
+            const value = e.currentTarget.value;
+            if (value === "system" || value === "light" || value === "dark")
+              setTheme(value);
+          }}
           className="border-none bg-theme-settings-input-bg mt-2 text-white placeholder:text-theme-settings-input-placeholder text-sm rounded-lg focus:outline-primary-button active:outline-primary-button outline-none block w-fit py-2 px-4"
         >
           {Object.entries(availableThemes).map(([key, value]) => (

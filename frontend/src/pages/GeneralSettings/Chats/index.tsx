@@ -6,13 +6,21 @@ import "react-loading-skeleton/dist/skeleton.css";
 import useQuery from "@/hooks/useQuery";
 import ChatRow from "./ChatRow";
 import showToast from "@/utils/toast";
-import System from "@/models/system";
+import System, { type ChatLogEntry } from "@/models/system";
 import { CaretDown, Download, Trash } from "@phosphor-icons/react";
 import { saveAs } from "file-saver";
 import { useTranslation } from "react-i18next";
 import { CanViewChatHistory } from "@/components/CanViewChatHistory";
 
-const exportOptions = {
+const exportOptions: Record<
+  string,
+  {
+    name: string;
+    mimeType: string;
+    fileExtension: string;
+    filenameFunc: () => string;
+  }
+> = {
   csv: {
     name: "CSV",
     mimeType: "text/csv",
@@ -49,16 +57,16 @@ const exportOptions = {
 
 export default function WorkspaceChats() {
   const [showMenu, setShowMenu] = useState(false);
-  const menuRef = useRef();
-  const openMenuButton = useRef();
+  const menuRef = useRef<HTMLDivElement>(null);
+  const openMenuButton = useRef<HTMLButtonElement>(null);
   const query = useQuery();
   const [loading, setLoading] = useState(true);
-  const [chats, setChats] = useState([]);
+  const [chats, setChats] = useState<ChatLogEntry[]>([]);
   const [offset, setOffset] = useState(Number(query.get("offset") || 0));
   const [canNext, setCanNext] = useState(false);
   const { t } = useTranslation();
 
-  const handleDumpChats = async (exportType) => {
+  const handleDumpChats = async (exportType: string) => {
     const chats = await System.exportChats(exportType, "workspace");
     if (!!chats) {
       const { name, mimeType, fileExtension, filenameFunc } =
@@ -88,11 +96,12 @@ export default function WorkspaceChats() {
   };
 
   useEffect(() => {
-    function handleClickOutside(event) {
+    function handleClickOutside(event: MouseEvent) {
       if (
+        event.target instanceof Node &&
         menuRef.current &&
         !menuRef.current.contains(event.target) &&
-        !openMenuButton.current.contains(event.target)
+        !openMenuButton.current?.contains(event.target)
       ) {
         setShowMenu(false);
       }
@@ -201,6 +210,14 @@ function ChatsContainer({
   setOffset,
   canNext,
   t,
+}: {
+  loading: boolean;
+  chats: ChatLogEntry[];
+  setChats: React.Dispatch<React.SetStateAction<ChatLogEntry[]>>;
+  offset: number;
+  setOffset: (page: number) => void;
+  canNext: boolean;
+  t: import("i18next").TFunction;
 }) {
   const handlePrevious = () => {
     setOffset(Math.max(offset - 1, 0));
@@ -209,8 +226,7 @@ function ChatsContainer({
     setOffset(offset + 1);
   };
 
-  const handleDeleteChat = async (chatId) => {
-    await System.deleteChat(chatId);
+  const handleDeleteChat = (chatId: number) => {
     setChats((prevChats) => prevChats.filter((chat) => chat.id !== chatId));
   };
 

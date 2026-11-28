@@ -57,7 +57,7 @@ function PublicRegistration() {
     loadSettings();
   }, []);
 
-  const updateRegistration = async (checked) => {
+  const updateRegistration = async (checked: boolean) => {
     setSaving(true);
     const result = await System.updatePublicRegistration(checked);
     if (result.success) {
@@ -112,12 +112,12 @@ function MultiUserMode() {
   const [loading, setLoading] = useState(true);
   const { t } = useTranslation();
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSaving(true);
     setHasChanges(false);
     if (useMultiUserMode) {
-      const form = new FormData(e.target);
+      const form = new FormData(e.currentTarget);
       const data = {
         username: form.get("username"),
         password: form.get("password"),
@@ -131,7 +131,7 @@ function MultiUserMode() {
           window.localStorage.removeItem(AUTH_USER);
           window.localStorage.removeItem(AUTH_TOKEN);
           window.localStorage.removeItem(AUTH_TIMESTAMP);
-          window.location = paths.settings.users();
+          window.location.assign(paths.settings.users());
         }, 2_000);
         return;
       }
@@ -182,7 +182,8 @@ function MultiUserMode() {
         {hasChanges && (
           <div className="flex justify-end">
             <CTAButton
-              onClick={() => handleSubmit()}
+              type="submit"
+              disabled={saving}
               className="mt-3 mr-0 -mb-20 z-10"
             >
               {saving ? t("common.saving") : t("common.save")}
@@ -276,12 +277,12 @@ function PasswordProtection() {
   const [loading, setLoading] = useState(true);
   const { t } = useTranslation();
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (multiUserModeEnabled) return false;
-    const form = new FormData(e.target);
+    const form = new FormData(e.currentTarget);
 
-    if (!PW_REGEX.test(form.get("password"))) {
+    if (usePassword && !PW_REGEX.test(String(form.get("password") ?? ""))) {
       showToast(
         `Your password has restricted characters in it. Allowed symbols are _,-,!,@,$,%,^,&,*,(,),;`,
         "error"
@@ -320,7 +321,7 @@ function PasswordProtection() {
       const multiUserModeEnabled = await System.isMultiUserMode();
       const settings = await System.keys();
       setMultiUserModeEnabled(multiUserModeEnabled);
-      setUsePassword(settings?.RequiresAuth);
+      setUsePassword(settings?.RequiresAuth ?? false);
       setLoading(false);
     }
     fetchIsMultiUserMode();
@@ -357,7 +358,8 @@ function PasswordProtection() {
         {hasChanges && (
           <div className="flex justify-end">
             <CTAButton
-              onClick={() => handleSubmit()}
+              type="submit"
+              disabled={saving}
               className="mt-3 mr-0 -mb-20 z-10"
             >
               {saving ? t("common.saving") : t("common.save")}

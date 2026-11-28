@@ -18,7 +18,7 @@ const md = new MarkdownIt({
   },
 });
 
-const ThoughtBubble = ({ thought }) => {
+const ThoughtBubble = ({ thought }: { thought: string }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
   if (!thought) return null;
@@ -50,23 +50,25 @@ const ThoughtBubble = ({ thought }) => {
   );
 };
 
-function parseContent(content) {
-  const parts = [];
+function parseContent(content: string) {
+  const parts: { type: "normal" | "think"; text: string }[] = [];
   let lastIndex = 0;
-  content.replace(/<think>([^]*?)<\/think>/g, (match, thinkContent, offset) => {
+  for (const match of content.matchAll(/<think>([^]*?)<\/think>/g)) {
+    const offset = match.index;
+    const thinkContent = match[1];
     if (offset > lastIndex) {
       parts.push({ type: "normal", text: content.slice(lastIndex, offset) });
     }
     parts.push({ type: "think", text: thinkContent });
-    lastIndex = offset + match.length;
-  });
+    lastIndex = offset + match[0].length;
+  }
   if (lastIndex < content.length) {
     parts.push({ type: "normal", text: content.slice(lastIndex) });
   }
   return parts;
 }
 
-export default function MarkdownRenderer({ content }) {
+export default function MarkdownRenderer({ content }: { content: string }) {
   if (!content) return null;
 
   const parts = parseContent(content);

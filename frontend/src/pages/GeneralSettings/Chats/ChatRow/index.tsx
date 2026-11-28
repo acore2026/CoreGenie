@@ -1,12 +1,18 @@
 import truncate from "truncate";
 import { X, Trash } from "@phosphor-icons/react";
-import System from "@/models/system";
+import System, { type ChatLogEntry } from "@/models/system";
 import ModalWrapper from "@/components/ModalWrapper";
 import { useModal } from "@/hooks/useModal";
 import MarkdownRenderer from "../MarkdownRenderer";
 import { safeJsonParse } from "@/utils/request";
 
-export default function ChatRow({ chat, onDelete }) {
+export default function ChatRow({
+  chat,
+  onDelete,
+}: {
+  chat: ChatLogEntry;
+  onDelete: (id: number) => void;
+}) {
   const {
     isOpen: isPromptOpen,
     openModal: openPromptModal,
@@ -18,6 +24,8 @@ export default function ChatRow({ chat, onDelete }) {
     closeModal: closeResponseModal,
   } = useModal();
 
+  const parsed = safeJsonParse<{ text?: unknown } | null>(chat.response, null);
+  const response = typeof parsed?.text === "string" ? parsed.text : "";
   const handleDelete = async () => {
     if (
       !window.confirm(
@@ -25,8 +33,8 @@ export default function ChatRow({ chat, onDelete }) {
       )
     )
       return false;
-    await System.deleteChat(chat.id);
-    onDelete(chat.id);
+    const result = await System.deleteChat(chat.id);
+    if (result.success) onDelete(chat.id);
   };
 
   return (
@@ -49,7 +57,7 @@ export default function ChatRow({ chat, onDelete }) {
           onClick={openResponseModal}
           className="px-6 cursor-pointer transform transition-transform duration-200 hover:scale-105 hover:shadow-lg"
         >
-          {truncate(safeJsonParse(chat.response, {})?.text, 40)}
+          {truncate(response, 40)}
         </td>
         <td className="px-6">{chat.createdAt}</td>
         <td className="px-6 flex items-center gap-x-6 h-full mt-1">
@@ -66,18 +74,20 @@ export default function ChatRow({ chat, onDelete }) {
       </ModalWrapper>
       <ModalWrapper isOpen={isResponseOpen}>
         <TextPreview
-          text={
-            <MarkdownRenderer
-              content={safeJsonParse(chat.response, {})?.text}
-            />
-          }
+          text={<MarkdownRenderer content={response} />}
           closeModal={closeResponseModal}
         />
       </ModalWrapper>
     </>
   );
 }
-const TextPreview = ({ text, closeModal }) => {
+const TextPreview = ({
+  text,
+  closeModal,
+}: {
+  text: React.ReactNode;
+  closeModal: () => void;
+}) => {
   return (
     <div className="relative w-full md:max-w-2xl max-h-full">
       <div className="w-full max-w-2xl bg-theme-bg-secondary rounded-lg shadow border-2 border-theme-modal-border overflow-hidden">

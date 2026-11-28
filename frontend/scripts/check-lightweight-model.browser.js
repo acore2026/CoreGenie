@@ -14,7 +14,7 @@ async (page) => {
     const React=(await import('/node_modules/.vite/deps/react.js')).default;
     const ReactDOM=(await import('/node_modules/.vite/deps/react-dom.js')).default;
     await import('/src/i18n.ts');await import('/src/index.css');
-    const Component=(await import('/src/pages/GeneralSettings/LLMPreference/LightweightModel/index.jsx')).default;
+    const Component=(await import('/src/pages/GeneralSettings/LLMPreference/LightweightModel/index.tsx')).default;
     window.submissions=0;
     ReactDOM.createRoot(document.getElementById('root')).render(React.createElement('form',{onSubmit:e=>{e.preventDefault();window.submissions++},style:{maxWidth:720,margin:'32px auto',padding:20}},React.createElement(Component)));
   </script></body></html>`}));

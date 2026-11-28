@@ -6,7 +6,10 @@ import { useTranslation } from "react-i18next";
 export default function CustomSiteSettings() {
   const { t } = useTranslation();
   const [hasChanges, setHasChanges] = useState(false);
-  const [settings, setSettings] = useState({
+  const [settings, setSettings] = useState<{
+    title: string | null;
+    faviconUrl: string | null;
+  }>({
     title: null,
     faviconUrl: null,
   });
@@ -15,20 +18,31 @@ export default function CustomSiteSettings() {
     Admin.systemPreferencesByFields([
       "meta_page_title",
       "meta_page_favicon",
-    ]).then(({ settings }) => {
+    ]).then((result) => {
+      const settings = result?.settings;
       setSettings({
-        title: settings?.meta_page_title,
-        faviconUrl: settings?.meta_page_favicon,
+        title:
+          typeof settings?.meta_page_title === "string"
+            ? settings.meta_page_title
+            : null,
+        faviconUrl:
+          typeof settings?.meta_page_favicon === "string"
+            ? settings.meta_page_favicon
+            : null,
       });
     });
   }, []);
 
-  async function handleSiteSettingUpdate(e) {
+  async function handleSiteSettingUpdate(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    await Admin.updateSystemPreferences({
+    const result = await Admin.updateSystemPreferences({
       meta_page_title: settings.title ?? null,
       meta_page_favicon: settings.faviconUrl ?? null,
     });
+    if (!result.success) {
+      showToast(result.error || t("common.error"), "error");
+      return;
+    }
     showToast(
       "Site preferences updated! They will reflect on page reload.",
       "success",
@@ -85,7 +99,7 @@ export default function CustomSiteSettings() {
         <div className="flex items-center gap-x-2">
           <img
             src={settings.faviconUrl ?? "/coregenie-mark.svg"}
-            onError={(e) => (e.target.src = "/coregenie-mark.svg")}
+            onError={(e) => (e.currentTarget.src = "/coregenie-mark.svg")}
             className="h-10 w-10 rounded-lg mt-2"
             alt="Site favicon"
           />

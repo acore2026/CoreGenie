@@ -1,7 +1,7 @@
-import React, { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import Sidebar from "@/components/SettingsSidebar";
 import { isMobile } from "react-device-detect";
-import System from "@/models/system";
+import System, { type SystemKeys } from "@/models/system";
 import showToast from "@/utils/toast";
 import AnythingLLMIcon from "@/media/logo/coregenie-mark.svg";
 import OpenAiLogo from "@/media/llmprovider/openai.png";
@@ -25,7 +25,9 @@ const EMBEDDERS = [
     name: "AnythingLLM Embedder",
     value: "native",
     logo: AnythingLLMIcon,
-    options: (settings) => <NativeEmbeddingOptions settings={settings} />,
+    options: (settings: SystemKeys | null) => (
+      <NativeEmbeddingOptions settings={settings} />
+    ),
     description:
       "Use the built-in embedding provider for AnythingLLM. Zero setup!",
   },
@@ -33,14 +35,16 @@ const EMBEDDERS = [
     name: "OpenAI",
     value: "openai",
     logo: OpenAiLogo,
-    options: (settings) => <OpenAiOptions settings={settings} />,
+    options: (settings: SystemKeys | null) => (
+      <OpenAiOptions settings={settings} />
+    ),
     description: "The standard option for most non-commercial use.",
   },
   {
     name: "Generic OpenAI",
     value: "generic-openai",
     logo: GenericOpenAiLogo,
-    options: (settings) => (
+    options: (settings: SystemKeys | null) => (
       <GenericOpenAiEmbeddingOptions settings={settings} />
     ),
     description: "Run embedding models from any OpenAI compatible API service.",
@@ -52,17 +56,16 @@ export default function GeneralEmbeddingPreference() {
   const [hasChanges, setHasChanges] = useState(false);
   const [hasEmbeddings, setHasEmbeddings] = useState(false);
   const [hasCachedEmbeddings, setHasCachedEmbeddings] = useState(false);
-  const [settings, setSettings] = useState(null);
+  const [settings, setSettings] = useState<SystemKeys | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [filteredEmbedders, setFilteredEmbedders] = useState([]);
-  const [selectedEmbedder, setSelectedEmbedder] = useState(null);
+  const [selectedEmbedder, setSelectedEmbedder] = useState<string>("native");
   const [searchMenuOpen, setSearchMenuOpen] = useState(false);
-  const searchInputRef = useRef(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const { isOpen, openModal, closeModal } = useModal();
   const { t } = useTranslation();
 
-  function embedderModelChanged(formEl) {
+  function embedderModelChanged(formEl: HTMLFormElement) {
     try {
       const newModel = new FormData(formEl).get("EmbeddingModelPref") ?? null;
       if (newModel === null) return false;
@@ -73,11 +76,11 @@ export default function GeneralEmbeddingPreference() {
     return false;
   }
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (
       (selectedEmbedder !== settings?.EmbeddingEngine ||
-        embedderModelChanged(e.target)) &&
+        embedderModelChanged(e.currentTarget)) &&
       hasChanges &&
       (hasEmbeddings || hasCachedEmbeddings)
     ) {
@@ -89,11 +92,15 @@ export default function GeneralEmbeddingPreference() {
 
   const handleSaveSettings = async () => {
     setSaving(true);
-    const form = document.getElementById("embedding-form");
-    const settingsData = {};
+    const form = document.querySelector<HTMLFormElement>("#embedding-form");
+    if (!form) {
+      setSaving(false);
+      return;
+    }
+    const settingsData: Record<string, unknown> = {};
     const formData = new FormData(form);
     settingsData.EmbeddingEngine = selectedEmbedder;
-    for (var [key, value] of formData.entries()) settingsData[key] = value;
+    for (const [key, value] of formData.entries()) settingsData[key] = value;
 
     const { error } = await System.updateSystem(settingsData);
     if (error) {
@@ -107,7 +114,7 @@ export default function GeneralEmbeddingPreference() {
     closeModal();
   };
 
-  const updateChoice = (selection) => {
+  const updateChoice = (selection: string) => {
     setSearchQuery("");
     setSelectedEmbedder(selection);
     setSearchMenuOpen(false);
@@ -135,12 +142,9 @@ export default function GeneralEmbeddingPreference() {
     fetchKeys();
   }, []);
 
-  useEffect(() => {
-    const filtered = EMBEDDERS.filter((embedder) =>
-      embedder.name.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-    setFilteredEmbedders(filtered);
-  }, [searchQuery, selectedEmbedder]);
+  const filteredEmbedders = EMBEDDERS.filter((embedder) =>
+    embedder.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   const selectedEmbedderObject = EMBEDDERS.find(
     (embedder) => embedder.value === selectedEmbedder
@@ -184,7 +188,8 @@ export default function GeneralEmbeddingPreference() {
               <div className="w-full justify-end flex">
                 {hasChanges && (
                   <CTAButton
-                    onClick={() => handleSubmit()}
+                    type="submit"
+                    disabled={saving}
                     className="mt-3 mr-0 -mb-14 z-10"
                   >
                     {saving ? t("common.saving") : t("common.save")}
@@ -252,16 +257,16 @@ export default function GeneralEmbeddingPreference() {
                   >
                     <div className="flex gap-x-4 items-center">
                       <img
-                        src={selectedEmbedderObject.logo}
-                        alt={`${selectedEmbedderObject.name} logo`}
+                        src={selectedEmbedderObject?.logo}
+                        alt={`${selectedEmbedderObject?.name} logo`}
                         className="w-10 h-10 rounded-md"
                       />
                       <div className="flex flex-col text-left">
                         <div className="text-sm font-semibold text-white">
-                          {selectedEmbedderObject.name}
+                          {selectedEmbedderObject?.name}
                         </div>
                         <div className="mt-1 text-xs text-description">
-                          {selectedEmbedderObject.description}
+                          {selectedEmbedderObject?.description}
                         </div>
                       </div>
                     </div>

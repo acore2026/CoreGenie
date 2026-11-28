@@ -1,23 +1,23 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import Appearance from "@/models/appearance";
 import { useTranslation } from "react-i18next";
 import Toggle from "@/components/lib/Toggle";
 
-export default function ShowScrollbar() {
+export default function SpellCheck() {
   const { t } = useTranslation();
   const [saving, setSaving] = useState(false);
-  const [showScrollbar, setShowScrollbar] = useState(() =>
-    Appearance.get("showScrollbar")
+  const [enableSpellCheck, setEnableSpellCheck] = useState(
+    Appearance.get("enableSpellCheck")
   );
 
-  const handleChange = async (checked) => {
-    setShowScrollbar(checked);
+  const handleChange = async (checked: boolean) => {
+    setEnableSpellCheck(checked);
     setSaving(true);
     try {
-      Appearance.updateSettings({ showScrollbar: checked });
+      Appearance.set("enableSpellCheck", checked);
     } catch (error) {
       console.error("Failed to update appearance settings:", error);
-      setShowScrollbar(!checked);
+      setEnableSpellCheck(!checked);
     }
     setSaving(false);
   };
@@ -27,11 +27,11 @@ export default function ShowScrollbar() {
       <Toggle
         size="md"
         variant="horizontal"
-        enabled={showScrollbar}
+        enabled={enableSpellCheck}
         onChange={handleChange}
         disabled={saving}
-        label={t("customization.items.show-scrollbar.title")}
-        description={t("customization.items.show-scrollbar.description")}
+        label={t("customization.chat.spellcheck.title")}
+        description={t("customization.chat.spellcheck.description")}
       />
     </div>
   );

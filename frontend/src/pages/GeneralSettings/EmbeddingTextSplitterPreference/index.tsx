@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import Sidebar from "@/components/SettingsSidebar";
 import { isMobile } from "react-device-detect";
 import PreLoader from "@/components/Preloader";
@@ -11,22 +11,22 @@ import { useModal } from "@/hooks/useModal";
 import ModalWrapper from "@/components/ModalWrapper";
 import ChangeWarningModal from "@/components/ChangeWarning";
 
-function isNullOrNaN(value) {
+function isNullOrNaN(value: unknown) {
   if (value === null) return true;
-  return isNaN(value);
+  return Number.isNaN(Number(value));
 }
 
 export default function EmbeddingTextSplitterPreference() {
-  const [settings, setSettings] = useState({});
+  const [settings, setSettings] = useState<Record<string, unknown>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const { isOpen, openModal, closeModal } = useModal();
   const { t } = useTranslation();
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const form = new FormData(e.target);
+    const form = new FormData(e.currentTarget);
 
     if (
       Number(form.get("text_splitter_chunk_overlap")) >=
@@ -45,10 +45,12 @@ export default function EmbeddingTextSplitterPreference() {
   const handleSaveSettings = async () => {
     setSaving(true);
     try {
-      const form = new FormData(
-        document.getElementById("text-splitter-chunking-form")
+      const target = document.querySelector<HTMLFormElement>(
+        "#text-splitter-chunking-form"
       );
-      await Admin.updateSystemPreferences({
+      if (!target) return;
+      const form = new FormData(target);
+      const result = await Admin.updateSystemPreferences({
         text_splitter_chunk_size: isNullOrNaN(
           form.get("text_splitter_chunk_size")
         )
@@ -60,6 +62,7 @@ export default function EmbeddingTextSplitterPreference() {
           ? 1000
           : Number(form.get("text_splitter_chunk_overlap")),
       });
+      if (!result.success) throw new Error(result.error ?? "");
       setHasChanges(false);
       closeModal();
       showToast("Text chunking strategy settings saved.", "success");
@@ -142,7 +145,7 @@ export default function EmbeddingTextSplitterPreference() {
                     type="number"
                     name="text_splitter_chunk_size"
                     min={1}
-                    max={settings?.max_embed_chunk_size || 1000}
+                    max={Number(settings.max_embed_chunk_size) || 1000}
                     onWheel={(e) => e?.currentTarget?.blur()}
                     className="border-none bg-theme-settings-input-bg text-white placeholder:text-theme-settings-input-placeholder text-sm rounded-lg focus:outline-primary-button active:outline-primary-button outline-none block w-full p-2.5"
                     placeholder="maximum length of vectorized text"
@@ -156,7 +159,10 @@ export default function EmbeddingTextSplitterPreference() {
                   />
                   <p className="text-xs text-white/40 mt-2">
                     {t("text.size.recommend")}{" "}
-                    {numberWithCommas(settings?.max_embed_chunk_size || 1000)}.
+                    {numberWithCommas(
+                      Number(settings.max_embed_chunk_size) || 1000
+                    )}
+                    .
                   </p>
                 </div>
               </div>
