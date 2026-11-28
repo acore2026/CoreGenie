@@ -2,21 +2,35 @@ import { useEffect, useId, useState } from "react";
 import { ListChecks, X } from "@phosphor-icons/react";
 import { useTranslation } from "react-i18next";
 import { API_BASE } from "@/utils/constants";
+import type { Task } from "@/utils/chat/agentRunTypes";
+import type { PlanMessage } from "@/utils/taskPlan";
+import { cleanHeaders } from "@/utils/apiClient";
 import { baseHeaders } from "@/utils/request";
 import { conversationPlanRuns, planTasks } from "@/utils/taskPlan.ts";
 import TaskPlanCard from "../ChatHistory/TaskPlanCard";
 
 const TERMINAL = new Set(["completed", "partial", "failed", "cancelled"]);
 
-export default function TaskPlanPanel({ history = [], onClose }) {
+interface PlanSnapshot {
+  id: string;
+  run?: { status?: string; runtimeKey?: string };
+  tasks?: Task[];
+}
+export default function TaskPlanPanel({
+  history = [],
+  onClose,
+}: {
+  history?: PlanMessage[];
+  onClose?: () => void;
+}) {
   const { t } = useTranslation();
   const selectId = useId();
   const runs = conversationPlanRuns(history);
-  const [chosen, setChosen] = useState(null);
+  const [chosen, setChosen] = useState<string | null>(null);
   const run = runs.find((item) => item.id === chosen) || runs[0];
   const runId = run?.id;
   const liveState = run?.state;
-  const [snapshot, setSnapshot] = useState(null);
+  const [snapshot, setSnapshot] = useState<PlanSnapshot | null>(null);
   const [error, setError] = useState(false);
   const [retry, setRetry] = useState(0);
   useEffect(() => {
@@ -24,22 +38,22 @@ export default function TaskPlanPanel({ history = [], onClose }) {
     setError(false);
     if (!runId || liveState) return;
     const controller = new AbortController();
-    let timer;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     const refresh = async () => {
       try {
         const response = await fetch(
           `${API_BASE}/agent-runs/${runId}/snapshot?view=rail`,
           {
-            headers: baseHeaders(),
+            headers: cleanHeaders({ ...baseHeaders() }),
             signal: controller.signal,
           }
         );
         if (!response.ok) throw new Error("snapshot");
-        const data = await response.json();
+        const data: Omit<PlanSnapshot, "id"> = await response.json();
         if (controller.signal.aborted) return;
         setSnapshot({ id: runId, ...data });
         setError(false);
-        if (data.run && !TERMINAL.has(data.run.status))
+        if (data.run && !TERMINAL.has(data.run.status ?? ""))
           timer = setTimeout(refresh, 2000);
       } catch {
         if (!controller.signal.aborted) setError(true);

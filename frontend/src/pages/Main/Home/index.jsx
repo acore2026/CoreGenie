@@ -133,10 +133,15 @@ export default function Home() {
       window.removeEventListener(PASTE_ATTACHMENT_EVENT, handlePaste);
   }, [workspace, threadSlug]);
 
-  async function handleDropWithoutWorkspace(acceptedFiles, _rejected, event) {
+  async function handleDropWithoutWorkspace(
+    acceptedFiles,
+    _rejected,
+    event,
+    destination
+  ) {
     setDragging(false);
     pendingDestinationRef.current =
-      event?.type === "change" ? "rag" : "conversation";
+      destination ?? (event?.type === "change" ? "rag" : "conversation");
     pendingFilesRef.current = acceptedFiles;
     const ws = await createDefaultWorkspace(t("new-workspace.placeholder"));
     if (!ws) return;
@@ -149,10 +154,15 @@ export default function Home() {
     }
   }
 
-  async function handleDropWithWorkspace(acceptedFiles, _rejected, event) {
+  async function handleDropWithWorkspace(
+    acceptedFiles,
+    _rejected,
+    event,
+    destination
+  ) {
     setDragging(false);
     pendingDestinationRef.current =
-      event?.type === "change" ? "rag" : "conversation";
+      destination ?? (event?.type === "change" ? "rag" : "conversation");
     pendingFilesRef.current = acceptedFiles;
     const { thread } = await Workspace.threads.new(workspace.slug);
     if (thread) {
@@ -195,6 +205,13 @@ export default function Home() {
         onDrop: workspace
           ? handleDropWithWorkspace
           : handleDropWithoutWorkspace,
+        queueWorkspaceFiles: (files) =>
+          (workspace ? handleDropWithWorkspace : handleDropWithoutWorkspace)(
+            files,
+            [],
+            undefined,
+            "workspace"
+          ),
         parseAttachments: () => [],
       }}
     >

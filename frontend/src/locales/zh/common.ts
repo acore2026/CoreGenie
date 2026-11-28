@@ -2717,6 +2717,12 @@ const TRANSLATIONS = {
     drop_docx_description: "文件会保留原始格式，供转换助手读取图片和嵌入对象。",
     drop_file_description: "文件会附加到当前对话。",
     upload_menu: {
+      embedding_wait: "文件处理完成后就能继续对话。",
+      context_title: "对话资料超出长度限制",
+      context_usage:
+        "加入这 {{count}} 个文件后，资料预计占用 {{used}} 个 token，超过当前可用的 {{limit}} 个。",
+      context_help: "了解上下文长度",
+      continue: "继续添加",
       open: "上传文件",
       close: "关闭上传菜单",
       title: "选择上传位置",

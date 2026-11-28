@@ -1,11 +1,12 @@
+import type { ParsedWorkspaceFile } from "@coregenie/contracts";
 import { Database, FolderOpen, Plus, X } from "@phosphor-icons/react";
 import { useTranslation } from "react-i18next";
-import { useContext, useEffect, useRef, useState } from "react";
+import { type ChangeEvent, useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import Workspace from "@/models/workspace";
 import {
   ATTACHMENTS_PROCESSED_EVENT,
-  DndUploaderContext,
+  useDndUploader,
   REMOVE_ATTACHMENT_EVENT,
 } from "../../DnDWrapper";
 import ParsedFilesMenu from "./ParsedFilesMenu";
@@ -13,17 +14,20 @@ import ParsedFilesMenu from "./ParsedFilesMenu";
 export default function AttachItem({
   workspaceSlug = null,
   workspaceThreadSlug = null,
+}: {
+  workspaceSlug?: string | null;
+  workspaceThreadSlug?: string | null;
 }) {
   const { t } = useTranslation();
   const params = useParams();
   const slug = workspaceSlug || params.slug;
   const threadSlug = workspaceThreadSlug ?? params.threadSlug ?? null;
-  const { ready, queueWorkspaceFiles } = useContext(DndUploaderContext);
-  const menuRef = useRef(null);
-  const workspaceInputRef = useRef(null);
-  const parsedMenuRef = useRef(null);
+  const { ready, queueWorkspaceFiles } = useDndUploader();
+  const menuRef = useRef<HTMLDivElement>(null);
+  const workspaceInputRef = useRef<HTMLInputElement>(null);
+
   const [isEmbedding, setIsEmbedding] = useState(false);
-  const [files, setFiles] = useState([]);
+  const [files, setFiles] = useState<ParsedWorkspaceFile[]>([]);
   const [currentTokens, setCurrentTokens] = useState(0);
   const [contextWindow, setContextWindow] = useState(Infinity);
   const [showMenu, setShowMenu] = useState(false);
@@ -41,9 +45,11 @@ export default function AttachItem({
       .finally(() => setIsLoading(false));
   };
 
-  async function handleRemoveAttachment(event) {
+  async function handleRemoveAttachment(
+    event: WindowEventMap[typeof REMOVE_ATTACHMENT_EVENT]
+  ) {
     const { document, type } = event.detail;
-    if (type === "workspace_file" || !document?.id) return;
+    if (!slug || type === "workspace_file" || !document?.id) return;
     await Workspace.deleteParsedFiles(slug, [document.id]);
     fetchFiles();
   }
@@ -58,15 +64,11 @@ export default function AttachItem({
     workspaceInputRef.current?.click();
   }
 
-  async function handleWorkspaceFiles(event) {
+  async function handleWorkspaceFiles(event: ChangeEvent<HTMLInputElement>) {
     const selectedFiles = [...(event.target.files || [])];
     event.target.value = "";
     if (selectedFiles.length) await queueWorkspaceFiles(selectedFiles);
   }
-
-  useEffect(() => {
-    parsedMenuRef.current = { close: () => setShowMenu(false) };
-  }, []);
 
   useEffect(() => {
     fetchFiles();
@@ -83,10 +85,14 @@ export default function AttachItem({
 
   useEffect(() => {
     if (!showMenu) return;
-    function closeOnOutsideClick(event) {
-      if (!menuRef.current?.contains(event.target)) setShowMenu(false);
+    function closeOnOutsideClick(event: PointerEvent) {
+      if (
+        event.target instanceof Node &&
+        !menuRef.current?.contains(event.target)
+      )
+        setShowMenu(false);
     }
-    function closeOnEscape(event) {
+    function closeOnEscape(event: KeyboardEvent) {
       if (event.key === "Escape") setShowMenu(false);
     }
     document.addEventListener("pointerdown", closeOnOutsideClick);
@@ -173,11 +179,11 @@ export default function AttachItem({
             />
           </div>
 
-          {(isLoading || files.length > 0) && (
+          {slug && (isLoading || files.length > 0) && (
             <div className="border-t border-zinc-800 light:border-slate-200">
               <ParsedFilesMenu
                 onEmbeddingChange={setIsEmbedding}
-                tooltipRef={parsedMenuRef}
+                onClose={() => setShowMenu(false)}
                 isLoading={isLoading}
                 files={files}
                 setFiles={setFiles}
@@ -201,6 +207,12 @@ function UploadDestination({
   description,
   onClick,
   disabled = false,
+}: {
+  icon: typeof Database;
+  title: string;
+  description: string;
+  onClick: () => void;
+  disabled?: boolean;
 }) {
   return (
     <button

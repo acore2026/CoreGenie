@@ -77,10 +77,15 @@ export default function WorkspaceChat({
     }
   }, [loaded?.threadSlug]);
 
-  async function handleDropWithoutThread(acceptedFiles, _rejected, event) {
+  async function handleDropWithoutThread(
+    acceptedFiles,
+    _rejected,
+    event,
+    destination
+  ) {
     setDragging(false);
     pendingDestinationRef.current =
-      event?.type === "change" ? "rag" : "conversation";
+      destination ?? (event?.type === "change" ? "rag" : "conversation");
     pendingFilesRef.current = acceptedFiles;
     const { thread } = await Workspace.threads.new(workspace.slug);
     if (thread) {
@@ -232,6 +237,8 @@ export default function WorkspaceChat({
           dragging,
           setDragging,
           onDrop: handleDropWithoutThread,
+          queueWorkspaceFiles: (files) =>
+            handleDropWithoutThread(files, [], undefined, "workspace"),
           parseAttachments: () => [],
         }}
       >
@@ -320,7 +327,16 @@ function DnDWrapper({ children, loaded, opts }) {
   if (!loaded?.threadSlug || readOnly) {
     return (
       <DndUploaderContext.Provider
-        value={readOnly ? { ...opts, ready: false, onDrop: () => {} } : opts}
+        value={
+          readOnly
+            ? {
+                ...opts,
+                ready: false,
+                onDrop: () => {},
+                queueWorkspaceFiles: () => {},
+              }
+            : opts
+        }
       >
         {children}
       </DndUploaderContext.Provider>

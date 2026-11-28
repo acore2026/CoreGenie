@@ -7,7 +7,7 @@ export const ModalPortalContext = createContext(null);
  * @typedef {Object} ModalWrapperProps
  * @property {import("react").ReactComponentElement} children - The DOM/JSX to render
  * @property {boolean} isOpen - Option that renders the modal
- * @property {boolean} noPortal - (default: false) Used for creating sub-DOM modals that need to be rendered as a child element instead of a modal placed at the root
+ * @property {boolean} [noPortal] - (default: false) Used for creating sub-DOM modals that need to be rendered as a child element instead of a modal placed at the root
  * Note: This can impact the bg-overlay presentation due to conflicting DOM positions so if using this property you should
    double check it renders as desired.
  */

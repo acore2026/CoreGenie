@@ -1,7 +1,7 @@
 import { CircleNotch } from "@phosphor-icons/react";
 import { useTranslation } from "react-i18next";
 
-export const isAgentWorking = (status) =>
+export const isAgentWorking = (status?: string | null) =>
   [
     "pending",
     "queued",
@@ -10,9 +10,13 @@ export const isAgentWorking = (status) =>
     "executing",
     "retrying",
     "resuming",
-  ].includes(status);
+  ].includes(status ?? "");
 
-export default function WorkingIndicator({ status }) {
+export default function WorkingIndicator({
+  status,
+}: {
+  status?: string | null;
+}) {
   const { t } = useTranslation();
   if (!isAgentWorking(status)) return null;
   return (

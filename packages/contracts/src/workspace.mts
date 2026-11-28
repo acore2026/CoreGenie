@@ -34,5 +34,26 @@ export interface WorkspaceRecord {
   openAiTemp?: number | null;
   openAiHistory?: number;
   chatMode?: string;
+  chatProvider?: string | null;
+  chatModel?: string | null;
   [key: string]: unknown;
+}
+
+export interface ParsedWorkspaceFile {
+  id: number;
+  title: string;
+  location?: string;
+  token_count_estimate: number;
+}
+
+export interface ParsedWorkspaceContext {
+  files: ParsedWorkspaceFile[];
+  contextWindow: number;
+  currentContextTokenCount: number;
+}
+
+export interface AttachmentDocument {
+  id?: string | number;
+  location?: string;
+  size?: number;
 }

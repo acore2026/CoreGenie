@@ -4,19 +4,24 @@ import { useTranslation } from "react-i18next";
 import useUser from "@/hooks/useUser";
 import useGetProviderModels, {
   DISABLED_PROVIDERS,
+  type ProviderModel,
 } from "@/hooks/useGetProvidersModels";
 import Workspace from "@/models/workspace";
 import System from "@/models/system";
 import showToast from "@/utils/toast";
 
-function normalizeModels(defaultModels, customModels, selectedModel) {
+function normalizeModels(
+  defaultModels: ProviderModel[],
+  customModels: ProviderModel[] | Record<string, ProviderModel[]>,
+  selectedModel: string
+) {
   const models = [
-    ...defaultModels.map((model) => ({ id: model, name: model })),
+    ...defaultModels,
     ...(Array.isArray(customModels)
       ? customModels
       : Object.values(customModels ?? {}).flat()),
   ];
-  const uniqueModels = new Map();
+  const uniqueModels = new Map<string, { id: string; name: string }>();
 
   for (const model of models) {
     const id = typeof model === "string" ? model : model?.id;
@@ -34,10 +39,14 @@ function normalizeModels(defaultModels, customModels, selectedModel) {
   return Array.from(uniqueModels.values());
 }
 
-export default function WorkspaceModelPicker({ workspaceSlug = null }) {
+export default function WorkspaceModelPicker({
+  workspaceSlug = null,
+}: {
+  workspaceSlug?: string | null;
+}) {
   const { t } = useTranslation();
   const { user } = useUser();
-  const [provider, setProvider] = useState(null);
+  const [provider, setProvider] = useState<string | null>(null);
   const [selectedModel, setSelectedModel] = useState("");
   const [saving, setSaving] = useState(false);
   const { defaultModels, customModels, loading } =
@@ -46,12 +55,21 @@ export default function WorkspaceModelPicker({ workspaceSlug = null }) {
   useEffect(() => {
     if (!workspaceSlug) return;
 
+    let active = true;
     Promise.all([Workspace.bySlug(workspaceSlug), System.keys()]).then(
       ([workspace, systemSettings]) => {
-        setProvider(workspace.chatProvider ?? systemSettings?.LLMProvider);
-        setSelectedModel(workspace.chatModel ?? systemSettings?.LLMModel ?? "");
+        if (!active) return;
+        setProvider(
+          workspace?.chatProvider ?? systemSettings?.LLMProvider ?? null
+        );
+        setSelectedModel(
+          workspace?.chatModel ?? systemSettings?.LLMModel ?? ""
+        );
       }
     );
+    return () => {
+      active = false;
+    };
   }, [workspaceSlug]);
 
   const models = useMemo(
@@ -65,7 +83,8 @@ export default function WorkspaceModelPicker({ workspaceSlug = null }) {
       t("chat_window.select_model"),
     [models, selectedModel, t]
   );
-  async function changeModel(event) {
+  async function changeModel(event: React.ChangeEvent<HTMLSelectElement>) {
+    if (!workspaceSlug) return;
     const nextModel = event.target.value;
     const previousModel = selectedModel;
     setSelectedModel(nextModel);

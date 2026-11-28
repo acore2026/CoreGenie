@@ -1,6 +1,5 @@
 import {
   memo,
-  useContext,
   useEffect,
   useRef,
   useState,
@@ -15,7 +14,11 @@ import { useSearchParams } from "react-router-dom";
 import StopGenerationButton from "./StopGenerationButton";
 import AttachmentManager from "./Attachments";
 import AttachItem from "./AttachItem";
-import { DndUploaderContext, PASTE_ATTACHMENT_EVENT } from "../DnDWrapper";
+import {
+  useDndUploader,
+  type Attachment,
+  PASTE_ATTACHMENT_EVENT,
+} from "../DnDWrapper";
 import useTextSize from "@/hooks/useTextSize";
 import Appearance from "@/models/appearance";
 import usePromptInputStorage from "@/hooks/usePromptInputStorage";
@@ -60,7 +63,7 @@ interface PromptInputProps {
   submit: (event: FormEvent | KeyboardEvent) => void;
   isStreaming: boolean;
   sendCommand: (payload: { text: string; writeMode?: string }) => void;
-  attachments?: unknown[];
+  attachments?: Attachment[];
   centered?: boolean;
   workspaceSlug?: string | null;
   threadSlug?: string | null;
@@ -85,9 +88,7 @@ function PromptInput({
   const { selectedAgent } = usePredefinedAgent();
   const { showAgentCommand = true } = workspace ?? {};
   const { isDisabled: attachmentsDisabled } = useIsDisabled();
-  const { uploading = 0 } = useContext(DndUploaderContext) as {
-    uploading?: number;
-  };
+  const { uploading = 0 } = useDndUploader();
   const isDisabled = attachmentsDisabled || uploading > 0;
   const globalAgentSessionActive = useIsAgentSessionActive();
   const agentSessionActive =
@@ -430,7 +431,7 @@ function PromptInput({
                 />
               )}
             <div className="flex flex-col overflow-visible rounded-lg border border-theme-chat-input-border bg-theme-bg-chat-input px-4 transition-[border-color,box-shadow] duration-150 focus-within:ring-1 focus-within:ring-theme-button-primary">
-              <AttachmentManager attachments={attachments as never[]} />
+              <AttachmentManager attachments={attachments} />
               <div className="flex items-center">
                 <textarea
                   id={PROMPT_INPUT_ID}
@@ -457,8 +458,8 @@ function PromptInput({
                 <div className="flex min-w-0 items-center gap-x-0.5">
                   <div className="flex items-center gap-x-1">
                     <AttachItem
-                      workspaceSlug={workspaceSlug as never}
-                      workspaceThreadSlug={threadSlug as never}
+                      workspaceSlug={workspaceSlug}
+                      workspaceThreadSlug={threadSlug}
                     />
                     <AgentSessionButton
                       sendCommand={sendCommand}
@@ -487,7 +488,7 @@ function PromptInput({
                 </div>
                 <div className="flex min-w-0 items-center justify-end gap-x-1 md:gap-x-1.5">
                   <WorkspaceModelPicker
-                    workspaceSlug={(workspaceSlug ?? workspace?.slug) as never}
+                    workspaceSlug={workspaceSlug ?? workspace?.slug}
                   />
                   {isStreaming || agentSessionActive ? (
                     <StopGenerationButton />

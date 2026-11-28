@@ -1,10 +1,14 @@
-interface PlanMessage {
+import type { Task, AgentRunState } from "./chat/agentRunTypes";
+
+export interface PlanMessage {
   role?: string;
   content?: unknown;
-  agentRunId?: string;
+  agentRunId?: string | null;
   type?: string;
   runtime?: { key?: string };
-  agentRunState?: { runtimeKey?: string };
+  agentRunState?: Partial<Pick<AgentRunState, "status" | "runtimeKey">> & {
+    tasks?: Task[];
+  };
 }
 export function conversationPlanRuns<T extends PlanMessage>(
   history: readonly T[] = []
@@ -34,7 +38,7 @@ export function conversationPlanRuns<T extends PlanMessage>(
 
 export function planTasks<
   T extends { id: string; budget?: { planOrder?: number } },
->(tasks: T[] = [], runtimeKey?: string) {
+>(tasks: T[] = [], runtimeKey?: string | null) {
   return tasks
     .filter((task) =>
       runtimeKey === "default-react"

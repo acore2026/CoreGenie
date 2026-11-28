@@ -13,7 +13,52 @@ import FileUploadWarningModal from "./FileUploadWarningModal";
 import { useTranslation } from "react-i18next";
 import { touchThreadDraft } from "@/utils/threadDraft";
 
-export const DndUploaderContext = createContext();
+import type {
+  AttachmentDocument,
+  ParsedWorkspaceFile,
+} from "@coregenie/contracts";
+import type { DropEvent, FileRejection } from "react-dropzone";
+
+export interface Attachment {
+  uid: string;
+  file: File;
+  contentString: string | null;
+  status: "in_progress" | "success" | "failed" | "embedded" | "added_context";
+  error: string | null;
+  document?: AttachmentDocument;
+  type: "attachment" | "upload" | "workspace_file";
+}
+interface PendingFile {
+  attachment: Attachment;
+  parsedFileId: number;
+  tokenCount: number;
+}
+interface Uploader {
+  files: Attachment[];
+  ready: boolean;
+  dragging: boolean;
+  uploading?: number;
+  canUpload?: boolean;
+  setDragging: (dragging: boolean) => void;
+  onDrop: (
+    files: File[],
+    rejected?: FileRejection[],
+    event?: DropEvent
+  ) => void;
+  parseAttachments: () => {
+    name: string;
+    mime: string;
+    contentString: string;
+  }[];
+  queueWorkspaceFiles: (files: File[]) => Promise<void> | void;
+}
+export const DndUploaderContext = createContext<Uploader | null>(null);
+export function useDndUploader() {
+  const uploader = useContext(DndUploaderContext);
+  if (!uploader)
+    throw new Error("Upload controls require an uploader provider");
+  return uploader;
+}
 export const REMOVE_ATTACHMENT_EVENT = "ATTACHMENT_REMOVE";
 export const CLEAR_ATTACHMENTS_EVENT = "ATTACHMENT_CLEAR";
 export const PASTE_ATTACHMENT_EVENT = "ATTACHMENT_PASTED";
@@ -22,40 +67,34 @@ export const ATTACHMENTS_PROCESSED_EVENT = "ATTACHMENTS_PROCESSED";
 export const PARSED_FILE_ATTACHMENT_REMOVED_EVENT =
   "PARSED_FILE_ATTACHMENT_REMOVED";
 
-/**
- * File Attachment for automatic upload on the chat container page.
- * @typedef Attachment
- * @property {string} uid - unique file id.
- * @property {File} file - native File object
- * @property {string|null} contentString - base64 encoded string of file
- * @property {('in_progress'|'failed'|'embedded'|'added_context')} status - the automatic upload status.
- * @property {string|null} error - Error message
- * @property {{id:string, location:string}|null} document - uploaded document details
- * @property {('attachment'|'upload'|'workspace_file')} type - The upload type. Attachments are chat-specific, uploads use parsed RAG context, and workspace_file preserves the original file in the workspace filesystem.
- */
-
-/**
- * @typedef {Object} ParsedFile
- * @property {number} id - The id of the parsed file.
- * @property {string} filename - The name of the parsed file.
- * @property {number} workspaceId - The id of the workspace the parsed file belongs to.
- * @property {string|null} userId - The id of the user the parsed file belongs to.
- * @property {string|null} threadId - The id of the thread the parsed file belongs to.
- * @property {string} metadata - The metadata of the parsed file.
- * @property {number} tokenCountEstimate - The estimated token count of the parsed file.
- */
-
+declare global {
+  interface WindowEventMap {
+    [REMOVE_ATTACHMENT_EVENT]: CustomEvent<
+      Pick<Attachment, "uid" | "document" | "type">
+    >;
+    [PARSED_FILE_ATTACHMENT_REMOVED_EVENT]: CustomEvent<{
+      document: ParsedWorkspaceFile;
+    }>;
+    [PASTE_ATTACHMENT_EVENT]: CustomEvent<{
+      files: File[];
+      destination?: "rag" | "workspace" | "conversation";
+    }>;
+  }
+}
 export function DnDFileUploaderProvider({
   workspace,
   threadSlug = null,
   children,
-}) {
+}: React.PropsWithChildren<{
+  workspace: { slug: string; viewerAccess?: unknown };
+  threadSlug?: string | null;
+}>) {
   const { t } = useTranslation();
-  const [files, setFiles] = useState([]);
+  const [files, setFiles] = useState<Attachment[]>([]);
   const [ready, setReady] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(0);
-  const scope = useRef(null);
+  const scope = useRef<object | null>(null);
   useEffect(() => {
     const current = {};
     scope.current = current;
@@ -67,7 +106,7 @@ export function DnDFileUploaderProvider({
   const [showWarningModal, setShowWarningModal] = useState(false);
   const [isEmbedding, setIsEmbedding] = useState(false);
   const [embedProgress, setEmbedProgress] = useState(0);
-  const [pendingFiles, setPendingFiles] = useState([]);
+  const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
   const [tokenCount, setTokenCount] = useState(0);
   const [maxTokens, setMaxTokens] = useState(Number.POSITIVE_INFINITY);
   useEffect(() => {
@@ -100,21 +139,22 @@ export function DnDFileUploaderProvider({
   /**
    * Handles the removal of a parsed file attachment from the uploader queue.
    * Only uses the document id to remove the file from the queue
-   * @param {CustomEvent<{document: ParsedFile}>} event
    */
-  async function handleRemoveParsedFile(event) {
+  async function handleRemoveParsedFile(
+    event: WindowEventMap[typeof PARSED_FILE_ATTACHMENT_REMOVED_EVENT]
+  ) {
     const { document } = event.detail;
     setFiles((prev) =>
-      prev.filter((prevFile) => prevFile.document.id !== document.id)
+      prev.filter((prevFile) => prevFile.document?.id !== document.id)
     );
   }
 
   /**
    * Remove file from uploader queue.
-   * @param {CustomEvent<{uid: string}>} event
    */
-  async function handleRemove(event) {
-    /** @type {{uid: Attachment['uid'], document: Attachment['document']}} */
+  async function handleRemove(
+    event: WindowEventMap[typeof REMOVE_ATTACHMENT_EVENT]
+  ) {
     const { uid, document, type } = event.detail;
     setFiles((prev) => prev.filter((prevFile) => prevFile.uid !== uid));
     if (!document?.location) return;
@@ -135,51 +175,42 @@ export function DnDFileUploaderProvider({
   /**
    * Turns files into attachments we can send as body request to backend
    * for a chat.
-   * @returns {{name:string,mime:string,contentString:string}[]}
    */
   function parseAttachments() {
-    return (
-      files
-        ?.filter(
-          (file) =>
-            file.status !== "failed" &&
-            ["attachment", "workspace_file"].includes(file.type)
-        )
-        ?.map(
-          (
-            /** @type {Attachment} */
-            attachment
-          ) => {
-            if (attachment.type === "workspace_file")
-              return {
-                name: attachment.file.name,
-                mime: "application/anythingllm-workspace-file",
-                contentString: `/workspace/${attachment.document.location}`,
-              };
-            return {
-              name: attachment.file.name,
-              mime: attachment.file.type,
-              contentString: attachment.contentString,
-            };
-          }
-        ) || []
-    );
+    return files.flatMap(({ file, status, type, document, contentString }) => {
+      if (status === "failed") return [];
+      if (type === "workspace_file" && document?.location)
+        return [
+          {
+            name: file.name,
+            mime: "application/anythingllm-workspace-file",
+            contentString: `/workspace/${document.location}`,
+          },
+        ];
+      return type === "attachment" && contentString
+        ? [{ name: file.name, mime: file.type, contentString }]
+        : [];
+    });
   }
 
   /**
    * Handle pasted attachments.
-   * @param {CustomEvent<{files: File[]}>} event
    */
-  async function handlePastedAttachment(event) {
+  async function handlePastedAttachment(
+    event: WindowEventMap[typeof PASTE_ATTACHMENT_EVENT]
+  ) {
     const { files = [] } = event.detail;
     if (!files.length) return;
     if (event.detail.destination === "conversation") return onDrop(files);
-    await queueFiles(files, "rag");
+    await queueFiles(files, event.detail.destination ?? "rag");
   }
 
-  async function queueFiles(inputFiles = [], destination = "rag") {
+  async function queueFiles(
+    inputFiles: File[],
+    destination: "rag" | "workspace" = "rag"
+  ) {
     if (inputFiles.length) touchThreadDraft(threadSlug);
-    const newAccepted = [];
+    const newAccepted: Attachment[] = [];
     for (const file of inputFiles) {
       if (destination === "workspace") {
         newAccepted.push({
@@ -211,21 +242,25 @@ export function DnDFileUploaderProvider({
       }
     }
     setFiles((prev) => [...prev, ...newAccepted]);
-    embedEligibleAttachments(
+    await embedEligibleAttachments(
       newAccepted.filter((attachment) => attachment.status === "in_progress")
     );
   }
 
   /**
    * Handle dropped files.
-   * @param {Attachment[]} acceptedFiles
-   * @param {any[]} _rejections
+
    */
-  async function onDrop(acceptedFiles, _rejected, event) {
+  async function onDrop(
+    acceptedFiles: File[],
+    _rejected?: FileRejection[],
+    event?: DropEvent
+  ) {
     if (acceptedFiles.length) touchThreadDraft(threadSlug);
     setDragging(false);
     // The explicit RAG file picker keeps its existing parsing behavior.
-    if (event?.type === "change") return queueFiles(acceptedFiles, "rag");
+    if (event && "type" in event && event.type === "change")
+      return queueFiles(acceptedFiles, "rag");
     if (!workspace?.slug || workspace.viewerAccess === "public_readonly")
       return;
     const current = scope.current;
@@ -251,7 +286,10 @@ export function DnDFileUploaderProvider({
           new CustomEvent(WORKSPACE_FILES_CHANGED, { detail: { slug } })
         );
       } catch (error) {
-        showToast(`${file.name}: ${error.message}`, "error");
+        showToast(
+          `${file.name}: ${error instanceof Error ? error.message : String(error)}`,
+          "error"
+        );
       } finally {
         if (scope.current === current)
           setUploading((count) => Math.max(0, count - 1));
@@ -268,150 +306,87 @@ export function DnDFileUploaderProvider({
 
   /**
    * Embeds attachments that are eligible for embedding - basically files that are not images.
-   * @param {Attachment[]} newAttachments
    */
-  async function embedEligibleAttachments(newAttachments = []) {
+  async function embedEligibleAttachments(newAttachments: Attachment[] = []) {
     window.dispatchEvent(new CustomEvent(ATTACHMENTS_PROCESSING_EVENT));
-    const promises = [];
-
-    const hasRagUploads = newAttachments.some(
-      (attachment) => attachment.type === "upload"
-    );
-    const parsedFiles = hasRagUploads
-      ? await Workspace.getParsedFiles(workspace.slug, threadSlug)
-      : {};
-    const workspaceContextWindow = parsedFiles.contextWindow
-      ? Math.floor(parsedFiles.contextWindow * Workspace.maxContextWindowLimit)
-      : Number.POSITIVE_INFINITY;
-    setMaxTokens(workspaceContextWindow);
-
-    let totalTokenCount = parsedFiles.currentContextTokenCount || 0;
-    let batchPendingFiles = [];
-
-    for (const attachment of newAttachments) {
-      // Images/attachments are chat specific.
-      if (attachment.type === "attachment") continue;
-
-      if (attachment.type === "workspace_file") {
-        const formData = new FormData();
-        formData.append("file", attachment.file, attachment.file.name);
-        formData.append("destination", "attachment");
-        promises.push(
-          Workspace.uploadWorkspaceFile(workspace.slug, formData)
-            .then(({ response, data }) => {
-              const updates = response.ok
-                ? {
-                    status: "success",
-                    error: null,
-                    document: {
-                      location: data.file.path,
-                      size: data.file.size,
-                    },
-                  }
-                : {
-                    status: "failed",
-                    error:
-                      data?.error || t("chat_window.workspace_upload_failed"),
-                  };
-              setFiles((prev) =>
-                prev.map((prevFile) =>
-                  prevFile.uid === attachment.uid
-                    ? { ...prevFile, ...updates }
-                    : prevFile
-                )
-              );
-            })
-            .catch((error) => {
-              setFiles((prev) =>
-                prev.map((prevFile) =>
-                  prevFile.uid === attachment.uid
-                    ? {
-                        ...prevFile,
-                        status: "failed",
-                        error:
-                          error.message ||
-                          t("chat_window.workspace_upload_failed"),
-                      }
-                    : prevFile
-                )
-              );
-            })
-        );
-        continue;
-      }
-
-      const formData = new FormData();
-      formData.append("file", attachment.file, attachment.file.name);
-      formData.append("threadSlug", threadSlug || null);
-      promises.push(
-        Workspace.parseFile(workspace.slug, formData).then(
-          async ({ response, data }) => {
-            if (!response.ok) {
-              const updates = {
-                status: "failed",
-                error: data?.error ?? null,
-              };
-              setFiles((prev) =>
-                prev.map(
-                  (
-                    /** @type {Attachment} */
-                    prevFile
-                  ) =>
-                    prevFile.uid !== attachment.uid
-                      ? prevFile
-                      : { ...prevFile, ...updates }
-                )
-              );
-              return;
-            }
-            // Will always be one file in the array
-            /** @type {ParsedFile} */
-            const file = data.files[0];
-
-            // Add token count for this file
-            // and add it to the batch pending files
-            totalTokenCount += file.tokenCountEstimate;
-            batchPendingFiles.push({
-              attachment,
-              parsedFileId: file.id,
-              tokenCount: file.tokenCountEstimate,
-            });
-
-            if (totalTokenCount > workspaceContextWindow) {
-              setTokenCount(totalTokenCount);
-              setPendingFiles(batchPendingFiles);
-              setShowWarningModal(true);
-              return;
-            }
-
-            // File is within limits, keep in parsed files
-            const result = { success: true, document: file };
-            const updates = {
-              status: result.success ? "added_context" : "failed",
-              error: result.error ?? null,
-              document: result.document,
-            };
-
-            setFiles((prev) =>
-              prev.map(
-                (
-                  /** @type {Attachment} */
-                  prevFile
-                ) =>
-                  prevFile.uid !== attachment.uid
-                    ? prevFile
-                    : { ...prevFile, ...updates }
-              )
-            );
-          }
+    const updateFile = (uid: string, update: Partial<Attachment>) => {
+      setFiles((previous) =>
+        previous.map((file) =>
+          file.uid === uid ? { ...file, ...update } : file
         )
       );
-    }
+    };
+    const failure = (error: unknown) =>
+      error instanceof Error && error.message
+        ? error.message
+        : t("chat_window.workspace_upload_failed");
 
-    // Wait for all promises to resolve in some way before dispatching the event to unlock the send button
-    Promise.all(promises).finally(() =>
-      window.dispatchEvent(new CustomEvent(ATTACHMENTS_PROCESSED_EVENT))
-    );
+    try {
+      const context = newAttachments.some((file) => file.type === "upload")
+        ? await Workspace.getParsedFiles(workspace.slug, threadSlug)
+        : null;
+      const limit = context?.contextWindow
+        ? Math.floor(context.contextWindow * Workspace.maxContextWindowLimit)
+        : Number.POSITIVE_INFINITY;
+      setMaxTokens(limit);
+
+      let total = context?.currentContextTokenCount ?? 0;
+      const batch: PendingFile[] = [];
+      await Promise.all(
+        newAttachments.map(async (attachment) => {
+          const { uid, file } = attachment;
+          const form = new FormData();
+          form.append("file", file, file.name);
+          try {
+            if (attachment.type === "workspace_file") {
+              form.append("destination", "attachment");
+              const { response, data } = await Workspace.uploadWorkspaceFile(
+                workspace.slug,
+                form
+              );
+              if (!response.ok || !data.file?.path) throw new Error(data.error);
+              updateFile(uid, {
+                status: "success",
+                error: null,
+                document: { location: data.file.path, size: data.file.size },
+              });
+              return;
+            }
+            if (threadSlug) form.append("threadSlug", threadSlug);
+            const { response, data } = await Workspace.parseFile(
+              workspace.slug,
+              form
+            );
+            const parsed = data.files?.[0];
+            if (!response.ok || !parsed) throw new Error(data.error);
+            total += parsed.tokenCountEstimate;
+            batch.push({
+              attachment,
+              parsedFileId: parsed.id,
+              tokenCount: parsed.tokenCountEstimate,
+            });
+            if (total > limit) {
+              setTokenCount(total);
+              setPendingFiles([...batch]);
+              setShowWarningModal(true);
+            } else {
+              updateFile(uid, {
+                status: "added_context",
+                error: null,
+                document: parsed,
+              });
+            }
+          } catch (error) {
+            updateFile(uid, { status: "failed", error: failure(error) });
+          }
+        })
+      );
+    } catch (error) {
+      for (const file of newAttachments)
+        updateFile(file.uid, { status: "failed", error: failure(error) });
+    } finally {
+      window.dispatchEvent(new CustomEvent(ATTACHMENTS_PROCESSED_EVENT));
+    }
   }
 
   // Handle modal actions
@@ -439,20 +414,14 @@ export function DnDFileUploaderProvider({
 
   const handleContinueAnyway = async () => {
     if (!pendingFiles.length) return;
-    const results = pendingFiles.map((file) => ({
-      success: true,
-      document: { id: file.parsedFileId },
-    }));
-
-    const fileUpdates = pendingFiles.map((file, i) => ({
+    const fileUpdates = pendingFiles.map((file) => ({
       uid: file.attachment.uid,
       updates: {
-        status: results[i].success ? "success" : "failed",
-        error: results[i].error ?? null,
-        document: results[i].document,
+        status: "success" as const,
+        error: null,
+        document: { id: file.parsedFileId },
       },
     }));
-
     setFiles((prev) =>
       prev.map((prevFile) => {
         const update = fileUpdates.find((f) => f.uid === prevFile.uid);
@@ -484,14 +453,16 @@ export function DnDFileUploaderProvider({
     );
 
     // Update status for all files
-    const fileUpdates = pendingFiles.map((file, i) => ({
-      uid: file.attachment.uid,
-      updates: {
-        status: results[i].response.ok ? "embedded" : "failed",
-        error: results[i].data?.error ?? null,
-        document: results[i].data?.document,
-      },
-    }));
+    const fileUpdates = pendingFiles.map(
+      (file, i): { uid: string; updates: Partial<Attachment> } => ({
+        uid: file.attachment.uid,
+        updates: {
+          status: results[i].response.ok ? "embedded" : "failed",
+          error: results[i].data?.error ?? null,
+          document: results[i].data?.document,
+        },
+      })
+    );
 
     setFiles((prev) =>
       prev.map((prevFile) => {
@@ -545,16 +516,19 @@ export function DnDFileUploaderProvider({
   );
 }
 
-export default function DnDFileUploaderWrapper({ children, disabled = false }) {
+export default function DnDFileUploaderWrapper({
+  children,
+  disabled = false,
+}: React.PropsWithChildren<{ disabled?: boolean }>) {
   const { t } = useTranslation();
   const {
     onDrop,
     ready,
     canUpload = ready,
-    uploading,
+    uploading = 0,
     dragging,
     setDragging,
-  } = useContext(DndUploaderContext);
+  } = useDndUploader();
   const { getRootProps, getInputProps } = useDropzone({
     onDrop,
     disabled: disabled || !canUpload,
@@ -606,15 +580,15 @@ export default function DnDFileUploaderWrapper({ children, disabled = false }) {
 
 /**
  * Convert image types into Base64 strings for requests.
- * @param {File} file
- * @returns {Promise<string>}
+
+
  */
-async function toBase64(file) {
+async function toBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {
-      const base64String = reader.result.split(",")[1];
-      resolve(`data:${file.type};base64,${base64String}`);
+      if (typeof reader.result === "string") resolve(reader.result);
+      else reject(new Error("Invalid file data URL"));
     };
     reader.onerror = (error) => reject(error);
     reader.readAsDataURL(file);

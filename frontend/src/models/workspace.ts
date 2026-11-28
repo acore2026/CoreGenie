@@ -1,4 +1,8 @@
-import type { WorkspaceRecord } from "@coregenie/contracts";
+import type {
+  WorkspaceRecord,
+  ParsedWorkspaceContext,
+  AttachmentDocument,
+} from "@coregenie/contracts";
 import { api, cleanHeaders } from "@/utils/api";
 import { API_BASE, fullApiUrl } from "@/utils/constants";
 import { baseHeaders, safeJsonParse } from "@/utils/request";
@@ -444,7 +448,10 @@ const Workspace = {
   },
 
   uploadWorkspaceFile: async function (slug: string, formData: FormData) {
-    return fetchJsonWithResponse(`${API_BASE}/workspace/${slug}/files/upload`, {
+    return fetchJsonWithResponse<{
+      file?: { path: string; size: number };
+      error?: string;
+    }>(`${API_BASE}/workspace/${slug}/files/upload`, {
       method: "POST",
       body: formData,
       headers: cleanHeaders({ ...baseHeaders() }),
@@ -491,7 +498,10 @@ const Workspace = {
   },
 
   parseFile: async function (slug: string, formData: FormData) {
-    return fetchJsonWithResponse(`${API_BASE}/workspace/${slug}/parse`, {
+    return fetchJsonWithResponse<{
+      files?: { id: number; tokenCountEstimate: number }[];
+      error?: string;
+    }>(`${API_BASE}/workspace/${slug}/parse`, {
       method: "POST",
       body: formData,
       headers: cleanHeaders({ ...baseHeaders() }),
@@ -501,14 +511,14 @@ const Workspace = {
   getParsedFiles: async function (
     slug: string,
     threadSlug: string | null = null
-  ): Promise<AnyRecord> {
+  ): Promise<ParsedWorkspaceContext> {
     const basePath = new URL(`${fullApiUrl()}/workspace/${slug}/parsed-files`);
     if (threadSlug) basePath.searchParams.set("threadSlug", threadSlug);
     const response = await fetch(basePath, {
       method: "GET",
       headers: cleanHeaders({ ...baseHeaders() }),
     });
-    return (await response.json()) as AnyRecord;
+    return (await response.json()) as ParsedWorkspaceContext;
   },
 
   uploadLink: async function (slug: string, link: string) {
@@ -709,13 +719,13 @@ const Workspace = {
   },
 
   embedParsedFile: async function (slug: string, fileId: number | string) {
-    return fetchJsonWithResponse(
-      `${API_BASE}/workspace/${slug}/embed-parsed-file/${fileId}`,
-      {
-        method: "POST",
-        headers: cleanHeaders({ ...baseHeaders() }),
-      }
-    );
+    return fetchJsonWithResponse<{
+      error?: string | null;
+      document?: AttachmentDocument;
+    }>(`${API_BASE}/workspace/${slug}/embed-parsed-file/${fileId}`, {
+      method: "POST",
+      headers: cleanHeaders({ ...baseHeaders() }),
+    });
   },
 
   deleteAndUnembedFile: async function (

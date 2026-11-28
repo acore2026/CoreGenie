@@ -1,4 +1,5 @@
 export interface Task {
+  budget?: { planOrder?: number };
   id: string;
   status?: string;
   title?: string;

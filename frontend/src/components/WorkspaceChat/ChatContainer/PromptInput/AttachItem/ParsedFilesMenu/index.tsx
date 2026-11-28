@@ -1,3 +1,4 @@
+import type { ParsedWorkspaceFile } from "@coregenie/contracts";
 import { useState } from "react";
 import { X, CircleNotch, Warning } from "@phosphor-icons/react";
 import Workspace from "@/models/workspace";
@@ -9,7 +10,7 @@ import { useTranslation } from "react-i18next";
 
 export default function ParsedFilesMenu({
   onEmbeddingChange,
-  tooltipRef,
+  onClose,
   files,
   setFiles,
   currentTokens,
@@ -18,6 +19,17 @@ export default function ParsedFilesMenu({
   isLoading,
   workspaceSlug,
   threadSlug = null,
+}: {
+  onEmbeddingChange: (value: boolean) => void;
+  onClose: () => void;
+  files: ParsedWorkspaceFile[];
+  setFiles: React.Dispatch<React.SetStateAction<ParsedWorkspaceFile[]>>;
+  currentTokens: number;
+  setCurrentTokens: (count: number) => void;
+  contextWindow: number;
+  isLoading: boolean;
+  workspaceSlug: string;
+  threadSlug?: string | null;
 }) {
   const { user } = useUser();
   const { t } = useTranslation();
@@ -31,7 +43,7 @@ export default function ParsedFilesMenu({
     initialContextWindowLimitExceeded
   );
 
-  async function handleRemove(e, file) {
+  async function handleRemove(e: React.MouseEvent, file: ParsedWorkspaceFile) {
     e.preventDefault();
     e.stopPropagation();
     if (!file?.id) return;
@@ -94,7 +106,7 @@ export default function ParsedFilesMenu({
         t("chat_window.upload_menu.embed_complete", { count: files.length }),
         "success"
       );
-      tooltipRef?.current?.close();
+      onClose();
     } catch (error) {
       console.error("Failed to embed files:", error);
       showToast(t("chat_window.upload_menu.embed_failed"), "error");

@@ -10,22 +10,24 @@ import {
   WarningOctagon,
   X,
 } from "@phosphor-icons/react";
-import { REMOVE_ATTACHMENT_EVENT } from "../../DnDWrapper";
+import { REMOVE_ATTACHMENT_EVENT, type Attachment } from "../../DnDWrapper";
 import { openImageLightbox } from "@/components/ImageLightbox";
 import { useTranslation } from "react-i18next";
 import { userFacingErrorKey } from "@/utils/userFacingError.ts";
 
-/**
- * @param {{attachments: import("../../DnDWrapper").Attachment[]}}
- * @returns
- */
-export default function AttachmentManager({ attachments }) {
+export default function AttachmentManager({
+  attachments,
+}: {
+  attachments: Attachment[];
+}) {
   if (attachments.length === 0) return null;
 
-  function handleImageClick(attachment) {
-    const imageAttachments = attachments
-      .filter((a) => a.type === "attachment" && a.contentString)
-      .map((a) => ({ contentString: a.contentString, name: a.file.name }));
+  function handleImageClick(attachment: Attachment) {
+    const imageAttachments = attachments.flatMap((a) =>
+      a.type === "attachment" && a.contentString
+        ? [{ contentString: a.contentString, name: a.file.name }]
+        : []
+    );
     const idx = imageAttachments.findIndex(
       (img) => img.name === attachment.file?.name
     );
@@ -45,10 +47,13 @@ export default function AttachmentManager({ attachments }) {
   );
 }
 
-/**
- * @param {{attachment: import("../../DnDWrapper").Attachment}}
- */
-function AttachmentItem({ attachment, onImageClick }) {
+function AttachmentItem({
+  attachment,
+  onImageClick,
+}: {
+  attachment: Attachment;
+  onImageClick: () => void;
+}) {
   const { t } = useTranslation();
   const { uid, file, status, error, document, type, contentString } =
     attachment;
@@ -252,11 +257,7 @@ function AttachmentItem({ attachment, onImageClick }) {
   );
 }
 
-/**
- * @param {File} file
- * @returns {{iconBgColor:string, Icon: React.Component}}
- */
-function displayFromFile(file) {
+function displayFromFile(file: File) {
   const extension = file?.name?.split(".")?.pop()?.toLowerCase() ?? "txt";
   switch (extension) {
     case "pdf":

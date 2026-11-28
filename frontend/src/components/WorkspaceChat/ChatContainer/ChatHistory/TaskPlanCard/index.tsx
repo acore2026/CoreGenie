@@ -9,7 +9,15 @@ import {
 import { useTranslation } from "react-i18next";
 import { activityText, userFacingErrorKey } from "@/utils/userFacingError.ts";
 
-export default function TaskPlanCard({ tasks = [], status }) {
+import type { Task } from "@/utils/chat/agentRunTypes";
+
+export default function TaskPlanCard({
+  tasks = [],
+  status = "",
+}: {
+  tasks?: Task[];
+  status?: string;
+}) {
   const { t } = useTranslation();
   const listId = useId();
   const [expanded, setExpanded] = useState(true);
@@ -21,7 +29,7 @@ export default function TaskPlanCard({ tasks = [], status }) {
   const stopped = ["cancelled", "failed", "partial"].includes(status);
   const current =
     !stopped &&
-    ordered.find((task) => ["running", "retrying"].includes(task.status));
+    ordered.find((task) => ["running", "retrying"].includes(task.status ?? ""));
   return (
     <section
       className="px-4 py-4 text-theme-text-primary"
@@ -67,7 +75,7 @@ export default function TaskPlanCard({ tasks = [], status }) {
         >
           {stopped
             ? t(`task_plan.run_status.${status}`)
-            : t("task_plan.current", { title: current.title })}
+            : t("task_plan.current", { title: current && current.title })}
         </p>
       )}
       {expanded && (
@@ -79,7 +87,7 @@ export default function TaskPlanCard({ tasks = [], status }) {
             const taskStatus =
               stopped &&
               ["running", "retrying", "queued", "planned", "pending"].includes(
-                task.status
+                task.status ?? ""
               )
                 ? status === "cancelled"
                   ? "cancelled"

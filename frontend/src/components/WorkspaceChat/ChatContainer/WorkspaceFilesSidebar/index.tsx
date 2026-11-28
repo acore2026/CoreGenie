@@ -571,7 +571,7 @@ export function WorkspaceFilesPanel({
 
 interface WorkspaceFilesSidebarProps {
   workspace?: WorkspaceSummary | null;
-  history?: unknown[];
+  history?: import("@/utils/taskPlan").PlanMessage[];
   showFiles?: boolean;
 }
 
@@ -596,7 +596,7 @@ function WorkspaceFilesSidebar({
   if (isPermanent)
     return (
       <aside className="flex h-full w-[280px] shrink-0 flex-col border-l border-theme-sidebar-border xl:w-[330px] 2xl:w-[380px]">
-        <TaskPlanPanel history={history as never[]} onClose={undefined} />
+        <TaskPlanPanel history={history} />
         {showFiles && (
           <div className="min-h-0 flex-1">
             <WorkspaceFilesPanel workspace={workspace} />
@@ -620,7 +620,7 @@ function WorkspaceFilesSidebar({
         <Dialog.Title className="sr-only">
           <PanelTitle />
         </Dialog.Title>
-        <TaskPlanPanel history={history as never[]} onClose={closeSidebar} />
+        <TaskPlanPanel history={history} onClose={closeSidebar} />
         {showFiles && (
           <div className="min-h-0 flex-1">
             <WorkspaceFilesPanel workspace={workspace} />
