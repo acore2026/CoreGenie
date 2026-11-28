@@ -127,6 +127,17 @@ if (outIndex >= 0) fs.writeFileSync(a[outIndex + 1], '// downloaded helper\\n');
   }
 }
 
+test('default invocation without args runs update-all with latest tag', () => {
+  const r = runUpdate([], {
+    runningContainers: 'anythingllm\nanythingllm-sandbox-broker\n',
+  });
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(r.nodeCalls.length, 2);
+  assert.ok(r.nodeCalls[0].includes('ghcr.io/acore2026/coregenie:latest'));
+  assert.ok(r.nodeCalls[1].includes('--broker'));
+  assert.ok(r.nodeCalls[1].includes('ghcr.io/acore2026/coregenie-sandbox-broker:latest'));
+});
+
 test('update-all latest updates app and running broker with split state dirs', () => {
   const r = runUpdate(['update-all', 'latest'], {
     runningContainers: 'anythingllm\nanythingllm-sandbox-broker\n',

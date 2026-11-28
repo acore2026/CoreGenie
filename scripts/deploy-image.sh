@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Download a published image; no local build and no data backups.
 set -Eeuo pipefail
-VERSION="${VERSION:-1.15.5}"
+VERSION="${VERSION:-}"
 CONTAINER_NAME="${CONTAINER_NAME:-anythingllm}"
 BROKER_CONTAINER_NAME="${BROKER_CONTAINER_NAME:-${CONTAINER_NAME}-sandbox-broker}"
 SCRIPT_DIR=""
@@ -13,19 +13,18 @@ log() {
 }
 usage() {
   cat <<'HELP'
-Usage: bash deploy-image.sh [update|update-all|update-broker|install] [TAG]
+Usage: bash deploy-image.sh [update-all|update|update-broker|install] [TAG]
 
-update (default): preserve existing mounts, ports, authentication, database and
-proxy settings; refuse to interrupt active Agent tasks; restore old container
-if startup fails. Requires Docker and Node.js 18+ on the host.
-update-all: update the application container, then automatically update the
-sandbox broker if it is running. Accepts an optional TAG (e.g. latest, sha-...,
-or x.y.z; defaults to VERSION).
+update-all (default): update the application container, then automatically
+update the sandbox broker if it is running. Defaults to TAG=latest.
+update: update only the application container; preserve existing mounts, ports,
+authentication, database and proxy settings; refuse to interrupt active Agent
+tasks; restore old container if startup fails. Requires Docker and Node.js 18+.
 install: start a new basic SQLite installation with a persistent Docker volume.
 Requires Docker. Code execution sandbox is not included in a basic install.
 
-VERSION          Fixed x.y.z release version (default: 1.15.5)
-TAG              Image tag for update/update-all/update-broker (default: VERSION)
+TAG              Image tag to deploy (default: VERSION if set, otherwise latest)
+VERSION          Optional fixed x.y.z release version (overrides default latest)
 IMAGE            Override image reference, including an immutable digest
 CONTAINER_NAME   Container name (default: anythingllm)
 HOST_PORT        New installation port (default: 7555)
@@ -49,9 +48,9 @@ download it automatically. No database/file backups run.
 Container rollback does not reverse database migrations.
 HELP
 }
-case "${1:-update}" in
+case "${1:-update-all}" in
   -h|--help) usage; exit 0 ;;
-  update|update-all|install|update-broker) mode="${1:-update}" ;;
+  update|update-all|install|update-broker) mode="${1:-update-all}" ;;
   *) usage >&2; exit 2 ;;
 esac
 [[ $# -le 2 ]] || { usage >&2; exit 2; }
@@ -60,8 +59,12 @@ if [[ $# -eq 2 ]]; then
   TAG="$2"
 fi
 if [[ -z "${TAG:-}" ]]; then
-  [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo 'VERSION must be a fixed x.y.z release.' >&2; exit 2; }
-  TAG="$VERSION"
+  if [[ -n "$VERSION" ]]; then
+    [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo 'VERSION must be a fixed x.y.z release.' >&2; exit 2; }
+    TAG="$VERSION"
+  else
+    TAG="latest"
+  fi
 fi
 [[ "$TAG" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]] || { echo 'TAG must be a valid Docker image tag.' >&2; exit 2; }
 IMAGE="${IMAGE:-ghcr.io/acore2026/coregenie:${TAG}}"
