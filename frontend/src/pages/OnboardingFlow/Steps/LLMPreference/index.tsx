@@ -2,52 +2,32 @@ import { MagnifyingGlass } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import OpenAiLogo from "@/media/llmprovider/openai.png";
-import GenericOpenAiLogo from "@/media/llmprovider/generic-openai.png";
-import OpenAiOptions from "@/components/LLMSelection/OpenAiOptions";
-import GenericOpenAiOptions from "@/components/LLMSelection/GenericOpenAiOptions";
+import { LLM_PROVIDERS as LLMS } from "@/components/LLMSelection/providers";
 import LLMItem from "@/components/lib/ProviderItem";
-import System from "@/models/system";
+import System, { type SystemKeys } from "@/models/system";
 import paths from "@/utils/paths";
 import showToast from "@/utils/toast";
 
-const LLMS = [
-  {
-    name: "OpenAI",
-    value: "openai",
-    logo: OpenAiLogo,
-    options: (settings) => <OpenAiOptions settings={settings} />,
-    description: "Connect directly to the OpenAI API.",
-  },
-  {
-    name: "Generic OpenAI",
-    value: "generic-openai",
-    logo: GenericOpenAiLogo,
-    options: (settings) => <GenericOpenAiOptions settings={settings} />,
-    description: "Connect to an OpenAI-compatible chat completion API.",
-  },
-];
-
+import type { StepProps } from "../index";
 export default function LLMPreference({
   setHeader,
   setForwardBtn,
   setBackBtn,
-}) {
+}: StepProps) {
   const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedLLM, setSelectedLLM] = useState("openai");
-  const [settings, setSettings] = useState(null);
-  const formRef = useRef(null);
-  const hiddenSubmitButtonRef = useRef(null);
+  const [settings, setSettings] = useState<SystemKeys | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  const hiddenSubmitButtonRef = useRef<HTMLButtonElement>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
     System.keys().then((_settings) => {
       setSettings(_settings);
       setSelectedLLM(
-        LLMS.some((provider) => provider.value === _settings?.LLMProvider)
-          ? _settings.LLMProvider
-          : "openai"
+        LLMS.find((provider) => provider.value === _settings?.LLMProvider)
+          ?.value ?? "openai"
       );
     });
   }, []);
@@ -71,15 +51,15 @@ export default function LLMPreference({
     });
   }, []);
 
-  const handleSubmit = async (event) => {
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const data = {
       LLMProvider: selectedLLM,
       EmbeddingEngine: "native",
       VectorDB: "lancedb",
+      ...Object.fromEntries(new FormData(event.currentTarget)),
     };
-    for (const [key, value] of new FormData(event.target).entries())
-      data[key] = value;
+
     const { error } = await System.updateSystem(data);
     if (error)
       return showToast(`Failed to save LLM settings: ${error}`, "error");

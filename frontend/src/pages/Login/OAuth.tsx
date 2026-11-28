@@ -9,10 +9,14 @@ export default function OAuthLogin({
   returnTo = "/",
   error = null,
   unavailable = false,
+}: {
+  returnTo?: string;
+  error?: string | null;
+  unavailable?: boolean;
 }) {
   const { t } = useTranslation();
   const [busy, setBusy] = useState(false);
-  const errorKey = ["expired", "suspended", "failed"].includes(error)
+  const errorKey = ["expired", "suspended", "failed"].includes(error ?? "")
     ? error
     : "unavailable";
   return (
@@ -53,13 +57,14 @@ export default function OAuthLogin({
 }
 
 // Share the exchange across StrictMode effect replays; the backend consumes it once.
-let completion;
+const exchangeSession = () => oauthRequest("session");
+let completion: ReturnType<typeof exchangeSession> | undefined;
 export function OAuthComplete() {
   const { t } = useTranslation();
   const [failed, setFailed] = useState(false);
   useEffect(() => {
     let active = true;
-    completion ||= oauthRequest("session");
+    completion ||= exchangeSession();
     completion
       .then((result) => {
         if (!active) return;

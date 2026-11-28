@@ -8,7 +8,12 @@ import Workspace from "@/models/workspace";
 import System from "@/models/system";
 import showToast from "@/utils/toast";
 
-export default function DataHandling({ setHeader, setForwardBtn, setBackBtn }) {
+import type { StepProps } from "../index";
+export default function DataHandling({
+  setHeader,
+  setForwardBtn,
+  setBackBtn,
+}: StepProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
 
@@ -39,7 +44,12 @@ export default function DataHandling({ setHeader, setForwardBtn, setBackBtn }) {
         throw new Error(t("onboarding.data.finishError"));
       navigate(paths.home(), { replace: true });
     } catch (error) {
-      showToast(error.message, "error");
+      showToast(
+        error instanceof Error
+          ? error.message
+          : t("onboarding.data.finishError"),
+        "error"
+      );
       saving.current = false;
       setForwardBtn({ showing: true, disabled: false, onClick: handleForward });
     }

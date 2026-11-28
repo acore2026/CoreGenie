@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { FullScreenLoader } from "@/components/Preloader";
 import paths from "@/utils/paths";
 import useQuery from "@/hooks/useQuery";
@@ -7,33 +7,41 @@ import { AUTH_TIMESTAMP, AUTH_TOKEN, AUTH_USER } from "@/utils/constants";
 
 export default function SimpleSSOPassthrough() {
   const query = useQuery();
-  const redirectPath = query.get("redirectTo") || paths.home();
+  const target = query.get("redirectTo");
+  const redirectPath =
+    target?.startsWith("/") &&
+    !target.startsWith("//") &&
+    !/[\\\s]/.test(target)
+      ? target
+      : paths.home();
   const [ready, setReady] = useState(false);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     try {
-      if (!query.get("token")) throw new Error("No token provided.");
+      const token = query.get("token");
+      if (!token) throw new Error("No token provided.");
 
       // Clear any existing auth data
       window.localStorage.removeItem(AUTH_USER);
       window.localStorage.removeItem(AUTH_TOKEN);
       window.localStorage.removeItem(AUTH_TIMESTAMP);
 
-      System.simpleSSOLogin(query.get("token"))
+      System.simpleSSOLogin(token)
         .then((res) => {
-          if (!res.valid) throw new Error(res.message);
+          if (!res.valid || !res.token)
+            throw new Error(res.message || "登录失败");
 
           window.localStorage.setItem(AUTH_USER, JSON.stringify(res.user));
           window.localStorage.setItem(AUTH_TOKEN, res.token);
-          window.localStorage.setItem(AUTH_TIMESTAMP, Number(new Date()));
+          window.localStorage.setItem(AUTH_TIMESTAMP, String(Date.now()));
           setReady(res.valid);
         })
         .catch((e) => {
-          setError(e.message);
+          setError(e instanceof Error ? e.message : String(e));
         });
     } catch (e) {
-      setError(e.message);
+      setError(e instanceof Error ? e.message : String(e));
     }
   }, []);
 

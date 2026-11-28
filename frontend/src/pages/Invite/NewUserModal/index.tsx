@@ -1,7 +1,7 @@
-import React, { useState } from "react";
-import Invite from "@/models/invite";
+import { useState } from "react";
+import Invite, { type InviteRecord } from "@/models/invite";
 import paths from "@/utils/paths";
-import { Link, useParams } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { CircleNotch } from "@phosphor-icons/react";
 import { AUTH_TOKEN, AUTH_USER } from "@/utils/constants";
 import System from "@/models/system";
@@ -12,20 +12,18 @@ import {
   USERNAME_PATTERN,
 } from "@/utils/username";
 
-export default function NewUserModal({ invite }) {
-  const { code } = useParams();
-  const [error, setError] = useState(null);
+export default function NewUserModal({ invite }: { invite: InviteRecord }) {
+  const { code } = invite;
+  const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const { t } = useTranslation();
 
-  const handleCreate = async (e) => {
+  const handleCreate = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
     if (creating) return;
     setError(null);
     setCreating(true);
-    e.preventDefault();
-    const data = {};
-    const form = new FormData(e.target);
-    for (var [key, value] of form.entries()) data[key] = value;
+    const data = Object.fromEntries(new FormData(e.currentTarget));
     const { success, workspaces, error } = await Invite.acceptInvite(
       code,
       data
@@ -35,16 +33,16 @@ export default function NewUserModal({ invite }) {
       if (valid && !!token && !!user) {
         window.localStorage.setItem(AUTH_USER, JSON.stringify(user));
         window.localStorage.setItem(AUTH_TOKEN, token);
-        window.location = workspaces?.[0]?.slug
+        window.location.href = workspaces?.[0]?.slug
           ? paths.workspace.chat(workspaces[0].slug)
           : paths.home();
       } else {
-        setError(message);
+        setError(message || t("login.registration.failed"));
         setCreating(false);
       }
       return;
     }
-    setError(error);
+    setError(error || t("login.registration.failed"));
     setCreating(false);
   };
 

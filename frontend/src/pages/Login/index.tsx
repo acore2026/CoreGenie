@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from "react";
-import { authConfig } from "@/models/oauth";
+import { useEffect, useState } from "react";
+import { authConfig, type AuthProvider } from "@/models/oauth";
 import OAuthLogin from "./OAuth";
 import PasswordModal, { usePasswordModal } from "@/components/Modals/Password";
 import { FullScreenLoader } from "@/components/Preloader";
@@ -17,7 +17,9 @@ import useSimpleSSO from "@/hooks/useSimpleSSO";
  * @returns {JSX.Element}
  */
 export default function Login() {
-  const [provider, setProvider] = useState(null);
+  const [provider, setProvider] = useState<AuthProvider | "unavailable" | null>(
+    null
+  );
   const query = useQuery();
   useEffect(() => {
     let active = true;
@@ -59,8 +61,10 @@ function LocalLogin() {
   // If simple SSO is enabled and no login is allowed, redirect to the SSO login page.
   if (ssoConfig.enabled && ssoConfig.noLogin) {
     // If a noLoginRedirect is provided and no token is provided, redirect to that webpage.
-    if (!!ssoConfig.noLoginRedirect && !query.has("token"))
-      return window.location.replace(ssoConfig.noLoginRedirect);
+    if (ssoConfig.noLoginRedirect && !query.has("token")) {
+      window.location.replace(ssoConfig.noLoginRedirect);
+      return null;
+    }
     // Otherwise, redirect to the SSO login page.
     else
       return (

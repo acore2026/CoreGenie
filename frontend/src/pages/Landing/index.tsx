@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Tab } from "@headlessui/react";
 import {
@@ -10,7 +10,7 @@ import {
   ArrowUpRight,
 } from "@phosphor-icons/react";
 import { useTranslation } from "react-i18next";
-import { AuthContext } from "@/AuthContext";
+import useUser from "@/hooks/useUser";
 import { PublicBrand } from "@/components/PublicLayout";
 import paths from "@/utils/paths";
 import System from "@/models/system";
@@ -20,8 +20,8 @@ const examples = ["proposal", "roadmap", "research"];
 
 export default function Landing() {
   const { t } = useTranslation();
-  const { store } = useContext(AuthContext);
-  const [registration, setRegistration] = useState(null);
+  const store = useUser();
+  const [registration, setRegistration] = useState<boolean | null>(null);
   useEffect(() => {
     let active = true;
     System.publicRegistrationStatus().then((result) => {

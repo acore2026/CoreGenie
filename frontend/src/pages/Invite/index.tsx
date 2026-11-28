@@ -1,9 +1,9 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ArrowRight, CircleNotch, UserPlus } from "@phosphor-icons/react";
 import { useTranslation } from "react-i18next";
 import { FullScreenLoader } from "@/components/Preloader";
-import Invite from "@/models/invite";
+import Invite, { type InviteRecord } from "@/models/invite";
 import NewUserModal from "./NewUserModal";
 import ModalWrapper from "@/components/ModalWrapper";
 import { userFromStorage } from "@/utils/request";
@@ -11,7 +11,11 @@ import paths from "@/utils/paths";
 
 export default function InvitePage() {
   const { code } = useParams();
-  const [result, setResult] = useState({
+  const [result, setResult] = useState<{
+    status: "loading" | "valid" | "invalid";
+    message?: string | null;
+    invite?: InviteRecord | null;
+  }>({
     status: "loading",
     message: null,
     invite: null,
@@ -44,7 +48,7 @@ export default function InvitePage() {
     );
   }
 
-  if (result.status === "invalid") {
+  if (!result.invite) {
     return (
       <div className="w-screen h-screen overflow-hidden bg-theme-bg-container flex items-center justify-center">
         <p className="text-red-400 text-lg">{result.message}</p>
@@ -65,13 +69,13 @@ export default function InvitePage() {
   );
 }
 
-function ExistingUserJoin({ invite }) {
+function ExistingUserJoin({ invite }: { invite: InviteRecord }) {
   const { t } = useTranslation();
-  const { code } = useParams();
+  const { code } = invite;
   const user = userFromStorage();
   const workspace = invite?.workspaces?.[0] || null;
   const [joining, setJoining] = useState(false);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
 
   async function joinWorkspace() {
     if (joining) return;
@@ -80,7 +84,7 @@ function ExistingUserJoin({ invite }) {
     const result = await Invite.joinWorkspace(code);
     if (result.success) {
       const destination = result.workspaces?.[0] || workspace;
-      window.location = destination?.slug
+      window.location.href = destination?.slug
         ? paths.workspace.chat(destination.slug)
         : paths.home();
       return;

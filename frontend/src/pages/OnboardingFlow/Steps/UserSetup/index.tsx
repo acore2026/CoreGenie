@@ -1,7 +1,7 @@
 import System from "@/models/system";
 import showToast from "@/utils/toast";
-import React, { useState, useEffect, useRef } from "react";
-import debounce from "lodash.debounce";
+import { useState, useEffect, useRef } from "react";
+
 import paths from "@/utils/paths";
 import { useNavigate } from "react-router-dom";
 import { AUTH_TIMESTAMP, AUTH_TOKEN, AUTH_USER } from "@/utils/constants";
@@ -9,14 +9,19 @@ import { useTranslation } from "react-i18next";
 import { USERNAME_MIN_LENGTH, USERNAME_MAX_LENGTH } from "@/utils/username";
 import { PW_REGEX } from "@/pages/GeneralSettings/Security";
 
-export default function UserSetup({ setHeader, setForwardBtn, setBackBtn }) {
+import type { StepProps } from "../index";
+export default function UserSetup({
+  setHeader,
+  setForwardBtn,
+  setBackBtn,
+}: StepProps) {
   const { t } = useTranslation();
   const [selectedOption, setSelectedOption] = useState("");
   const [singleUserPasswordValid, setSingleUserPasswordValid] = useState(false);
   const [multiUserLoginValid, setMultiUserLoginValid] = useState(false);
   const [enablePassword, setEnablePassword] = useState(false);
-  const myTeamSubmitRef = useRef(null);
-  const justMeSubmitRef = useRef(null);
+  const myTeamSubmitRef = useRef<HTMLButtonElement>(null);
+  const justMeSubmitRef = useRef<HTMLButtonElement>(null);
   const navigate = useNavigate();
 
   const TITLE = t("onboarding.userSetup.title");
@@ -49,7 +54,12 @@ export default function UserSetup({ setHeader, setForwardBtn, setBackBtn }) {
       disabled: isDisabled,
       onClick: handleForward,
     });
-  }, [selectedOption, singleUserPasswordValid, multiUserLoginValid]);
+  }, [
+    selectedOption,
+    enablePassword,
+    singleUserPasswordValid,
+    multiUserLoginValid,
+  ]);
 
   useEffect(() => {
     setHeader({ title: TITLE, description: DESCRIPTION });
@@ -115,16 +125,22 @@ const JustMe = ({
   setEnablePassword,
   justMeSubmitRef,
   navigate,
+}: {
+  setSingleUserPasswordValid: (valid: boolean) => void;
+  enablePassword: boolean;
+  setEnablePassword: (enabled: boolean) => void;
+  justMeSubmitRef: React.RefObject<HTMLButtonElement>;
+  navigate: ReturnType<typeof useNavigate>;
 }) => {
   const { t } = useTranslation();
   const [itemSelected, setItemSelected] = useState(false);
   const [password, setPassword] = useState("");
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const form = e.target;
+    const form = e.currentTarget;
     const formData = new FormData(form);
 
-    if (!PW_REGEX.test(formData.get("password"))) {
+    if (!PW_REGEX.test(String(formData.get("password") ?? ""))) {
       showToast(
         `Your password has restricted characters in it. Allowed symbols are _,-,!,@,$,%,^,&,*,(,),;`,
         "error"
@@ -134,7 +150,7 @@ const JustMe = ({
 
     const { error } = await System.updateSystemPassword({
       usePassword: true,
-      newPassword: formData.get("password"),
+      newPassword: String(formData.get("password") ?? ""),
     });
 
     if (error) {
@@ -144,18 +160,17 @@ const JustMe = ({
 
     // Auto-request token with password that was just set so they
     // are not redirected to login after completion.
-    const { token } = await System.requestToken({
-      password: formData.get("password"),
+    const { valid, token, message } = await System.requestToken({
+      password: String(formData.get("password") ?? ""),
     });
+    if (!valid || !token)
+      return showToast(message || t("login.registration.failed"), "error");
     window.localStorage.removeItem(AUTH_USER);
     window.localStorage.removeItem(AUTH_TIMESTAMP);
     window.localStorage.setItem(AUTH_TOKEN, token);
 
     navigate(paths.onboarding.dataHandling());
   };
-
-  const setNewPassword = (e) => setPassword(e.target.value);
-  const handlePasswordChange = debounce(setNewPassword, 500);
 
   function handleYes() {
     setItemSelected(true);
@@ -224,7 +239,7 @@ const JustMe = ({
               minLength={6}
               required={true}
               autoComplete="off"
-              onChange={handlePasswordChange}
+              onChange={(event) => setPassword(event.currentTarget.value)}
             />
             <div className="mt-4 text-white text-opacity-80 text-xs font-base -mb-2">
               {t("onboarding.userSetup.passwordReq")}
@@ -244,18 +259,26 @@ const JustMe = ({
   );
 };
 
-const MyTeam = ({ setMultiUserLoginValid, myTeamSubmitRef, navigate }) => {
+const MyTeam = ({
+  setMultiUserLoginValid,
+  myTeamSubmitRef,
+  navigate,
+}: {
+  setMultiUserLoginValid: (valid: boolean) => void;
+  myTeamSubmitRef: React.RefObject<HTMLButtonElement>;
+  navigate: ReturnType<typeof useNavigate>;
+}) => {
   const { t } = useTranslation();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const form = e.target;
+    const form = e.currentTarget;
     const formData = new FormData(form);
     const data = {
-      username: formData.get("username"),
-      password: formData.get("password"),
+      username: String(formData.get("username") ?? ""),
+      password: String(formData.get("password") ?? ""),
     };
     const { success, error } = await System.setupMultiUser(data);
     if (!success) {
@@ -263,19 +286,16 @@ const MyTeam = ({ setMultiUserLoginValid, myTeamSubmitRef, navigate }) => {
       return;
     }
 
-    navigate(paths.onboarding.dataHandling());
     // Auto-request token with credentials that was just set so they
     // are not redirected to login after completion.
-    const { user, token } = await System.requestToken(data);
+    const { valid, user, token, message } = await System.requestToken(data);
+    if (!valid || !user || !token)
+      return showToast(message || t("login.registration.failed"), "error");
     window.localStorage.setItem(AUTH_USER, JSON.stringify(user));
     window.localStorage.setItem(AUTH_TOKEN, token);
     window.localStorage.removeItem(AUTH_TIMESTAMP);
+    navigate(paths.onboarding.dataHandling());
   };
-
-  const setNewUsername = (e) => setUsername(e.target.value);
-  const setNewPassword = (e) => setPassword(e.target.value);
-  const handleUsernameChange = debounce(setNewUsername, 500);
-  const handlePasswordChange = debounce(setNewPassword, 500);
 
   useEffect(() => {
     // Enable button if there's any input, allowing users to attempt submission
@@ -308,7 +328,7 @@ const MyTeam = ({ setMultiUserLoginValid, myTeamSubmitRef, navigate }) => {
                   maxLength={USERNAME_MAX_LENGTH}
                   required={true}
                   autoComplete="off"
-                  onChange={handleUsernameChange}
+                  onChange={(event) => setUsername(event.currentTarget.value)}
                 />
               </div>
               <p className=" text-white text-opacity-80 text-xs font-base">
@@ -329,7 +349,7 @@ const MyTeam = ({ setMultiUserLoginValid, myTeamSubmitRef, navigate }) => {
                   minLength={8}
                   required={true}
                   autoComplete="off"
-                  onChange={handlePasswordChange}
+                  onChange={(event) => setPassword(event.currentTarget.value)}
                 />
               </div>
               <p className=" text-white text-opacity-80 text-xs font-base">

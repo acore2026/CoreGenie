@@ -19,7 +19,7 @@ export default function Register() {
   const { t } = useTranslation();
   const [status, setStatus] = useState("loading");
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     let active = true;
     System.publicRegistrationStatus().then(({ enabled }) => {
@@ -29,7 +29,7 @@ export default function Register() {
       active = false;
     };
   }, []);
-  const handleSubmit = async (event) => {
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (submitting) return;
     const form = new FormData(event.currentTarget);
@@ -41,9 +41,9 @@ export default function Register() {
     setSubmitting(true);
     try {
       const result = await System.register({
-        username: form.get("username"),
-        password: form.get("password"),
-        confirmPassword: form.get("confirmPassword"),
+        username: String(form.get("username") ?? ""),
+        password: String(form.get("password") ?? ""),
+        confirmPassword: String(form.get("confirmPassword") ?? ""),
       });
       if (result.success) setStatus("complete");
       else setError(result.error || t("login.registration.failed"));

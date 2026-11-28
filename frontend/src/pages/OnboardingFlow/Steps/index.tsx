@@ -2,32 +2,49 @@ import { ArrowLeft, ArrowRight } from "@phosphor-icons/react";
 import { useState } from "react";
 import { isMobile } from "react-device-detect";
 import useRedirectToHomeOnOnboardingComplete from "@/hooks/useOnboardingComplete";
-import Home from "./Home";
+interface StepButton {
+  showing: boolean;
+  disabled: boolean;
+  onClick: () => void;
+}
+interface StepHeader {
+  title: string;
+  description: string;
+}
+export interface StepProps {
+  setHeader: (header: StepHeader) => void;
+  setForwardBtn: (button: StepButton) => void;
+  setBackBtn: (button: StepButton) => void;
+}
 import LLMPreference from "./LLMPreference";
 import UserSetup from "./UserSetup";
 import DataHandling from "./DataHandling";
 
-const OnboardingSteps = {
-  home: Home,
-  "llm-preference": LLMPreference,
-  "user-setup": UserSetup,
-  "data-handling": DataHandling,
-};
+const OnboardingSteps: Partial<Record<string, React.ComponentType<StepProps>>> =
+  {
+    "llm-preference": LLMPreference,
+    "user-setup": UserSetup,
+    "data-handling": DataHandling,
+  };
 
 export default OnboardingSteps;
 
-export function OnboardingLayout({ children }) {
+export function OnboardingLayout({
+  children,
+}: {
+  children: (props: StepProps) => React.ReactNode;
+}) {
   useRedirectToHomeOnOnboardingComplete();
   const [header, setHeader] = useState({
     title: "",
     description: "",
   });
-  const [backBtn, setBackBtn] = useState({
+  const [backBtn, setBackBtn] = useState<StepButton>({
     showing: false,
     disabled: true,
     onClick: () => null,
   });
-  const [forwardBtn, setForwardBtn] = useState({
+  const [forwardBtn, setForwardBtn] = useState<StepButton>({
     showing: false,
     disabled: true,
     onClick: () => null,
@@ -49,7 +66,7 @@ export function OnboardingLayout({ children }) {
                 {header.description}
               </p>
             </div>
-            {children(setHeader, setBackBtn, setForwardBtn)}
+            {children({ setHeader, setBackBtn, setForwardBtn })}
           </div>
           <div className="flex w-full justify-center gap-x-4 pb-20">
             <div className="flex justify-center items-center">
@@ -117,7 +134,7 @@ export function OnboardingLayout({ children }) {
             {header.description}
           </p>
         </div>
-        {children(setHeader, setBackBtn, setForwardBtn)}
+        {children({ setHeader, setBackBtn, setForwardBtn })}
       </div>
 
       <div className="flex w-1/5 h-screen justify-center items-center">
