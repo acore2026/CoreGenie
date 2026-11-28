@@ -1,3 +1,4 @@
+import zh from "@/locales/zh/common";
 import {
   ArrowRight,
   Books,
@@ -29,7 +30,7 @@ const WORKBENCH_ICONS = [ListChecks, FolderOpen, FileText, HardDrives];
 
 export default function ReleaseNotes() {
   const { t } = useTranslation();
-  const note = (key) => t(`help.november_release.${key}`);
+  const note = (key: string) => t(`help.november_release.${key}`);
   const heading = "text-lg font-semibold text-white light:text-slate-950";
   const link =
     "inline-flex min-h-10 items-center gap-2 rounded text-sm font-semibold text-cyan-300 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 light:text-cyan-800";
@@ -70,9 +71,7 @@ export default function ReleaseNotes() {
             <h2 className={heading}>{note("access")}</h2>
             <DeploymentSketch />
             <ul className="list-disc space-y-2 pl-5">
-              {t("help.november_release.access_points", {
-                returnObjects: true,
-              }).map(({ title, text }) => (
+              {zh.help.november_release.access_points.map(({ title, text }) => (
                 <li key={title}>
                   <strong className="font-semibold">{title}</strong>：{text}
                 </li>
@@ -164,22 +163,9 @@ export default function ReleaseNotes() {
 
 function SeptemberRelease() {
   const { t } = useTranslation();
-  const rawFeatures = t("help.release_notes.features", {
-    returnObjects: true,
-  });
-  const features = Array.isArray(rawFeatures) ? rawFeatures : [];
-
-  const rawWorkbenchItems = t("help.release_notes.workbench.items", {
-    returnObjects: true,
-  });
-  const workbenchItems = Array.isArray(rawWorkbenchItems)
-    ? rawWorkbenchItems
-    : [];
-
-  const rawFixTags = t("help.release_notes.fixes.tags", {
-    returnObjects: true,
-  });
-  const fixTags = Array.isArray(rawFixTags) ? rawFixTags : [];
+  const { features, workbench, fixes } = zh.help.release_notes;
+  const workbenchItems = workbench.items;
+  const fixTags = fixes.tags;
 
   return (
     <article className="space-y-10" aria-label={t("help.release_notes.title")}>

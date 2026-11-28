@@ -1,4 +1,3 @@
-import React from "react";
 import PasswordModal, { usePasswordModal } from "@/components/Modals/Password";
 import { FullScreenLoader } from "@/components/Preloader";
 import Home from "./Home";

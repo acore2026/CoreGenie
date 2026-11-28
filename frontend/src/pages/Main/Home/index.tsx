@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useContext } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import PromptInput, {
   PROMPT_INPUT_EVENT,
@@ -6,6 +6,7 @@ import PromptInput, {
 } from "@/components/WorkspaceChat/ChatContainer/PromptInput";
 import DnDFileUploaderWrapper, {
   DndUploaderContext,
+  useDndUploader,
   DnDFileUploaderProvider,
   PASTE_ATTACHMENT_EVENT,
 } from "@/components/WorkspaceChat/ChatContainer/DnDWrapper";
@@ -15,7 +16,7 @@ import {
   PENDING_HELP_DRAFT,
   PENDING_HOME_MESSAGE,
 } from "@/utils/constants";
-import Workspace from "@/models/workspace";
+import Workspace, { type WorkspaceRecord } from "@/models/workspace";
 import paths from "@/utils/paths";
 import showToast from "@/utils/toast";
 import { safeJsonParse } from "@/utils/request";
@@ -28,11 +29,19 @@ import MemoriesSidebar from "@/components/WorkspaceChat/ChatContainer/MemoriesSi
 import AgentShowcase from "@/components/PredefinedAgents/AgentShowcase";
 import usePredefinedAgent from "@/hooks/usePredefinedAgent";
 import WorkspaceFilesSidebar from "@/components/WorkspaceChat/ChatContainer/WorkspaceFilesSidebar";
+import type { DropEvent, FileRejection } from "react-dropzone";
+import type { ChatCommand } from "@/utils/chat/messages";
 import FirstVisitGuide from "@/components/Help/FirstVisitGuide";
 
+type Destination = NonNullable<
+  WindowEventMap[typeof PASTE_ATTACHMENT_EVENT]["detail"]["destination"]
+>;
+const promptElement = () =>
+  document.querySelector<HTMLTextAreaElement>(`textarea#${PROMPT_INPUT_ID}`);
 async function getTargetWorkspace() {
-  const lastVisited = safeJsonParse(
-    localStorage.getItem(LAST_VISITED_WORKSPACE)
+  const lastVisited = safeJsonParse<{ slug?: string } | null>(
+    localStorage.getItem(LAST_VISITED_WORKSPACE),
+    null
   );
   if (lastVisited?.slug) {
     const workspace = await Workspace.bySlug(lastVisited.slug);
@@ -56,13 +65,13 @@ async function createDefaultWorkspace(workspaceName = "My Workspace") {
 
 export default function Home() {
   const { t } = useTranslation();
-  const [workspace, setWorkspace] = useState(null);
-  const [threadSlug, setThreadSlug] = useState(null);
+  const [workspace, setWorkspace] = useState<WorkspaceRecord | null>(null);
+  const [threadSlug, setThreadSlug] = useState<string | null>(null);
   const [workspaceLoading, setWorkspaceLoading] = useState(true);
   const [dragging, setDragging] = useState(false);
-  const pendingFilesRef = useRef([]);
-  const pendingDestinationRef = useRef("rag");
-  const pendingDraftRef = useRef(null);
+  const pendingFilesRef = useRef<File[]>([]);
+  const pendingDestinationRef = useRef<Destination>("rag");
+  const pendingDraftRef = useRef<string | null>(null);
 
   useEffect(() => {
     async function init() {
@@ -74,7 +83,7 @@ export default function Home() {
         ]);
         setWorkspace({
           ...ws,
-          suggestedMessages,
+          suggestedMessages: suggestedMessages ?? [],
           showAgentCommand,
         });
       }
@@ -108,12 +117,14 @@ export default function Home() {
   useEffect(() => {
     if (threadSlug) return;
 
-    async function handlePaste(e) {
+    async function handlePaste(
+      e: WindowEventMap[typeof PASTE_ATTACHMENT_EVENT]
+    ) {
       const files = e.detail?.files;
       if (!files?.length) return;
 
       pendingFilesRef.current = files;
-      pendingDestinationRef.current = "rag";
+      pendingDestinationRef.current = e.detail.destination ?? "rag";
       let ws = workspace;
       if (!ws) {
         ws = await createDefaultWorkspace(t("new-workspace.placeholder"));
@@ -122,8 +133,7 @@ export default function Home() {
       }
       const { thread } = await Workspace.threads.new(ws.slug);
       if (thread) {
-        pendingDraftRef.current =
-          document.getElementById(PROMPT_INPUT_ID)?.value ?? "";
+        pendingDraftRef.current = promptElement()?.value ?? "";
         setThreadSlug(thread.slug);
       }
     }
@@ -133,41 +143,28 @@ export default function Home() {
       window.removeEventListener(PASTE_ATTACHMENT_EVENT, handlePaste);
   }, [workspace, threadSlug]);
 
-  async function handleDropWithoutWorkspace(
-    acceptedFiles,
-    _rejected,
-    event,
-    destination
+  async function handleDrop(
+    acceptedFiles: File[],
+    _rejected?: FileRejection[],
+    event?: DropEvent,
+    destination?: Destination
   ) {
     setDragging(false);
+    if (!acceptedFiles.length) return;
     pendingDestinationRef.current =
-      destination ?? (event?.type === "change" ? "rag" : "conversation");
+      destination ??
+      (event && "type" in event && event.type === "change"
+        ? "rag"
+        : "conversation");
     pendingFilesRef.current = acceptedFiles;
-    const ws = await createDefaultWorkspace(t("new-workspace.placeholder"));
-    if (!ws) return;
-    setWorkspace(ws);
-    const { thread } = await Workspace.threads.new(ws.slug);
+    const target =
+      workspace ??
+      (await createDefaultWorkspace(t("new-workspace.placeholder")));
+    if (!target) return;
+    if (!workspace) setWorkspace(target);
+    const { thread } = await Workspace.threads.new(target.slug);
     if (thread) {
-      pendingDraftRef.current =
-        document.getElementById(PROMPT_INPUT_ID)?.value ?? "";
-      setThreadSlug(thread.slug);
-    }
-  }
-
-  async function handleDropWithWorkspace(
-    acceptedFiles,
-    _rejected,
-    event,
-    destination
-  ) {
-    setDragging(false);
-    pendingDestinationRef.current =
-      destination ?? (event?.type === "change" ? "rag" : "conversation");
-    pendingFilesRef.current = acceptedFiles;
-    const { thread } = await Workspace.threads.new(workspace.slug);
-    if (thread) {
-      pendingDraftRef.current =
-        document.getElementById(PROMPT_INPUT_ID)?.value ?? "";
+      pendingDraftRef.current = promptElement()?.value ?? "";
       setThreadSlug(thread.slug);
     }
   }
@@ -187,7 +184,6 @@ export default function Home() {
       <DnDFileUploaderProvider workspace={workspace} threadSlug={threadSlug}>
         <HomeContent
           workspace={workspace}
-          setWorkspace={setWorkspace}
           threadSlug={threadSlug}
           setThreadSlug={setThreadSlug}
         />
@@ -202,22 +198,14 @@ export default function Home() {
         ready: true,
         dragging,
         setDragging,
-        onDrop: workspace
-          ? handleDropWithWorkspace
-          : handleDropWithoutWorkspace,
+        onDrop: handleDrop,
         queueWorkspaceFiles: (files) =>
-          (workspace ? handleDropWithWorkspace : handleDropWithoutWorkspace)(
-            files,
-            [],
-            undefined,
-            "workspace"
-          ),
+          handleDrop(files, [], undefined, "workspace"),
         parseAttachments: () => [],
       }}
     >
       <HomeContent
         workspace={workspace}
-        setWorkspace={setWorkspace}
         threadSlug={null}
         setThreadSlug={setThreadSlug}
       />
@@ -225,15 +213,23 @@ export default function Home() {
   );
 }
 
-function HomeContent({ workspace, setWorkspace, threadSlug, setThreadSlug }) {
+function HomeContent({
+  workspace,
+  threadSlug,
+  setThreadSlug,
+}: {
+  workspace: WorkspaceRecord;
+  threadSlug: string | null;
+  setThreadSlug: (slug: string) => void;
+}) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
-  const { files, parseAttachments } = useContext(DndUploaderContext);
+  const { files, parseAttachments } = useDndUploader();
   const { selectedAgent } = usePredefinedAgent();
 
   useEffect(() => {
-    const pendingHelpDraft = safeJsonParse(
+    const pendingHelpDraft = safeJsonParse<{ prompt?: string } | null>(
       sessionStorage.getItem(PENDING_HELP_DRAFT),
       null
     );
@@ -248,7 +244,7 @@ function HomeContent({ workspace, setWorkspace, threadSlug, setThreadSlug }) {
         })
       );
       requestAnimationFrame(() => {
-        const textarea = document.getElementById(PROMPT_INPUT_ID);
+        const textarea = promptElement();
         if (!textarea) return;
         textarea.focus();
         textarea.style.height = "auto";
@@ -268,27 +264,18 @@ function HomeContent({ workspace, setWorkspace, threadSlug, setThreadSlug }) {
     }
   }, []);
 
-  async function submitMessage(message, attachments = []) {
+  async function submitMessage(
+    message: string,
+    attachments: ReturnType<typeof parseAttachments> = []
+  ) {
     if (!message || loading) return;
     setLoading(true);
     try {
-      let targetWorkspace = workspace;
+      const targetWorkspace = workspace;
       let targetThread = threadSlug;
-
-      if (!targetWorkspace) {
-        targetWorkspace = await createDefaultWorkspace(
-          t("new-workspace.placeholder")
-        );
-        if (!targetWorkspace) {
-          setLoading(false);
-          return;
-        }
-        setWorkspace(targetWorkspace);
-      }
-
       if (!targetThread) {
         const { thread } = await Workspace.threads.new(targetWorkspace.slug);
-        targetThread = thread?.slug;
+        targetThread = thread?.slug ?? null;
         if (thread) setThreadSlug(thread.slug);
       }
 
@@ -309,10 +296,9 @@ function HomeContent({ workspace, setWorkspace, threadSlug, setThreadSlug }) {
     }
   }
 
-  async function handleSubmit(e) {
+  async function handleSubmit(e: React.FormEvent | React.KeyboardEvent) {
     e.preventDefault();
-    const currentMessage =
-      document.getElementById(PROMPT_INPUT_ID)?.value?.trim() || "";
+    const currentMessage = promptElement()?.value?.trim() || "";
     await submitMessage(currentMessage, parseAttachments());
   }
 
@@ -320,11 +306,10 @@ function HomeContent({ workspace, setWorkspace, threadSlug, setThreadSlug }) {
     text = "",
     autoSubmit = false,
     writeMode = "replace",
-  }) {
+  }: ChatCommand) {
     if (autoSubmit) {
       if (writeMode === "append") {
-        const currentText =
-          document.getElementById(PROMPT_INPUT_ID)?.value ?? "";
+        const currentText = promptElement()?.value ?? "";
         text = currentText + text;
       }
       if (!text.trim()) return;

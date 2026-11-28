@@ -1,3 +1,4 @@
+import type { Skill } from "@coregenie/contracts/predefinedAgents.mts";
 import { useEffect, useRef, useState } from "react";
 import {
   Globe,
@@ -22,14 +23,17 @@ const secondary =
 export function SkillLibrary() {
   const { t } = useTranslation();
   const [view, setView] = useState("mine");
-  const [skills, setSkills] = useState([]);
+  const [skills, setSkills] = useState<Skill[]>([]);
   const [template, setTemplate] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [refresh, setRefresh] = useState(0);
-  const [busy, setBusy] = useState(null);
-  const [editor, setEditor] = useState(null);
+  const [busy, setBusy] = useState<number | null>(null);
+  const [editor, setEditor] = useState<{
+    skill: Skill | null;
+    readOnly: boolean;
+  } | null>(null);
   const requestId = useRef(0);
   useEffect(() => {
     const current = ++requestId.current;
@@ -51,8 +55,12 @@ export function SkillLibrary() {
     };
   }, [view, refresh, t]);
 
-  async function mutate(skill, action, value) {
-    if (busy !== null) return false;
+  async function mutate(
+    skill: Skill,
+    action: "share" | "enable",
+    value: boolean
+  ) {
+    if (busy !== null || skill.id === null) return false;
     setBusy(skill.id);
     const result = await PersonalSkills[action](skill.id, value);
     setBusy(null);
@@ -213,7 +221,7 @@ export function SkillLibrary() {
                     size="lg"
                     label={t("personal_skills.share")}
                     description={t("personal_skills.share_hint")}
-                    enabled={skill.isShared}
+                    enabled={!!skill.isShared}
                     disabled={busy !== null}
                     onChange={(value) => mutate(skill, "share", value)}
                     labelClassName="!text-sm"
@@ -262,7 +270,10 @@ export function SkillLibrary() {
           initialSkillMd={template}
           readOnly={editor.readOnly}
           onEnable={async () => {
-            if (await mutate(editor.skill, "enable", !editor.skill.enabled))
+            if (
+              editor.skill &&
+              (await mutate(editor.skill, "enable", !editor.skill.enabled))
+            )
               setEditor(null);
           }}
           onClose={() => setEditor(null)}

@@ -1,5 +1,25 @@
 import { api, errorMessage } from "@/utils/api";
 
+import type { CitationChunk, ContextTrace } from "@/utils/chat/messages";
+export interface SharedSource extends CitationChunk {
+  url?: string;
+  name?: string;
+}
+export interface SharedMessage {
+  chatId?: number;
+  role: string;
+  content: string;
+  sources?: SharedSource[];
+  agentTrace?: { id?: string; phase: string; summary?: string }[];
+  contextTraces?: ContextTrace[];
+}
+export type SharedChatResult =
+  | {
+      success: true;
+      share: { createdAt: string; title: string; workspaceName: string };
+      history: SharedMessage[];
+    }
+  | { success: false; error: string };
 export interface PublicShareCreateInput {
   workspaceSlug: string;
   threadSlug?: string | null;
@@ -21,9 +41,9 @@ const PublicChatShare = {
     }
   },
 
-  get: async (token: string): Promise<Record<string, unknown>> => {
+  get: async (token: string): Promise<SharedChatResult> => {
     try {
-      return await api.get<Record<string, unknown>>(
+      return await api.get<SharedChatResult>(
         `/public-chat-share/${encodeURIComponent(token)}`,
         {
           auth: false,

@@ -1,3 +1,6 @@
+import zh from "@/locales/zh/common";
+import type { TFunction } from "i18next";
+import type { Agent } from "@coregenie/contracts/predefinedAgents.mts";
 import { useEffect, useMemo, useState } from "react";
 import { isMobile } from "react-device-detect";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -22,7 +25,7 @@ import Sidebar, { SidebarMobileHeader } from "@/components/Sidebar";
 import AgentAvatar from "@/components/PredefinedAgents/AgentAvatar";
 import usePredefinedAgent from "@/hooks/usePredefinedAgent";
 import CreateWorkspaceGuide from "@/components/CreateWorkspaceGuide";
-import Workspace from "@/models/workspace";
+import Workspace, { type WorkspaceRecord } from "@/models/workspace";
 import paths from "@/utils/paths";
 import showToast from "@/utils/toast";
 import { PENDING_HELP_DRAFT, SEEN_HELP_INTRO } from "@/utils/constants";
@@ -33,11 +36,7 @@ import { DEFAULT_ARCHITECTURE_DOC_ID } from "./architecture/docsRegistry";
 const CAPABILITY_ICONS = [FolderOpen, Sparkle, ShieldCheck, FileText];
 const GITHUB_REPOSITORY_URL = "https://github.com/acore2026/anything-llm";
 
-function arrayValue(value) {
-  return Array.isArray(value) ? value : [];
-}
-
-function agentKind(agent) {
+function agentKind(agent: Agent | null) {
   if (agent?.isBuiltinDefault) return "general";
   if (/转\s*Markdown|Markdown.*助手/i.test(agent?.name || ""))
     return "converter";
@@ -64,8 +63,8 @@ function HelpCenter() {
     selectedAgent,
     selectAgent,
   } = usePredefinedAgent();
-  const [activeAgentId, setActiveAgentId] = useState(null);
-  const [workspaces, setWorkspaces] = useState([]);
+  const [activeAgentId, setActiveAgentId] = useState<number | null>(null);
+  const [workspaces, setWorkspaces] = useState<WorkspaceRecord[]>([]);
   const [workspacesLoading, setWorkspacesLoading] = useState(true);
 
   useEffect(() => {
@@ -84,11 +83,9 @@ function HelpCenter() {
   const activeAgent =
     agents.find((agent) => agent.id === activeAgentId) || agents[0] || null;
   const kind = agentKind(activeAgent);
-  const fallbackExamples = arrayValue(
-    t(`help.agent_profiles.${kind}.examples`, { returnObjects: true })
-  );
+  const fallbackExamples = zh.help.agent_profiles[kind].examples;
   const examples = useMemo(() => {
-    const configured = arrayValue(activeAgent?.examplePrompts)
+    const configured = (activeAgent?.examplePrompts ?? [])
       .map((prompt) =>
         typeof prompt === "string"
           ? prompt.trim()
@@ -99,19 +96,13 @@ function HelpCenter() {
   }, [activeAgent, fallbackExamples]);
   const noWorkspace = !workspacesLoading && workspaces.length === 0;
   const launchBlocked = workspacesLoading || noWorkspace;
-  const capabilities = arrayValue(
-    t("help.capabilities.items", { returnObjects: true })
-  );
-  const painPoints = arrayValue(
-    t("help.pain_points.items", { returnObjects: true })
-  );
-  const concepts = arrayValue(
-    t("help.concepts.items", { returnObjects: true })
-  );
-  const boundaries = arrayValue(
-    t("help.boundaries.items", { returnObjects: true })
-  );
-  const faqItems = arrayValue(t("help.faq.items", { returnObjects: true }));
+  const {
+    capabilities: { items: capabilities },
+    pain_points: { items: painPoints },
+    concepts: { items: concepts },
+    boundaries: { items: boundaries },
+    faq: { items: faqItems },
+  } = zh.help;
 
   const [searchParams, setSearchParams] = useSearchParams();
   const rawTab = searchParams.get("tab");
@@ -119,7 +110,7 @@ function HelpCenter() {
     rawTab === "updates" || rawTab === "architecture" ? rawTab : "guide";
   const activeArchDocId = searchParams.get("doc");
 
-  function handleTabChange(tab) {
+  function handleTabChange(tab: string) {
     const next = new URLSearchParams(searchParams);
     if (tab === "guide") {
       next.delete("tab");
@@ -133,7 +124,7 @@ function HelpCenter() {
     setSearchParams(next, { replace: true });
   }
 
-  function handleSelectArchDoc(docId) {
+  function handleSelectArchDoc(docId: string) {
     const next = new URLSearchParams(searchParams);
     next.set("tab", "architecture");
     if (docId === DEFAULT_ARCHITECTURE_DOC_ID) {
@@ -144,7 +135,7 @@ function HelpCenter() {
     setSearchParams(next);
   }
 
-  function launch(agent, prompt) {
+  function launch(agent: Agent | null, prompt: string) {
     if (!agent || !prompt || launchBlocked) return;
     selectAgent(agent.id);
     localStorage.setItem(SEEN_HELP_INTRO, "true");
@@ -155,7 +146,7 @@ function HelpCenter() {
     navigate(paths.home());
   }
 
-  async function copyPrompt(prompt) {
+  async function copyPrompt(prompt: string) {
     try {
       await navigator.clipboard.writeText(prompt);
       showToast(t("help.actions.copied"), "success");
@@ -538,7 +529,13 @@ function HelpCenter() {
   );
 }
 
-function PainPoints({ items, t }) {
+function PainPoints({
+  items,
+  t,
+}: {
+  items: typeof zh.help.pain_points.items;
+  t: TFunction;
+}) {
   return (
     <section className="pb-8" aria-labelledby="help-pain-points-title">
       <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 light:text-slate-500">
@@ -590,7 +587,7 @@ function PainPoints({ items, t }) {
   );
 }
 
-function Faq({ items, t }) {
+function Faq({ items, t }: { items: typeof zh.help.faq.items; t: TFunction }) {
   return (
     <section
       className="border-t border-white/[0.07] py-8 light:border-slate-200"

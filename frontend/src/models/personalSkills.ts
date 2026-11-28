@@ -9,6 +9,7 @@ export interface SkillDetailResult {
 }
 
 export interface SkillListResult {
+  template?: string;
   success?: boolean;
   skills?: Skill[];
   error?: string | null;

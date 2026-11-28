@@ -13,7 +13,11 @@ function Paper({
   viewBox = "0 0 560 270",
   className = "block h-auto w-full rounded-xl border border-black/10 bg-[#fdfcf8]",
   children,
-}) {
+}: React.PropsWithChildren<{
+  name: string;
+  viewBox?: string;
+  className?: string;
+}>) {
   const { t } = useTranslation();
   const id = `sk-${name}`;
   return (
@@ -150,6 +154,16 @@ function SketchRect({
   stroke = INK,
   strokeWidth = 2,
   dashed = false,
+}: {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  r?: number;
+  fill?: string;
+  stroke?: string;
+  strokeWidth?: number;
+  dashed?: boolean;
 }) {
   const dash = dashed ? "7 5" : undefined;
   return (
@@ -191,7 +205,15 @@ function Label({
   weight = 600,
   mono = false,
   anchor = "middle",
-}) {
+}: React.PropsWithChildren<{
+  x: number;
+  y: number;
+  size?: number;
+  fill?: string;
+  weight?: number;
+  mono?: boolean;
+  anchor?: "start" | "middle" | "end";
+}>) {
   return (
     <text
       x={x}
@@ -219,6 +241,17 @@ function Pill({
   textColor = INK,
   size = 12.5,
   mono = false,
+}: {
+  x: number;
+  y: number;
+  w: number;
+  h?: number;
+  fill?: string;
+  stroke?: string;
+  text: string;
+  textColor?: string;
+  size?: number;
+  mono?: boolean;
 }) {
   return (
     <g>
@@ -239,7 +272,17 @@ function Pill({
   );
 }
 
-function StepDot({ x, y, n, fill = "#0891b2" }) {
+function StepDot({
+  x,
+  y,
+  n,
+  fill = "#0891b2",
+}: {
+  x: number;
+  y: number;
+  n: number;
+  fill?: string;
+}) {
   return (
     <g>
       <circle
@@ -593,7 +636,7 @@ export function SignInSketch() {
         </Label>
       </g>
       {/* Step 1 badge */}
-      <StepDot x={62} y={204} n="1" fill="#0284c7" />
+      <StepDot x={62} y={204} n={1} fill="#0284c7" />
       <Label x={112} y={209} size={14} fill={INK}>
         {t("start")}
       </Label>
@@ -634,7 +677,7 @@ export function SignInSketch() {
         </Label>
       </g>
       {/* Step 3 badge */}
-      <StepDot x={402} y={204} n="3" fill="#dc2626" />
+      <StepDot x={402} y={204} n={3} fill="#dc2626" />
       <Label x={462} y={209} size={14} fill={INK}>
         {t("authenticate")}
       </Label>
@@ -653,7 +696,7 @@ export function SignInSketch() {
           stroke="#7dd3fc"
           strokeWidth="1.6"
         />
-        <StepDot x={-53} y={0} n="2" fill="#0284c7" />
+        <StepDot x={-53} y={0} n={2} fill="#0284c7" />
         <Label x={10} y={4.5} size={13} fill="#0369a1">
           {t("redirect")}
         </Label>
@@ -673,7 +716,7 @@ export function SignInSketch() {
           stroke="#86efac"
           strokeWidth="1.6"
         />
-        <StepDot x={-59} y={0} n="4" fill="#15803d" />
+        <StepDot x={-59} y={0} n={4} fill="#15803d" />
         <Label x={10} y={4.5} size={13} fill="#166534">
           {t("return")}
         </Label>

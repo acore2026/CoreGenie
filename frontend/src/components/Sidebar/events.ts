@@ -8,6 +8,10 @@ export const CLOSE_MOBILE_SIDEBAR_EVENT = "closeMobileSidebar";
 
 declare global {
   interface WindowEventMap {
+    [WORKSPACE_RENAMED_EVENT]: CustomEvent<{
+      workspaceSlug: string;
+      name: string;
+    }>;
     [THREAD_RENAME_EVENT]: CustomEvent<{
       workspaceSlug?: string;
       threadSlug: string;

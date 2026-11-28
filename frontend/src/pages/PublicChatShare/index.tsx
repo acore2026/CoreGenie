@@ -14,7 +14,11 @@ import {
   User,
 } from "@phosphor-icons/react";
 import { useTranslation } from "react-i18next";
-import PublicChatShare from "@/models/publicChatShare";
+import PublicChatShare, {
+  type SharedSource,
+  type SharedMessage,
+  type SharedChatResult,
+} from "@/models/publicChatShare";
 import renderMarkdown from "@/utils/chat/markdown";
 import DOMPurify from "@/utils/chat/purify";
 import useLogo from "@/hooks/useLogo";
@@ -28,7 +32,7 @@ const WEB_SOURCE_PREFIXES = [
   "drupalwiki://",
 ];
 
-function getSourceUrl(source) {
+function getSourceUrl(source: SharedSource) {
   const raw = source?.url || source?.chunkSource || "";
   const prefix = WEB_SOURCE_PREFIXES.find((item) => raw.startsWith(item));
   const candidate = prefix ? raw.slice(prefix.length) : raw;
@@ -40,7 +44,7 @@ function getSourceUrl(source) {
   }
 }
 
-function cleanSourceExcerpt(text) {
+function cleanSourceExcerpt(text?: string) {
   if (typeof text !== "string" || !text.trim()) return "";
   const withoutMetadata = text.replace(
     /<document_metadata>[\s\S]*?<\/document_metadata>/gi,
@@ -59,8 +63,14 @@ function cleanSourceExcerpt(text) {
     .slice(0, 420);
 }
 
-function groupSources(sources, fallbackTitle) {
-  const grouped = new Map();
+function groupSources(
+  sources: SharedSource[],
+  fallbackTitle: (index: number) => string
+) {
+  const grouped = new Map<
+    string,
+    { title: string; url: string | null; chunks: SharedSource[] }
+  >();
   sources.forEach((source, index) => {
     const url = getSourceUrl(source);
     const title = String(
@@ -80,7 +90,7 @@ function groupSources(sources, fallbackTitle) {
   return [...grouped.values()];
 }
 
-function Sources({ sources }) {
+function Sources({ sources }: { sources: SharedSource[] }) {
   const { t } = useTranslation();
   const grouped = groupSources(sources, (index) =>
     t("chat_window.share_chat.source", { index })
@@ -159,7 +169,7 @@ function Sources({ sources }) {
   );
 }
 
-function Message({ item }) {
+function Message({ item }: { item: SharedMessage }) {
   const { t } = useTranslation();
   const isUser = item.role === "user";
   const rawTrace = Array.isArray(item.agentTrace) ? item.agentTrace : [];
@@ -266,10 +276,10 @@ function Message({ item }) {
 }
 
 export default function PublicChatSharePage() {
-  const { token } = useParams();
+  const { token = "" } = useParams();
   const { t, i18n } = useTranslation();
   const { logo } = useLogo();
-  const [data, setData] = useState(null);
+  const [data, setData] = useState<SharedChatResult | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -285,13 +295,14 @@ export default function PublicChatSharePage() {
     };
   }, [token]);
 
-  const date = data?.share?.createdAt
-    ? new Intl.DateTimeFormat(i18n.language, {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-      }).format(new Date(data.share.createdAt))
-    : null;
+  const date =
+    data?.success && data.share.createdAt
+      ? new Intl.DateTimeFormat(i18n.language, {
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+        }).format(new Date(data.share.createdAt))
+      : null;
 
   return (
     <main className="min-h-screen bg-[#f4f1e8] text-zinc-950 selection:bg-amber-300 selection:text-zinc-950">

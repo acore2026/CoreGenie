@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { default as WorkspaceChatContainer } from "@/components/WorkspaceChat";
 import Sidebar from "@/components/Sidebar";
 import { useParams } from "react-router-dom";
-import Workspace from "@/models/workspace";
+import Workspace, { type WorkspaceRecord } from "@/models/workspace";
 import PasswordModal, { usePasswordModal } from "@/components/Modals/Password";
 import { isMobile } from "react-device-detect";
 import { FullScreenLoader } from "@/components/Preloader";
@@ -27,11 +27,11 @@ export default function WorkspaceChat() {
 
 function ShowWorkspaceChat() {
   const { slug } = useParams();
-  const [workspace, setWorkspace] = useState(null);
+  const [workspace, setWorkspace] = useState<WorkspaceRecord | null>(null);
   // Tracks which workspace `workspace` belongs to. While a new workspace's
   // data is in flight, we keep the previous workspace's chat mounted
   // (Slack/Linear-style transition) instead of flashing a skeleton.
-  const [loadedSlug, setLoadedSlug] = useState(null);
+  const [loadedSlug, setLoadedSlug] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -49,7 +49,7 @@ function ShowWorkspaceChat() {
       if (!active) return;
       setWorkspace({
         ..._workspace,
-        suggestedMessages,
+        suggestedMessages: suggestedMessages ?? [],
       });
       setLoadedSlug(slug);
       localStorage.setItem(
@@ -67,7 +67,9 @@ function ShowWorkspaceChat() {
   }, [slug]);
 
   useEffect(() => {
-    const updateWorkspaceName = (event) => {
+    const updateWorkspaceName = (
+      event: WindowEventMap[typeof WORKSPACE_RENAMED_EVENT]
+    ) => {
       const { workspaceSlug, name } = event.detail || {};
       if (workspaceSlug !== slug || !name) return;
       setWorkspace((current) => (current ? { ...current, name } : current));
