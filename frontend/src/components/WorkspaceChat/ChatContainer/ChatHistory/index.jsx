@@ -31,7 +31,19 @@ import useChatHistoryScrollHandle from "@/hooks/useChatHistoryScrollHandle";
 import { ThoughtExpansionProvider } from "./ThoughtContainer";
 import { MessageActionsProvider } from "./MessageActionsContext";
 
-export default forwardRef(function (
+/**
+ * @param {{
+ *   history?: import("@/utils/chat/messages").ChatMessage[],
+ *   workspace: import("@coregenie/contracts").WorkspaceRecord,
+ *   sendCommand: (command: import("@/utils/chat/messages").ChatCommand) => void,
+ *   updateHistory: (messages: import("@/utils/chat/messages").ChatMessage[]) => void,
+ *   regenerateAssistantMessage: (id: number) => void,
+ *   websocket?: ReturnType<typeof import("@/utils/chat/agent").createAgentSSETransport> | null,
+ *   readOnly?: boolean
+ * }} props
+ * @param {import("react").ForwardedRef<import("@/hooks/useChatHistoryScrollHandle").ChatScrollHandle>} ref
+ */
+function ChatHistory(
   {
     history = [],
     workspace,
@@ -261,7 +273,9 @@ export default forwardRef(function (
       </ThoughtExpansionProvider>
     </MessageActionsProvider>
   );
-});
+}
+
+export default forwardRef(ChatHistory);
 
 /**
  * Builds the history of messages for the chat.

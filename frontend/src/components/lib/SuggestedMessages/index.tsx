@@ -1,6 +1,9 @@
 export default function SuggestedMessages({
   suggestedMessages = [],
   sendCommand,
+}: {
+  suggestedMessages?: import("@coregenie/contracts").WorkspaceRecord["suggestedMessages"];
+  sendCommand: (command: { text: string; autoSubmit: boolean }) => void;
 }) {
   if (!suggestedMessages?.length) return null;
 

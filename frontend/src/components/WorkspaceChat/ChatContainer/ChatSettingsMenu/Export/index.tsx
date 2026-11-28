@@ -14,18 +14,25 @@ const EXPORT_FORMATS = [
   { key: "html", label: "HTML", ext: "html" },
 ];
 
+type ExportFormat = (typeof EXPORT_FORMATS)[number];
 export default function ExportRow({
   history = [],
   hasHistory = history.length > 0,
   workspace = null,
   threadSlug = null,
   onClose,
+}: {
+  history?: unknown[];
+  hasHistory?: boolean;
+  workspace?: { slug: string } | null;
+  threadSlug?: string | null;
+  onClose: () => void;
 }) {
   const { t } = useTranslation();
   const [showSubmenu, setShowSubmenu] = useState(false);
   const [exporting, setExporting] = useState(false);
 
-  async function handleExport(format) {
+  async function handleExport(format: ExportFormat) {
     if (exporting || !workspace?.slug) return;
     setExporting(true);
     const blob = await Workspace.exportChatsToType(
@@ -73,7 +80,13 @@ export default function ExportRow({
   );
 }
 
-function ExportSubmenu({ onSelect, exporting }) {
+function ExportSubmenu({
+  onSelect,
+  exporting,
+}: {
+  onSelect: (format: ExportFormat) => void;
+  exporting: boolean;
+}) {
   return (
     <div className="absolute right-full top-0 -mr-2 pr-2 pt-0">
       <div className="bg-zinc-800 light:bg-slate-50 border border-zinc-700 light:border-slate-300 rounded-lg p-3.5 w-[130px] flex flex-col gap-1.5 shadow-lg">

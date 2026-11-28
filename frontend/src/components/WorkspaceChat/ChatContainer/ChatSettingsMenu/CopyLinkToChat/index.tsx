@@ -52,7 +52,15 @@ export default function CopyLinkToChatRow() {
   );
 }
 
-function CopyLinkModal({ isOpen, closeModal, url }) {
+function CopyLinkModal({
+  isOpen,
+  closeModal,
+  url,
+}: {
+  isOpen: boolean;
+  closeModal: () => void;
+  url: string;
+}) {
   if (!isOpen) return null;
 
   return (

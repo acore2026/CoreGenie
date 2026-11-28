@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { useTheme } from "@/hooks/useTheme";
 
 export default function TextSizeButton() {
-  const tooltipRef = useRef(null);
+  const tooltipRef = useRef<import("react-tooltip").TooltipRefProps>(null);
   const { t } = useTranslation();
   const { theme } = useTheme();
 
@@ -52,13 +52,17 @@ export default function TextSizeButton() {
   );
 }
 
-function TextSizeMenu({ tooltipRef }) {
+function TextSizeMenu({
+  tooltipRef,
+}: {
+  tooltipRef: React.RefObject<import("react-tooltip").TooltipRefProps>;
+}) {
   const { t } = useTranslation();
   const [selectedSize, setSelectedSize] = useState(
     window.localStorage.getItem("anythingllm_text_size") || "normal"
   );
 
-  const handleTextSizeChange = (size) => {
+  const handleTextSizeChange = (size: string) => {
     setSelectedSize(size);
     window.localStorage.setItem("anythingllm_text_size", size);
     window.dispatchEvent(new CustomEvent("textSizeChange", { detail: size }));

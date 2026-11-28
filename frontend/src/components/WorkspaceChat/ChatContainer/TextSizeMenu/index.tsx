@@ -4,7 +4,7 @@ import useLoginMode from "@/hooks/useLoginMode";
 import { useTranslation } from "react-i18next";
 import { isMobile } from "react-device-detect";
 
-function getTextSizes(t) {
+function getTextSizes(t: import("i18next").TFunction) {
   return [
     { key: "small", label: t("chat_window.small"), textClass: "text-xs" },
     {
@@ -24,12 +24,13 @@ export default function TextSizeMenu() {
   const [selectedSize, setSelectedSize] = useState(
     window.localStorage.getItem("anythingllm_text_size") || "normal"
   );
-  const menuRef = useRef(null);
-  const buttonRef = useRef(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!showMenu) return;
-    function handleClickOutside(e) {
+    function handleClickOutside(e: MouseEvent) {
+      if (!(e.target instanceof Node)) return;
       if (
         menuRef.current &&
         !menuRef.current.contains(e.target) &&
@@ -43,7 +44,7 @@ export default function TextSizeMenu() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [showMenu]);
 
-  function handleTextSizeChange(size) {
+  function handleTextSizeChange(size: string) {
     setSelectedSize(size);
     window.localStorage.setItem("anythingllm_text_size", size);
     window.dispatchEvent(new CustomEvent("textSizeChange", { detail: size }));

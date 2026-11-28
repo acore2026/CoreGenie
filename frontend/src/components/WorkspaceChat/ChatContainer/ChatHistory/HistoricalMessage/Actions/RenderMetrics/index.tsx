@@ -2,16 +2,23 @@ import { formatDateTimeAsMoment } from "@/utils/directories";
 import { formatDuration, numberWithCommas } from "@/utils/numbers";
 import React, { useEffect, useState, useContext } from "react";
 import { isMobile } from "react-device-detect";
-const MetricsContext = React.createContext();
+interface Metrics {
+  duration?: number;
+  outputTps?: number;
+  model?: string;
+  timestamp?: number;
+}
+const MetricsContext = React.createContext<{
+  showMetricsAutomatically: boolean;
+  setShowMetricsAutomatically: (show: boolean) => void;
+} | null>(null);
 const SHOW_METRICS_KEY = "anythingllm_show_chat_metrics";
 const SHOW_METRICS_EVENT = "anythingllm_show_metrics_change";
 
 /**
  * Format the output TPS to a string
- * @param {number} outputTps - output TPS
- * @returns {string}
  */
-function formatTps(outputTps) {
+function formatTps(outputTps: number) {
   try {
     return outputTps < 1000
       ? outputTps.toFixed(2)
@@ -23,7 +30,6 @@ function formatTps(outputTps) {
 
 /**
  * Get the show metrics setting from localStorage `anythingllm_show_chat_metrics` key
- * @returns {boolean}
  */
 function getAutoShowMetrics() {
   return window?.localStorage?.getItem(SHOW_METRICS_KEY) === "true";
@@ -34,13 +40,11 @@ function getAutoShowMetrics() {
  * - Model name
  * - Duration and output TPS
  * - Timestamp
- * @param {metrics: {duration:number, outputTps: number, model?: string, timestamp?: number}} metrics
- * @returns {string}
  */
-function buildMetricsString(metrics = {}) {
+function buildMetricsString(metrics: Metrics) {
   return [
     metrics?.model ? metrics.model : "",
-    `${formatDuration(metrics.duration)} (${formatTps(metrics.outputTps)} tok/s)`,
+    `${formatDuration(metrics.duration ?? 0)} (${formatTps(metrics.outputTps ?? 0)} tok/s)`,
     metrics?.timestamp
       ? formatDateTimeAsMoment(metrics.timestamp, "MMM D, h:mm A")
       : "",
@@ -51,11 +55,10 @@ function buildMetricsString(metrics = {}) {
 
 /**
  * Toggle the show metrics setting in localStorage `anythingllm_show_chat_metrics` key
- * @returns {void}
  */
 function toggleAutoShowMetrics() {
   const currentValue = getAutoShowMetrics() || false;
-  window?.localStorage?.setItem(SHOW_METRICS_KEY, !currentValue);
+  window?.localStorage?.setItem(SHOW_METRICS_KEY, String(!currentValue));
   window.dispatchEvent(
     new CustomEvent(SHOW_METRICS_EVENT, {
       detail: { showMetricsAutomatically: !currentValue },
@@ -67,19 +70,17 @@ function toggleAutoShowMetrics() {
 /**
  * Provider for the metrics context that controls the visibility of the metrics
  * per-chat based on the user's preference.
- * @param {React.ReactNode} children
- * @returns {React.ReactNode}
  */
-export function MetricsProvider({ children }) {
+export function MetricsProvider({ children }: React.PropsWithChildren) {
   const [showMetricsAutomatically, setShowMetricsAutomatically] =
     useState(getAutoShowMetrics());
 
   useEffect(() => {
-    function handleShowingMetricsEvent(e) {
+    function handleShowingMetricsEvent(e: Event) {
+      if (!(e instanceof CustomEvent)) return;
       if (!e?.detail?.hasOwnProperty("showMetricsAutomatically")) return;
       setShowMetricsAutomatically(e.detail.showMetricsAutomatically);
     }
-    console.log("Adding event listener for metrics visibility");
     window.addEventListener(SHOW_METRICS_EVENT, handleShowingMetricsEvent);
     return () =>
       window.removeEventListener(SHOW_METRICS_EVENT, handleShowingMetricsEvent);
@@ -96,13 +97,12 @@ export function MetricsProvider({ children }) {
 
 /**
  * Render the metrics for a given chat, if available
- * @param {metrics: {duration:number, outputTps: number, model: string, timestamp: number}} props
- * @returns
  */
-export default function RenderMetrics({ metrics = {} }) {
+export default function RenderMetrics({ metrics = {} }: { metrics?: Metrics }) {
   // Inherit the showMetricsAutomatically state from the MetricsProvider so the state is shared across all chats
-  const { showMetricsAutomatically, setShowMetricsAutomatically } =
-    useContext(MetricsContext);
+  const context = useContext(MetricsContext);
+  if (!context) return null;
+  const { showMetricsAutomatically, setShowMetricsAutomatically } = context;
   if (!metrics?.duration || !metrics?.outputTps || isMobile) return null;
 
   return (

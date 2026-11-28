@@ -1,3 +1,4 @@
+import type { ChatResult } from "@/utils/chat/messages";
 import type { WorkspaceThreadRecord } from "@coregenie/contracts";
 import { api, cleanHeaders } from "@/utils/api";
 import { ABORT_STREAM_EVENT } from "@/utils/chat";
@@ -8,7 +9,7 @@ import { v4 } from "uuid";
 
 export type { WorkspaceThreadRecord };
 
-export type ChatStreamHandler = (event: Record<string, unknown>) => void;
+export type ChatStreamHandler = (event: ChatResult) => void;
 
 const WorkspaceThread = {
   all: async function (
@@ -181,10 +182,7 @@ const WorkspaceThread = {
             throw new Error("Unknown error");
           },
           async onmessage(msg) {
-            const chatResult = safeJsonParse<Record<string, unknown> | null>(
-              msg.data,
-              null
-            );
+            const chatResult = safeJsonParse<ChatResult | null>(msg.data, null);
             if (chatResult) handleChat(chatResult);
           },
           onerror(err) {

@@ -1,5 +1,13 @@
 import type { AgentRunEvent, AgentRunState, RunPayload } from "./agentRunTypes";
 
+export interface ChatCommand {
+  text?: string;
+  autoSubmit?: boolean;
+  writeMode?: string;
+  history?: ChatMessage[];
+  attachments?: unknown[];
+}
+
 export interface ContextTrace {
   id: string;
   title?: string;
@@ -9,6 +17,14 @@ export interface ChatMessage {
   type?: string;
   role?: string;
   content?: unknown;
+  animate?: boolean;
+  chatId?: number | null;
+  outputs?: unknown[];
+  messageParts?: unknown[];
+  runtime?: { key: string } | null;
+  subagentRun?: { status?: string };
+  userMessage?: string;
+  attachments?: unknown[];
   sources?: unknown[];
   pending?: boolean;
   agentRunState?: Partial<AgentRunState>;
@@ -20,8 +36,9 @@ export interface ChatMessage {
 }
 
 export interface ChatResult {
+  id?: string;
   uuid?: string;
-  textResponse?: string;
+  textResponse?: string | null;
   type: string;
   sources?: unknown[];
   error?: unknown;

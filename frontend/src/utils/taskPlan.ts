@@ -5,7 +5,7 @@ export interface PlanMessage {
   content?: unknown;
   agentRunId?: string | null;
   type?: string;
-  runtime?: { key?: string };
+  runtime?: { key?: string } | null;
   agentRunState?: Partial<Pick<AgentRunState, "status" | "runtimeKey">> & {
     tasks?: Task[];
   };

@@ -1,3 +1,4 @@
+import type { ChatResult } from "@/utils/chat/messages";
 import type {
   WorkspaceRecord,
   ParsedWorkspaceContext,
@@ -322,10 +323,7 @@ const Workspace = {
           throw new Error("Unknown error");
         },
         async onmessage(msg) {
-          const chatResult = safeJsonParse<Record<string, unknown> | null>(
-            msg.data,
-            null
-          );
+          const chatResult = safeJsonParse<ChatResult | null>(msg.data, null);
           if (chatResult) handleChat(chatResult);
         },
         onerror(err) {
@@ -790,12 +788,17 @@ const Workspace = {
   activeAgentInvocation: async function (
     slug: string,
     threadSlug: string | null = null
-  ): Promise<{ invocation: AnyRecord | null; [key: string]: unknown }> {
+  ): Promise<{
+    invocation: { uuid: string; prompt: string } | null;
+    [key: string]: unknown;
+  }> {
     const path = threadSlug
       ? `/workspace/${slug}/thread/${threadSlug}/agent-runs/active`
       : `/workspace/${slug}/agent-runs/active`;
     try {
-      return await api.get<{ invocation: AnyRecord | null }>(path);
+      return await api.get<{
+        invocation: { uuid: string; prompt: string } | null;
+      }>(path);
     } catch {
       return { invocation: null };
     }

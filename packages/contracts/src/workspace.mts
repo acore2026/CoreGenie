@@ -36,6 +36,7 @@ export interface WorkspaceRecord {
   chatMode?: string;
   chatProvider?: string | null;
   chatModel?: string | null;
+  suggestedMessages?: { heading?: string; message?: string }[];
   [key: string]: unknown;
 }
 

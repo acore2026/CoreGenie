@@ -1,13 +1,16 @@
 import {
   useState,
   useEffect,
-  useContext,
+  type FormEvent,
   useRef,
   useCallback,
   useDeferredValue,
 } from "react";
+import type { WorkspaceRecord } from "@coregenie/contracts";
+import type { ChatMessage, ChatCommand } from "@/utils/chat/messages";
+import type { createAgentSSETransport } from "@/utils/chat/agent";
 import ChatHistory from "./ChatHistory";
-import { CLEAR_ATTACHMENTS_EVENT, DndUploaderContext } from "./DnDWrapper";
+import { CLEAR_ATTACHMENTS_EVENT, useDndUploader } from "./DnDWrapper";
 import PromptInput, {
   PROMPT_INPUT_EVENT,
   PROMPT_INPUT_ID,
@@ -56,12 +59,25 @@ import {
   stopBackgroundAgentSession,
 } from "@/utils/chat/backgroundAgentSession";
 
-function useEventCallback(callback) {
+interface ChatThread {
+  canModify?: boolean;
+  owner?: { username?: string; displayName?: string };
+}
+
+function promptText() {
+  return (
+    document.querySelector<HTMLTextAreaElement>(`#${PROMPT_INPUT_ID}`)?.value ??
+    ""
+  );
+}
+function useEventCallback<Args extends unknown[], Result>(
+  callback: (...args: Args) => Result
+) {
   const callbackRef = useRef(callback);
   useEffect(() => {
     callbackRef.current = callback;
   }, [callback]);
-  return useCallback((...args) => callbackRef.current(...args), []);
+  return useCallback((...args: Args) => callbackRef.current(...args), []);
 }
 
 export default function ChatContainer({
@@ -69,6 +85,11 @@ export default function ChatContainer({
   threadSlug = null,
   thread = null,
   knownHistory = [],
+}: {
+  workspace: WorkspaceRecord;
+  threadSlug?: string | null;
+  thread?: ChatThread | null;
+  knownHistory?: ChatMessage[];
 }) {
   const navigate = useNavigate();
   const { t } = useTranslation();
@@ -83,8 +104,10 @@ export default function ChatContainer({
   const [chatHistory, setLocalChatHistory] = useState(initialRuntime.history);
   const deferredChatHistory = useDeferredValue(chatHistory);
   const [socketId, setLocalSocketId] = useState(initialRuntime.socketId);
-  const [websocket, setWebsocket] = useState(null);
-  const { files, parseAttachments } = useContext(DndUploaderContext);
+  const [websocket, setWebsocket] = useState<ReturnType<
+    typeof createAgentSSETransport
+  > | null>(null);
+  const { files, parseAttachments } = useDndUploader();
   const { chatHistoryRef } = useChatContainerQuickScroll();
   const pendingMessageChecked = useRef(false);
   const activeThreadSlug = threadSlug;
@@ -95,17 +118,18 @@ export default function ChatContainer({
   const { selectedAgent, selectedAgentId } = usePredefinedAgent();
 
   const setChatHistory = useCallback(
-    (updater) => updateConversationHistory(runtimeKey, updater),
+    (updater: Parameters<typeof updateConversationHistory>[1]) =>
+      updateConversationHistory(runtimeKey, updater),
     [runtimeKey]
   );
   const setLoadingResponse = useCallback(
-    (loading) =>
+    (loading: boolean) =>
       updateConversationRuntime(runtimeKey, { loadingResponse: loading }),
     [runtimeKey]
   );
   const setSocketId = useCallback(
-    (nextSocketId) =>
-      updateConversationRuntime(runtimeKey, { socketId: nextSocketId }),
+    (nextSocketId?: string | null) =>
+      updateConversationRuntime(runtimeKey, { socketId: nextSocketId ?? null }),
     [runtimeKey]
   );
 
@@ -134,7 +158,7 @@ export default function ChatContainer({
 
     const observer = new ResizeObserver(([entry]) => {
       const inputHeight =
-        entry.borderBoxSize?.[0]?.blockSize ?? entry.target.offsetHeight;
+        entry.borderBoxSize?.[0]?.blockSize ?? wrapper.offsetHeight;
       chatEl.style.paddingBottom = `${inputHeight}px`;
     });
     observer.observe(wrapper);
@@ -155,11 +179,10 @@ export default function ChatContainer({
     );
   }
 
-  const handleSubmit = async (event) => {
+  const handleSubmit = async (event: Pick<FormEvent, "preventDefault">) => {
     event.preventDefault();
     if (readOnly) return false;
-    const currentMessage =
-      document.getElementById(PROMPT_INPUT_ID)?.value || "";
+    const currentMessage = promptText();
     if (!currentMessage) return false;
 
     // Clear the localStorage draft for this thread/workspace so that if the
@@ -209,8 +232,6 @@ export default function ChatContainer({
     setLoadingResponse(true);
   };
 
-  const sendCommandRef = useRef(null);
-
   /**
    * Send a command to the LLM prompt input.
    * @param {Object} options - Arguments to send to the LLM
@@ -227,7 +248,7 @@ export default function ChatContainer({
     history = [],
     attachments = [],
     writeMode = "replace",
-  } = {}) => {
+  }: ChatCommand = {}) => {
     if (readOnly) return false;
     // If we are not auto-submitting, we can just emit the text to the prompt input.
     if (!autoSubmit) {
@@ -236,7 +257,7 @@ export default function ChatContainer({
     }
 
     if (writeMode === "prepend") {
-      const currentText = document.getElementById(PROMPT_INPUT_ID)?.value ?? "";
+      const currentText = promptText();
       text = currentText + " " + text;
     }
 
@@ -245,7 +266,7 @@ export default function ChatContainer({
     // @note: `message` will not work here since it is not updated yet.
     // If text is still empty, after this, then we should just return.
     if (writeMode === "append") {
-      const currentText = document.getElementById(PROMPT_INPUT_ID)?.value ?? "";
+      const currentText = promptText();
       text = currentText + text;
     }
 
@@ -317,21 +338,23 @@ export default function ChatContainer({
 
   const submitPrompt = useEventCallback(handleSubmit);
   const dispatchCommand = useEventCallback(sendCommand);
-  sendCommandRef.current = dispatchCommand;
+
   const chatHistoryRef2 = useRef(chatHistory);
   chatHistoryRef2.current = chatHistory;
 
   const regenerateAssistantMessage = useCallback(
-    (chatId) => {
+    (chatId: number) => {
       if (readOnly) return;
       const filteredHistory = chatHistoryRef2.current.slice(0, -1);
-      const lastUserMessage = filteredHistory.findLast(
-        (msg) => msg.role === "user"
-      );
+      const lastUserMessage = [...filteredHistory]
+        .reverse()
+        .find((msg) => msg.role === "user");
+      if (typeof lastUserMessage?.content !== "string") return;
+      const text = lastUserMessage.content;
       Workspace.deleteChats(workspace.slug, [chatId])
         .then(() =>
-          sendCommandRef.current({
-            text: lastUserMessage.content,
+          dispatchCommand({
+            text,
             autoSubmit: true,
             history: filteredHistory,
             attachments: lastUserMessage?.attachments,
@@ -339,14 +362,17 @@ export default function ChatContainer({
         )
         .catch((e) => console.error(e));
     },
-    [readOnly, workspace.slug]
+    [readOnly, workspace.slug, dispatchCommand]
   );
 
   useEffect(() => {
     if (readOnly || pendingMessageChecked.current || !workspace?.slug) return;
     pendingMessageChecked.current = true;
 
-    const pending = safeJsonParse(sessionStorage.getItem(PENDING_HOME_MESSAGE));
+    const pending = safeJsonParse<{
+      message: string;
+      attachments?: unknown[];
+    } | null>(sessionStorage.getItem(PENDING_HOME_MESSAGE), null);
     if (pending?.message) {
       setTimeout(() => {
         sessionStorage.removeItem(PENDING_HOME_MESSAGE);
@@ -405,7 +431,7 @@ export default function ChatContainer({
           chatHistory.length > 0 ? chatHistory[chatHistory.length - 1] : null;
         const remHistory =
           chatHistory.length > 0 ? chatHistory.slice(0, -1) : [];
-        var _chatHistory = [...remHistory];
+        const _chatHistory = [...remHistory];
 
         // Override hook for new messages to now go to agents until the connection closes
         if (!!websocket) {
@@ -620,6 +646,10 @@ function ReadOnlyThreadNotice({
   thread,
   workspaceReadOnly = false,
   centered = false,
+}: {
+  thread: ChatThread | null;
+  workspaceReadOnly?: boolean;
+  centered?: boolean;
 }) {
   const { t } = useTranslation();
   return (

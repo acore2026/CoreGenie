@@ -5,10 +5,16 @@ import PublicChatShare from "@/models/publicChatShare";
 import { copyTextToClipboard } from "@/utils/clipboard";
 import showToast from "@/utils/toast";
 
-export default function ShareChatButton({ workspace, threadSlug = null }) {
+export default function ShareChatButton({
+  workspace,
+  threadSlug = null,
+}: {
+  workspace?: { slug: string } | null;
+  threadSlug?: string | null;
+}) {
   const { t } = useTranslation();
   const [state, setState] = useState("idle");
-  const resetTimer = useRef(null);
+  const resetTimer = useRef<ReturnType<typeof setTimeout>>();
 
   useEffect(() => () => clearTimeout(resetTimer.current), []);
 
@@ -20,7 +26,11 @@ export default function ShareChatButton({ workspace, threadSlug = null }) {
       workspaceSlug: workspace.slug,
       threadSlug,
     });
-    if (!result.success || !result.shareUrlPath) {
+    if (
+      !result.success ||
+      typeof result.shareUrlPath !== "string" ||
+      !result.shareUrlPath
+    ) {
       setState("idle");
       showToast(t("chat_window.share_chat.error"), "error");
       return;

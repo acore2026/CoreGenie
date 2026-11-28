@@ -2,7 +2,7 @@ import { useState } from "react";
 import { CaretRight } from "@phosphor-icons/react";
 import { useTranslation } from "react-i18next";
 
-function getTextSizes(t) {
+function getTextSizes(t: import("i18next").TFunction) {
   return [
     { key: "small", label: t("chat_window.small") },
     { key: "normal", label: t("chat_window.normal") },
@@ -17,7 +17,7 @@ export default function TextSizeRow() {
     window.localStorage.getItem("anythingllm_text_size") || "normal"
   );
 
-  function handleTextSizeChange(size) {
+  function handleTextSizeChange(size: string) {
     setSelectedSize(size);
     window.localStorage.setItem("anythingllm_text_size", size);
     window.dispatchEvent(new CustomEvent("textSizeChange", { detail: size }));
@@ -55,7 +55,13 @@ export default function TextSizeRow() {
   );
 }
 
-function TextSizeSubmenu({ selectedSize, onSizeChange }) {
+function TextSizeSubmenu({
+  selectedSize,
+  onSizeChange,
+}: {
+  selectedSize: string;
+  onSizeChange: (size: string) => void;
+}) {
   const { t } = useTranslation();
   const textSizes = getTextSizes(t);
 

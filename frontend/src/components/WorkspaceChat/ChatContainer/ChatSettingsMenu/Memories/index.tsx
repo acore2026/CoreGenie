@@ -4,7 +4,7 @@ import useUser from "@/hooks/useUser";
 import System from "@/models/system";
 import { useMemoriesSidebar, useSourcesSidebar } from "../../ChatSidebar";
 
-export default function MemoriesRow({ onClose }) {
+export default function MemoriesRow({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation();
   const { user } = useUser();
   const { toggleSidebar } = useMemoriesSidebar();

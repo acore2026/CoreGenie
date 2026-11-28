@@ -31,6 +31,14 @@ async (page) => {
     else if (path === "/onboarding") body = { onboardingComplete: true };
     else if (path === "/setup-complete")
       body = { results: { MultiUserMode: false, RequiresAuth: false } };
+    else if (path === "/announcements") body = { announcements: [] };
+    else if (path === "/user/sidebar-preferences") {
+      const groups = { groups: [], collapsed: {}, assignments: {} };
+      body = {
+        preferences: { groups, favorites: { workspaces: [], threads: [] } },
+        globalGroups: groups,
+      };
+    }
     else if (path === "/workspaces") body = { workspaces };
     else if (workspace && path === `/workspace/${workspace.slug}`)
       body = { workspace };

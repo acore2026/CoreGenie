@@ -11,17 +11,22 @@ function ChatSettingsMenu({
   hasHistory = false,
   workspace = null,
   threadSlug = null,
+}: {
+  hasHistory?: boolean;
+  workspace?: { slug: string } | null;
+  threadSlug?: string | null;
 }) {
   const { t } = useTranslation();
   const { sidebarOpen: filesOpen, toggleSidebar: toggleFiles } =
     useWorkspaceFilesSidebar();
   const [showMenu, setShowMenu] = useState(false);
-  const menuRef = useRef(null);
-  const buttonRef = useRef(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!showMenu) return;
-    function handleClickOutside(e) {
+    function handleClickOutside(e: MouseEvent) {
+      if (!(e.target instanceof Node)) return;
       if (
         menuRef.current &&
         !menuRef.current.contains(e.target) &&
