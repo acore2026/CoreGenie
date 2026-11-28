@@ -64,10 +64,10 @@ const Workspace = {
 
   createInvite: async function (
     slug: string
-  ): Promise<{ invite: AnyRecord | null; error?: string | null }> {
+  ): Promise<{ invite: { code: string } | null; error?: string | null }> {
     try {
       return await api.post<{
-        invite: AnyRecord | null;
+        invite: { code: string } | null;
         error?: string | null;
       }>(`/workspace/${slug}/invite`, undefined, {
         defaultError: "Unable to create workspace invite.",

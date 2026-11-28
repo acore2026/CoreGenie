@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowClockwise,
   ArrowSquareOut,
@@ -29,10 +29,14 @@ const NOTICE = Object.freeze({
 export default function NetworkAuthGuard() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [notice, setNotice] = useState(null);
+  const [notice, setNotice] = useState<
+    (typeof NOTICE)[keyof typeof NOTICE] | null
+  >(null);
   const [checking, setChecking] = useState(false);
   const failureCount = useRef(0);
-  const pendingProbe = useRef(null);
+  const pendingProbe = useRef<ReturnType<typeof probeNetworkSession> | null>(
+    null
+  );
   const redirecting = useRef(false);
   const mounted = useRef(true);
 

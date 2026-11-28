@@ -9,6 +9,10 @@ export default function RecoveryCodeModal({
   recoveryCodes,
   onDownloadComplete,
   onClose,
+}: {
+  recoveryCodes: string[];
+  onDownloadComplete: () => void;
+  onClose: () => void;
 }) {
   const { t } = useTranslation();
   const [downloadClicked, setDownloadClicked] = useState(false);

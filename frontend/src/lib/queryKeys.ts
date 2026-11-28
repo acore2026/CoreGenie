@@ -19,6 +19,8 @@ export const queryKeys = {
     snapshot: (runId: string) => ["agentRuns", "snapshot", runId] as const,
   },
   system: {
+    chatHistoryPermission: (id: number | undefined, token: string | null) =>
+      ["system", "chatHistoryPermission", id ?? null, token] as const,
     memorySettings: (id: number | undefined, token: string | null) =>
       ["system", "memorySettings", id ?? null, token] as const,
     logo: ["system", "logo"] as const,

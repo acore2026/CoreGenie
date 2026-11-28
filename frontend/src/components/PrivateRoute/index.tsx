@@ -10,19 +10,25 @@ import UserMenu from "../UserMenu";
 import { KeyboardShortcutWrapper } from "@/utils/keyboardShortcuts";
 import { AnnouncementSession } from "@/components/Announcements";
 
-let cachedAuth = null;
-let pendingAuth = null;
+interface Authentication {
+  isAuthd: boolean;
+  shouldRedirectToOnboarding: boolean;
+  multiUserMode: boolean;
+}
+let cachedAuth: { identity: string; value: Authentication } | null = null;
+let pendingAuth: { identity: string; promise: Promise<Authentication> } | null =
+  null;
 
 function authIdentity() {
   return `${localStorage.getItem(AUTH_TOKEN) || ""}:${localStorage.getItem(AUTH_USER) || ""}`;
 }
 
-async function resolveAuthentication() {
+async function resolveAuthentication(): Promise<Authentication> {
   const identity = authIdentity();
   if (cachedAuth?.identity === identity) return cachedAuth.value;
   if (pendingAuth?.identity === identity) return pendingAuth.promise;
 
-  const promise = (async () => {
+  const promise = (async (): Promise<Authentication> => {
     const onboardingComplete = await System.isOnboardingComplete();
     const { MultiUserMode = false, RequiresAuth = false } =
       (await System.keys()) || {};
@@ -46,14 +52,14 @@ async function resolveAuthentication() {
         ? await validateSessionTokenForUser()
         : false;
 
-      if (!value.isAuthd) {
+      if (!value.isAuthd && identity === authIdentity()) {
         localStorage.removeItem(AUTH_USER);
         localStorage.removeItem(AUTH_TOKEN);
         localStorage.removeItem(AUTH_TIMESTAMP);
       }
     }
 
-    cachedAuth = { identity: authIdentity(), value };
+    if (identity === authIdentity()) cachedAuth = { identity, value };
     return value;
   })();
 
@@ -91,7 +97,13 @@ function useIsAuthenticated() {
 
 // Allows only admin to access the route and if in single user mode,
 // allows all users to access the route
-export function AdminRoute({ Component, hideUserMenu = false }) {
+export function AdminRoute({
+  Component,
+  hideUserMenu = false,
+}: {
+  Component: React.ComponentType;
+  hideUserMenu?: boolean;
+}) {
   const { isAuthd, shouldRedirectToOnboarding, multiUserMode } =
     useIsAuthenticated();
   if (isAuthd === null) return <FullScreenLoader />;
@@ -121,7 +133,11 @@ export function AdminRoute({ Component, hideUserMenu = false }) {
 
 // Allows manager and admin to access the route and if in single user mode,
 // allows all users to access the route
-export function ManagerRoute({ Component }) {
+export function ManagerRoute({
+  Component,
+}: {
+  Component: React.ComponentType;
+}) {
   const { isAuthd, shouldRedirectToOnboarding, multiUserMode } =
     useIsAuthenticated();
   if (isAuthd === null) return <FullScreenLoader />;
@@ -143,7 +159,11 @@ export function ManagerRoute({ Component }) {
 }
 
 // Allows access only in single user mode — redirects to home in multi-user mode
-export function SingleUserRoute({ Component }) {
+export function SingleUserRoute({
+  Component,
+}: {
+  Component: React.ComponentType;
+}) {
   const { isAuthd, shouldRedirectToOnboarding, multiUserMode } =
     useIsAuthenticated();
   if (isAuthd === null) return <FullScreenLoader />;
@@ -162,8 +182,13 @@ export function SingleUserRoute({ Component }) {
   );
 }
 
-/** @param {{Component: import("react").ComponentType, GuestComponent?: import("react").ComponentType | null}} props */
-export default function PrivateRoute({ Component, GuestComponent = null }) {
+export default function PrivateRoute({
+  Component,
+  GuestComponent = null,
+}: {
+  Component: React.ComponentType;
+  GuestComponent?: React.ComponentType | null;
+}) {
   const { isAuthd, shouldRedirectToOnboarding } = useIsAuthenticated();
   if (isAuthd === null) return <FullScreenLoader />;
 

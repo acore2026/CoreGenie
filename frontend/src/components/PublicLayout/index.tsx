@@ -85,7 +85,7 @@ export function WorkPreview({ compact = false }) {
   );
 }
 
-export default function PublicLayout({ children }) {
+export default function PublicLayout({ children }: React.PropsWithChildren) {
   const { t } = useTranslation();
   return (
     <div className="public-page auth-page">
@@ -119,7 +119,13 @@ export default function PublicLayout({ children }) {
   );
 }
 
-export function AuthHeading({ title, description }) {
+export function AuthHeading({
+  title,
+  description,
+}: {
+  title: string;
+  description?: string;
+}) {
   return (
     <div className="auth-heading">
       <h2>{title}</h2>
@@ -128,7 +134,16 @@ export function AuthHeading({ title, description }) {
   );
 }
 
-export function AuthInput({ label, hint, id, name, ...props }) {
+export function AuthInput({
+  label,
+  hint,
+  id,
+  name,
+  ...props
+}: React.InputHTMLAttributes<HTMLInputElement> & {
+  label: string;
+  hint?: string;
+}) {
   const inputId = id || `auth-${name}`;
   return (
     <div className="auth-field">

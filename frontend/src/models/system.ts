@@ -1,3 +1,4 @@
+import type { StoredUser } from "@/utils/request";
 import type { DocumentLibrary } from "@coregenie/contracts";
 import { api, cleanHeaders } from "@/utils/api";
 import { API_BASE, AUTH_TIMESTAMP, fullApiUrl } from "@/utils/constants";
@@ -49,6 +50,8 @@ export interface SystemKeys extends Record<string, unknown> {
   GenericOpenAiEmbeddingApiKey?: string | boolean;
   PGVectorConnectionString?: string | boolean;
   credentialsOnly?: boolean;
+  MultiUserMode?: boolean;
+  RequiresAuth?: boolean;
   DisableViewChatHistory?: boolean;
 }
 
@@ -181,14 +184,16 @@ const System = {
   requestToken: async function (body: AnyRecord): Promise<{
     valid: boolean;
     token?: string;
-    user?: AnyRecord;
+    user?: StoredUser;
+    recoveryCodes?: string[];
     message?: string;
   }> {
     try {
       return await api.post<{
         valid: boolean;
         token?: string;
-        user?: AnyRecord;
+        user?: StoredUser;
+        recoveryCodes?: string[];
         message?: string;
       }>(
         "/request-token",
@@ -224,9 +229,13 @@ const System = {
   recoverAccount: async function (
     username: string,
     recoveryCodes: string[]
-  ): Promise<{ success: boolean; error?: string; [key: string]: unknown }> {
+  ): Promise<{ success: boolean; error?: string; resetToken?: string }> {
     try {
-      return await api.post<{ success: boolean; error?: string }>(
+      return await api.post<{
+        success: boolean;
+        error?: string;
+        resetToken?: string;
+      }>(
         "/system/recover-account",
         { username, recoveryCodes },
         { defaultError: "Error recovering account." }

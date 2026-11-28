@@ -1,3 +1,4 @@
+import type { StoredUser } from "@/utils/request";
 import { useEffect, useState } from "react";
 import System from "@/models/system";
 import { AUTH_TOKEN, AUTH_USER } from "@/utils/constants";
@@ -13,11 +14,11 @@ import { AuthHeading, AuthInput } from "@/components/PublicLayout";
 export default function MultiUserAuth({ redirectTo = paths.home() }) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [recoveryCodes, setRecoveryCodes] = useState([]);
+  const [error, setError] = useState<string | null>(null);
+  const [recoveryCodes, setRecoveryCodes] = useState<string[]>([]);
   const [downloadComplete, setDownloadComplete] = useState(false);
-  const [user, setUser] = useState(null);
-  const [token, setToken] = useState(null);
+  const [user, setUser] = useState<StoredUser | null>(null);
+  const [token, setToken] = useState<string | null>(null);
   const [step, setStep] = useState("login");
   const [registrationEnabled, setRegistrationEnabled] = useState(false);
   const { isOpen, openModal, closeModal } = useModal();
@@ -35,15 +36,15 @@ export default function MultiUserAuth({ redirectTo = paths.home() }) {
     if (downloadComplete && user && token) {
       localStorage.setItem(AUTH_USER, JSON.stringify(user));
       localStorage.setItem(AUTH_TOKEN, token);
-      window.location = redirectTo;
+      window.location.assign(redirectTo);
     }
   }, [downloadComplete, user, token, redirectTo]);
 
-  const changeStep = (next) => {
+  const changeStep = (next: "login" | "recover" | "reset") => {
     setError(null);
     setStep(next);
   };
-  const submit = async (event) => {
+  const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (loading) return;
     const form = new FormData(event.currentTarget);
@@ -52,8 +53,8 @@ export default function MultiUserAuth({ redirectTo = paths.home() }) {
     try {
       if (step === "login") {
         const result = await System.requestToken({
-          username: form.get("username"),
-          password: form.get("password"),
+          username: String(form.get("username") ?? ""),
+          password: String(form.get("password") ?? ""),
         });
         if (!result.valid || !result.token || !result.user) {
           setError(result.message || t("auth_page.failed"));
@@ -67,13 +68,16 @@ export default function MultiUserAuth({ redirectTo = paths.home() }) {
         } else {
           localStorage.setItem(AUTH_USER, JSON.stringify(result.user));
           localStorage.setItem(AUTH_TOKEN, result.token);
-          window.location = redirectTo;
+          window.location.assign(redirectTo);
         }
       } else if (step === "recover") {
-        const result = await System.recoverAccount(form.get("username"), [
-          form.get("recovery1"),
-          form.get("recovery2"),
-        ]);
+        const result = await System.recoverAccount(
+          String(form.get("username") ?? ""),
+          [
+            String(form.get("recovery1") ?? ""),
+            String(form.get("recovery2") ?? ""),
+          ]
+        );
         if (!result.success || !result.resetToken) {
           setError(result.error || t("auth_page.failed"));
           return;
@@ -81,7 +85,10 @@ export default function MultiUserAuth({ redirectTo = paths.home() }) {
         localStorage.setItem("resetToken", result.resetToken);
         changeStep("reset");
       } else {
-        if (form.get("password") !== form.get("confirmPassword")) {
+        if (
+          String(form.get("password") ?? "") !==
+          String(form.get("confirmPassword") ?? "")
+        ) {
           setError(t("auth_page.password_mismatch"));
           return;
         }
@@ -92,8 +99,8 @@ export default function MultiUserAuth({ redirectTo = paths.home() }) {
         }
         const result = await System.resetPassword(
           resetToken,
-          form.get("password"),
-          form.get("confirmPassword")
+          String(form.get("password") ?? ""),
+          String(form.get("confirmPassword") ?? "")
         );
         if (!result.success) {
           setError(result.error || t("auth_page.failed"));

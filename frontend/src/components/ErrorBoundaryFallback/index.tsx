@@ -14,7 +14,7 @@ import {
   recoverFromChunkError,
 } from "@/utils/chunkRecovery";
 
-export default function ErrorBoundaryFallback({ error }) {
+export default function ErrorBoundaryFallback({ error }: { error: unknown }) {
   const [copied, setCopied] = useState(false);
   const [recovering, setRecovering] = useState(isDynamicImportError(error));
 
@@ -31,9 +31,17 @@ export default function ErrorBoundaryFallback({ error }) {
   const copyErrorDetails = async () => {
     const details = {
       url: window.location.href,
-      error: error?.name || "Unknown Error",
-      message: error?.message || "No message available",
-      stack: error?.stack || "No stack trace available",
+      error:
+        (error instanceof Error ? error.name : undefined) || "Unknown Error",
+      message:
+        (error instanceof Error
+          ? error.message
+          : typeof error === "string"
+            ? error
+            : undefined) || "No message available",
+      stack:
+        (error instanceof Error ? error.stack : undefined) ||
+        "No stack trace available",
       userAgent: navigator.userAgent,
       timestamp: new Date().toISOString(),
     };
@@ -107,7 +115,7 @@ ${details.stack}
             </button>
           </div>
           <pre className="max-h-[60vh] w-full overflow-x-auto overflow-y-auto whitespace-pre-wrap break-words rounded-lg border border-theme-border bg-theme-bg-secondary p-4 font-mono text-xs text-theme-text-secondary md:max-h-[70vh] md:p-6 md:text-sm">
-            {error?.stack}
+            {error instanceof Error ? error.stack : undefined}
           </pre>
         </div>
       )}

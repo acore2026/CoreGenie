@@ -14,11 +14,17 @@ import Workspace from "@/models/workspace";
 import { copyTextToClipboard } from "@/utils/clipboard";
 import showToast from "@/utils/toast";
 
-export default function WorkspaceInviteModal({ workspace, hideModal }) {
+export default function WorkspaceInviteModal({
+  workspace,
+  hideModal,
+}: {
+  workspace: { name: string; slug: string };
+  hideModal: () => void;
+}) {
   const { t } = useTranslation();
-  const requestedWorkspaceRef = useRef(null);
-  const [invite, setInvite] = useState(null);
-  const [error, setError] = useState(null);
+  const requestedWorkspaceRef = useRef<string | null>(null);
+  const [invite, setInvite] = useState<{ code: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
 
@@ -30,6 +36,7 @@ export default function WorkspaceInviteModal({ workspace, hideModal }) {
     setLoading(true);
     setError(null);
     const result = await Workspace.createInvite(workspace.slug);
+    if (requestedWorkspaceRef.current !== workspace.slug) return;
     setInvite(result.invite || null);
     setError(result.error || null);
     setLoading(false);

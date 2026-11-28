@@ -11,12 +11,12 @@ import { AuthHeading, AuthInput } from "@/components/PublicLayout";
 export default function SingleUserAuth({ redirectTo = paths.home() }) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [recoveryCodes, setRecoveryCodes] = useState([]);
+  const [error, setError] = useState<string | null>(null);
+  const [recoveryCodes, setRecoveryCodes] = useState<string[]>([]);
   const [downloadComplete, setDownloadComplete] = useState(false);
-  const [token, setToken] = useState(null);
+  const [token, setToken] = useState<string | null>(null);
   const { isOpen, openModal, closeModal } = useModal();
-  const handleLogin = async (event) => {
+  const handleLogin = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (loading) return;
     const form = new FormData(event.currentTarget);
@@ -24,7 +24,7 @@ export default function SingleUserAuth({ redirectTo = paths.home() }) {
     setLoading(true);
     try {
       const result = await System.requestToken({
-        password: form.get("password"),
+        password: String(form.get("password") ?? ""),
       });
       if (!result.valid || !result.token) {
         setError(result.message || t("auth_page.failed"));
@@ -36,7 +36,7 @@ export default function SingleUserAuth({ redirectTo = paths.home() }) {
         openModal();
       } else {
         localStorage.setItem(AUTH_TOKEN, result.token);
-        window.location = redirectTo;
+        window.location.assign(redirectTo);
       }
     } catch {
       setError(t("auth_page.failed"));
@@ -47,7 +47,7 @@ export default function SingleUserAuth({ redirectTo = paths.home() }) {
   useEffect(() => {
     if (downloadComplete && token) {
       localStorage.setItem(AUTH_TOKEN, token);
-      window.location = redirectTo;
+      window.location.assign(redirectTo);
     }
   }, [downloadComplete, token, redirectTo]);
   return (
