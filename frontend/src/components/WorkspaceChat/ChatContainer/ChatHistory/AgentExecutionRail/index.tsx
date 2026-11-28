@@ -1,424 +1,69 @@
 import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   CaretDown,
   CheckCircle,
-  CircleNotch,
   Clock,
-  ClockCountdown,
   GitBranch,
-  MinusCircle,
-  StopCircle,
-  WarningCircle,
-  XCircle,
 } from "@phosphor-icons/react";
+import { v4 } from "uuid";
+import { useTranslation } from "react-i18next";
 import AgentAvatar from "@/components/PredefinedAgents/AgentAvatar";
 import { API_BASE } from "@/utils/constants";
 import { baseHeaders } from "@/utils/request";
-import { v4 } from "uuid";
-import { useTranslation } from "react-i18next";
-import { reduceAgentRunState } from "@/utils/chat/agent";
+import { queryKeys } from "@/lib/queryKeys";
 import ContextTrace from "../ContextTrace";
+import { TaskRow } from "./TaskRow";
+import { ToolExecutionRow } from "./ToolExecutionRow";
 import {
-  activityText,
-  toolActivityText,
-  userFacingErrorKey,
-} from "@/utils/userFacingError.mjs";
+  ACTIVE_TOOL_STATUSES,
+  TERMINAL,
+  elapsed,
+  localizedActivity,
+  metaFor,
+  stateFromSnapshot,
+  type AgentRunSnapshot,
+  type AgentRunState,
+} from "./types";
 
-const TERMINAL = new Set(["completed", "partial", "failed", "cancelled"]);
-const ACTIVE_TOOL_STATUSES = new Set([
-  "requested",
-  "running",
-  "started",
-  "retrying",
-]);
-
-const statusMeta = {
-  completed: {
-    Icon: CheckCircle,
-    labelKey: "completed",
-    tone: "text-emerald-400 light:text-emerald-700",
-  },
-  running: {
-    Icon: CircleNotch,
-    labelKey: "running",
-    tone: "text-cyan-300 light:text-cyan-700",
-  },
-  pending: {
-    Icon: ClockCountdown,
-    labelKey: "pending",
-    tone: "text-amber-300 light:text-amber-700",
-  },
-  planned: {
-    Icon: ClockCountdown,
-    labelKey: "planned",
-    tone: "text-amber-300 light:text-amber-700",
-  },
-  queued: {
-    Icon: ClockCountdown,
-    labelKey: "queued",
-    tone: "text-amber-300 light:text-amber-700",
-  },
-  retrying: {
-    Icon: Clock,
-    labelKey: "retrying",
-    tone: "text-amber-300 light:text-amber-700",
-  },
-  waiting_for_input: {
-    Icon: Clock,
-    labelKey: "waiting_for_input",
-    tone: "text-amber-300 light:text-amber-700",
-  },
-  waiting_for_approval: {
-    Icon: Clock,
-    labelKey: "waiting_for_approval",
-    tone: "text-amber-300 light:text-amber-700",
-  },
-  failed: {
-    Icon: WarningCircle,
-    labelKey: "failed",
-    tone: "text-red-400 light:text-red-700",
-  },
-  cancelled: {
-    Icon: XCircle,
-    labelKey: "cancelled",
-    tone: "text-zinc-500 light:text-slate-500",
-  },
-  skipped: {
-    Icon: MinusCircle,
-    labelKey: "skipped",
-    tone: "text-zinc-500 light:text-slate-500",
-  },
-  partial: {
-    Icon: CheckCircle,
-    labelKey: "partial",
-    tone: "text-amber-400 light:text-amber-700",
-  },
-};
-
-function metaFor(status) {
-  return statusMeta[status] || statusMeta.pending;
-}
-
-function elapsed(startedAt, completedAt, now) {
-  if (!startedAt) return null;
-  const end = completedAt ? new Date(completedAt).getTime() : now;
-  const seconds = Math.max(
-    0,
-    Math.round((end - new Date(startedAt).getTime()) / 1_000)
-  );
-  if (seconds < 60) return `${seconds}s`;
-  return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
-}
-
-function toolName(toolId) {
-  const value = String(toolId || "Tool");
-  const segment = value.split(/[.:/]/).filter(Boolean).at(-1) || value;
-  return segment.replace(/[-_]+/g, " ");
-}
-
-function localizedActivity(activity, t) {
-  if (!activity) return "";
-  if (["tool_failed", "task_failed"].includes(activity.summaryKey)) return null;
-  if (["run_failed", "run_failed_with_error"].includes(activity.summaryKey))
-    return t(userFacingErrorKey(activity.summaryArgs?.error));
-  if (
-    ["task_retrying", "retrying_visible_response"].includes(activity.summaryKey)
-  )
-    return t("task_plan.working");
-  if (activity.summaryKey)
-    return t(
-      `chat_window.agent_invocation.activity.${activity.summaryKey}`,
-      activity.summaryArgs || {}
-    );
-  const summary = String(activity.summary || "");
-  const determiningPrefix = "Determining the best approach for ";
-  if (summary.startsWith(determiningPrefix))
-    return t("chat_window.agent_invocation.activity.determining_approach", {
-      request: summary.slice(determiningPrefix.length),
-    });
-  const understandingPrefix = "Understanding: ";
-  if (summary.startsWith(understandingPrefix))
-    return t("chat_window.agent_invocation.activity.understanding", {
-      request: summary.slice(understandingPrefix.length),
-    });
-  return activityText(summary);
-}
-
-function ToolExecutionRow({ tool, t }) {
-  const status = tool.status || "requested";
-  const active = ACTIVE_TOOL_STATUSES.has(status);
-  const failed = status === "failed";
-  const cancelled = status === "cancelled";
-  const skipped = status === "skipped";
-  const Icon = active
-    ? CircleNotch
-    : failed
-      ? MinusCircle
-      : cancelled
-        ? MinusCircle
-        : skipped
-          ? MinusCircle
-          : CheckCircle;
-  const tone = active
-    ? "text-cyan-300 light:text-cyan-700"
-    : failed
-      ? "text-zinc-400 light:text-slate-600"
-      : cancelled
-        ? "text-zinc-500 light:text-slate-500"
-        : skipped
-          ? "text-zinc-500 light:text-slate-500"
-          : "text-emerald-400 light:text-emerald-700";
-  const detail = toolActivityText(tool);
-
-  return (
-    <li className="grid min-h-9 grid-cols-[16px_minmax(0,1fr)_auto] items-start gap-2 rounded-md px-1 py-1.5">
-      <Icon
-        size={14}
-        weight={active ? "regular" : "fill"}
-        className={`mt-0.5 ${tone} ${active ? "motion-safe:animate-spin motion-reduce:animate-none" : ""}`}
-      />
-      <span className="min-w-0">
-        <span className="block truncate text-xs font-medium text-theme-text-primary">
-          {toolName(tool.tool_id)}
-        </span>
-        {detail && (
-          <span className="mt-0.5 block truncate text-[11px] leading-4 text-theme-text-secondary">
-            {detail}
-          </span>
-        )}
-      </span>
-      <span className={`pt-0.5 text-[10px] font-semibold capitalize ${tone}`}>
-        {failed
-          ? t("user_error.step_stopped")
-          : t(
-              `chat_window.agent_invocation.status.${active ? "running" : status}`
-            )}
-      </span>
-    </li>
-  );
-}
-
-function stateFromSnapshot(snapshot) {
-  if (!snapshot?.run) return null;
-  const fallbackSummary = TERMINAL.has(snapshot.run.status)
-    ? "Agent work complete"
-    : "Restoring Agent work";
-  const fallbackSummaryKey = TERMINAL.has(snapshot.run.status)
-    ? snapshot.run.status === "partial"
-      ? "run_completed"
-      : `run_${snapshot.run.status}`
-    : "restoring";
-  const replayed = (snapshot.events || []).reduce(reduceAgentRunState, {
-    runId: snapshot.run.id,
-    status: snapshot.run.status,
-    phase: snapshot.run.phase,
-    summary: fallbackSummary,
-    summaryKey: fallbackSummaryKey,
-    agent: snapshot.run.runtimeSnapshot?.agent,
-    runtimeKey: snapshot.run.runtimeKey,
-    startedAt: snapshot.run.startedAt || snapshot.run.createdAt,
-    completedAt: snapshot.run.completedAt,
-    tasks: [],
-    evidence: [],
-    toolExecutions: [],
-    activities: [],
-    resourceTraces: [],
-    messageParts: [],
-  });
-  return {
-    ...replayed,
-    status: snapshot.run.status,
-    phase: snapshot.run.phase,
-    agent: snapshot.run.runtimeSnapshot?.agent || replayed.agent,
-    runtimeKey: snapshot.run.runtimeKey || replayed.runtimeKey,
-    startedAt: snapshot.run.startedAt || snapshot.run.createdAt,
-    completedAt: snapshot.run.completedAt,
-    tasks: snapshot.tasks || [],
-    evidence: snapshot.evidence || [],
-    toolExecutions: snapshot.toolExecutions || [],
-    activities:
-      replayed.activities.length > 0
-        ? replayed.activities
-        : [
-            {
-              id: `${snapshot.run.id}:snapshot`,
-              summaryKey: fallbackSummaryKey,
-            },
-          ],
-  };
-}
-
-function TaskRow({
-  task,
-  evidence,
-  tools,
-  onCommand,
-  runActive,
-  runStatus,
-  t,
-}) {
-  const [open, setOpen] = useState(false);
-  const fatal = ["failed", "partial"].includes(runStatus);
-  const meta = metaFor(
-    task.status === "failed" && !fatal
-      ? "skipped"
-      : task.status === "retrying"
-        ? "running"
-        : task.status
-  );
-  const Icon = meta.Icon;
-  const taskEvidence = evidence.filter((item) => item.task_id === task.id);
-  const taskTools = tools.filter((item) => item.task_id === task.id);
-  const canStop =
-    runActive && ["pending", "running", "retrying"].includes(task.status);
-
-  return (
-    <li className="relative pl-6 before:absolute before:bottom-[-8px] before:left-[7px] before:top-5 before:w-px before:bg-white/[0.07] last:before:hidden light:before:bg-slate-200">
-      <button
-        type="button"
-        onClick={() => setOpen((value) => !value)}
-        className="group grid min-h-10 w-full grid-cols-[16px_minmax(0,1fr)_auto] items-start gap-2 rounded-md px-1 py-1.5 text-left outline-none hover:bg-white/[0.035] focus-visible:ring-2 focus-visible:ring-cyan-400/60 light:hover:bg-slate-100"
-        aria-expanded={open}
-      >
-        <Icon
-          size={15}
-          weight={task.status === "completed" ? "fill" : "regular"}
-          className={`mt-0.5 ${meta.tone} ${task.status === "running" ? "motion-safe:animate-spin motion-reduce:animate-none" : ""}`}
-        />
-        <span className="min-w-0">
-          <span className="flex min-w-0 items-center gap-2">
-            <span className="truncate text-xs font-semibold text-theme-text-primary">
-              {task.title}
-            </span>
-            {task.agent?.name && (
-              <span className="hidden min-w-0 items-center gap-1 text-[10px] text-theme-text-secondary sm:flex">
-                <AgentAvatar
-                  agent={task.agent}
-                  size={14}
-                  className="!rounded"
-                />
-                <span className="max-w-24 truncate">{task.agent.name}</span>
-              </span>
-            )}
-          </span>
-          <span className="mt-0.5 block truncate text-[11px] leading-4 text-theme-text-secondary">
-            {activityText(task.progress) ||
-              activityText(task.resultSummary) ||
-              task.objective}
-          </span>
-        </span>
-        <span className="flex items-center gap-2 pt-0.5 font-mono text-[10px] tabular-nums text-theme-text-secondary">
-          {taskTools.length > 0 && (
-            <span>
-              {t("chat_window.agent_invocation.tools_count", {
-                count: taskTools.length,
-              })}
-            </span>
-          )}
-          {taskEvidence.length > 0 && (
-            <span>
-              {t("chat_window.agent_invocation.sources_count", {
-                count: taskEvidence.length,
-              })}
-            </span>
-          )}
-          <CaretDown
-            size={12}
-            className={`transition-transform duration-150 ${open ? "rotate-180" : ""}`}
-          />
-        </span>
-      </button>
-      {open && (
-        <div className="mb-2 ml-6 border-l border-white/[0.07] py-1 pl-3 text-[11px] leading-5 text-theme-text-secondary light:border-slate-200">
-          <p className="m-0 whitespace-pre-wrap text-theme-text-primary">
-            {activityText(task.resultSummary) || task.objective}
-          </p>
-          {task.error && fatal && task.status === "failed" && (
-            <p className="m-0 mt-1 text-red-400 light:text-red-700">
-              {t(userFacingErrorKey(task.error))}
-            </p>
-          )}
-          <div className="mt-1.5 flex flex-wrap gap-x-3 font-mono text-[10px] tabular-nums">
-            <span>
-              {t(`chat_window.agent_invocation.status.${meta.labelKey}`)}
-            </span>
-            {task.attempt > 1 && (
-              <span>
-                {t("chat_window.agent_invocation.attempt", {
-                  count: task.attempt,
-                })}
-              </span>
-            )}
-            {taskTools.length > 0 && (
-              <span>
-                {t("chat_window.agent_invocation.tool_calls_count", {
-                  count: taskTools.length,
-                })}
-              </span>
-            )}
-            {taskEvidence.length > 0 && (
-              <span>
-                {t("chat_window.agent_invocation.evidence_count", {
-                  count: taskEvidence.length,
-                })}
-              </span>
-            )}
-          </div>
-          {canStop && (
-            <div className="mt-2 flex gap-2">
-              <button
-                type="button"
-                onClick={() => onCommand("task.cancel", task.id)}
-                className="inline-flex min-h-8 items-center gap-1 rounded-md border border-red-400/20 px-2 text-[10px] font-semibold text-red-300 hover:bg-red-400/10 focus-visible:ring-2 focus-visible:ring-red-400/60 light:text-red-700"
-              >
-                <StopCircle size={13} />
-                {t("chat_window.agent_invocation.cancel_task")}
-              </button>
-              {task.status === "pending" && (
-                <button
-                  type="button"
-                  onClick={() => onCommand("task.skip", task.id)}
-                  className="min-h-8 rounded-md border border-white/10 px-2 text-[10px] font-semibold text-theme-text-secondary hover:bg-white/[0.04] focus-visible:ring-2 focus-visible:ring-cyan-400/60 light:border-slate-200 light:hover:bg-slate-100"
-                >
-                  {t("chat_window.agent_invocation.batch_skip_this")}
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-    </li>
-  );
+interface AgentExecutionRailProps {
+  runId?: string;
+  runState?: AgentRunState | null;
+  transport?: WebSocket | null;
 }
 
 export default function AgentExecutionRail({
   runId,
   runState = null,
   transport = null,
-}) {
+}: AgentExecutionRailProps) {
   const { t } = useTranslation();
-  const [expanded, setExpanded] = useState(
-    () => !!runState && !TERMINAL.has(runState.status)
+  const [expanded, setExpanded] = useState(() =>
+    Boolean(runState && !TERMINAL.has(runState.status))
   );
   const [expansionWasChosen, setExpansionWasChosen] = useState(false);
   const [contextTraceExpanded, setContextTraceExpanded] = useState(false);
   const [doneToolsExpanded, setDoneToolsExpanded] = useState(false);
-  const [snapshotState, setSnapshotState] = useState(null);
   const [now, setNow] = useState(() => Date.now());
-  const state = runState || snapshotState;
 
-  useEffect(() => {
-    if (runState || !runId) return;
-    const controller = new AbortController();
-    fetch(`${API_BASE}/agent-runs/${runId}/snapshot?view=rail`, {
-      headers: baseHeaders(),
-      signal: controller.signal,
-    })
-      .then((response) => (response.ok ? response.json() : null))
-      .then((snapshot) => setSnapshotState(stateFromSnapshot(snapshot)))
-      .catch(() => null);
-    return () => controller.abort();
-  }, [runId, runState]);
+  const { data: snapshotState = null } = useQuery({
+    queryKey: queryKeys.agentRuns.snapshot(runId || ""),
+    enabled: !runState && Boolean(runId),
+    queryFn: async ({ signal }) => {
+      const response = await fetch(
+        `${API_BASE}/agent-runs/${runId}/snapshot?view=rail`,
+        {
+          headers: baseHeaders() as unknown as HeadersInit,
+          signal,
+        }
+      );
+      if (!response.ok) return null;
+      const snapshot = (await response.json()) as AgentRunSnapshot;
+      return stateFromSnapshot(snapshot);
+    },
+  });
+
+  const state = runState || snapshotState;
 
   useEffect(() => {
     if (!state || TERMINAL.has(state.status)) return;
@@ -478,7 +123,7 @@ export default function AgentExecutionRail({
 
   if (!state) return null;
 
-  const sendCommand = (type, taskId = null) => {
+  const sendCommand = (type: string, taskId: string | null = null) => {
     if (!transport || transport.readyState !== WebSocket.OPEN) return;
     transport.send(JSON.stringify({ type, taskId, commandId: v4() }));
   };
@@ -580,7 +225,7 @@ export default function AgentExecutionRail({
                   const isCurrent = index === recentActivities.length - 1;
                   return (
                     <li
-                      key={activity.id}
+                      key={activity.id || index}
                       className={`grid min-h-4 grid-cols-[8px_minmax(0,1fr)] items-center gap-2 text-[11px] leading-4 transition-[opacity,color] duration-150 motion-reduce:transition-none ${
                         isCurrent
                           ? "text-theme-text-primary"

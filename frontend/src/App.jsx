@@ -1,6 +1,8 @@
 import React, { Suspense, useDeferredValue, useEffect, useState } from "react";
 import { useLocation, useOutlet } from "react-router-dom";
 import { I18nextProvider } from "react-i18next";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { queryClient } from "@/lib/queryClient";
 import { AuthProvider } from "@/AuthContext";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -41,27 +43,29 @@ export default function App() {
       onError={console.error}
       resetKeys={[location.pathname]}
     >
-      <ThemeProvider>
-        <PWAModeProvider>
-          <AuthProvider>
-            <LogoProvider>
-              <PfpProvider>
-                <I18nextProvider i18n={i18n}>
-                  <AnnouncementProvider>
-                    <NetworkAuthGuard />
-                    <Suspense fallback={<FullScreenLoader />}>
-                      <StableOutlet />
-                    </Suspense>
-                    <ToastContainer />
-                    <KeyboardShortcutsHelp />
-                    <ImageLightbox />
-                  </AnnouncementProvider>
-                </I18nextProvider>
-              </PfpProvider>
-            </LogoProvider>
-          </AuthProvider>
-        </PWAModeProvider>
-      </ThemeProvider>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider>
+          <PWAModeProvider>
+            <AuthProvider>
+              <LogoProvider>
+                <PfpProvider>
+                  <I18nextProvider i18n={i18n}>
+                    <AnnouncementProvider>
+                      <NetworkAuthGuard />
+                      <Suspense fallback={<FullScreenLoader />}>
+                        <StableOutlet />
+                      </Suspense>
+                      <ToastContainer />
+                      <KeyboardShortcutsHelp />
+                      <ImageLightbox />
+                    </AnnouncementProvider>
+                  </I18nextProvider>
+                </PfpProvider>
+              </LogoProvider>
+            </AuthProvider>
+          </PWAModeProvider>
+        </ThemeProvider>
+      </QueryClientProvider>
     </ErrorBoundary>
   );
 }

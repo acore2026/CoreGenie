@@ -287,6 +287,9 @@ importers:
       '@phosphor-icons/react':
         specifier: ^2.1.7
         version: 2.1.10(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@tanstack/react-query':
+        specifier: ^5.108.4
+        version: 5.108.4(@types/react@18.3.32)(react@18.3.1)
       '@tremor/react':
         specifier: ^3.15.1
         version: 3.18.7(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -3867,6 +3870,18 @@ packages:
 
   '@swc/helpers@0.5.24':
     resolution: {integrity: sha512-6tcXo4kA8HgGO7AVmawB57RYi/piBPYVHVcO6dXjX+SZw8GoHmi262sp4v2Ha2kNP9Cx84qei27yT+fjS1lxgg==}
+
+  '@tanstack/query-core@5.108.4':
+    resolution: {integrity: sha512-2Ks5dlLWz4eXJrthOyG0qW3SLt3xx0RrQmAmN0rnmogiaaOYuWiAe6HAm9KE2b2v8nig+vraNz8fsfZ6fF6zFg==}
+
+  '@tanstack/react-query@5.108.4':
+    resolution: {integrity: sha512-GlTa94kfEKTVsbzXe58rFA3GZ0ZE7N1aFtbZAfOS3XxMv8YNn4C+8rsz40LorHLazdm5PsqCroWaYAR+ZkMXMQ==}
+    peerDependencies:
+      '@types/react': ^18 || ^19
+      react: ^18 || ^19
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
 
   '@tanstack/react-virtual@3.14.28':
     resolution: {integrity: sha512-zoM4eddIVUsOsunOe26ur+h6YJQbvdzU10a2tKzIovThu5P4SvEyQ+cRx0mbeKfgnR0Mz7KR/NwrZ3GzVnUF/g==}
@@ -13517,6 +13532,15 @@ snapshots:
 
   '@swc/helpers@0.5.24': {}
 
+  '@tanstack/query-core@5.108.4': {}
+
+  '@tanstack/react-query@5.108.4(@types/react@18.3.32)(react@18.3.1)':
+    dependencies:
+      '@tanstack/query-core': 5.108.4
+      react: 18.3.1
+    optionalDependencies:
+      '@types/react': 18.3.32
+
   '@tanstack/react-virtual@3.14.28(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
       '@tanstack/virtual-core': 3.19.13
@@ -18697,6 +18721,7 @@ snapshots:
       lru.min: 1.1.5
       named-placeholders: 1.1.6
       sql-escaper: 1.9.1
+    optional: true
 
   mz@2.7.0:
     dependencies:

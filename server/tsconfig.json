@@ -35,6 +35,8 @@
     "models/**/*.mts",
     "endpoints/**/*.ts",
     "endpoints/**/*.mts",
+    "utils/**/*.ts",
+    "utils/**/*.mts",
     "../packages/contracts/src/**/*.mts"
   ],
   "exclude": ["node_modules", "storage", "public"]
