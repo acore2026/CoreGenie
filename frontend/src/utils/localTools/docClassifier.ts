@@ -1,3 +1,8 @@
+export {
+  recognizeDocument,
+  extractTdocIdsFromText,
+} from "../../../../server/contracts/documentIds.ts";
+
 // The server validates and normalizes the full identifier. Only choose the optional field here.
 export function hintKind(input: string): "release" | "meeting" | null {
   const value = input.trim();

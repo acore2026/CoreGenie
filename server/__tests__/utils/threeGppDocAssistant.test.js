@@ -7,6 +7,7 @@ const {
   classifyDocId,
   matchSpecFilename,
   extractConferenceNumber,
+  extractTdocIdsFromText,
 } = require("../../utils/threeGppClassifier");
 const assistant = require("../../utils/threeGppDocAssistant");
 const sources = require("../../utils/threeGppSources");
@@ -154,4 +155,11 @@ test("Excel import preserves revisions and removes duplicate IDs", async () => {
   expect(
     (await assistant.parseBatchExcelBuffer(await book.xlsx.writeBuffer())).tdocs
   ).toEqual(["S2-2403692", "S2-2500105r02"]);
+});
+
+test("pasted filenames and prose keep first occurrence order and separate TDoc revisions", () => {
+  expect(extractTdocIdsFromText(
+    "请先看 RP243021、s22403692.zip，附件 S2-2403692。\n" +
+    "S3i-240296 / S2-2403692R02 / s22403692r02 / SWS-230001，忽略 XS2-2403692 和 S2-123456789。"
+  )).toEqual(["RP-243021", "S2-2403692", "S3i240296", "S2-2403692r02", "SWS-230001"]);
 });

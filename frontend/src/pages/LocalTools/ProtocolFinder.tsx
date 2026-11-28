@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { isMobile } from "react-device-detect";
@@ -22,7 +22,7 @@ import {
   tr as docText,
   type LookupResult,
 } from "./docAssistant/api";
-import { hintKind } from "@/utils/localTools/docClassifier";
+import { hintKind, recognizeDocument } from "@/utils/localTools/docClassifier";
 
 type Tab = "lookup" | "agenda" | "cr" | "batch";
 type Recent = { q: string; hint: string };
@@ -134,12 +134,34 @@ function formatDuration(ms: number) {
   return rem > 0 ? `${min} 分 ${rem} 秒` : `${min} 分钟`;
 }
 
+function recognitionHint(input: string) {
+  if (!input.trim()) return "";
+  const doc = recognizeDocument(input);
+  if (!doc) return docText("incomplete");
+  const id = doc.normalizedId;
+  if (doc.kind === "tdoc")
+    return docText("recognizeTdoc", { id, group: doc.wgKey });
+  if (doc.kind === "spec") {
+    const version = doc.parsedSpec.requestedVersion;
+    return docText(version ? "recognizeVersion" : "recognizeSpec", {
+      id,
+      version,
+    });
+  }
+  const type = { rfc: "RFC", "ietf-draft": "IETF Draft", workshop: "Workshop" }[
+    doc.kind
+  ];
+  return docText("recognizeExternal", { type, id });
+}
+
 export default function ProtocolFinder() {
   const { t } = useTranslation();
   const tr = (key: string, params?: Record<string, unknown>) =>
     String(t("local_tools.protocol." + key, params));
 
   const [tab, setTab] = useState<Tab>("lookup");
+  const [viewingCrDoc, setViewingCrDoc] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
   const [hint, setHint] = useState("");
   const [recent, setRecent] = useState(recentQueries);
   const [other, setOther] = useState<Exclude<
@@ -177,6 +199,34 @@ export default function ProtocolFinder() {
       clearAllPolls();
     };
   }, []);
+
+  const cancelLookup = useCallback(() => {
+    if (!active.current) return;
+    active.current.abort();
+    active.current = null;
+    loading(false);
+    notify(docText("cancelled"));
+  }, []);
+
+  useEffect(() => {
+    if (tab !== "lookup" || !busy) return;
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape" && !event.isComposing) {
+        event.preventDefault();
+        cancelLookup();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [busy, tab, cancelLookup]);
+
+  function openCrDocument(id: string, meeting: string) {
+    setViewingCrDoc(true);
+    setTab("lookup");
+    setInput(id);
+    setHint(meeting);
+    void load(id, false, meeting);
+  }
 
   async function load(q: string, refresh = false, queryHint = hint) {
     active.current?.abort();
@@ -223,7 +273,10 @@ export default function ProtocolFinder() {
       if (!controller.signal.aborted)
         fail(e instanceof Error ? e.message : tr("failed"));
     } finally {
-      if (!controller.signal.aborted) loading(false);
+      if (active.current === controller) {
+        active.current = null;
+        loading(false);
+      }
     }
   }
 
@@ -521,6 +574,7 @@ export default function ProtocolFinder() {
                     active.current?.abort();
                     loading(false);
                   }
+                  setViewingCrDoc(false);
                   setTab(key);
                 }}
               >
@@ -528,9 +582,16 @@ export default function ProtocolFinder() {
               </button>
             ))}
           </nav>
-          {tab !== "lookup" ? (
-            <DocumentLists key={tab} mode={tab} />
-          ) : (
+          {(tab !== "lookup" || viewingCrDoc) && (
+            <div hidden={tab === "lookup"}>
+              <DocumentLists
+                key={tab === "lookup" ? "cr" : tab}
+                mode={tab === "lookup" ? "cr" : tab}
+                onViewTdoc={openCrDocument}
+              />
+            </div>
+          )}
+          {tab === "lookup" && (
             <>
               <form
                 className="flex flex-wrap items-end gap-3"
@@ -543,6 +604,8 @@ export default function ProtocolFinder() {
                   {tr("label")}
                   <input
                     className={control}
+                    ref={inputRef}
+                    aria-describedby="doc-recognition"
                     placeholder={tr("hint")}
                     value={input}
                     maxLength={160}
@@ -583,16 +646,42 @@ export default function ProtocolFinder() {
                   <button
                     type="button"
                     className={control}
-                    onClick={() => {
-                      active.current?.abort();
-                      loading(false);
-                      notify(docText("cancelled"));
-                    }}
+                    onClick={cancelLookup}
                   >
                     {docText("cancel")}
                   </button>
                 )}
               </form>
+              <div className="space-y-2">
+                <p
+                  id="doc-recognition"
+                  className="break-words text-sm text-theme-text-secondary"
+                  role="status"
+                >
+                  {recognitionHint(input)}
+                </p>
+                <div className="flex flex-wrap items-center gap-2 text-sm">
+                  <span className="text-theme-text-secondary">
+                    {docText("examples")}
+                  </span>
+                  {["S22403692", "23.501", "RFC 2697"].map((id) => (
+                    <button
+                      type="button"
+                      key={id}
+                      disabled={busy}
+                      className={control}
+                      aria-label={docText("fillExample", { id })}
+                      onClick={() => {
+                        setInput(id);
+                        setHint("");
+                        inputRef.current?.focus();
+                      }}
+                    >
+                      {id}
+                    </button>
+                  ))}
+                </div>
+              </div>
               {busy && progress && (
                 <p role="status" className="text-sm">
                   {progress}

@@ -969,3 +969,169 @@ test("protocol lookup renders official PDF and missing versions on desktop and m
     await context.close();
   }
 });
+
+test("document shortcuts, CR lookup, meeting defaults and pasted batch on desktop and mobile", async () => {
+  for (const mobile of [false, true]) {
+    const context = await browser.newContext({
+      viewport: mobile
+        ? { width: 390, height: 844 }
+        : { width: 1440, height: 1000 },
+      isMobile: mobile,
+      ...(mobile
+        ? {
+            userAgent:
+              "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Version/17.0 Mobile/15E148 Safari/604.1",
+          }
+        : {}),
+    });
+    try {
+      await mockAPI(context);
+      const tool = await context.newPage();
+      const id = "S2-2403692";
+      const latest = "TSGS2_170Budapest";
+      const requests = [];
+      let crQueries = 0;
+      let allowDelayed;
+      const delayed = new Promise((resolve) => {
+        allowDelayed = resolve;
+      });
+      let allowMeeting;
+      const slowMeeting = new Promise((resolve) => {
+        allowMeeting = resolve;
+      });
+      const endpoint = (name) => "**/3gpp/doc-assistant/" + name;
+      await tool.route(endpoint("lookup?**"), async (route) => {
+        const query = new URL(route.request().url()).searchParams;
+        requests.push([query.get("q"), query.get("hint") || ""]);
+        if (query.get("q") === "S22403692") await delayed;
+        const result = {
+          kind: "tdoc",
+          id,
+          zipName: id + ".zip",
+          zipUrl: "https://www.3gpp.org/ftp/" + id + ".zip",
+          sourceId: "public",
+          members: [],
+        };
+        await route.fulfill({
+          contentType: "application/x-ndjson",
+          body: JSON.stringify({ result }) + "\n",
+        });
+      });
+      await tool.route(endpoint("config"), (route) =>
+        route.fulfill({ json: { groups: ["SA2", "CT4"], maxBatchItems: 2 } }),
+      );
+      await tool.route(endpoint("meetings?**"), async (route) => {
+        if (new URL(route.request().url()).searchParams.get("group") === "CT4")
+          await slowMeeting;
+        await route.fulfill({
+          json: { meetings: [{ id: latest, number: 170, label: "SA2#170" }] },
+        });
+      });
+      await tool.route(endpoint("cr-search?**"), (route) => {
+        crQueries++;
+        return route.fulfill({
+          json: {
+            page: 1,
+            hasMore: false,
+            portalUrl: "https://portal.3gpp.org/",
+            items: [{ tdoc: id, spec: "23.501", meeting: "SA2#164" }],
+          },
+        });
+      });
+      await tool.route(endpoint("batch-download"), (route) =>
+        route.fulfill({
+          contentType: "application/zip",
+          body: "mock download",
+        }),
+      );
+      await tool.goto(baseURL + "/tools/protocol-finder");
+      const input = tool.getByLabel("文档编号或文件名");
+      await tool.getByRole("button", { name: "填入示例 S22403692" }).click();
+      assert.equal(await input.inputValue(), "S22403692");
+      await tool.getByText("将按 SA2 提案 S2-2403692 查询").waitFor();
+      assert.equal(requests.length, 0);
+      await tool.getByRole("button", { name: "查询", exact: true }).click();
+      await tool.getByRole("button", { name: "取消", exact: true }).waitFor();
+      await tool.keyboard.press("Escape");
+      await tool.getByText("已取消查询。").waitFor();
+      allowDelayed();
+
+      await tool.getByRole("button", { name: "查 CR", exact: true }).click();
+      await tool.getByLabel("规范号", { exact: true }).fill("23.501");
+      await tool.getByRole("button", { name: "查询", exact: true }).click();
+      await tool
+        .getByRole("button", { name: "查看 " + id, exact: true })
+        .click();
+      await tool.getByRole("heading", { name: id, exact: true }).waitFor();
+      assert.deepEqual(requests.at(-1), [id, "164"]);
+      assert.equal(await tool.getByRole("textbox", {name:"会议号（选填）",exact:true}).inputValue(), "164");
+      await tool.getByRole("button", { name: "查 CR", exact: true }).click();
+      await tool.getByRole("button", { name: "查看 " + id }).waitFor();
+      assert.equal(crQueries, 1);
+
+      await tool
+        .getByRole("button", { name: "议程与纪要", exact: true })
+        .click();
+      const meeting = tool.getByLabel("会议号", { exact: true });
+      await tool.waitForFunction(
+        (value) =>
+          document.querySelector('input[list="doc-meetings"]')?.value === value,
+        latest,
+      );
+      const response = tool.waitForResponse((r) =>
+        r.url().includes("/meetings?group=CT4"),
+      );
+      await tool.getByLabel("工作组").selectOption("CT4");
+      await meeting.fill("130");
+      allowMeeting();
+      await response;
+      await tool.waitForFunction(() =>
+        document.querySelector("#doc-meetings option"),
+      );
+      assert.equal(await meeting.inputValue(), "130");
+
+      await tool.getByRole("button", { name: "批量下载", exact: true }).click();
+      await tool.waitForFunction(
+        (value) =>
+          document.querySelector('input[list="doc-meetings"]')?.value === value,
+        latest,
+      );
+      await tool.getByLabel("粘贴编号", { exact: true }).check();
+      const paste = tool.getByLabel("含 TDoc 编号的文本");
+      await paste.fill("没有编号");
+      await tool.getByText("没有识别到 TDoc 编号，请检查后再试。").waitFor();
+      await paste.fill(
+        "先看 s22403692、S2-2403692.zip 和 RP-243021，再看 S3i240296",
+      );
+      assert.equal(
+        await tool.getByRole("button", { name: "打包下载（0）" }).isDisabled(),
+        true,
+      );
+      await paste.fill("先看 s22403692、S2-2403692.zip 和 RP-243021");
+      await tool.getByRole("textbox", {name:"会议号（选填）",exact:true}).fill("164");
+      const sent = tool.waitForRequest((r) =>
+        r.url().endsWith("/batch-download"),
+      );
+      await tool.getByRole("button", { name: "打包下载（2）" }).click();
+      assert.deepEqual((await sent).postDataJSON().items, [
+        { tdocId: id, meetingHint: "164" },
+        { tdocId: "RP-243021", meetingHint: "164" },
+      ]);
+      assert.equal(
+        await tool
+          .locator("main")
+          .evaluate((el) => el.scrollWidth > el.clientWidth),
+        false,
+      );
+      await tool.screenshot({
+        path: path.join(
+          artifacts,
+          "document-shortcuts-" + (mobile ? "mobile" : "desktop") + ".png",
+        ),
+        fullPage: true,
+      });
+    } finally {
+      await context.close();
+    }
+  }
+});
